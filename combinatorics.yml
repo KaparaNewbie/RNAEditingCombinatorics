@@ -1,0 +1,53 @@
+name: combinatorics
+
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+
+dependencies:
+  - black
+  - multiqc >= 1.11
+  - scikit-learn >= 0.24.2
+  - scipy >= 1.6.2
+  - statsmodels >= 0.12.2
+  - python >= 3.9.6, < 3.10
+  - pandas >= 1.2.5
+  - biopython >= 1.77
+  - bedtools >= 2.30.0
+  - pybedtools >= 0.8.2
+  - jupyterlab >= 3.1.4
+  - papermill >= 2.3.3
+  - nbconvert >= 6.1.0
+  - nbformat >= 5.2  # https://stackoverflow.com/a/71595097/10249633
+  - more-itertools >= 8.5.0
+  - plotly >= 5.1.0
+  - matplotlib >= 3.3.4
+  - seaborn >= 0.11.0
+  - logomaker >= 0.8
+  - python-language-server
+  - ipywidgets
+  - jupyterlab-lsp >= 3.1.0  # https://github.com/jupyter-lsp/jupyterlab-lsp/releases previously was = 3.1.0
+  - jupyter-lsp-python >= 1.1.0  # https://github.com/python-lsp/python-lsp-server/issues/144 previously was = 1.1.0
+  - jupyter_server >= 1.13.4  # todo check - previously was = 1.13.3
+  - nodejs
+  - htslib
+  - python-kaleido
+  # - salmon = 1.4.0
+  - samtools >= 1.9
+  # - bcftools = 1.14
+  - openpyxl
+  - pysam >= 0.17.0
+  - fastqc 
+  # - firefox
+  # - jupyterlab_code_formatter # todo delete
+  - icecream
+  # - frozendict 
+  # - networkx 
+  - matplotlib-venn
+  - prinseq 
+  - bwa-mem2
+  - trimmomatic 
+  # - modin-ray
+  # - numba
+  - jupytext 

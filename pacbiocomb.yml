@@ -1,0 +1,14 @@
+name: pacbiocomb
+
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+
+dependencies:
+  # - python = 2.7
+  - pbmm2 = 1.7.0 
+  - pbmarkdup = 1.0.2
+  - pbccs = 6.2.0
+  - extracthifi = 1.0.0
+  - pbbam >= 1.7.0

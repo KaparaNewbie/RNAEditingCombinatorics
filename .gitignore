@@ -1,0 +1,11 @@
+/.idea
+/.vscode
+/D.pealeii
+*/__pycache__
+*.pyc
+/*.pyc
+Code/Pileup/__pycache__/*
+Code/Pileup/__pycache__/
+*.ipynb
+/*.ipynb
+*.ipynb_checkpoints*
