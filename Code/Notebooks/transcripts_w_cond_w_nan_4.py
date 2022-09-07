@@ -3684,7 +3684,7 @@ for percentile_df, condition in zip(percentile_dfs, conditions):
 
     fig.show()
 
-# %% jupyter={"source_hidden": true} tags=[]
+# %% tags=[]
 x_axis_name = "#Protein"
 y_axis_name = "Relative expression (%)"
 head_title = f"Relative expression of proteins considering the largest solution in each {str(condition_col).lower()}"
@@ -3987,30 +3987,141 @@ max_sol_dfs[0]
 # max_sol_dfs[1]
 
 # %%
+max_sol_df = max_sol_dfs[0]
+unique_proteins_df = unique_proteins_dfs[0]
+
 cols_to_use_from_max_sol_df = [condition_col, "Protein", "#Solution", "Algorithm", "TotalEqualSupportingReads", "TotalWeightedSupportingReads", "Diff5+"]
 cols_to_use_from_unique_proteins_df = [condition_col, "Protein"] + unique_proteins_dfs[0].columns[unique_proteins_first_col_pos:].to_list()
 
+df = (
+    max_sol_df
+    .loc[:, cols_to_use_from_max_sol_df]
+    .merge(
+        unique_proteins_df.loc[:, cols_to_use_from_unique_proteins_df],
+        how="left",
+        on=[condition_col, "Protein"]
+    )
+)
+
+# df
+df = df.iloc[:, 7:]
+df
 
 # %%
-# def update_cell(cell, original_aa):
-#     if "," in cell:
-#         return np.nan
-#     elif cell == original_aa:
-#         return 0
-#     else:
-#         return 1
+df.values.shape
+
+# %%
+df.values.reshape(-1)
+
+# %%
+s1 = set(df.values.reshape(-1))
+
+s2_singles = set([x for x in s1 if len(x) == 1])
+
+s2_mults = s1 - s2_singles
+s2_mults = set([y for x in s2_mult for y in x.split(",")])
+
+possible_aas = sorted(list(s2_singles & s2_mults))
+possible_aas
+
+# %%
+len(possible_aas)
+
+# %%
+cell_aas = set("E,G,K,R".split(","))
+cell_aas
+
+
+# %%
+def possible_aa_present_in(possible_aa, cell_aas):
+    if possible_aa in cell_aas:
+        return "1"
+    return "0"
+
+
+# %%
+def cell_to_string_vector(cell, possible_aas):
+    cell_aas = set(cell.split(","))
+    v = [possible_aa_present_in(possible_aa, cell_aas) for possible_aa in possible_aas]
+    s = ",".join(v)
+    return s
+
+
+# %%
+cell_to_string_vector("E,G,K,R", possible_aas)
+
+# %%
+cell_to_string_vector_map = {
+    cell: cell_to_string_vector(cell, possible_aas)
+    for cell in s1
+}
+cell_to_string_vector_map
+
+
+# %%
+def make_cell_to_string_vector_map(df):
+    s1 = set(df.values.reshape(-1))
+
+    s2_singles = set([x for x in s1 if len(x) == 1])
+
+    s2_mults = s1 - s2_singles
+    s2_mults = set([y for x in s2_mult for y in x.split(",")])
+
+    possible_aas = sorted(list(s2_singles & s2_mults))
     
-def update_cell(cell, original_aa):
-    if cell == original_aa:
-        return -1
-    elif "," in cell:
-        return 0
-    else:
-        return 1
+    cell_to_string_vector_map = {
+        cell: cell_to_string_vector(cell, possible_aas)
+        for cell in s1
+    }
+    
+    return cell_to_string_vector_map
 
 
 # %%
-def prepare_tsne_df(max_sol_df, unique_proteins_df, unique_proteins_first_col_pos):
+df
+
+# %%
+df.replace(cell_to_string_vector_map)
+
+# %%
+cell_to_string_vector_map = make_cell_to_string_vector_map(df)
+cell_to_string_vector_map
+
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+def update_cell(
+    cell, 
+    original_aa, 
+    unchanged_value, 
+    imputed_nan_value, 
+    edited_value,
+    check_unchanged_func = lambda cell, original_aa: cell == original_aa,
+    check_nan_func = lambda cell: "," in cell
+):
+    if check_unchanged_func(cell, original_aa):
+        return unchanged_value
+    elif check_nan_func(cell):
+        return imputed_nan_value
+    else:
+        return edited_value
+    
+
+
+# %%
+ML_INPUT_FIRST_COL_POS = 11
+
+
+def prepare_ml_input_df(max_sol_df, unique_proteins_df, unique_proteins_first_col_pos, sorting_col):
+    """Prepare an input df fit for some machine learning algorithms such as tSNE, PCA, etc."""
+    
     cols_to_use_from_max_sol_df = [condition_col, "Protein", "#Solution", "Algorithm", "TotalEqualSupportingReads", "TotalWeightedSupportingReads", "Diff5+"]
     cols_to_use_from_unique_proteins_df = [condition_col, "Protein"] + unique_proteins_df.columns[unique_proteins_first_col_pos:].to_list()
     
@@ -4027,10 +4138,43 @@ def prepare_tsne_df(max_sol_df, unique_proteins_df, unique_proteins_first_col_po
     df_a = df.iloc[:, :7]
 
     original_aas = [col.split("(")[1][0] for col in df.columns[7:]]
+    
+    # df_b = df.iloc[:, 7:].apply(
+    #     lambda row: [
+    #         update_cell(cell, original_aa)
+    #         for cell, original_aa in zip(row, original_aas)
+    #     ],
+    #     axis=1,
+    #     result_type="broadcast"
+    # )
+    
     df_b = df.iloc[:, 7:].apply(
         lambda row: [
-            update_cell(cell, original_aa)
+            update_cell(
+                cell, 
+                original_aa, 
+                0, 
+                np.nan, 
+                1
+            )
             for cell, original_aa in zip(row, original_aas)
+        ],
+        axis=1,
+        result_type="broadcast"
+    )
+    mean_col_editing_freqs_wo_nan = df_b.apply(np.mean)
+    df_b = df_b.apply(
+        lambda row: [
+            update_cell(
+                cell, 
+                original_aa, 
+                0.0, 
+                imputed_nan_value, 
+                1.0,
+                check_unchanged_func=lambda cell, original_aa: cell == 0,
+                check_nan_func=lambda cell: np.isnan(cell)
+            )
+            for cell, original_aa, imputed_nan_value in zip(row, original_aas, mean_col_editing_freqs_wo_nan)
         ],
         axis=1,
         result_type="broadcast"
@@ -4039,18 +4183,26 @@ def prepare_tsne_df(max_sol_df, unique_proteins_df, unique_proteins_first_col_po
     df = pd.concat([df_a, df_b], axis=1)
 
     df.insert(6, "MeanTotalSupportingReads", (df["TotalEqualSupportingReads"] + df["TotalWeightedSupportingReads"]) / 2)
-    df.insert(7, "%MeanTotalExpression", 100 * df["MeanTotalSupportingReads"] / df["MeanTotalSupportingReads"].sum())
-    df = df.sort_values("%MeanTotalExpression", ascending=False)
+    df.insert(7, "%EqualTotalExpression", 100 * df["TotalEqualSupportingReads"] / df["TotalEqualSupportingReads"].sum())
+    df.insert(8, "%WeightedTotalExpression", 100 * df["TotalWeightedSupportingReads"] / df["TotalWeightedSupportingReads"].sum())
+    df.insert(9, "%MeanTotalExpression", 100 * df["MeanTotalSupportingReads"] / df["MeanTotalSupportingReads"].sum())
+    df = df.sort_values(sorting_col, ascending=False)
     
     return df
 
 
 # %%
-tsne_dfs = [
-    prepare_tsne_df(max_sol_df, unique_proteins_df, unique_proteins_first_col_pos)
+equal_exp_tsne_input_dfs = [
+    prepare_ml_input_df(max_sol_df, unique_proteins_df, unique_proteins_first_col_pos, sorting_col="%EqualTotalExpression")
     for max_sol_df, unique_proteins_df in zip(max_sol_dfs, unique_proteins_dfs)
 ]
-tsne_dfs[0]
+# equal_exp_input_tsne_dfs[0]
+
+weighted_exp_tsne_input_dfs = [
+    prepare_ml_input_df(max_sol_df, unique_proteins_df, unique_proteins_first_col_pos, sorting_col="%WeightedTotalExpression")
+    for max_sol_df, unique_proteins_df in zip(max_sol_dfs, unique_proteins_dfs)
+]
+weighted_exp_input_tsne_dfs[0]
 
 
 # %%
@@ -4065,127 +4217,259 @@ def color_highest_expressed_proteins(n, rank_cutoff, color_options=["red", "blac
     return colors
 
 
-# %%
+# %% tags=[] jupyter={"source_hidden": true}
+# X = tsne_dfs[0].iloc[:1000, 11:].values
+
+# # tsne_df = tsne_dfs[0]
+
+# rng = np.random.RandomState(seed)
+
+# t_sne = TSNE(
+#     n_components=2,
+#     learning_rate="auto",
+#     perplexity=30,
+#     n_iter=300,
+#     init="random",
+#     random_state=rng,
+#     n_jobs=20
+# )
+
+# prots_perplexity_tsne = t_sne.fit_transform(X)
+
+# x, y = prots_perplexity_tsne.T
+
+# n = X.shape[0]
+# rank_cutoff = 300
+# color_options = ["red", "white"]
+# colors = color_highest_expressed_proteins(n, rank_cutoff, color_options)
+
+# fig = go.Figure(
+#     data=go.Scattergl(
+#         x=x,
+#         y=y,
+#         mode='markers',
+#         marker=dict(
+#             color=colors,
+#             line_width=0.5
+#         )
+#     )
+# )
+
+# fig.update_layout(
+#     width=600,
+#     height=600,
+#     template=template
+# )
+
+# ic(t_sne.n_iter_)
+# ic(t_sne.kl_divergence_)
+
+# fig.show()
 
 # %%
-X = tsne_dfs[0].iloc[:1000, 9:].values
-
-# tsne_df = tsne_dfs[0]
-
-t_sne = TSNE(
+def run_tsnes(
+    conditions, 
+    tsne_input_dfs, 
+    seed, 
+    perplexities=[5, 30, 50, 100],
     n_components=2,
     learning_rate="auto",
-    perplexity=30,
     n_iter=300,
     init="random",
-    random_state=rng,
-    n_jobs=20
-)
+    n_jobs=20,
+    first_col_pos=ML_INPUT_FIRST_COL_POS,
+    top_expressed_proteins=None
+):
+    conditions_tsnes = []
+    conditions_Xs = []
+
+    rng = np.random.RandomState(seed)
+
+    for condition, tsne_input_df in zip(conditions, tsne_input_dfs):
+
+        condition_tsnes = []
+
+        if top_expressed_proteins is None:
+            _top_expressed_proteins = len(tsne_input_df)
+        else:
+            _top_expressed_proteins = top_expressed_proteins
+        X = tsne_input_df.iloc[:_top_expressed_proteins, first_col_pos:].values
+        conditions_Xs.append(X)
+
+        for perplexity in perplexities:
+
+            t_sne = TSNE(
+                n_components=n_components,
+                learning_rate=learning_rate,
+                perplexity=perplexity,
+                n_iter=n_iter,
+                init=init,
+                random_state=rng,
+                n_jobs=n_jobs
+            )
+
+            prots_perplexity_tsne = t_sne.fit_transform(X)
+            condition_tsnes.append(prots_perplexity_tsne)
+
+        conditions_tsnes.append(condition_tsnes)
+        
+    return conditions_tsnes, conditions_Xs
+
 
 # %%
-prots_perplexity_tsne = t_sne.fit_transform(X)
+def run_pcas(
+    conditions, 
+    pca_input_dfs, 
+    seed, 
+    n_components=2,
+    first_col_pos=ML_INPUT_FIRST_COL_POS,
+    top_expressed_proteins=None
+):
+    components_dfs = []
+
+    rng = np.random.RandomState(seed)
+
+    for condition, pca_input_df in zip(conditions, pca_input_dfs):
+        
+        if top_expressed_proteins is None:
+            _top_expressed_proteins = len(pca_input_df)
+        else:
+            _top_expressed_proteins = top_expressed_proteins
+        X = pca_input_df.iloc[:_top_expressed_proteins, first_col_pos:].values
+        
+        pca = PCA(n_components=n_components, random_state=rng)
+        components = pca.fit_transform(X)
+        components_df = pd.DataFrame(components).rename(columns={0: "PC1", 1: "PC2"})
+        components_dfs.append(components_df)
+        
+    return components_dfs
+
+
+# %% [markdown]
+# > All proteins
 
 # %%
-x, y = prots_perplexity_tsne.T
+# perplexities = [5, 30, 50, 100]
+perplexities = [5, 30, 50, 100, 150, 200]
+n_iter = 1000
 
-n = X.shape[0]
+# %%
+# mean_conditions_tsnes, mean_conditions_Xs = run_tsnes(conditions, mean_exp_tsne_input_dfs, seed, perplexities=perplexities)
+equal_conditions_tsnes, equal_conditions_Xs = run_tsnes(conditions, equal_exp_tsne_input_dfs, seed, perplexities=perplexities, n_iter=n_iter)
+weighted_conditions_tsnes, weighted_conditions_Xs = run_tsnes(conditions, weighted_exp_tsne_input_dfs, seed, perplexities=perplexities, n_iter=n_iter)
+
+# %% tags=[]
 rank_cutoff = 300
-color_options = ["red", "white"]
-colors = color_highest_expressed_proteins(n, rank_cutoff, color_options)
 
-fig = go.Figure(
-    data=go.Scattergl(
-        x=x,
-        y=y,
-        mode='markers',
-        marker=dict(
-            color=colors,
-            line_width=0.5
-        )
+for conditions_tsnes, conditions_Xs, sorting_method in zip(
+    [equal_conditions_tsnes, weighted_conditions_tsnes],
+    [equal_conditions_Xs, weighted_conditions_Xs],
+    ["equal", "weighted"]
+):
+
+    # head_title = (
+    #     f"t-SNEs for largest solution of each {str(condition_col).lower()} under different perplexities, sorted by % of total {sorting_method} expression"
+    #     "<br>"
+    #     f"<sub>{rank_cutoff} highest expressed proteins are colored</sub>"
+    # )
+    head_title = (
+        f"t-SNEs for largest solution of each {str(condition_col).lower()} under different perplexities"
+        "<br>"
+        f"<sub>{rank_cutoff} highest expressed proteins (according to % of total {sorting_method} expression) are colored</sub>"
     )
-)
+    row_titles = conditions
+    column_titles = [f"Perplexity = {perplexity}" for perplexity in perplexities]
 
-fig.update_layout(
-    width=600,
-    height=600,
-    template=template
-)
+    fig = make_subplots(
+        rows=len(conditions),
+        cols=len(perplexities),
+        row_titles=row_titles,
+        column_titles=column_titles,
+        # shared_yaxes=True,
+        # shared_xaxes=True
+    )
 
-fig.show()
+    for row, (condition, X, condition_tsnes) in enumerate(zip(conditions, conditions_Xs, conditions_tsnes), start=1):
 
-# %%
-t_sne.n_iter_
+        n = X.shape[0]
+        color_options = [color_discrete_map[condition], "white"]
+        colors = color_highest_expressed_proteins(n, rank_cutoff, color_options)
 
-# %%
-t_sne.kl_divergence_
+        for col, prots_perplexity_tsne in enumerate(condition_tsnes, start=1):
 
-# %%
+            x, y = prots_perplexity_tsne.T
 
-# %%
-perplexities = [5, 30, 50, 100]
+            fig.add_trace(
+                go.Scattergl(
+                    x=x,
+                    y=y,
+                    mode="markers",
+                    marker=dict(
+                        color=colors,
+                        line_width=0.5
+                    )
+                ),
+                row=row,
+                col=col,
+            )
 
-conditions_tsnes = []
-conditions_Xs = []
+    fig.update_layout(
+        title_text=head_title,
+        title_y=0.95,
+        template=template,
+        showlegend=False,
+        width=1200,
+        height=600,
+    )
 
-rng = np.random.RandomState(seed)
-
-for condition, tsne_df in zip(conditions, tsne_dfs):
-    
-    condition_tsnes = []
-    
-    X = tsne_df.iloc[:, 9:].values
-    conditions_Xs.append(X)
-    
-    for perplexity in perplexities:
-    
-        t_sne = TSNE(
-            n_components=2,
-            learning_rate="auto",
-            perplexity=perplexity,
-            n_iter=300,
-            init="random",
-            random_state=rng,
-            n_jobs=20
-        )
-        
-        prots_perplexity_tsne = t_sne.fit_transform(X)
-        condition_tsnes.append(prots_perplexity_tsne)
-    
-    conditions_tsnes.append(condition_tsnes)
+    fig.show()
 
 # %%
+equal_conditions_pcas = run_pcas(conditions, equal_exp_tsne_input_dfs, seed)
+weighted_conditions_pcas = run_pcas(conditions, weighted_exp_tsne_input_dfs, seed)
+
+# %%
+len(equal_conditions_pcas)
+
+# %%
+len(equal_conditions_pcas[0])
+
+# %% tags=[]
 rank_cutoff = 300
 
-# x_axis_name = "#Protein"
-# y_axis_name = "Relative expression (%)"
-head_title = (
-    f"t-SNEs for largest solution of each {str(condition_col).lower()} under different perplexities"
-    # "<br>"
-    # f"<sub>{rank_cutoff} highest expressed proteins are colored</sub>"
-)
-row_titles = conditions
-column_titles = [f"Perplexity = {perplexity}" for perplexity in perplexities]
+for conditions_pcas, sorting_method in zip(
+    [equal_conditions_pcas, weighted_conditions_pcas],
+    ["equal", "weighted"]
+):
 
-fig = make_subplots(
-    rows=len(conditions),
-    cols=len(perplexities),
-    # y_title=y_axis_name,
-    # x_title=x_axis_name,
-    row_titles=row_titles,
-    column_titles=column_titles,
-    # shared_yaxes=True,
-    # shared_xaxes=True
-)
+    head_title = (
+        f"PCA for largest solution of each {str(condition_col).lower()}"
+        "<br>"
+        f"<sub>{rank_cutoff} highest expressed proteins (according to % of total {sorting_method} expression) are colored</sub>"
+    )
+    # row_titles = conditions
+    # column_titles = [f"Perplexity = {perplexity}" for perplexity in perplexities]
+    column_titles = conditions
 
-for row, (condition, X, condition_tsnes) in enumerate(zip(conditions, conditions_Xs, conditions_tsnes), start=1):
-    
-    n = X.shape[0]
-    color_options = [color_discrete_map[condition], "white"]
-    colors = color_highest_expressed_proteins(n, rank_cutoff, color_options)
-    
-    for col, prots_perplexity_tsne in enumerate(condition_tsnes, start=1):
+    fig = make_subplots(
+        rows=1,
+        cols=len(conditions),
+        # row_titles=row_titles,
+        column_titles=column_titles,
+        shared_yaxes=True,
+        shared_xaxes=True,
+        x_title="PC1",
+        y_title="PC2",
+    )
+
+    for col, (condition, condition_pca) in enumerate(zip(conditions, conditions_pcas), start=1):
         
-        x, y = prots_perplexity_tsne.T
+        n = len(condition_pca)
+        color_options = [color_discrete_map[condition], "white"]
+        colors = color_highest_expressed_proteins(n, rank_cutoff, color_options)
+        
+        x = condition_pca["PC1"]
+        y = condition_pca["PC2"]
         
         fig.add_trace(
             go.Scattergl(
@@ -4197,25 +4481,196 @@ for row, (condition, X, condition_tsnes) in enumerate(zip(conditions, conditions
                     line_width=0.5
                 )
             ),
-            row=row,
+            row=1,
+            col=col,
+        )
+
+    fig.update_layout(
+        title_text=head_title,
+        title_y=0.95,
+        template=template,
+        showlegend=False,
+        width=1200,
+        height=600,
+    )
+
+    fig.show()
+
+# %% [markdown]
+# > Top 1000 expressed proteins
+
+# %%
+# perplexities = [5, 30, 50, 100]
+perplexities = [5, 30, 50, 100, 150, 200]
+
+# %%
+top_expressed_proteins = 1000
+top_1000_equal_conditions_tsnes, top_1000_equal_conditions_Xs = run_tsnes(conditions, equal_exp_tsne_input_dfs, seed, perplexities=perplexities, top_expressed_proteins=top_expressed_proteins)
+top_1000_weighted_conditions_tsnes, top_1000_weighted_conditions_Xs = run_tsnes(conditions, weighted_exp_tsne_input_dfs, seed, perplexities=perplexities, top_expressed_proteins=top_expressed_proteins)
+
+# %% tags=[]
+rank_cutoff = 100
+
+for conditions_tsnes, conditions_Xs, sorting_method in zip(
+    [top_1000_equal_conditions_tsnes, top_1000_weighted_conditions_tsnes],
+    [top_1000_equal_conditions_Xs, top_1000_weighted_conditions_Xs],
+    ["equal", "weighted"]
+):
+
+    # head_title = (
+    #     f"t-SNEs for top {top_expressed_proteins} expressed proteins in largest solution of each {str(condition_col).lower()} under different perplexities, sorted by % of total {sorting_method} expression"
+    #     "<br>"
+    #     f"<sub>{rank_cutoff} highest expressed proteins are colored</sub>"
+    # )
+    head_title = (
+        f"t-SNEs for top {top_expressed_proteins} expressed proteins in largest solution of each {str(condition_col).lower()} under different perplexities"
+        "<br>"
+        f"<sub>{rank_cutoff} highest expressed proteins (according to % of total {sorting_method} expression) are colored</sub>"
+    )
+    
+    row_titles = conditions
+    column_titles = [f"Perplexity = {perplexity}" for perplexity in perplexities]
+
+    fig = make_subplots(
+        rows=len(conditions),
+        cols=len(perplexities),
+        row_titles=row_titles,
+        column_titles=column_titles,
+        # shared_yaxes=True,
+        # shared_xaxes=True
+    )
+
+    for row, (condition, X, condition_tsnes) in enumerate(zip(conditions, conditions_Xs, conditions_tsnes), start=1):
+
+        n = X.shape[0]
+        color_options = [color_discrete_map[condition], "white"]
+        colors = color_highest_expressed_proteins(n, rank_cutoff, color_options)
+
+        for col, prots_perplexity_tsne in enumerate(condition_tsnes, start=1):
+
+            x, y = prots_perplexity_tsne.T
+
+            fig.add_trace(
+                go.Scattergl(
+                    x=x,
+                    y=y,
+                    mode="markers",
+                    marker=dict(
+                        color=colors,
+                        line_width=0.5
+                    )
+                ),
+                row=row,
+                col=col,
+            )
+
+    fig.update_layout(
+        title_text=head_title,
+        # title_pad_b=3,
+        title_y=0.95,
+        template=template,
+        showlegend=False,
+        width=1200,
+        height=600,
+    )
+
+    fig.show()
+
+# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"} tags=[]
+cols = len(conditions)
+
+fig = make_subplots(
+    rows=1,
+    cols=cols,
+    subplot_titles=conditions,
+    shared_yaxes=True,
+    shared_xaxes=True,
+    x_title="PC1",
+    y_title="PC2",
+)
+
+min_x = None
+max_y = None
+max_x = None
+min_y = None
+
+components_dfs = []
+pcas = []
+for condition, f1_jaccard_df in zip(
+    conditions, fraction_1_jaccard_dfs
+):
+    f1_df = distinct_unique_proteins_df.loc[distinct_unique_proteins_df[condition_col] == condition]
+    f1_df = f1_df.loc[f1_df["Fraction"] == 1.0].reset_index(drop=True)
+    X = f1_jaccard_df
+    features_names = X.columns
+    pca = PCA(n_components=2, random_state=1892)  # our lord & savior J.R.R.T was born in 1892
+    components = pca.fit_transform(X)
+    components = pd.concat([f1_df.loc[:, ["FractionRepetition", "Algorithm", "AlgorithmRepetition"]], pd.DataFrame(components)], axis=1).rename(columns={0: "PC1", 1: "PC2"})
+    min_x = min(min_x, components["PC1"].min()) if min_x else components["PC1"].min()
+    max_y = max(max_y, components["PC2"].max()) if max_y else components["PC2"].max()
+    max_x = max(max_x, components["PC1"].max()) if max_x else components["PC1"].max()
+    min_y = min(min_y, components["PC2"].min()) if min_y else components["PC2"].min()
+    components_dfs.append(components)
+    pcas.append(pca)
+
+for col, condition, components, f1_df, pca in zip(
+    range(1, cols + 1), conditions, components_dfs, fraction_1_dfs, pcas
+):
+    
+    for i, alg in enumerate(f1_df["Algorithm"].unique()):
+    
+        alg_components = components.loc[components["Algorithm"] == alg]
+        x = alg_components["PC1"]
+        y = alg_components["PC2"]
+
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=y,
+                mode="markers",
+                marker_color=subcolors_discrete_map[condition][i],
+                name=f"{condition}, {alg}",
+            ),
+            row=1,
             col=col,
         )
         
+    fig.add_annotation(
+        row=1,
+        col=col,
+        # align="right",
+        x=min_x+abs(min_x)*0.4,
+        y=max_y-abs(max_y)*0.34,
+        xref="x",
+        yref="y",
+        text=(
+            "<b>Variance explaind</b>"
+            "<br>"
+            f"PC1 = {pca.explained_variance_ratio_[0] * 100:.2f}%"
+            "<br>"
+            f"PC2 = {pca.explained_variance_ratio_[1] * 100:.2f}%"
+        ),
+        bgcolor="white",
+        opacity=0.7,
+        borderpad=4,
+    )
+
 fig.update_layout(
-    title_text=head_title,
-    # title_y=0.95,
+    title_text="Jaccard Index PCA on reads supporting different sets of distinct unique proteins",
+    legend_title_text=f"{condition_col}, Algorithm",
     template=template,
-    showlegend=False,
-    width=1200,
-    height=600,
 )
+
+fig.update_xaxes(range=[min_x-abs(min_x)*0.2, max_x+abs(max_x)*0.2])
+# fig.update_yaxes(range=[min_y, max_y])
 
 fig.show()
 
+
 # %%
-prots_perplexity_tsne = conditions_tsnes[0][3]
-params = prots_perplexity_tsne.get_params
-params
+# prots_perplexity_tsne = conditions_tsnes[0][3]
+# params = prots_perplexity_tsne.get_params
+# params
 
 # %%
 # x, y = S_t_sne.T

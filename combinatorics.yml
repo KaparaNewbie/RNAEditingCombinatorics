@@ -51,3 +51,4 @@ dependencies:
   # - modin-ray
   # - numba
   - jupytext 
+  - kmodes 
