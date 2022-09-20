@@ -2,64 +2,36 @@
 
 # Project
 
+
+
+
+<!-- Google Cloud SDK (aka gcloud)
+
+Google Cloud Storage (GCS) - conveniet to use with gsutil (Google Storage Utilities) from the CLI -->
+
+
+
+
 # VM
-
-
-
-
-
-Google Cloud SDK (aka gcloud)
-
-Google Cloud Storage (GCS) - conveniet to use with gsutil (Google Storage Utilities) from the CLI
-
-
-
-<!-- 80 vCPU + 1922 GB memory
-20 GB balanced persistent disk -->
-
 
 
 8 vCPU + 64 GB memory
 
 Boot disk -> CentOS 7
 
+<!-- 80 vCPU + 1922 GB memory -->
+
+20 GB balanced persistent disk 
+
 Access scopes -> Allow full access to all Cloud APIs
 Firewall -> Allow HTTP traffic, Allow HTTPS traffic
-
-
-Logging into Your VM by Using SSH -> Open in a browser window
-
-
-sudo yum check-update
-
-sudo yum install wget
-sudo yum install nano  
-sudo yum install tmux
-
-sudo yum install git
-git config --global user.name "Kobi Shapira"
-git config --global user.email "shapirakobi@gmail.com"
-
-ssh-keygen -t ed25519 -C "shapirakobi@gmail.com"
-
-Your identification has been saved in /home/shapirakobi2/.ssh/id_ed25519.
-Your public key has been saved in /home/shapirakobi2/.ssh/id_ed25519.pub.
-
-eval "$(ssh-agent -s)"
-ssh-add ~/.ssh/id_ed25519
-ssh -T git@github.com
-
-
-
-
-tmux
 
 
 Storage -> Disks -> Create disk
 
     Disks
 
-    Create disk
+    Create disk   # comb-1-disk, on the same region as the vm instance
 
     On the same region
 
@@ -79,15 +51,55 @@ GO BACK to VM instances
 
     Existing
 
+
+
+Logging into Your VM by Using SSH -> Open in a browser window
+
+
+sudo yum check-update
+
+sudo yum install wget
+sudo yum install nano  
+sudo yum install tmux
+
+
 Back to ssh - mounting the disk
 
-    "Lsblk " - show disks
+    lsblk   # show disks
 
     sudo mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard /dev/sdb
 
     mkdir Data
 
     sudo mount -o discard,defaults /dev/sdb ~/Data
+
+
+sudo yum install git
+git config --global user.name "Kobi Shapira"
+git config --global user.email "shapirakobi@gmail.com"
+
+github -> settings -> Developer settings -> Personal access tokens -> generate new token -> mark all actions
+
+
+
+ssh-keygen -t ed25519 -C "shapirakobi@gmail.com"
+
+Your identification has been saved in /home/shapirakobi2/.ssh/id_ed25519.
+Your public key has been saved in /home/shapirakobi2/.ssh/id_ed25519.pub.
+
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/id_ed25519
+ssh -T git@github.com
+
+
+
+
+tmux
+
+
+
+
+
 
 installing julia
     mkdir -p Programs/Julia
