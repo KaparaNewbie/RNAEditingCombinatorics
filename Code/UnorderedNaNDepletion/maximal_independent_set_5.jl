@@ -1,13 +1,27 @@
-# 4 is the next version after 3B, 
-# the difference should be in unedited rows where it should also deal deal with AAs or sets of AAs
+# todo cloud change, verify on the server as well
+n_workers = length(workers())
+if n_workers > 1
+    # remove previous workers
+    rmprocs(workers())
+    # add new one, but with limited number of threads
+    addprocs(
+        n_workers,
+        exeflags=[
+            "--threads=$(Int(round(Threads.nthreads() / n_workers)))",
+            "--project"
+        ]
+    )
+end
+
 
 # https://discourse.julialang.org/t/julia-python-equivalent-of-main/35433
 if abspath(PROGRAM_FILE) == @__FILE__
     using Pkg
-    Pkg.activate(".")
+    # Pkg.activate(".") # todo cloud change, verify on the server as well
 else
     using BenchmarkTools
 end
+
 
 using ArgParse
 using DataFrames # for reading input and writing output
@@ -26,19 +40,20 @@ using ThreadsX
 using InlineStrings  # for saving space on "Reads" col in input `df`
 
 
-n_workers = length(workers())
-if n_workers > 1
-    # remove previous workers
-    rmprocs(workers())
-    # add new one, but with limited number of threads
-    addprocs(
-        n_workers,
-        exeflags=[
-            "--threads=$(Int(round(Threads.nthreads() / n_workers)))",
-            "--project"
-        ]
-    )
-end
+# todo cloud change, verify on the server as well
+# n_workers = length(workers())
+# if n_workers > 1
+#     # remove previous workers
+#     rmprocs(workers())
+#     # add new one, but with limited number of threads
+#     addprocs(
+#         n_workers,
+#         exeflags=[
+#             "--threads=$(Int(round(Threads.nthreads() / n_workers)))",
+#             "--project"
+#         ]
+#     )
+# end
 
 include(joinpath(@__DIR__, "consts.jl")) # for ∅
 include(joinpath(@__DIR__, "timeformatters.jl"))

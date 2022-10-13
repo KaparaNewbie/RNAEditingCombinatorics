@@ -277,15 +277,67 @@ end
 
 
 
+# distinctfiles = [
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA.AllRows.DistinctUniqueProteins.csv",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO.AllRows.DistinctUniqueProteins.csv"
+# ]
+
+# allprotsfiles = [
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv"
+# ]
+
+# samplenames = ["GRIA", "PCLO"]
+# outdir = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2"
+
 distinctfiles = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA.AllRows.DistinctUniqueProteins.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO.AllRows.DistinctUniqueProteins.csv"
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/comp141881_c0_seq3.DistinctUniqueProteins.12.07.2022-20:54:38.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/comp141044_c0_seq2.DistinctUniqueProteins.13.07.2022-06:33:23.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/comp140439_c0_seq1.DistinctUniqueProteins.12.07.2022-22:51:22.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/comp126362_c0_seq1.DistinctUniqueProteins.15.07.2022-06:11:18.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/comp141517_c0_seq1.DistinctUniqueProteins.14.07.2022-07:43:15.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/comp141840_c0_seq2.DistinctUniqueProteins.13.07.2022-20:30:25.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/comp141640_c0_seq1.DistinctUniqueProteins.12.07.2022-19:44:02.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/comp140987_c3_seq1.DistinctUniqueProteins.18.07.2022-07:50:43.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/comp140910_c2_seq1.DistinctUniqueProteins.13.07.2022-16:15:35.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/comp136058_c0_seq1.DistinctUniqueProteins.21.07.2022-07:57:53.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/comp141378_c0_seq7.DistinctUniqueProteins.19.07.2022-08:12:24.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/comp141158_c1_seq2.DistinctUniqueProteins.13.07.2022-01:54:59.csv",
 ]
 
-allprotsfiles = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv"
+samplenames = [
+    "RUSC2_MOUSE", 
+    "TRIM2_BOVIN", 
+    "CA2D3_MOUSE", 
+    "ABL_DROME", 
+    "DGLA_HUMAN", 
+    "K0513_MOUSE", 
+    "KCNAS_DROME", 
+    "ACHA4_MOUSE", 
+    "ANR17_HUMAN", 
+    "TWK7_CAEEL", 
+    "SCN1_HETBL", 
+    "CACB2_RABIT"
 ]
+chroms = [
+    "comp141881_c0_seq3",
+    "comp141044_c0_seq2",
+    "comp140439_c0_seq1",
+    "comp126362_c0_seq1",
+    "comp141517_c0_seq1",
+    "comp141840_c0_seq2",
+    "comp141640_c0_seq1",
+    "comp140987_c3_seq1",
+    "comp140910_c2_seq1",
+    "comp136058_c0_seq1",
+    "comp141378_c0_seq7",
+    "comp141158_c1_seq2"
+]
+allprotsfiles = [
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.$chrom.unique_proteins.csv"
+    for chrom in chroms
+]
+outdir = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina"
 
 firstcolpos = 15
 
@@ -298,9 +350,6 @@ falsestrings = ["FALSE", "False", "false"]
 fractions = [1.0]
 
 maxmainthreads = 30
-
-samplenames = ["GRIA", "PCLO"]
-outdir = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2"
 
 
 
