@@ -3818,13 +3818,52 @@ for percentile_df, condition in zip(percentile_dfs, conditions):
 # %%
 print(type(5))
 
+
+# %%
+def linear_to_log10(arr):
+    return np.log10(arr)
+
+# def linear_to_semilog10(arr):
+#     return 1 / linear_to_log10(arr)
+
+def log10_to_linear(log10_arr):
+    return np.power([10] * len(log10_arr), log10_arr)
+    
+# def semilog10_to_linear(log10_arr):
+#     return np.power([10] * len(log10_arr), 1 / log10_arr)
+
+# def no_transform(arr):
+#     return arr
+
+def inverse(arr):
+    return 1 / arr
+
+# todo merge with the next cell?
+
+
+# %%
+def formulate_log_equation(coef, intercept):
+    return f"y = x^{coef:.2g} * 10^{intercept:.2g}"
+
+def formulate_semilog10_equation(coef, intercept):
+    pass
+
+
+
 # %% tags=[]
-linear_spaces = [(300, 15_000), (100, 23_000)]
-log_axes = [(True, True), (True, True)]
+linear_spaces = [(300, 15_000), (400, 23_000)]  # (start, end) tuples for both x and y
+forward_transforms = [(linear_to_log10, linear_to_log10), (linear_to_log10, inverse)]  # (x, y) tuples
+reverse_transforms = [(log10_to_linear, log10_to_linear), (log10_to_linear, inverse)]  # (x, y) tuples
 
 x_axis_name = "#Protein"
 y_axis_name = "Relative expression (%)"
 head_title = f"Relative expression of proteins considering the largest solution in each {str(condition_col).lower()}"
+
+maximal_algorithms = [df.loc[0, "Algorithm"] for df in maximal_dfs]
+subplot_titles = [
+    f"{solution} ({algorithm})"
+    for solution, algorithm in zip(maximal_solutions, maximal_algorithms)
+]
 
 maximal_dfs = [
     expression_df.loc[expression_df["#Solution"] == maximal_solution].reset_index(
@@ -3833,12 +3872,13 @@ maximal_dfs = [
     for expression_df, maximal_solution in zip(expression_dfs, maximal_solutions)
 ]
 
-maximal_algorithms = [df.loc[0, "Algorithm"] for df in maximal_dfs]
+assignment_methods = ["Equal", "Weighted"]
+y_col_names = ["TotalEqualSupportingReads", "TotalWeightedSupportingReads"]
 
-subplot_titles = [
-    f"{solution} ({algorithm})"
-    for solution, algorithm in zip(maximal_solutions, maximal_algorithms)
-]
+data_marker_size = 2.5
+data_opacity = 0.2
+regression_line_width = 6
+
 
 fig = make_subplots(
     rows=1,
@@ -3850,19 +3890,14 @@ fig = make_subplots(
     shared_xaxes=True,
 )
 
-assignment_methods = ["Equal", "Weighted"]
-y_col_names = ["TotalEqualSupportingReads", "TotalWeightedSupportingReads"]
-
-marker_size = 2.5
-# marker_size = 3
-
 for col, (
     condition,
     maximal_df,
     maximal_solution,
     maximal_algorithm,
     linear_space,
-    (log_x_axis, log_y_axis),
+    (forward_x_transform, forward_y_transform),
+    (reverse_x_transform, reverse_y_transform),
 ) in enumerate(
     zip(
         conditions,
@@ -3870,7 +3905,8 @@ for col, (
         maximal_solutions,
         maximal_algorithms,
         linear_spaces,
-        log_axes,
+        forward_transforms,
+        reverse_transforms
     ),
     start=1,
 ):
@@ -3882,12 +3918,14 @@ for col, (
         assignment_df = maximal_df.sort_values(y_col_name, ascending=False).reset_index(
             drop=True
         )
-        # assignment_df["#Protein"] = [str(x) for x in range(1, len(assignment_df) + 1)]
         assignment_df["#Protein"] = list(range(1, len(assignment_df) + 1))
         assignment_df["AssignmentMethod"] = assignment_method
 
         x = assignment_df["#Protein"]
         y = 100 * assignment_df[y_col_name] / assignment_df[y_col_name].sum()
+        
+        # x = np.log10(x)
+        # y = 1 / y
 
         if assignment_method == assignment_methods[0]:
             fig.add_trace(
@@ -3899,12 +3937,10 @@ for col, (
                     name=assignment_method,
                     mode="markers",
                     marker_color=color,
-                    marker_size=marker_size,
+                    marker_size=data_marker_size,
                     marker=dict(
-                        opacity=0.2,
-                        line=dict(
-                            width=0,
-                        )
+                        opacity=data_opacity,
+                        line=dict(width=0),
                     ),
                 ),
                 row=1,
@@ -3919,12 +3955,10 @@ for col, (
                     name=assignment_method,
                     mode="markers",
                     marker_color=color,
-                    marker_size=marker_size,
+                    marker_size=data_marker_size,
                     marker=dict(
-                        opacity=0.2,
-                        line=dict(
-                            width=0,
-                        )
+                        opacity=data_opacity,
+                        line=dict(width=0),
                     ),
                 ),
                 row=1,
@@ -3944,19 +3978,13 @@ for col, (
             )
             if int(i) not in train_logspace
         ]
-
-        train_x = x[train_logspace]
-        test_x = x[test_logspace]
-        train_y = y[train_logspace]
-        test_y = y[test_logspace]
+    
+        train_x = forward_x_transform(x[train_logspace])
+        train_y = forward_y_transform(y[train_logspace])
         
-        if log_x_axis:
-            train_x = np.log10(train_x)
-            test_x = np.log10(test_x)
-        if log_y_axis:
-            train_y = np.log10(train_y)
-            test_y = np.log10(test_y)
-
+        test_x = forward_x_transform(x[test_logspace])
+        test_y = forward_y_transform(y[test_logspace])
+            
         # Create linear regression object
         regr = linear_model.LinearRegression(n_jobs=threads)
         # Train the model using the training sets
@@ -3965,10 +3993,8 @@ for col, (
         pred_y = regr.predict(np.array(test_x).reshape(-1, 1))
 
         # transform these variables back to original scale so they can plotted
-        if log_x_axis:
-            test_x = np.power([10] * len(test_x), test_x)
-        if log_y_axis:
-            pred_y = np.power([10] * len(pred_y), pred_y)
+        test_x = reverse_x_transform(test_x)
+        pred_y = reverse_y_transform(pred_y)
 
         fig.add_trace(
             go.Scatter(
@@ -3978,59 +4004,61 @@ for col, (
                 marker_color=color,
                 line=dict(
                     dash="dash",
-                    width=5,
+                    width=regression_line_width,
                 ),
-                # legendgroup=condition,
-                # name=f"{assignment_method} - fitted",
+                legendgroup=condition,
+                name=f"{assignment_method} - fitted",
                 showlegend=False
             ),
             row=1,
             col=col,
         )
         
-        # todo uncomnnet / incorporate into the plot?
-        # print("Coefficient of determination: %.2f" % r2_score(test_y, pred_y)) # 1 is perfect prediction
-        
-        if assignment_method == assignment_methods[0]:
-            textposition = "top right"
-            i = int(len(test_x) / 6)
-            text_x = test_x.iloc[i] + 400
-            text_y = pred_y[i] + 0.001
-        else:
-            textposition = "bottom left"
-            i = int(2 * len(test_x) / 3)
-            text_x = test_x.iloc[i] - 400
-            text_y = pred_y[i] - 0.001
-        
         coef = regr.coef_[0]
         intercept = regr.intercept_
+        mse = mean_squared_error(test_y, pred_y)
+        r2 = r2_score(test_y, pred_y)
         if intercept >= 0:
             operator = "+" 
         else:
             operator = "-"
             intercept = np.abs(intercept)
-            
+        
+        if assignment_method == assignment_methods[0]:
+            textposition = "top right"
+            i = int(len(test_x) / 10)
+            text_x = test_x.iloc[i] + 2000
+            text_y = pred_y[i] + 0.02
+        else:
+            textposition = "bottom left"
+            i = int(len(test_x) / 3.5)
+            text_x = test_x.iloc[0] - int(train_logspace[0] / 2)
+            text_y = pred_y[i] - 0.002
+        text_x = np.log10(text_x)
+        text_y = np.log10(text_y)
+        
         text = (
-            f"y = {coef:.2g}x {operator} {intercept:.2g}"
+            f"<b>y = {coef:.2f}x {operator} {intercept:.2f}</b>"
             "<br>"
-            f"Mean sq. err. = {mean_squared_error(test_y, pred_y):.2g}"
+            f"MSE = {mse:.2g}"  # 0 is perfect prediction
+            "<br>"
+            f"R2 = {r2:.2g}"  # 1 is perfect prediction
         )
         
-        fig.add_trace(
-            go.Scatter(
-                x=[text_x],
-                y=[text_y],
-                mode="text",
-                text=text, 
-                textfont=dict(
-                    size=10, 
-                    color=color
-                ), 
-                textposition=textposition,
-                showlegend=False
-            ),
+        fig.add_annotation(
             row=1,
             col=col,
+            x=text_x,
+            y=text_y,
+            xref="x",
+            yref="y",
+            text=text,
+            align="center",
+            font=dict(
+                size=9, 
+                color=color
+            ),
+            showarrow=False,
         )
 
 fig.update_layout(
@@ -4049,7 +4077,10 @@ fig.show()
 
 
 # %%
-0.62 / -0.47
+
+# %%
+
+# %%
 
 # %%
 train_logspace = [
@@ -4067,11 +4098,12 @@ test_logspace = [
 train_x = np.log10(x[train_logspace])
 test_x = np.log10(x[test_logspace])
 
-train_y = np.log10(y[train_logspace])
-test_y = np.log10(y[test_logspace])
-# train_y = y[train_logspace]
-# test_y = y[test_logspace]
+# train_y = np.log10(y[train_logspace])
+# test_y = np.log10(y[test_logspace])
+train_y = 1 / y[train_logspace]
+test_y = 1 / y[test_logspace]
 
+# %%
 # Create linear regression object
 regr = linear_model.LinearRegression(n_jobs=threads)
 
@@ -4088,10 +4120,17 @@ print("Mean squared error: %.2f" % mean_squared_error(test_y, pred_y))
 # The coefficient of determination: 1 is perfect prediction
 print("Coefficient of determination: %.2f" % r2_score(test_y, pred_y))
 
-_test_x = np.power([10] * len(test_x), test_x)
-_pred_y = np.power([10] * len(pred_y), pred_y)
+# test_x = np.power([10] * len(test_x), 1 / test_x)
+# pred_y = np.power([10] * len(pred_y), pred_y)
 
-px.scatter(x=_test_x, y=_pred_y)
+fig = px.scatter(x=test_x, y=pred_y)
+fig.update_xaxes(
+    type="log",
+)
+# fig.update_yaxes(
+#     type="log",
+# )
+fig.show()
 
 # %%
 

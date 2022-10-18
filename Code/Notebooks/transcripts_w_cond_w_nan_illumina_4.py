@@ -164,11 +164,10 @@ proteins_jaccard_files = [
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/comp141158_c1_seq2.JaccardMatrixProteins.13.07.2022-01:54:59.csv"
 ]
 
-# todo update & uncomment
-# expression_files = [
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA.DistinctUniqueProteins.ExpressionLevels.csv",
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO.DistinctUniqueProteins.ExpressionLevels.csv"
-# ]
+expression_files = [
+    f"/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/{condition}.DistinctUniqueProteins.ExpressionLevels.csv"
+    for condition in conditions
+]
 
 # todo update & uncomment
 # alg_repetitions = 5
@@ -3705,9 +3704,9 @@ all_conditions_sample_solutions
 # merged_sample_supp_reads_dfs[0]
 
 # %%
-# num of proteins with different assignment results
-gb = expression_dfs[0].groupby("#Solution")    
-gb.agg({"Diff5+": ['size', 'sum']})
+# # num of proteins with different assignment results
+# gb = expression_dfs[0].groupby("#Solution")    
+# gb.agg({"Diff5+": ['size', 'sum']})
 
 # %% tags=[]
 # sol926_exp_df = expression_dfs[0].loc[expression_dfs[0]["#Solution"] == "926"]
@@ -3732,8 +3731,8 @@ gb.agg({"Diff5+": ['size', 'sum']})
 # df.loc[481]
 
 # %%
-sol901_exp_df = expression_dfs[0].loc[expression_dfs[0]["#Solution"] == "901"]
-sol901_exp_df
+# sol901_exp_df = expression_dfs[0].loc[expression_dfs[0]["#Solution"] == "901"]
+# sol901_exp_df
 
 # %%
 # sol901_exp_df.loc[:, ["NumOfReads", "AdditionalEqualSupportingReads", "AdditionalWeightedSupportingReads", "TotalEqualSupportingReads", "TotalWeightedSupportingReads"]].sum()
@@ -3762,24 +3761,24 @@ sol901_exp_df
 # sol901_exp_df_by_weighted_supp_reads
 
 # %%
-# TODO - repeat this plot with the randomly-selected solutions
+# # TODO - repeat this plot with the randomly-selected solutions
 
-fig = px.scatter(
-    sol901_exp_df,
-    x="TotalEqualSupportingReads",
-    y="TotalWeightedSupportingReads",
-    template=template,
-    color=condition_col,
-    color_discrete_map=color_discrete_map,
-    title="Weighted vs. equal assignment of supporting reads from<br>unchosen proteins of solution 901",
-    labels={
-        "TotalEqualSupportingReads": "Total equal supporting reads",
-        "TotalWeightedSupportingReads": "Total weighted<br>supporting reads"
-    },
-    height=500,
-    width=600
-)
-fig.show()
+# fig = px.scatter(
+#     sol901_exp_df,
+#     x="TotalEqualSupportingReads",
+#     y="TotalWeightedSupportingReads",
+#     template=template,
+#     color=condition_col,
+#     color_discrete_map=color_discrete_map,
+#     title="Weighted vs. equal assignment of supporting reads from<br>unchosen proteins of solution 901",
+#     labels={
+#         "TotalEqualSupportingReads": "Total equal supporting reads",
+#         "TotalWeightedSupportingReads": "Total weighted<br>supporting reads"
+#     },
+#     height=500,
+#     width=600
+# )
+# fig.show()
 
 # %%
 # percentile_dfs[0]
@@ -4451,20 +4450,6 @@ def prepare_ml_input_df(max_sol_df, unique_proteins_df, unique_proteins_first_co
 
 
 # %%
-equal_exp_tsne_input_dfs = [
-    prepare_ml_input_df(max_sol_df, unique_proteins_df, unique_proteins_first_col_pos, sorting_col="%EqualTotalExpression")
-    for max_sol_df, unique_proteins_df in zip(max_sol_dfs, unique_proteins_dfs)
-]
-# equal_exp_tsne_input_dfs[0]
-
-weighted_exp_tsne_input_dfs = [
-    prepare_ml_input_df(max_sol_df, unique_proteins_df, unique_proteins_first_col_pos, sorting_col="%WeightedTotalExpression")
-    for max_sol_df, unique_proteins_df in zip(max_sol_dfs, unique_proteins_dfs)
-]
-weighted_exp_tsne_input_dfs[0]
-
-
-# %%
 def color_highest_expressed_proteins(n, rank_cutoff, color_options=["red", "black"]):
     colors = []
     for rank in range(1, n + 1):
@@ -4475,55 +4460,6 @@ def color_highest_expressed_proteins(n, rank_cutoff, color_options=["red", "blac
         colors.append(color)
     return colors
 
-
-# %% tags=[]
-# X = weighted_exp_tsne_input_dfs[0].iloc[:1000, ML_INPUT_FIRST_COL_POS:].values
-
-# # tsne_df = tsne_dfs[0]
-
-# rng = np.random.RandomState(seed)
-
-# t_sne = TSNE(
-#     n_components=2,
-#     learning_rate="auto",
-#     perplexity=30,
-#     n_iter=300,
-#     init="random",
-#     random_state=rng,
-#     n_jobs=20
-# )
-
-# prots_perplexity_tsne = t_sne.fit_transform(X)
-
-# x, y = prots_perplexity_tsne.T
-
-# n = X.shape[0]
-# rank_cutoff = 300
-# color_options = ["red", "white"]
-# colors = color_highest_expressed_proteins(n, rank_cutoff, color_options)
-
-# fig = go.Figure(
-#     data=go.Scattergl(
-#         x=x,
-#         y=y,
-#         mode='markers',
-#         marker=dict(
-#             color=colors,
-#             line_width=0.5
-#         )
-#     )
-# )
-
-# fig.update_layout(
-#     width=600,
-#     height=600,
-#     template=template
-# )
-
-# ic(t_sne.n_iter_)
-# ic(t_sne.kl_divergence_)
-
-# fig.show()
 
 # %%
 def run_tsnes(
@@ -4604,6 +4540,68 @@ def run_pcas(
     return components_dfs
 
 
+# %%
+equal_exp_tsne_input_dfs = [
+    prepare_ml_input_df(max_sol_df, unique_proteins_df, unique_proteins_first_col_pos, sorting_col="%EqualTotalExpression")
+    for max_sol_df, unique_proteins_df in zip(max_sol_dfs, unique_proteins_dfs)
+]
+# equal_exp_tsne_input_dfs[0]
+
+weighted_exp_tsne_input_dfs = [
+    prepare_ml_input_df(max_sol_df, unique_proteins_df, unique_proteins_first_col_pos, sorting_col="%WeightedTotalExpression")
+    for max_sol_df, unique_proteins_df in zip(max_sol_dfs, unique_proteins_dfs)
+]
+weighted_exp_tsne_input_dfs[0]
+
+# %% tags=[] jupyter={"source_hidden": true}
+# X = weighted_exp_tsne_input_dfs[0].iloc[:1000, ML_INPUT_FIRST_COL_POS:].values
+
+# # tsne_df = tsne_dfs[0]
+
+# rng = np.random.RandomState(seed)
+
+# t_sne = TSNE(
+#     n_components=2,
+#     learning_rate="auto",
+#     perplexity=30,
+#     n_iter=300,
+#     init="random",
+#     random_state=rng,
+#     n_jobs=20
+# )
+
+# prots_perplexity_tsne = t_sne.fit_transform(X)
+
+# x, y = prots_perplexity_tsne.T
+
+# n = X.shape[0]
+# rank_cutoff = 300
+# color_options = ["red", "white"]
+# colors = color_highest_expressed_proteins(n, rank_cutoff, color_options)
+
+# fig = go.Figure(
+#     data=go.Scattergl(
+#         x=x,
+#         y=y,
+#         mode='markers',
+#         marker=dict(
+#             color=colors,
+#             line_width=0.5
+#         )
+#     )
+# )
+
+# fig.update_layout(
+#     width=600,
+#     height=600,
+#     template=template
+# )
+
+# ic(t_sne.n_iter_)
+# ic(t_sne.kl_divergence_)
+
+# fig.show()
+
 # %% [markdown]
 # > All proteins
 
@@ -4611,7 +4609,7 @@ def run_pcas(
 # perplexities = [5, 30, 50, 100]
 perplexities = [5, 30, 50, 100, 150]
 n_iter = 500
-n_jobs = 40
+n_jobs = 60
 
 # %%
 n_iter_500_equal_conditions_tsnes, n_iter_500_equal_conditions_Xs = run_tsnes(conditions, equal_exp_tsne_input_dfs, seed, perplexities=perplexities, n_iter=n_iter, n_jobs=n_jobs)
@@ -4678,7 +4676,7 @@ for conditions_tsnes, conditions_Xs, sorting_method in zip(
         template=template,
         showlegend=False,
         width=1200,
-        height=600,
+        height=300*len(conditions),
     )
 
     fig.show()
@@ -5036,6 +5034,8 @@ fig = px.bar(
     y="EntropyValue",
     facet_col=condition_col,
     facet_col_spacing=facet_col_spacing,
+    facet_col_wrap=facet_col_wrap,
+    facet_row_spacing=facet_row_spacing,
     # labels={"EntropyName": "", "EntropyValue": "Entropy"},
     labels={"EntropyName": "Entropy", "EntropyValue": ""},
     title=f"Shannon's entropy of a largest solution of each {condition_col.lower()}",
@@ -5047,7 +5047,8 @@ fig = px.bar(
     category_orders=category_orders,
     template=template,
 )
-fig.update_layout(showlegend=False)
+fig.update_layout(showlegend=False, height=500)
+fig.for_each_annotation(lambda a: a.update(text=a.text.replace(f"{condition_col}=", "")))
 fig.show()
 
 # %% [markdown] tags=[] toc-hr-collapsed=true
