@@ -16,6 +16,7 @@
 # %% papermill={"duration": 0.071769, "end_time": "2022-02-01T09:42:43.049672", "exception": false, "start_time": "2022-02-01T09:42:42.977903", "status": "completed"} tags=["parameters"]
 condition_col = "Gene"
 conditions = ["GRIA", "PCLO"]
+# conditions = ["GRIA2_HUMAN", "PCLO_CHICK"]
 chroms = ["comp141693_c0_seq1", "comp141882_c0_seq14"]
 starts = [170, 0]
 ends = [2999, 6294]
@@ -111,9 +112,9 @@ import seaborn as sns
 from icecream import ic
 from matplotlib_venn import venn2, venn3
 from plotly.subplots import make_subplots
+from sklearn import linear_model
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
-from sklearn import linear_model
 from sklearn.metrics import mean_squared_error, r2_score
 
 # from numpy.random import RandomState
@@ -560,7 +561,18 @@ unique_proteins_dfs[0]
 
 
 # %%
-unique_proteins_dfs[1]
+unique_proteins_dfs[0].iloc[:, unique_proteins_first_col_pos:]
+
+# %%
+pd.DataFrame(
+    {
+        condition_col: conditions,
+        "EditableAAs": [
+            unique_proteins_df.iloc[:, unique_proteins_first_col_pos:].shape[1]
+            for unique_proteins_df in unique_proteins_dfs
+        ]
+    }
+)
 
 # %%
 unique_proteins_dfs[0].columns[:unique_proteins_first_col_pos]
@@ -1015,7 +1027,9 @@ fig = px.histogram(
     template=template,
     title="Pearson correlation between editing sites to number of sites edited in each read",
 )
-fig.for_each_annotation(lambda a: a.update(text=a.text.replace(f"{condition_col}=", "")))
+fig.for_each_annotation(
+    lambda a: a.update(text=a.text.replace(f"{condition_col}=", ""))
+)
 fig.update_layout(showlegend=False)
 fig.show()
 
@@ -1024,7 +1038,7 @@ _df = positions_to_edited_sites_in_reads_correleations_df
 
 cols = min(facet_col_wrap, len(conditions))
 rows = ceil(len(conditions) / cols)
-row_col_iter = list(product(range(1, rows+1), range(1, cols+1)))[:len(conditions)]
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
 
 fig = make_subplots(
     rows=rows,
@@ -1036,36 +1050,31 @@ fig = make_subplots(
 )
 
 for condition, (row, col) in zip(conditions, row_col_iter):
-    
+
     fig.add_trace(
-         go.Violin(
-             x=_df.loc[_df[condition_col] == condition, condition_col],
-             y=_df.loc[_df[condition_col] == condition, "Pearson"],
-             line_color=color_discrete_map[condition],
-             fillcolor="white",
-             box_visible=True,
-             meanline_visible=True,
-             points="all",
-             # pointpos=0,
-             # jitter=0.05
-         ),
+        go.Violin(
+            x=_df.loc[_df[condition_col] == condition, condition_col],
+            y=_df.loc[_df[condition_col] == condition, "Pearson"],
+            line_color=color_discrete_map[condition],
+            fillcolor="white",
+            box_visible=True,
+            meanline_visible=True,
+            points="all",
+            # pointpos=0,
+            # jitter=0.05
+        ),
         row=row,
         # col=col
-        col=1
-     )
-    
+        col=1,
+    )
+
 fig.update_layout(
     template=template,
     showlegend=False,
     title_text="Pearson correlation between editing sites to number of sites edited in each read",
-    height=250*rows
+    height=250 * rows,
 )
-fig.update_yaxes(
-    zerolinewidth=zerolinewidth, 
-    tickmode='linear',
-    tick0=0,
-    dtick=0.2
-)
+fig.update_yaxes(zerolinewidth=zerolinewidth, tickmode="linear", tick0=0, dtick=0.2)
 
 fig.show()
 
@@ -1728,6 +1737,109 @@ x_fraction_mean.merge(y_fraction_mean, on="Fraction")
 
 
 # %%
+# x_axis_name = "Reads"
+# y_axis_name = "Distinct unique proteins"
+# head_title = (
+#     "Distinct unique proteins vs. sequencing depth"
+#     "<br>"
+#     # f"<sub>({alg_repetitions * 2} repetitions over each fraction of data)</sub>"
+#     "<sub>(100 repetitions over each fraction of data)</sub>"
+# )
+
+# maximal_x = 0
+
+# # Initialize figure with subplots
+# fig = make_subplots(
+#     rows=1, cols=1, print_grid=False, x_title=x_axis_name, y_title=y_axis_name
+# )
+
+# # Add traces
+# for col, condition in enumerate(conditions, start=1):
+
+#     df = distinct_unique_proteins_df.loc[
+#         distinct_unique_proteins_df[condition_col] == condition
+#     ]
+#     x_measured = df["NumOfReads"]
+#     y_measured = df["NumOfProteins"]
+
+#     fig.add_trace(
+#         go.Scatter(
+#             x=x_measured,
+#             y=y_measured,
+#             # mode="markers+lines",
+#             mode="markers",
+#             marker=dict(color=subcolors_discrete_map[condition][0], size=9),
+#             legendgroup=condition,  # this can be any string
+#             legendgrouptitle_text=condition,
+#             name="Measured",
+#         ),
+#     )
+
+#     grouped_df = df.groupby("Fraction")
+#     x_fraction_mean = grouped_df["NumOfReads"].mean().reset_index()
+#     y_fraction_mean = grouped_df["NumOfProteins"].mean().reset_index()
+#     mean_fraction_df = x_fraction_mean.merge(y_fraction_mean, on="Fraction")
+
+#     fig.add_trace(
+#         go.Scatter(
+#             x=mean_fraction_df["NumOfReads"],
+#             y=mean_fraction_df["NumOfProteins"],
+#             mode="lines",
+#             marker=dict(color=subcolors_discrete_map[condition][0], size=9),
+#             showlegend=False,
+#         ),
+#     )
+
+#     maximal_x = max(maximal_x, x_measured.max())
+
+# dscam_ys = [18_496, 19_008]
+# dscam_legend_names = ["Measured", "Theoretical maximum"]
+# dscam_colors = ["black", "grey"]
+# dscam_legendgrouptitle_texts = ["DSCAM", None]
+
+# fig.add_trace(
+#     go.Scatter(
+#         x=[0.05 * maximal_x, 1.05 * maximal_x],
+#         y=[dscam_ys[0], dscam_ys[0]],
+#         mode="lines",
+#         line=dict(
+#             color=dscam_colors[0],
+#             dash="dash",
+#             # width=3
+#         ),
+#         legendgroup="DSCAM1",  # this can be any string
+#         legendgrouptitle_text="DSCAM",
+#         name=dscam_legend_names[0],
+#     ),
+# )
+# fig.add_trace(
+#     go.Scatter(
+#         x=[0.05 * maximal_x, 1.05 * maximal_x],
+#         y=[dscam_ys[1], dscam_ys[1]],
+#         mode="lines",
+#         line=dict(
+#             color=dscam_colors[1],
+#             dash="dash",
+#             # width=3
+#         ),
+#         legendgroup="DSCAM1",  # this can be any string
+#         name=dscam_legend_names[1],
+#     ),
+# )
+
+# fig.update_layout(
+#     title_text=head_title,
+#     # legend_title_text=condition_col,
+#     template=template,
+#     legend_font=dict(size=8),
+#     legend_grouptitlefont=dict(size=9),
+#     legend_tracegroupgap=4,
+# )
+
+# fig.show()
+
+
+# %%
 x_axis_name = "Reads"
 y_axis_name = "Distinct unique proteins"
 head_title = (
@@ -1736,13 +1848,15 @@ head_title = (
     # f"<sub>({alg_repetitions * 2} repetitions over each fraction of data)</sub>"
     "<sub>(100 repetitions over each fraction of data)</sub>"
 )
-
+_marker_size = 7
 maximal_x = 0
 
 # Initialize figure with subplots
 fig = make_subplots(
     rows=1, cols=1, print_grid=False, x_title=x_axis_name, y_title=y_axis_name
 )
+
+first_data_trace = True
 
 # Add traces
 for col, condition in enumerate(conditions, start=1):
@@ -1753,18 +1867,31 @@ for col, condition in enumerate(conditions, start=1):
     x_measured = df["NumOfReads"]
     y_measured = df["NumOfProteins"]
 
-    fig.add_trace(
-        go.Scatter(
-            x=x_measured,
-            y=y_measured,
-            # mode="markers+lines",
-            mode="markers",
-            marker=dict(color=subcolors_discrete_map[condition][0], size=9),
-            legendgroup=condition,  # this can be any string
-            legendgrouptitle_text=condition,
-            name="Measured",
-        ),
-    )
+    if first_data_trace:
+        fig.add_trace(
+            go.Scatter(
+                x=x_measured,
+                y=y_measured,
+                mode="markers",
+                marker=dict(color=subcolors_discrete_map[condition][0], size=_marker_size),
+                legendgroup="Full-CDS, PacBio",  # this can be any string
+                legendgrouptitle_text="Full-CDS, PacBio",
+                # name="Measured",
+                name=condition,
+            ),
+        )
+        first_data_trace = False
+    else:
+        fig.add_trace(
+            go.Scatter(
+                x=x_measured,
+                y=y_measured,
+                mode="markers",
+                marker=dict(color=subcolors_discrete_map[condition][0], size=_marker_size),
+                legendgroup="Full-CDS, PacBio",  # this can be any string
+                name=condition,
+            ),
+        )
 
     grouped_df = df.groupby("Fraction")
     x_fraction_mean = grouped_df["NumOfReads"].mean().reset_index()
@@ -1776,18 +1903,17 @@ for col, condition in enumerate(conditions, start=1):
             x=mean_fraction_df["NumOfReads"],
             y=mean_fraction_df["NumOfProteins"],
             mode="lines",
-            marker=dict(color=subcolors_discrete_map[condition][0], size=9),
+            marker=dict(color=subcolors_discrete_map[condition][0], size=_marker_size),
             showlegend=False,
         ),
     )
 
     maximal_x = max(maximal_x, x_measured.max())
 
-dscam_ys = [18_496, 19_008]
-dscam_legend_names = ["Measured", "Theoretical maximum"]
-dscam_colors = ["black", "grey"]
-dscam_legendgrouptitle_texts = ["DSCAM", None]
-
+dscam_ys = [19_008, 18_496, ]
+dscam_legend_names = ["Theoretical maximum", "Measured", ]
+# dscam_legend_names = ["measured", "theoretical maximum"]
+dscam_colors = ["grey", "black"]
 fig.add_trace(
     go.Scatter(
         x=[0.05 * maximal_x, 1.05 * maximal_x],
@@ -1798,9 +1924,10 @@ fig.add_trace(
             dash="dash",
             # width=3
         ),
-        legendgroup="DSCAM1",  # this can be any string
+        legendgroup="DSCAM",  # this can be any string
         legendgrouptitle_text="DSCAM",
         name=dscam_legend_names[0],
+        # name=f"DSCAM {dscam_legend_names[1]}",
     ),
 )
 fig.add_trace(
@@ -1813,22 +1940,27 @@ fig.add_trace(
             dash="dash",
             # width=3
         ),
-        legendgroup="DSCAM1",  # this can be any string
+        legendgroup="DSCAM",  # this can be any string
         name=dscam_legend_names[1],
+        # name=f"DSCAM {dscam_legend_names[0]}",
     ),
 )
 
+
 fig.update_layout(
     title_text=head_title,
-    # legend_title_text=condition_col,
     template=template,
     legend_font=dict(size=8),
-    legend_grouptitlefont=dict(size=9),
-    legend_tracegroupgap=4,
+    legend_grouptitlefont=dict(size=8),
+    # legend_tracegroupgap=4,
+    # width=100*maximal_x/10
 )
-
+fig.write_image("Distinct unique proteins vs. sequencing depth - PacBio.svg", width=650, height=500)
 fig.show()
 
+
+# %%
+fig.layout.width
 
 # %% [markdown]
 # ### NaNs distribution
@@ -3011,7 +3143,7 @@ fig.show()
 # %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"} tags=[]
 # ### Distinct unique proteins
 
-# %% [markdown]
+# %% [markdown] toc-hr-collapsed=true tags=[]
 # #### Jaccard - TODO - erase?
 
 # %%
@@ -3773,97 +3905,284 @@ fig = px.scatter(
 fig.show()
 
 # %%
-# percentile_dfs[0]
+percentile_dfs[0]
 
 # %%
-for percentile_df, condition in zip(percentile_dfs, conditions):
+x_axis_name = "Distinct unique protein rank"
+y_axis_name = "Cummulative relative<br>expression (%)"
+head_title = "Cummulative expression vs. distinct unique proteins"
 
-    # num_of_solutions = expression_df["#Solution"].nunique()
+cols = min(facet_col_wrap, len(conditions), 4)
+rows = ceil(len(conditions) / cols)
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
 
-    fig = px.box(
-        percentile_df,
-        x="Percentile",
-        y="RequiredProteins",
-        template=template,
-        title=(
-            f"Distinct unique proteins vs. cummulative expression in {condition}"
-            # "<br>"
-            # "<sub>(proteins are sorted in descending order of supporting reads)</sub>"
+assignment_methods = ["Equal", "Weighted"]
+symbols = ["circle", "triangle-up"]
+
+fig = make_subplots(
+    rows=rows,
+    cols=cols,
+    subplot_titles=conditions,
+    shared_yaxes=True,
+    x_title=x_axis_name,
+    y_title=y_axis_name,
+    vertical_spacing=facet_row_spacing / 2.5,
+    horizontal_spacing=facet_col_spacing * 1.5,
+)
+
+for (row, col), percentile_df, condition in zip(
+    row_col_iter, percentile_dfs, conditions
+):
+    legend_x = [percentile_df["RequiredProteins"].max() * 5 / 6]
+    legend_ys = [[25], [20]]
+        
+    for color, symbol, assignment_method, legend_y in zip(
+        subcolors_discrete_map[condition], symbols, assignment_methods, legend_ys
+    ):
+        _percentile_df = percentile_df.loc[percentile_df["AssignmentMethod"] == assignment_method]
+        
+        x = _percentile_df["RequiredProteins"]
+        y = _percentile_df["Percentile"]
+        
+        x_mean = _percentile_df.groupby("Percentile")["RequiredProteins"].apply(np.mean)
+        y_unique = x_mean.index
+
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=y,
+                mode="markers",
+                marker=dict(
+                    color=color,
+                    size=6,
+                    opacity=0.7,
+                    symbol=symbol,
+                    # line=dict(width=0),
+                ),
+            ),
+            row=row,
+            col=col,
+        )
+        
+        fig.add_trace(
+            go.Scatter(
+                x=x_mean,
+                y=y_unique,
+                mode="lines+markers",
+                marker=dict(
+                    color=color,
+                    size=6,
+                    opacity=0.7,
+                    symbol=symbol,
+                    # line=dict(width=0),
+                ),
+            ),
+            row=row,
+            col=col,
+        )
+        
+        fig.add_trace(
+            go.Scatter(
+                x=legend_x,
+                y=legend_y,
+                mode="markers+text",
+                marker=dict(
+                    color=color,
+                    size=6,
+                    opacity=0.5,
+                    symbol=symbol,
+                    # line=dict(width=0),
+                ),
+                text=f" {assignment_method}",
+                textposition="middle right",
+                textfont=dict(size=8)
+            ),
+            row=row,
+            col=col,
+        )
+
+fig.update_xaxes(
+    tick0 = 0,
+    dtick = 5_000,
+    matches='x'
+)
+fig.update_layout(
+    title=head_title,
+    showlegend=False,
+    template=template,
+)
+# fig.write_image(
+#     f"{head_title} - PacBio.svg",
+#     height=max(300, 200 * rows),
+#     width=max(600, 250 * cols),
+# )
+fig.show()
+
+# %%
+# only Weighted assignment method for poster
+
+assignment_method = "Weighted"
+y_col_name = "TotalWeightedSupportingReads"
+
+x_axis_name = "Distinct unique protein rank"
+y_axis_name = "Cummulative relative<br>expression (%)"
+head_title = f"Distinct unique proteins vs. {assignment_method.lower()} cummulative expression (POSTER)"
+
+cols = min(facet_col_wrap, len(conditions), 4)
+rows = ceil(len(conditions) / cols)
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
+
+fig = make_subplots(
+    rows=rows,
+    cols=cols,
+    subplot_titles=conditions,
+    shared_yaxes=True,
+    x_title=x_axis_name,
+    y_title=y_axis_name,
+    vertical_spacing=facet_row_spacing / 2.5,
+    horizontal_spacing=facet_col_spacing * 1.5,
+)
+
+for (row, col), percentile_df, condition, expression_df in zip(
+    row_col_iter, percentile_dfs, conditions, expression_dfs
+):
+    _percentile_df = percentile_df.loc[percentile_df["AssignmentMethod"] == assignment_method]
+    
+    x = _percentile_df["RequiredProteins"]
+    y = _percentile_df["Percentile"]
+    
+    x_mean = _percentile_df.groupby("Percentile")["RequiredProteins"].apply(np.mean)
+    y_unique = x_mean.index
+
+    expression_df = expression_df.sort_values(y_col_name, ascending=False).reset_index(drop=True)
+    expression_df["CummulativeRelativeWeightedExpression"] = expression_df.groupby("#Solution")[[y_col_name]].transform(lambda x: 100 * x / x.sum())
+    gb = expression_df.groupby("#Solution")["CummulativeRelativeWeightedExpression"]
+    # mean_cumm_exp_10_most_frequent = expression_df.groupby("#Solution")["CummulativeRelativeWeightedExpression"].apply(lambda x: x[:10].sum()).mean()
+    mean_cumm_exp_10_most_frequent = gb.apply(lambda x: x[:10].sum()).mean()
+    mean_cumm_exp_100_most_frequent = gb.apply(lambda x: x[:100].sum()).mean()
+    mean_cumm_exp_1000_most_frequent = gb.apply(lambda x: x[:1000].sum()).mean()
+    
+    
+    # all data
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=y,
+            mode="markers",
+            marker=dict(
+                color=color_discrete_map[condition],
+                size=4,
+                opacity=0.7,
+                # line=dict(width=0),
+            ),
         ),
-        labels={
-            "Percentile": "Cummulative relative expression (%)",
-            "RequiredProteins": "Distinct unique<br>proteins",
-        },
-        color="AssignmentMethod",
-        color_discrete_sequence=subcolors_discrete_map[condition],
-        facet_col="Algorithm",
-        # facet_row_spacing=facet_col_spacing*3,
-        facet_col_spacing=facet_col_spacing * 2,
-        # height=600,
-        # width=1000
+        row=row,
+        col=col,
+    )
+    
+    # mean data
+    fig.add_trace(
+        go.Scatter(
+            x=x_mean,
+            y=y_unique,
+            mode="lines+markers",
+            marker=dict(
+                color=color_discrete_map[condition],
+                size=4,
+                opacity=0.7,
+                # line=dict(width=0),
+            ),
+        ),
+        row=row,
+        col=col,
+    )
+    
+    # mean cummulative exp of 10 most expressed proteins in each solution
+    fig.add_trace(
+        go.Scatter(
+            x=[10, 100, 1000],
+            y=[mean_cumm_exp_10_most_frequent, mean_cumm_exp_100_most_frequent, mean_cumm_exp_1000_most_frequent],
+            mode="markers+text",
+            marker=dict(
+                color="black",
+                size=6,
+                # opacity=0.7,
+                # symbol="triangle-up",
+                symbol="square",
+                # line=dict(width=0),
+            ),
+            text=[
+                f"  (10, {mean_cumm_exp_10_most_frequent:.1f})",
+                f"   (100, {mean_cumm_exp_100_most_frequent:.1f})",
+                f"    (1000, {mean_cumm_exp_1000_most_frequent:.1f})"
+            ],
+            textposition="middle right",
+            textfont=dict(size=12)
+        ),
+        row=row,
+        col=col,
     )
 
-    fig.update_xaxes(tick0=10, dtick=10, tickangle=-60, matches="x")
-
-    min_y = 0
-    max_y = percentile_df["RequiredProteins"].max()
-    fig.update_yaxes(range=[min_y, max_y])
-
-    # fig.update_layout(showlegend=False)
-
-    fig.show()
-
-# %%
-
-# %%
-print(type(5))
+fig.update_layout(
+    title=head_title,
+    showlegend=False,
+    template=template,
+)
+fig.update_xaxes(
+    tick0 = 0,
+    dtick = 5_000,
+    matches='x',
+    # type="log"
+)
+fig.update_yaxes(
+    tick0 = 0,
+    dtick = 20,
+    matches='y',
+    # type="log"
+)
+fig.write_image(
+    f"{head_title} - PacBio.svg",
+    height=max(400, 200 * rows),
+    width=max(650, 250 * cols),
+)
+fig.show()
 
 
 # %%
 def linear_to_log10(arr):
     return np.log10(arr)
 
-# def linear_to_semilog10(arr):
-#     return 1 / linear_to_log10(arr)
 
 def log10_to_linear(log10_arr):
     return np.power([10] * len(log10_arr), log10_arr)
-    
-# def semilog10_to_linear(log10_arr):
-#     return np.power([10] * len(log10_arr), 1 / log10_arr)
 
-# def no_transform(arr):
-#     return arr
 
 def inverse(arr):
     return 1 / arr
 
-# todo merge with the next cell?
 
+def formulate_log10_equation(coef, intercept):
+    return f"y = x^{coef:.2f} * 10^{intercept:.2f}"
 
-# %%
-def formulate_log_equation(coef, intercept):
-    return f"y = x^{coef:.2g} * 10^{intercept:.2g}"
 
 def formulate_semilog10_equation(coef, intercept):
-    pass
-
+    if intercept >= 0:
+        operator = "+"
+    else:
+        operator = "-"
+        intercept = np.abs(intercept)
+    return f"y = 1 / ({coef:.2f}*log(x) {operator} {intercept:.2f})"
 
 
 # %% tags=[]
-linear_spaces = [(300, 15_000), (400, 23_000)]  # (start, end) tuples for both x and y
+cols = min(facet_col_wrap, len(conditions), 3)
+rows = ceil(len(conditions) / cols)
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
+
+linear_spaces = [(300, 15_000), (250, 23_000)]  # (start, end) tuples for both x and y
 forward_transforms = [(linear_to_log10, linear_to_log10), (linear_to_log10, inverse)]  # (x, y) tuples
 reverse_transforms = [(log10_to_linear, log10_to_linear), (log10_to_linear, inverse)]  # (x, y) tuples
-
-x_axis_name = "#Protein"
-y_axis_name = "Relative expression (%)"
-head_title = f"Relative expression of proteins considering the largest solution in each {str(condition_col).lower()}"
-
-maximal_algorithms = [df.loc[0, "Algorithm"] for df in maximal_dfs]
-subplot_titles = [
-    f"{solution} ({algorithm})"
-    for solution, algorithm in zip(maximal_solutions, maximal_algorithms)
-]
+formulate_equations = [formulate_log10_equation, formulate_semilog10_equation]
 
 maximal_dfs = [
     expression_df.loc[expression_df["#Solution"] == maximal_solution].reset_index(
@@ -3871,26 +4190,41 @@ maximal_dfs = [
     )
     for expression_df, maximal_solution in zip(expression_dfs, maximal_solutions)
 ]
+maximal_algorithms = [df.loc[0, "Algorithm"] for df in maximal_dfs]
+
+subplot_titles = [
+    f"{condition}<br><sub>(#{solution}, {algorithm})</sub>"
+    for condition, solution, algorithm in zip(conditions, maximal_solutions, maximal_algorithms)
+]
+x_axis_name = "Distinct unique protein rank"
+y_axis_name = "Relative expression (%)"
+head_title = f"Relative expression of proteins considering a largest solution in each {str(condition_col).lower()}"
 
 assignment_methods = ["Equal", "Weighted"]
 y_col_names = ["TotalEqualSupportingReads", "TotalWeightedSupportingReads"]
+symbols = ["circle", "triangle-up"]
 
 data_marker_size = 2.5
 data_opacity = 0.2
 regression_line_width = 6
 
+data_scatter_type = go.Scattergl
+fit_scatter_type = go.Scatter
 
 fig = make_subplots(
-    rows=1,
-    cols=len(conditions),
+    rows=rows,
+    cols=cols,
     y_title=y_axis_name,
     x_title=x_axis_name,
     subplot_titles=subplot_titles,
     shared_yaxes=True,
     shared_xaxes=True,
+    # vertical_spacing=facet_row_spacing / 2.5,
+    horizontal_spacing=facet_col_spacing * 1.5
 )
 
-for col, (
+for (
+    (row, col),
     condition,
     maximal_df,
     maximal_solution,
@@ -3898,21 +4232,21 @@ for col, (
     linear_space,
     (forward_x_transform, forward_y_transform),
     (reverse_x_transform, reverse_y_transform),
-) in enumerate(
-    zip(
-        conditions,
-        maximal_dfs,
-        maximal_solutions,
-        maximal_algorithms,
-        linear_spaces,
-        forward_transforms,
-        reverse_transforms
-    ),
-    start=1,
+    formulate_equation
+) in zip(
+    row_col_iter,
+    conditions,
+    maximal_dfs,
+    maximal_solutions,
+    maximal_algorithms,
+    linear_spaces,
+    forward_transforms,
+    reverse_transforms,
+    formulate_equations
 ):
-
-    for color, assignment_method, y_col_name in zip(
-        subcolors_discrete_map[condition], assignment_methods, y_col_names
+    
+    for color, assignment_method, y_col_name, symbol in zip(
+        subcolors_discrete_map[condition], assignment_methods, y_col_names, symbols
     ):
 
         assignment_df = maximal_df.sort_values(y_col_name, ascending=False).reset_index(
@@ -3929,7 +4263,7 @@ for col, (
 
         if assignment_method == assignment_methods[0]:
             fig.add_trace(
-                go.Scattergl(
+                data_scatter_type(
                     x=x,
                     y=y,
                     legendgrouptitle_text=condition,
@@ -3941,14 +4275,15 @@ for col, (
                     marker=dict(
                         opacity=data_opacity,
                         line=dict(width=0),
+                        symbol=symbol
                     ),
                 ),
-                row=1,
+                row=row,
                 col=col,
             )
         else:
             fig.add_trace(
-                go.Scattergl(
+                data_scatter_type(
                     x=x,
                     y=y,
                     legendgroup=condition,
@@ -3959,9 +4294,10 @@ for col, (
                     marker=dict(
                         opacity=data_opacity,
                         line=dict(width=0),
+                        symbol=symbol
                     ),
                 ),
-                row=1,
+                row=row,
                 col=col,
             )
 
@@ -3978,13 +4314,13 @@ for col, (
             )
             if int(i) not in train_logspace
         ]
-    
+
         train_x = forward_x_transform(x[train_logspace])
         train_y = forward_y_transform(y[train_logspace])
-        
+
         test_x = forward_x_transform(x[test_logspace])
         test_y = forward_y_transform(y[test_logspace])
-            
+
         # Create linear regression object
         regr = linear_model.LinearRegression(n_jobs=threads)
         # Train the model using the training sets
@@ -3997,7 +4333,7 @@ for col, (
         pred_y = reverse_y_transform(pred_y)
 
         fig.add_trace(
-            go.Scatter(
+            fit_scatter_type(
                 x=test_x,
                 y=pred_y,
                 mode="lines",
@@ -4013,40 +4349,44 @@ for col, (
             row=1,
             col=col,
         )
-        
+
         coef = regr.coef_[0]
         intercept = regr.intercept_
         mse = mean_squared_error(test_y, pred_y)
         r2 = r2_score(test_y, pred_y)
-        if intercept >= 0:
-            operator = "+" 
-        else:
-            operator = "-"
-            intercept = np.abs(intercept)
-        
+        # if intercept >= 0:
+        #     operator = "+"
+        # else:
+        #     operator = "-"
+        #     intercept = np.abs(intercept)
+        equation = formulate_equation(coef, intercept)
+        text = (
+             f"<b>{assignment_method}</b>"
+            "<br>"
+            # f"<b>y = {coef:.2f}x {operator} {intercept:.2f}</b>"
+            # f"y = {coef:.2f}x {operator} {intercept:.2f}"
+            f"{equation}"
+            "<br>"
+            f"MSE = {mse:.2f}"  # 0 is perfect prediction
+            "<br>"
+            f"R2 = {r2:.2f}"  # 1 is perfect prediction
+        )
+
         if assignment_method == assignment_methods[0]:
-            textposition = "top right"
+            # textposition = "top right"
             i = int(len(test_x) / 10)
             text_x = test_x.iloc[i] + 2000
-            text_y = pred_y[i] + 0.02
+            text_y = pred_y[i] + 0.03
         else:
-            textposition = "bottom left"
+            # textposition = "bottom left"
             i = int(len(test_x) / 3.5)
-            text_x = test_x.iloc[0] - int(train_logspace[0] / 2)
-            text_y = pred_y[i] - 0.002
+            text_x = test_x.iloc[0] - int(3 * train_logspace[0] / 4)
+            text_y = pred_y[i] - 0.003
         text_x = np.log10(text_x)
         text_y = np.log10(text_y)
-        
-        text = (
-            f"<b>y = {coef:.2f}x {operator} {intercept:.2f}</b>"
-            "<br>"
-            f"MSE = {mse:.2g}"  # 0 is perfect prediction
-            "<br>"
-            f"R2 = {r2:.2g}"  # 1 is perfect prediction
-        )
-        
+
         fig.add_annotation(
-            row=1,
+            row=row,
             col=col,
             x=text_x,
             y=text_y,
@@ -4055,7 +4395,7 @@ for col, (
             text=text,
             align="center",
             font=dict(
-                size=9, 
+                size=8,
                 color=color
             ),
             showarrow=False,
@@ -4063,14 +4403,221 @@ for col, (
 
 fig.update_layout(
     title_text=head_title,
+    title_y=0.95,
     template=template,
-    legend_itemsizing="constant",
+    showlegend=False,
+    # legend_itemsizing="constant",
+    height=max(400, 200 * rows),
+    # width=max(900, 250 * cols),
 )
-fig.update_xaxes(
-    type="log",
+fig.update_xaxes(type="log")
+fig.update_yaxes(type="log")
+fig.write_image(
+    f"{head_title} - PacBio.svg",
+    height=max(350, 200 * rows),
+    width=max(650, 350 * cols),
 )
-fig.update_yaxes(
-    type="log",
+fig.show()
+# fig.show(config={'staticPlot': True, 'responsive': False})
+
+
+# %% tags=[]
+assignment_method = "Weighted"
+y_col_name = "TotalWeightedSupportingReads"
+
+cols = min(facet_col_wrap, len(conditions), 3)
+rows = ceil(len(conditions) / cols)
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
+
+linear_spaces = [(300, 15_000), (250, 23_000)]  # (start, end) tuples for both x and y
+forward_transforms = [(linear_to_log10, linear_to_log10), (linear_to_log10, inverse)]  # (x, y) tuples
+reverse_transforms = [(log10_to_linear, log10_to_linear), (log10_to_linear, inverse)]  # (x, y) tuples
+# formulate_equations = [formulate_log10_equation, formulate_semilog10_equation]
+fit_texts = ["    y ~ 1 / sqrt(x)", "    y ~ 1 / log(x)"]
+
+maximal_dfs = [
+    expression_df.loc[expression_df["#Solution"] == maximal_solution].reset_index(
+        drop=True
+    )
+    for expression_df, maximal_solution in zip(expression_dfs, maximal_solutions)
+]
+# maximal_algorithms = [df.loc[0, "Algorithm"] for df in maximal_dfs]
+
+# subplot_titles = [
+#     f"{condition}<br><sub>(#{solution})</sub>"
+#     for condition, solution in zip(conditions, maximal_solutions)
+# ]
+subplot_titles = conditions
+x_axis_name = "Distinct unique protein rank"
+y_axis_name = "Relative expression (%)"
+head_title = f"Relative expression of proteins considering a largest solution in each {str(condition_col).lower()} (POSTER)"
+
+# assignment_methods = ["Equal", "Weighted"]
+# y_col_names = ["TotalEqualSupportingReads", "TotalWeightedSupportingReads"]
+# symbols = ["circle", "triangle-up"]
+
+data_marker_size = 2.5
+data_opacity = 0.2
+regression_line_width = 6
+
+data_scatter_type = go.Scattergl
+fit_scatter_type = go.Scatter
+
+fig = make_subplots(
+    rows=rows,
+    cols=cols,
+    y_title=y_axis_name,
+    x_title=x_axis_name,
+    subplot_titles=subplot_titles,
+    shared_yaxes=True,
+    # shared_xaxes=True,
+    # vertical_spacing=facet_row_spacing / 2.5,
+    horizontal_spacing=facet_col_spacing * 1.5
+)
+
+for (
+    (row, col),
+    condition,
+    maximal_df,
+    maximal_solution,
+    # maximal_algorithm,
+    linear_space,
+    (forward_x_transform, forward_y_transform),
+    (reverse_x_transform, reverse_y_transform),
+    # formulate_equation
+    fit_text
+) in zip(
+    row_col_iter,
+    conditions,
+    maximal_dfs,
+    maximal_solutions,
+    # maximal_algorithms,
+    linear_spaces,
+    forward_transforms,
+    reverse_transforms,
+    # formulate_equations
+    fit_texts
+):
+    
+    color = color_discrete_map[condition]
+
+    assignment_df = maximal_df.sort_values(y_col_name, ascending=False).reset_index(
+        drop=True
+    )
+    assignment_df["#Protein"] = list(range(1, len(assignment_df) + 1))
+    assignment_df["AssignmentMethod"] = assignment_method
+
+    x = assignment_df["#Protein"]
+    y = 100 * assignment_df[y_col_name] / assignment_df[y_col_name].sum()
+
+    fig.add_trace(
+        data_scatter_type(
+            x=x,
+            y=y,
+            legendgrouptitle_text=condition,
+            legendgroup=condition,
+            name=assignment_method,
+            mode="markers",
+            marker_color=color,
+            marker_size=data_marker_size,
+            marker=dict(
+                opacity=data_opacity,
+                line=dict(width=0),
+                # symbol=symbol
+            ),
+        ),
+        row=row,
+        col=col,
+    )
+
+    train_logspace = [
+        int(i)
+        for i in np.logspace(
+            np.log10(linear_space[0]), np.log10(linear_space[1]), num=1000
+        )
+    ]
+    test_logspace = [
+        int(i)
+        for i in np.logspace(
+            np.log10(linear_space[0] + 20), np.log10(linear_space[1] - 20), num=1000
+        )
+        if int(i) not in train_logspace
+    ]
+
+    train_x = forward_x_transform(x[train_logspace])
+    train_y = forward_y_transform(y[train_logspace])
+
+    test_x = forward_x_transform(x[test_logspace])
+    test_y = forward_y_transform(y[test_logspace])
+
+    # Create linear regression object
+    regr = linear_model.LinearRegression(n_jobs=threads)
+    # Train the model using the training sets
+    regr.fit(np.array(train_x).reshape(-1, 1), train_y)
+    # Make predictions using the testing set
+    pred_y = regr.predict(np.array(test_x).reshape(-1, 1))
+
+    # transform these variables back to original scale so they can plotted
+    test_x = reverse_x_transform(test_x)
+    pred_y = reverse_y_transform(pred_y)
+
+    fig.add_trace(
+        fit_scatter_type(
+            x=test_x,
+            y=pred_y,
+            mode="lines",
+            marker_color=color,
+            line=dict(
+                dash="dash",
+                width=regression_line_width,
+            ),
+            legendgroup=condition,
+            name=f"{assignment_method} - fitted",
+            showlegend=False
+        ),
+        row=1,
+        col=col,
+    )
+
+    i = int(len(test_x) / 10)
+    text_x = test_x.iloc[i] + 2000
+    text_y = pred_y[i] + 0.03
+    # text_x = 1000
+    # text_y = 0.05
+    text_x = np.log10(text_x)
+    text_y = np.log10(text_y)
+
+    fig.add_annotation(
+        row=row,
+        col=col,
+        x=text_x,
+        y=text_y,
+        xref="x",
+        yref="y",
+        text=fit_text,
+        align="center",
+        font=dict(
+            size=12,
+            color=color
+        ),
+        showarrow=False,
+    )
+
+fig.update_layout(
+    title_text=head_title,
+    title_y=0.95,
+    template=template,
+    showlegend=False,
+    # legend_itemsizing="constant",
+    height=max(400, 200 * rows),
+    # width=max(900, 250 * cols),
+)
+fig.update_xaxes(type="log", nticks=6)
+fig.update_yaxes(type="log")
+fig.write_image(
+    f"{head_title} - PacBio.svg",
+    height=max(400, 200 * rows),
+    width=max(650, 250 * cols),
 )
 fig.show()
 # fig.show(config={'staticPlot': True, 'responsive': False})
