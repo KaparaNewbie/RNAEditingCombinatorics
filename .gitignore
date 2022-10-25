@@ -9,3 +9,4 @@ Code/Pileup/__pycache__/
 *.ipynb
 /*.ipynb
 *.ipynb_checkpoints*
+Code/Notebooks/*.svg
