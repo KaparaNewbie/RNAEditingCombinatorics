@@ -154,10 +154,18 @@ function parsecmd()
         default = ["Ascending", "Descending", "Unordered"]
         nargs = '+'
         range_tester = x -> x ∈ ["Ascending", "Descending", "Unordered"]
+        "--gcp"
+        help = "Program is run on a google cloud VM."
+        action = :store_true
+        "--shutdowngcp"
+        help = "Shutdown google cloud VM when the program ends."
+        action = :store_true
 
     end
     return parse_args(s)
 end
+
+
 
 
 """
@@ -186,6 +194,8 @@ function main()
     run_solve_threaded = parsedargs["run_solve_threaded"]
     sortresults = parsedargs["sortresults"]
     algs = parsedargs["algs"]
+    gcp = parsedargs["gcp"]
+    shutdowngcp = parsedargs["shutdowngcp"]
 
     algs::Vector{String} = String.(algs)
 
@@ -228,6 +238,9 @@ function main()
             run_solve_threaded, sortresults, algs
         )
     end
+
+    # shutdown gcp vm
+    gcp && shutdowngcp && run(`sudo shutdown`)
 end
 
 
