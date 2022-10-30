@@ -116,6 +116,7 @@ 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
 <!-- git clone https://<token>@github.com/<your account or organization>/<repo>.git -->
 git clone https://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@github.com/KaparaNewbie/RNAEditingCombinatorics.git
 
+
 <!-- 
 ssh-keygen -t ed25519 -C "shapirakobi@gmail.com"
 
@@ -132,7 +133,9 @@ cd RNAEditingCombinatorics
 julia
 pkg> activate .
 pkg> instantiate
+exit()
 
+cd # back to ~
 ```
 
 ## Data
@@ -145,11 +148,11 @@ Manually uploaded `D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x129
 to the VM, from my personal computer.
 
 ```
-mkdir Data/RQ998.2
+mkdir -p ~/RNAEditingCombinatorics/Data/RQ998.2
 
 mv \
 GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv \
-Data/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv
+~/RNAEditingCombinatorics/Data/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv
 ``` 
 
 ## A small test
@@ -157,9 +160,9 @@ Data/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv
 ### Cloud
 
 ```
-mkdir RNAEditingCombinatorics/Data
+<!-- mkdir RNAEditingCombinatorics/Data
 
-cp -R Data/RQ998.2 RNAEditingCombinatorics/Data
+cp -R Data/RQ998.2 RNAEditingCombinatorics/Data -->
 
 cd RNAEditingCombinatorics
 
@@ -167,22 +170,6 @@ INFILES=$(echo Data/RQ998.2/*.unique_proteins.csv)
 echo $INFILES
 
 
-<!-- 
-julia --project=. \
---threads 6 --proc 2 \
-Code/UnorderedNaNDepletion/maximal_independent_set_5.jl
-
-
-JULIA_PROJECT=.
-JULIA_PROJECT=.;julia --threads 6 --proc 2
-julia --project=. --threads 6 --proc 2
-using ArgParse 
-JULIA_PROJECT=.;julia --threads 6 --proc 2 Code/UnorderedNaNDepletion/maximal_independent_set_5.jl
-julia --project=. --threads 6 --proc 2 Code/UnorderedNaNDepletion/maximal_independent_set_5.jl
-julia --project=. \
---threads 6 --proc 2 \
-Code/UnorderedNaNDepletion/maximal_independent_set_5.jl
- -->
 
 
 julia --project=. \
@@ -198,8 +185,9 @@ Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 --fracrepetitions 2 \
 --algrepetitions 2 \
 --testfraction 0.0001 \
---algs Ascending Descending
-
+--algs Ascending Descending \
+--gcp \
+--shutdowngcp
 ```
 
 

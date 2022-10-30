@@ -240,7 +240,7 @@ function main()
     end
 
     # shutdown gcp vm
-    gcp && shutdowngcp && run(`sudo shutdown`)
+    gcp && shutdowngcp && run(`sudo shutdown`) # https://cloud.google.com/compute/docs/shutdownscript
 end
 
 

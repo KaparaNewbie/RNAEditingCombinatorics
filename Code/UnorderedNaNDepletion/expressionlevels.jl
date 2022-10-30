@@ -1,9 +1,13 @@
+# TODO complete wrapping this script to be run from the CLI
+
+
+using ArgParse
 using CSV
 using DataFrames
 using StatsBase  # for StatsBase.sample
-import Base.Threads.@spawn
 using BenchmarkTools
 using BioSequences # for BioSequences.toAAset
+import Base.Threads.@spawn
 using ThreadsX # for ThreadsX.Set, 
 using Transducers  # for tcollect
 using SymmetricFormats # for SymmetricPacked which creates a symmetric matrix from a triangular array
@@ -121,30 +125,8 @@ function allargmins(A)
 end
 
 
-
-
-function main(
-    distinctfiles, allprotsfiles, samplenames,
-    firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
-    maxmainthreads, outdir
-)
-
-    # todo (1) create a CLI using Comonicon.jl https://github.com/comonicon/Comonicon.jl 
-
-    # (2) run each sample using the `run_sample` function
-    for (distinctfile, allprotsfile, samplename) ∈ zip(distinctfiles, allprotsfiles, samplenames)
-        run_sample(
-            distinctfile, allprotsfile, samplename, 
-            firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
-            maxmainthreads, outdir
-        )
-    end
-
-end
-
-
 function run_sample(
-    distinctfile, allprotsfile, samplename, 
+    distinctfile, allprotsfile, samplename,
     firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
     maxmainthreads, outdir
 )
@@ -221,7 +203,7 @@ end
 function one_solution_additional_assignment(distinctdf, allprotsdf, firstcolpos, Δ, solution)
 
     solutionrow = distinctdf[solution, :]
-    
+
     prots_in_solution = solutionrow["UniqueSamples"]
 
     allprotsdf = allprotsdf[:, begin:firstcolpos-1]
@@ -276,6 +258,112 @@ end
 
 
 
+"""
+Define command-line arguments.
+"""
+function parsecmd()
+    s = ArgParseSettings()
+    @add_arg_table s begin
+        "--infiles"
+        help = "One or more csv files representing unique reads/proteins."
+        nargs = '+'
+        action = :store_arg
+        required = true
+        "--delim"
+        help = "Delimiter for input/output csv files."
+        arg_type = String
+        default = "\t"
+        "--prefix_to_remove", "--prefix"
+        help = "Remove `prefix` from output files` names."
+        default = ""
+        "--postfix_to_remove", "--postfix"
+        help = "Remove `postfix` from output files` names, e.g., `.unique_reads.csv`."
+        default = ""
+        "--postfix_to_add"
+        help = "Add `postfix` to output files` names, e.g., `\$sample.DistinctUnique{Reads,Proteins}\$postfix.\$time.csv`."
+        default = ""
+        "--idcol"
+        help = "Label of unique samples columns. Typically `Transcripts` for `Reads` and `Protein` for `Proteins`."
+        required = true
+        "--firstcolpos"
+        help = "Int location of the first editing position column of each file in `infiles`. As of now, should be 9 for `Reads` and 15 for `Proteins`."
+        arg_type = Int
+        required = true
+        "--datatype"
+        help = "Data type of the input files. Either `Reads` or `Proteins`."
+        required = true
+        "--outdir"
+        help = "Write output files to this directory."
+        required = true
+        "--fracstep"
+        help = "Step size for the fraction of the dataset to be used for each iteration, s.t. `fractions = collect(fracstep:fracstep:1.0) ∪ 1.0`."
+        arg_type = Float64
+        default = 0.1
+        "--maxfrac"
+        help = "Maximum fraction of the dataset to be sampled."
+        arg_type = Float64
+        default = 1.0
+        "--fracrepetitions"
+        help = "Number of repetitions of the sampling procedure for each fraction of the data."
+        arg_type = Int
+        default = 10
+        "--algrepetitions"
+        help = "Number of repetitions for each algorithm is run on each repetition of each fraction of the data."
+        arg_type = Int
+        default = 5
+        "--testfraction"
+        help = "Fraction of the dataset to be used for testing. That fraction will correspond to `maxfrac == 1.0`."
+        arg_type = Float64
+        default = 1.0
+        range_tester = x -> 0.0 < x <= 1.0
+        "--randseed"
+        help = "Random seed for sampling test data."
+        arg_type = Int
+        default = 1892
+        "--run_solve_threaded"
+        help = "Run different algorithms/algrepetitions in parallel using threads"
+        action = :store_true
+        "--sortresults"
+        help = "Sort distinct unique samples of reads/proteins."
+        action = :store_true
+        "--algs"
+        help = "Use these algorithms to obtain distinct unique samples of reads/proteins."
+        default = ["Ascending", "Descending", "Unordered"]
+        nargs = '+'
+        range_tester = x -> x ∈ ["Ascending", "Descending", "Unordered"]
+        "--gcp"
+        help = "Program is run on a google cloud VM."
+        action = :store_true
+        "--shutdowngcp"
+        help = "Shutdown google cloud VM when the program ends."
+        action = :store_true
+
+    end
+    return parse_args(s)
+end
+
+
+
+function main(
+    distinctfiles, allprotsfiles, samplenames,
+    firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
+    maxmainthreads, outdir
+)
+
+    # todo (1) create a CLI using Comonicon.jl https://github.com/comonicon/Comonicon.jl 
+
+    # (2) run each sample using the `run_sample` function
+    for (distinctfile, allprotsfile, samplename) ∈ zip(distinctfiles, allprotsfiles, samplenames)
+        run_sample(
+            distinctfile, allprotsfile, samplename,
+            firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
+            maxmainthreads, outdir
+        )
+    end
+
+end
+
+
 
 # distinctfiles = [
 #     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA.AllRows.DistinctUniqueProteins.csv",
@@ -306,17 +394,17 @@ distinctfiles = [
 ]
 
 samplenames = [
-    "RUSC2_MOUSE", 
-    "TRIM2_BOVIN", 
-    "CA2D3_MOUSE", 
-    "ABL_DROME", 
-    "DGLA_HUMAN", 
-    "K0513_MOUSE", 
-    "KCNAS_DROME", 
-    "ACHA4_MOUSE", 
-    "ANR17_HUMAN", 
-    "TWK7_CAEEL", 
-    "SCN1_HETBL", 
+    "RUSC2_MOUSE",
+    "TRIM2_BOVIN",
+    "CA2D3_MOUSE",
+    "ABL_DROME",
+    "DGLA_HUMAN",
+    "K0513_MOUSE",
+    "KCNAS_DROME",
+    "ACHA4_MOUSE",
+    "ANR17_HUMAN",
+    "TWK7_CAEEL",
+    "SCN1_HETBL",
     "CACB2_RABIT"
 ]
 chroms = [
