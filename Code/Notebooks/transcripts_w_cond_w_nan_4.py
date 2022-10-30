@@ -3662,6 +3662,75 @@ for expression_file in expression_files:
     expression_dfs.append(expression_df)
 expression_dfs[0]
 
+# %%
+y_col_name = "TotalWeightedSupportingReads"
+expression_df = expression_dfs[0].sort_values(y_col_name, ascending=False).reset_index(drop=True)
+expression_df["CummulativeRelativeWeightedExpression"] = expression_df.groupby("#Solution")[[y_col_name]].transform(lambda x: 100 * x / x.sum())
+expression_df = expression_df.loc[expression_df["#Solution"] == "1000"].reset_index(drop=True)
+expression_df
+
+# %%
+for n_top_expressed in [10, 100, 1000]:
+    fig = go.Figure()
+    x = [f"{n_top_expressed} top expressed"] * n_top_expressed + ["Rest"] * (len(expression_df) - n_top_expressed)
+    y = expression_df["MinNonSyns"]
+    fig.add_trace(
+        go.Box(
+            x=x,
+            y=y,
+            # boxpoints='all,
+            # mode="markers",
+            # marker=dict(
+            #     # size=16,
+            #     # cmax=39,
+            #     # cmin=0,
+            #     color=z,
+            #     colorbar=dict(
+            #         title="MinNonSyns"
+            #     ),
+            #     # colorscale="Viridis"
+            # ),
+        )
+    )
+    # fig.update_xaxes(type="log")
+    # fig.update_yaxes(type="log")
+    fig.update_layout(
+        height=400, 
+        template=template,
+        yaxis_title='MinNonSyns',
+    )
+    # fig.update_traces(boxpoints='all')
+    fig.show()
+
+# %%
+fig = go.Figure()
+# x = expression_df["MinNonSynsFrequency"]
+x = expression_df.index + 1
+y = expression_df["CummulativeRelativeWeightedExpression"]
+# z = expression_df["MinNonSynsFrequency"]
+z = expression_df["MinNonSyns"]
+fig.add_trace(
+    go.Scattergl(
+        x=x,
+        y=y,
+        mode="markers",
+        marker=dict(
+            # size=16,
+            # cmax=39,
+            # cmin=0,
+            color=z,
+            colorbar=dict(
+                title="MinNonSyns"
+            ),
+            # colorscale="Viridis"
+        ),
+    )
+)
+fig.update_xaxes(type="log")
+fig.update_yaxes(type="log")
+fig.update_layout(height=400, template=template)
+fig.show()
+
 
 # %%
 def find_rand_maximal_solution(expression_df, seed):
