@@ -21,11 +21,11 @@ function run_fracrepetition(
 )
     @info "$(loggingtime())\trun_fracrepetition" fraction nsamplerows fracrepetition algrepetitions run_solve_threaded sortresults algs myid()
     # assemble sub neighborhood lists of indistinguishable sampled rows by using the pre-computed complete graph
-    G = ArrG[1]  # retrive G which is the single element in the distributed array ArrG
-    sampleG = get_graph_sample(G, fraction, nsamplerows, df, idcol)
+    G = @timeit to "`G`" ArrG[1]  # retrive G which is the single element in the distributed array ArrG
+    sampleG = @timeit to "get_graph_sample" get_graph_sample(G, fraction, nsamplerows, df, idcol)
     # obtain sets of distinct rows
     # results = solve(sampleG, fraction, fracrepetition)
-    results = solve(
+    results = @timeit to "solve" solve(
         sampleG,
         fraction,
         fracrepetition,

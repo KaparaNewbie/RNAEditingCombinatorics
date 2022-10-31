@@ -226,3 +226,54 @@ Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 
 # Real account
 
+## VM
+
+Name -> rna-editing-combinatorics-1
+
+<!-- Zone -> me-west1-a -->
+Zone -> us-central1-a
+
+Machine configuration -> MEMORY-OPTIMISED -> m1-ultramem-80 (80 vCPU, 1.88 TB memory) -> 2 vCPUs per core
+
+<!-- [Monthly estimate US $7,075.80. That's about US$9.69 hourly] -->
+
+[Monthly estimate US$6,432.55. That's about US$8.81 hourly]
+    
+
+Enable display device -> V
+
+20 GB balanced persistent disk 
+Operating system -> CentOS 7
+
+
+Access scopes -> Allow full access to all Cloud APIs
+Firewall -> Allow HTTP traffic, Allow HTTPS traffic
+
+
+
+Storage -> Disks -> Create disk
+
+    Disks
+
+    Create disk   # comb-1-disk, on the same region as the vm instance
+
+    On the same region
+
+    Single-zone
+
+    100 GB
+
+    Other - defults
+
+    create
+
+
+GO BACK to VM instances
+
+    Click on mech name
+
+    edit
+
+    Additional disks
+
+    Existing

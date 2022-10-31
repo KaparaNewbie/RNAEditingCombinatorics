@@ -38,6 +38,7 @@ using Distributed
 using Transducers
 using ThreadsX
 using InlineStrings  # for saving space on "Reads" col in input `df`
+using TimerOutputs
 
 
 # todo cloud change, verify on the server as well
@@ -71,6 +72,8 @@ include(joinpath(@__DIR__, "indistinguishable_rows.jl"))
     using StatsBase  # for StatsBase.sample
     using IterTools  # for IterTools.imap
     using Random # for MersenneTwister & shuffle
+    using TimerOutputs
+    const to = TimerOutput() # Create a TimerOutput, this is the main type that keeps track of everything.
     include(joinpath(@__DIR__, "consts.jl")) # for ∅
     include(joinpath(@__DIR__, "timeformatters.jl"))
     include(joinpath(@__DIR__, "solve.jl"))
@@ -199,27 +202,29 @@ function main()
 
     algs::Vector{String} = String.(algs)
 
-    # infiles = ["D.pealeii/MpileupAndTranscripts/IlluminaExample/reads.sorted.aligned.filtered.comp141044_c0_seq2.unique_proteins.csv"]
-    # prefix = "reads.sorted.aligned.filtered."
-    # postfix = ".unique_proteins.csv"
+    # infiles = ["D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv"]
     # delim = "\t"
+    # postfix_to_remove = ".aligned.sorted.MinRQ998.unique_proteins.csv"
+    # prefix_to_remove = ""
+    # postfix_to_add = ".SmallCloudTest"
     # idcol = "Protein"
-    # editingcol = ""
     # firstcolpos = 15
-    # removeuneditedrows = false
-    # allrowsedited = false
     # datatype = "Proteins"
-    # outdir = "D.pealeii/MpileupAndTranscripts/IlluminaExample"
+    # outdir = "D.pealeii/MpileupAndTranscripts/RQ998.2"
     # fracstep = 0.5
     # maxfrac = 1.0
     # fracrepetitions = 5
     # algrepetitions = 2
     # testfraction = 0.01
-    # run_fraction_parallelism = "sequential"
-    # run_fracrepetition_parallelism = "distributed"
     # randseed = 1892
+    # run_solve_threaded = false
+    # sortresults = false
+    # algs = ["Ascending", "Descending"]
+    # gcp = false
+    # shutdowngcp = false
 
-    @info "$(loggingtime())\tmain" delim prefix_to_remove postfix_to_remove postfix_to_add idcol firstcolpos datatype outdir fracstep maxfrac fracrepetitions algrepetitions testfraction randseed run_solve_threaded sortresults algs
+
+    @info "$(loggingtime())\tmain" delim prefix_to_remove postfix_to_remove postfix_to_add idcol firstcolpos datatype outdir fracstep maxfrac fracrepetitions algrepetitions testfraction randseed run_solve_threaded sortresults algs gcp shutdowngcp
 
     # do the thing for each file, in ascending order of file size
     sort!(infiles, by=(x -> filesize(x)))
@@ -232,12 +237,15 @@ function main()
     for x ∈ eachindex(infiles)  # could be eachindex(samplesnames) as well
         infile = infiles[x]
         samplename = samplesnames[x]
-        run_sample(
+        @timeit to "run_sample" run_sample(
             infile, delim, samplename, idcol, firstcolpos, datatype, outdir, postfix_to_add,
             fracstep, maxfrac, fracrepetitions, algrepetitions, testfraction, randseed,
             run_solve_threaded, sortresults, algs
         )
     end
+
+    # Print the timings in the default way
+    show(to)
 
     # shutdown gcp vm
     gcp && shutdowngcp && run(`sudo shutdown`) # https://cloud.google.com/compute/docs/shutdownscript
@@ -347,7 +355,7 @@ function run_sample(
     @info "$(loggingtime())\trun_sample" infile samplename
 
     df, firstcolpos = try
-        preparedf!(
+        @timeit to "preparedf!" preparedf!(
             infile, delim, datatype, idcol, firstcolpos,
             testfraction, randseed
         )
@@ -358,7 +366,7 @@ function run_sample(
 
     # G is the main neighborhood matrix and created only once; samples can create subgraphs induced by it
     G = try
-        indistinguishable_rows(df, idcol; firstcolpos)
+        @timeit to "indistinguishable_rows" indistinguishable_rows(df, idcol; firstcolpos)
     catch e
         @warn "$(loggingtime())\tindistinguishable_rows failed for $infile" e
         return
@@ -371,9 +379,9 @@ function run_sample(
 
 
     # define input parameters for pmap
-    fracrepetitions_inputs = prep_pmap_input(fracstep, maxfrac, df, fracrepetitions)
+    @timeit to "fracrepetitions_inputs" fracrepetitions_inputs = prep_pmap_input(fracstep, maxfrac, df, fracrepetitions)
 
-    fracrepetitions_results = pmap(
+    @timeit to "run_fracrepetition" fracrepetitions_results = pmap(
         fracrepetitions_inputs;
         retry_delays=ExponentialBackOff(n=3, first_delay=5, max_delay=1000)
     ) do (fraction, nsamplerows, fracrepetition)
@@ -413,8 +421,10 @@ function run_sample(
         end
     end
 
-    results::DataFrame = vcat(skipmissing(fracrepetitions_results)...)
-    sort!(results, ["Fraction", "FractionRepetition", "Algorithm", "AlgorithmRepetition"])
+    @timeit to "`fracrepetitions_results` -> sorted `results`" begin
+        results::DataFrame = vcat(skipmissing(fracrepetitions_results)...)
+        sort!(results, ["Fraction", "FractionRepetition", "Algorithm", "AlgorithmRepetition"])
+    end
 
     # write the results to a csv file
     # outfile = abspath(outdir) * "/" * samplename * ".DistinctUnique$datatype.$(writingtime()).csv"
@@ -423,8 +433,15 @@ function run_sample(
 end
 
 
+# reset_timer!(to);
 
-main()
+main();
+
+# show(to)
+# TimerOutputs.complement!(to);
+# show(to)
+
+
 
 
 
