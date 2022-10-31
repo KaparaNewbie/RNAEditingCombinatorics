@@ -1,4 +1,14 @@
 # todo cloud change, verify on the server as well
+# https://discourse.julialang.org/t/julia-python-equivalent-of-main/35433
+if abspath(PROGRAM_FILE) == @__FILE__
+    using Pkg
+    using Distributed
+    # Pkg.activate(".") # todo cloud change, verify on the server as well
+else
+    using BenchmarkTools
+end
+
+
 n_workers = length(workers())
 if n_workers > 1
     # remove previous workers
@@ -14,13 +24,13 @@ if n_workers > 1
 end
 
 
-# https://discourse.julialang.org/t/julia-python-equivalent-of-main/35433
-if abspath(PROGRAM_FILE) == @__FILE__
-    using Pkg
-    # Pkg.activate(".") # todo cloud change, verify on the server as well
-else
-    using BenchmarkTools
-end
+# # https://discourse.julialang.org/t/julia-python-equivalent-of-main/35433
+# if abspath(PROGRAM_FILE) == @__FILE__
+#     using Pkg
+#     # Pkg.activate(".") # todo cloud change, verify on the server as well
+# else
+#     using BenchmarkTools
+# end
 
 
 using ArgParse
