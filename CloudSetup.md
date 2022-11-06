@@ -202,8 +202,26 @@ Testing this new project & paths definitionS on the server, and comparing the tw
 INFILES=D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv
 echo $INFILES
 
+# 2 additional workers
 julia --project=. \
 --threads 6 --proc 2 \
+Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .aligned.sorted.MinRQ998.unique_proteins.csv \
+--postfix_to_add .SmallCloudTest \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.2 \
+--fracstep 0.5 \
+--fracrepetitions 2 \
+--algrepetitions 2 \
+--testfraction 0.0001 \
+--algs Ascending Descending
+
+# no additional workers
+julia --project=. \
+--threads 6 \
 Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 --infiles $INFILES \
 --postfix_to_remove .aligned.sorted.MinRQ998.unique_proteins.csv \
@@ -413,7 +431,11 @@ cd ~
 
 mkdir Data/Illumina
 
-mv \
+<!-- mv \
+reads.sorted.aligned.filtered.comp140712_c0_seq3.unique_proteins.csv \
+Data/Illumina/reads.sorted.aligned.filtered.comp140712_c0_seq3.unique_proteins.csv -->
+
+cp \
 reads.sorted.aligned.filtered.comp140712_c0_seq3.unique_proteins.csv \
 Data/Illumina/reads.sorted.aligned.filtered.comp140712_c0_seq3.unique_proteins.csv
 
@@ -424,8 +446,8 @@ echo $INFILES
 
 cd RNAEditingCombinatorics
 
-julia --project=. \
---threads 38 --proc 1 \
+<!-- julia --project=. \
+--threads 38 \
 Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 --infiles $INFILES \
 --prefix_to_remove reads.sorted.aligned.filtered. \
@@ -439,6 +461,24 @@ Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 --algrepetitions 2 \
 --algs Ascending Descending \
 --run_solve_threaded \
+--gcp \
+--shutdowngcp \
+2>&1 | tee ~/Data/Illumina/maximal_independent_set_5.comp140712_c0_seq3.log -->
+
+julia --project=. \
+--threads 38 \
+Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--prefix_to_remove reads.sorted.aligned.filtered. \
+--postfix_to_remove .unique_proteins.csv \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--outdir ~/Data/Illumina \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
 --gcp \
 --shutdowngcp \
 2>&1 | tee ~/Data/Illumina/maximal_independent_set_5.comp140712_c0_seq3.log

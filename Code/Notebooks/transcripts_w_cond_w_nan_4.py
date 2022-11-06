@@ -94,9 +94,10 @@ seed = 1892
 # %% papermill={"duration": 2.901153, "end_time": "2022-02-01T09:42:46.125355", "exception": false, "start_time": "2022-02-01T09:42:43.224202", "status": "completed"} tags=[]
 import sys
 from functools import reduce
-from itertools import chain, product
+from itertools import chain, product, combinations
 from math import ceil
 from pathlib import Path
+from multiprocessing import Pool
 
 from scipy import interpolate  # todo unimport this later?
 import matplotlib.pyplot as plt
@@ -356,7 +357,7 @@ n_repetitions_colormap(subcolors_discrete_map, "GRIA", 10)
 # proteins_sets_array = np.array(df["Proteins"].apply(lambda x: np.array(x.split(","), dtype=object)), dtype=object)
 # # proteins_sets_array
 
-# %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"} tags=[] toc-hr-collapsed=true toc-hr-collapsed=true tags=[]
+# %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"} tags=[] toc-hr-collapsed=true toc-hr-collapsed=true tags=[] toc-hr-collapsed=true toc-hr-collapsed=true tags=[] toc-hr-collapsed=true
 # # Data
 
 # %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"} tags=[]
@@ -941,6 +942,227 @@ for condition, corr, mask in zip(conditions, corrs, masks):
         f"Pearson correlation coefficient between editing sites in {condition} reads"
     )
 
+
+# %% [markdown]
+# ### Mutual information
+
+# %%
+df = reads_w_nan_dfs[0].iloc[:, reads_first_col_pos:]
+df.head()
+
+
+# %%
+pos_1 = "255"
+pos_2 = "588"
+
+two_positions = [pos_1, pos_2]
+complete_rows = df.loc[:, two_positions].notna().all(axis=1)
+df_1_2 = df.loc[complete_rows, two_positions].reset_index(drop=True)
+
+val_counts = df_1_2.apply(lambda x: x.value_counts())
+val_freqs = val_counts.apply(lambda x: x / x.sum())
+
+p_1_a = val_freqs.loc[0.0, pos_1]
+p_1_g = val_freqs.loc[1.0, pos_1]
+p_2_a = val_freqs.loc[0.0, pos_2]
+p_2_g = val_freqs.loc[1.0, pos_2]
+
+# ic(p_1_a, p_1_g, p_2_a, p_2_g);
+
+# %%
+df_1_2 = df_1_2.astype(int).astype(str)
+mutual_val_counts = pd.Series(df_1_2[pos_1] + df_1_2[pos_2]).value_counts()
+mutual_val_counts_sum = mutual_val_counts.sum()
+
+def get_count_or_zero(val):
+    try:
+        return mutual_val_counts.loc[val]
+    except:
+        return 0.0
+
+p_aa = get_count_or_zero("00") / mutual_val_counts_sum
+p_ag = get_count_or_zero("10") / mutual_val_counts_sum
+p_ga = get_count_or_zero("01") / mutual_val_counts_sum
+p_gg = get_count_or_zero("11") / mutual_val_counts_sum
+
+
+# %% tags=[]
+def calc_normalized_mi(df, pos_1, pos_2):
+    
+    two_positions = [pos_1, pos_2]
+    complete_rows = df.loc[:, two_positions].notna().all(axis=1)
+    df_1_2 = df.loc[complete_rows, two_positions].reset_index(drop=True)
+
+    val_counts = df_1_2.apply(lambda x: x.value_counts())
+    val_freqs = val_counts.apply(lambda x: x / x.sum())
+
+    p_1_a = val_freqs.loc[0.0, pos_1]
+    p_1_g = val_freqs.loc[1.0, pos_1]
+    p_2_a = val_freqs.loc[0.0, pos_2]
+    p_2_g = val_freqs.loc[1.0, pos_2]
+    
+    df_1_2 = df_1_2.astype(int).astype(str)
+    mutual_val_counts = pd.Series(df_1_2[pos_1] + df_1_2[pos_2]).value_counts()
+    mutual_val_counts_sum = mutual_val_counts.sum()
+
+    def get_count_or_zero(val):
+        try:
+            return mutual_val_counts.loc[val]
+        except:
+            return 0.0
+
+    p_aa = get_count_or_zero("00") / mutual_val_counts_sum
+    p_ag = get_count_or_zero("10") / mutual_val_counts_sum
+    p_ga = get_count_or_zero("01") / mutual_val_counts_sum
+    p_gg = get_count_or_zero("11") / mutual_val_counts_sum
+    
+    # ic(p_aa, p_ag_ga, p_gg);
+    
+    def calc_partial_mi(common_prob, prob_1, prob_2):
+        if common_prob / (prob_1 * prob_2) != 0:
+            return common_prob * np.log(common_prob / (prob_1 * prob_2))
+        return 0.0
+    
+    mi_aa = calc_partial_mi(p_aa, p_1_a, p_2_a)
+    mi_ag = calc_partial_mi(p_ag, p_1_a, p_2_g)
+    mi_ga = calc_partial_mi(p_ga, p_1_g, p_2_a)
+    mi_gg = calc_partial_mi(p_gg, p_1_g, p_2_g)
+    
+    mi = mi_aa + mi_ag + mi_ga + mi_gg
+    
+    h_1 = - p_1_a * np.log(p_1_a) - p_1_g * np.log(p_1_g)
+    h_2 = - p_2_a * np.log(p_2_a) - p_2_g * np.log(p_2_g)
+    
+    mi_normalized = mi / min(h_1, h_2)
+    
+    return mi_normalized
+
+
+# %%
+mi_dfs = []
+
+for df, condition in zip(reads_w_nan_dfs, conditions):
+    df = df.iloc[:, reads_first_col_pos:]
+
+    positions_couples = list(combinations(df.columns, 2))
+    
+    with Pool(processes=min(threads, 10)) as pool:
+        mis = pool.starmap(
+            func=calc_normalized_mi,
+            iterable=[
+                (df, pos_1, pos_2)
+                for pos_1, pos_2 in positions_couples
+            ]
+        )
+        
+    mi_df = pd.DataFrame(
+        {
+            "Pos1": [positions[0] for positions in positions_couples],
+            "Pos2": [positions[1] for positions in positions_couples],
+            "NormalizedMutualInformation": mis
+        }
+    )
+    mi_df["Pos1"] = mi_df["Pos1"].astype(int)
+    mi_df["Pos2"] = mi_df["Pos2"].astype(int)
+    mi_df["Distance"] = np.abs(mi_df["Pos2"] - mi_df["Pos1"])
+    mi_df[condition_col] = condition
+
+    mi_dfs.append(mi_df)
+
+    
+merged_mi_df = pd.concat(mi_dfs)
+merged_mi_df
+
+# %%
+import plotly.figure_factory as ff
+
+hist_data = [merged_mi_df.loc[merged_mi_df[condition_col] == condition, "NormalizedMutualInformation"] for condition in conditions]
+
+group_labels = conditions
+colors = [color_discrete_map[condition] for condition in conditions]
+
+# Create distplot with curve_type set to 'normal'
+fig = ff.create_distplot(hist_data, group_labels, show_hist=False, colors=colors)
+
+# Add title
+fig.update_layout(
+    title_text="Mutual information between each two editing positions",
+    template=template,
+)
+# fig.update_yaxes(type="log")
+# fig.update_xaxes(type="log")
+fig.update_traces(opacity=0.7)
+fig.show()
+
+# %%
+fig = px.histogram(
+    merged_mi_df,
+    x="NormalizedMutualInformation",
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    category_orders=category_orders,
+    template=template,
+    title="Mutual information between each two editing positions",
+    log_y=True
+)
+# fig.for_each_annotation(
+#     lambda a: a.update(text=a.text.replace(f"{condition_col}=", ""))
+# )
+fig.update_layout(
+    barmode='overlay',
+#     # showlegend=False,
+)
+fig.update_traces(opacity=0.7)
+fig.show()
+
+# %%
+fig = px.histogram(
+    merged_mi_df,
+    x="NormalizedMutualInformation",
+    y="Distance",
+    histfunc="avg",
+    # marginal="rug", # or box, violin, rug
+    marginal="box", # or box, violin, rug
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    category_orders=category_orders,
+    template=template,
+    title="Mutual information between each two editing positions",
+    # log_y=True
+    # log_x=True
+)
+# fig.for_each_annotation(
+#     lambda a: a.update(text=a.text.replace(f"{condition_col}=", ""))
+# )
+fig.update_layout(
+    barmode='overlay',
+    width=1000,
+    height=450
+#     # showlegend=False,
+)
+fig.update_traces(opacity=0.7)
+fig.show()
+
+# %%
+fig = px.scatter(
+    mi_df,
+    x="Distance",
+    y="NormalizedMutualInformation",
+    color_discrete_sequence=[color_discrete_map[conditions[0]]],
+    # color_discrete_map=color_discrete_map,
+    # facet_col=condition_col,
+    # facet_col_spacing=facet_col_spacing,
+    # category_orders=category_orders,
+    template=template,
+    title="Mutual information between each two editing positions",
+    log_y=True,
+    # log_x=True
+)
+# fig.for_each_annotation(
+#     lambda a: a.update(text=a.text.replace(f"{condition_col}=", ""))
+# )
+# fig.update_layout(showlegend=False)
+fig.show()
 
 # %% [markdown]
 # ### Correlation between positions to sites edited in reads
