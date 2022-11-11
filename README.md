@@ -1,51 +1,55 @@
-# Software & environments
-
-https://www.pacb.com/products-and-services/analytical-software/smrt-analysis/ pacbio official SMRT analysis software
-
-https://ccs.how/
-ccs how-to - official pacbio manual
+TODO add a brief explanation about the project.
 
 
-https://github.com/PacificBiosciences/pbbioconda  pacbio tools with conda
 
-https://github.com/PacificBiosciences/pbmarkdup/ mark duplicates
-https://github.com/PacificBiosciences/pbmm2 kind-of minimap 2 implementation
-https://github.com/PacificBiosciences/extracthifi/ extracthifi is used to extract PacBio HiFi reads (>= Q20) from full CCS output (reads.bam).  
-  
-```
-mkdir Code
-conda env create -f Code/combinatorics.yml
-conda env update -f Code/combinatorics.yml
-conda activate combinatorics
+# Setup
 
-conda env create -f Code/pacbiocomb.yml
-conda env update -f Code/pacbiocomb.yml
-conda activate pacbiocomb
-```
+All code was run on CentOS 7.
+<br>     
 
-## Julia
+Assume the project resides in PROJECT_DIR.
 
-```bash
-cd ~
-DEACTIVATE
-mkdir Julia
-cd Julia
-wget https://julialang-s3.julialang.org/bin/linux/x64/1.7/julia-1.7.2-linux-x86_64.tar.gz
-tar zxvf julia-1.7.2-linux-x86_64.tar.gz
+1. Clone the repository
+    ```bash
+    cd PROJECT_DIR
 
-# add julia to path
+    git clone https://github.com/KaparaNewbie/RNAEditingCombinatorics
+    ```
 
-cd ~
-mkdir -p ~/.julia/config/ && echo "using Revise" >> ~/.julia/config/startup.jl
+2. Create two conda environments; the first is the main one, while the other strictly serves [PacBio packages](https://github.com/PacificBiosciences/pbbioconda) that require python 2.7
+    ```bash
+    cd RNAEditingCombinatorics
 
-COMB
-```
+    conda env create -f combinatorics.yml
+    conda activate combinatorics  # test successful creation
 
-<!-- 
-```julia
-] activate .
-```
- -->
+    conda env create -f pacbiocomb.yml
+    conda activate pacbiocomb  # test successful creation
+    ```
+
+3. Julia
+   1.  Install the Julia programing language
+            ```bash
+            cd ~
+            mkdir Julia
+            cd Julia
+            wget https://julialang-s3.julialang.org/bin/linux/x64/1.7/julia-1.7.2-linux-x86_64.tar.gz
+            tar zxvf julia-1.7.2-linux-x86_64.tar.gz
+            ```
+
+        2. Add Julia to PATH (see [here](https://julialang.org/downloads/platform/#running_julia) if you need any help)
+
+        3.  Instantiate the Julia environment
+            ```bash
+            cd RNAEditingCombinatorics
+
+            julia
+            pkg> activate .
+            pkg> instantiate
+            exit()
+            ```
+
+
 
 # Data & annotations
 
