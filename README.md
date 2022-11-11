@@ -29,13 +29,13 @@ Assume the project resides in PROJECT_DIR.
 
 3. Julia
    1. Install the Julia programing language  
-            ```bash
-            cd ~
-            mkdir Julia
-            cd Julia
-            wget https://julialang-s3.julialang.org/bin/linux/x64/1.7/julia-1.7.2-linux-x86_64.tar.gz
-            tar zxvf julia-1.7.2-linux-x86_64.tar.gz
-            ```
+        ```bash
+        cd ~
+        mkdir Julia
+        cd Julia
+        wget https://julialang-s3.julialang.org/bin/linux/x64/1.7/julia-1.7.2-linux-x86_64.tar.gz
+        tar zxvf julia-1.7.2-linux-x86_64.tar.gz
+        ```
 
     2. Add Julia to PATH (see [here](https://julialang.org/downloads/platform/#running_julia) if you need any help)
 
