@@ -399,49 +399,12 @@ illumina \
 
 # Alignment
 
-## Manual tests
 
-```bash
-cd /private7/projects/Combinatorics
-
-conda activate pacbiocomb
-
-mkdir -p D.pealeii/Alignment.Test
-
-pbmm2 \
-index \
---preset CCS \
---num-threads 30 \
-D.pealeii/Annotations/orfs_squ.fa \
-D.pealeii/Alignment.Test/orfs_squ.fa.mmi
-
-pbmm2 \
-align \
---sort \
---preset CCS \
---num-threads 30 \
-D.pealeii/Alignment.Test/orfs_squ.fa.mmi \
-D.pealeii/Data/CCS/BasicCCS/GRIA-CNS-RESUB.C0x1291.ccs.bam \
-D.pealeii/Alignment.Test/GRIA-CNS-RESUB.C0x1291.aligned.sorted.bam 
 ```
 
 ## Python script
 
-### Naive
 
-```bash
-conda activate combinatorics
-
-cd /private7/projects/Combinatorics
-
-mkdir -p D.pealeii/Alignment/Naive
-
-nohup \
-python Code/align.py \
---genome D.pealeii/Annotations/orfs_squ.fa \
---in_dir D.pealeii/Data/CCS/BasicCCS \
---out_dir D.pealeii/Alignment/Naive \
-> D.pealeii/Alignment/Naive/align.25.1.22.out &
 ```
 
 ### --best-n 1
@@ -462,63 +425,6 @@ python Code/align.py \
 > D.pealeii/Alignment/BestN1/align.2.2.22.out &
 ```
 
-<!-- ### --best-n 1 with ccs files created with --min-passes 6
-
-
-```bash
-conda activate combinatorics
-cd /private7/projects/Combinatorics
-
-mkdir -p D.pealeii/Alignment/MinPass6.BestN1
-
-nohup \
-python Code/align.py \
---genome D.pealeii/Annotations/orfs_squ.fa \
---in_dir D.pealeii/Data/CCS.MinPass6/BasicCCS \
---out_dir D.pealeii/Alignment/MinPass6.BestN1 \
-> D.pealeii/Alignment/MinPass6.BestN1/align.7.2.22.out &
-```
-
-(combinatorics) [kobish@alu15 Combinatorics]$ samtools view -c /private7/projects/Combinatorics/D.pealeii/Alignment/BestN1/GRIA-CNS-RESUB.C0x1291.aligned.sorted.bam
-91529
-(combinatorics) [kobish@alu15 Combinatorics]$ samtools view -c /private7/projects/Combinatorics/D.pealeii/Alignment/BestN1/PCLO-CNS-RESUB.C0x1291.aligned.sorted.bam
-82595
-(combinatorics) [kobish@alu15 Combinatorics]$ samtools view -c /private7/projects/Combinatorics/D.pealeii/Alignment/MinPass6.BestN1/GRIA-CNS-RESUB.C0x1291.aligned.sorted.bam
-86635
-(combinatorics) [kobish@alu15 Combinatorics]$ samtools view -c /private7/projects/Combinatorics/D.pealeii/Alignment/MinPass6.BestN1/PCLO-CNS-RESUB.C0x1291.aligned.sorted.bam
-77568
-
-### --best-n 1 with ccs files created with --min_rq 0.998
-
-```bash
-conda activate combinatorics
-cd /private7/projects/Combinatorics
-
-mkdir -p D.pealeii/Alignment/RQ998.BestN1
-
-nohup \
-python Code/align.py \
---genome D.pealeii/Annotations/orfs_squ.fa \
---in_dir D.pealeii/Data/CCS.MinPass6/BasicCCS \
---out_dir D.pealeii/Alignment/RQ998.BestN1 \
-> D.pealeii/Alignment/RQ998.BestN1/align.8.2.22.out &
-```
-
-
-
-```bash
-conda activate combinatorics
-cd /private7/projects/Combinatorics
-
-mkdir -p D.pealeii/Alignment/MinPass6.BestN1
-
-nohup \
-python Code/align.py \
---genome D.pealeii/Annotations/orfs_squ.fa \
---in_dir D.pealeii/Data/CCS.MinPass6/BasicCCS \
---out_dir D.pealeii/Alignment/MinPass6.BestN1 \
-> D.pealeii/Alignment/MinPass6.BestN1/align.7.2.22.out &
-``` -->
 
 
 ### Aligning short reads
@@ -526,10 +432,6 @@ python Code/align.py \
 ```bash
 mkdir -p D.pealeii/Alignment/Illumina/BWAIndex
 cd D.pealeii/Alignment/Illumina/BWAIndex
-
-# cp /private7/projects/Combinatorics/D.pealeii/Annotations/orfs_squ.fa /private7/projects/Combinatorics/D.pealeii/Alignment/Illumina/BWAIndex
-# samtools faidx /private7/projects/Combinatorics/D.pealeii/Alignment/Illumina/BWAIndex/orfs_squ.fa
-# bwa-mem2 index /private7/projects/Combinatorics/D.pealeii/Alignment/Illumina/BWAIndex/orfs_squ.fa
 
 ln -s /private7/projects/Combinatorics/D.pealeii/Annotations/orfs_squ.fa /private7/projects/Combinatorics/D.pealeii/Alignment/Illumina/BWAIndex/orfs_squ.fa
 samtools faidx /private7/projects/Combinatorics/D.pealeii/Alignment/Illumina/BWAIndex/orfs_squ.fa
@@ -1485,86 +1387,6 @@ Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 
 
 
-# complete tests
-
-
-```bash
-INFILES=$(echo D.pealeii/MpileupAndTranscripts/IlluminaExample/*.unique_proteins.csv)
-
-JULIA_PROJECT=.
-
-nohup julia \
---threads 60 --proc 2 \
-Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
---infiles $INFILES \
---prefix_to_remove reads.sorted.aligned.filtered. \
---postfix_to_remove .unique_proteins.csv \
---postfix_to_add .CompleteTest \
---idcol Protein \
---firstcolpos 15 \
---datatype Proteins \
---outdir D.pealeii/MpileupAndTranscripts/IlluminaExample \
---fracstep 0.25 \
---fracrepetitions 2 \
-> D.pealeii/MpileupAndTranscripts/IlluminaExample/maximal_independent_set_5.Proteins.CompleteTest.out &
-```
-* alu 16
-* 20.6.22
-* 09:18
-
-
-
-```bash
-tmux new -s alu16
-INFILES=$(echo D.pealeii/MpileupAndTranscripts/IlluminaExample/*.unique_proteins.csv)
-JULIA_PROJECT=.
-
-nohup julia \
---threads 60 --proc 2 \
-Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
---infiles $INFILES \
---prefix_to_remove reads.sorted.aligned.filtered. \
---postfix_to_remove .unique_proteins.csv \
---postfix_to_add .CompleteTest2 \
---idcol Protein \
---firstcolpos 15 \
---datatype Proteins \
---outdir D.pealeii/MpileupAndTranscripts/IlluminaExample \
---fracstep 0.25 \
---fracrepetitions 3 \
-> D.pealeii/MpileupAndTranscripts/IlluminaExample/maximal_independent_set_5.Proteins.CompleteTest2.out &
-```
-* alu 16
-* 22.6.22
-* 15:36
-
-
-
-
-#### Pileup
-
-```bash
-mkdir D.pealeii/MpileupAndTranscripts/Illumina
-
-nohup \
-python Code/pileup.py \
---transcriptome D.pealeii/Annotations/orfs_squ.fa \
---data_table D.pealeii/Alignment/Illumina/reads.ByChrom/data_table.csv \
---known_editing_sites D.pealeii/Annotations/D.pea.EditingSites.bed \
---out_dir D.pealeii/MpileupAndTranscripts/Illumina \
---top_x_noisy_positions 5 \
---assurance_factor 1.5 \
---include_flags 3 \
---exclude_flags 2304 \
---min_bq 30 \
---parity PE \
---processes 4 \
---threads 4 \
-> D.pealeii/MpileupAndTranscripts/Illumina/pileup.30.1.22.out & 
-```
-* alu 15
-* 30.1.22
-* 14:58
 
 
 
@@ -1577,132 +1399,8 @@ python Code/pileup.py \
 
 
 
-#### Reads
-
-<!-- ```bash
-INFILES=$(echo D.pealeii/MpileupAndTranscripts/IlluminaExample/*.unique_reads.csv)
-echo $INFILES
-
-nohup \
-julia \
---threads 50 \
-Code/UnorderedNaNDepletion/maximal_independent_nan_depletion_4.jl \
---infiles $INFILES \
---postfix .unique_reads.csv \
---idcol Transcript \
---editingcol EditedPositions \
---firstcolpos 9 \
---datatype Reads \
---outdir D.pealeii/MpileupAndTranscripts/IlluminaExample \
-> D.pealeii/MpileupAndTranscripts/IlluminaExample/maximal_independent_nan_depletion_4.Reads.AllRows.out &
-```
-* alu 13
-* 1.6.22
-* 15:43 -->
-
-#### Proteins
-
-
-<!-- ```bash
-nohup \
-julia \
---threads 50 \
-Code/UnorderedNaNDepletion/maximal_independent_nan_depletion_4.jl \
---infiles \
-D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv \
-D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv \
---samplesnames GRIA.AllRows PCLO.AllRows \
---idcol Protein \
---editingcol MinNonSyns \
---firstcolpos 15 \
---datatype Proteins \
---outdir D.pealeii/MpileupAndTranscripts/RQ998.2 \
-> D.pealeii/MpileupAndTranscripts/RQ998.2/maximal_independent_nan_depletion_4.Proteins.AllRows.out &
-```
-* alu 16
-* 18.5.22
-* 19:28 -->
 
 
 
 
-
-## Working on Ruti's data
-
-
-
-Finding Rutis's fastq file
-
-find /private7/projects/ruti/Squid -ls -type f -name "*.fq" -o -name "*.fastq"
- 
-find /private7/projects/ruti/Squid -ls -type f -name "*.gz" 
-
-find /private7/projects/ruti/Squid -type f -name "*.x.gz" 
-
-
-
-
-
-
-### Parsing Ruti's matrices to reads and transcripts
-
-
-```bash 
-mkdir D.pealeii/MpileupAndTranscripts/Ruti
-
-nohup \
-julia \
---threads 50 \
-Code/create_rutis_transcripts.jl \
---indir D.pealeii/Data/RutisMatrices \
---outdir D.pealeii/MpileupAndTranscripts/Ruti \
---genome D.pealeii/Annotations/December2017/orfs_squ.fa \
->> D.pealeii/MpileupAndTranscripts/Ruti/create_rutis_transcripts.out &
-```
-* alu 15
-* 30.3.22
-* 16:38
-
-
-cut -d "," -f 4 /private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Ruti/unique_base_quality_filtered_MATRIX_3_comp140439_c0_seq1_only_paired_full_comp_from_A.transcripts.csv | sort | uniq -c | less
-
-cut -d "," -f 4 /private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Ruti/unique_base_quality_filtered_MATRIX_3_comp140439_c0_seq1_only_paired_full_comp_from_A.transcripts.csv | sort | uniq
-
- -d, --delimiter=DELIM
-              use DELIM instead of TAB for field delimiter
-
-       -f, --fields=LIST
-              select only these fields;  also print any line that contains no delimiter character, unless the -s option is
-              specifiedq
-
-
-
-```bash
-INFILES=$(echo D.pealeii/MpileupAndTranscripts/Ruti/*.transcripts.csv)
-SAMPLES=$(find D.pealeii/MpileupAndTranscripts/Ruti/ -name "*.transcripts.csv" | sed 's/\.transcripts.csv//' | tr "\n" " ")
-
-nohup \
-julia \
---threads 35 \
-Code/UnorderedNaNDepletion/maximal_independent_nan_depletion_3B.jl \
---infiles $INFILES \
---samples $SAMPLES \
---allrowsedited \
---outdir D.pealeii/MpileupAndTranscripts/Ruti \
---fracrepetitions 1 \
---algrepetitions 1 \
-> D.pealeii/MpileupAndTranscripts/Ruti/maximal_independent_nan_depletion_3B.out &
-```
-* alu 13
-* 6.4.22
-* 21:25
-
-
-
-
-
-
-
-git rm -r --cached *.ipynb_checkpoints*
-git rm -r --cached *.ipynb
 
