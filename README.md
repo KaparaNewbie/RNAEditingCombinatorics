@@ -28,7 +28,7 @@ Assume the project resides in PROJECT_DIR.
     ```
 
 3. Julia
-   1.  Install the Julia programing language
+   1. Install the Julia programing language
             ```bash
             cd ~
             mkdir Julia
@@ -37,17 +37,17 @@ Assume the project resides in PROJECT_DIR.
             tar zxvf julia-1.7.2-linux-x86_64.tar.gz
             ```
 
-        2. Add Julia to PATH (see [here](https://julialang.org/downloads/platform/#running_julia) if you need any help)
+    2. Add Julia to PATH (see [here](https://julialang.org/downloads/platform/#running_julia) if you need any help)
 
-        3.  Instantiate the Julia environment
-            ```bash
-            cd RNAEditingCombinatorics
+    3.  Instantiate the Julia environment
+        ```bash
+        cd RNAEditingCombinatorics
 
-            julia
-            pkg> activate .
-            pkg> instantiate
-            exit()
-            ```
+        julia
+        pkg> activate .
+        pkg> instantiate
+        exit()
+        ```
 
 
 
