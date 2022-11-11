@@ -10,3 +10,5 @@ Code/Pileup/__pycache__/
 /*.ipynb
 *.ipynb_checkpoints*
 Code/Notebooks/*.svg
+LOGS.md
+CloudSetup.md

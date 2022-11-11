@@ -431,9 +431,6 @@ cd ~
 
 mkdir Data/Illumina
 
-<!-- mv \
-reads.sorted.aligned.filtered.comp140712_c0_seq3.unique_proteins.csv \
-Data/Illumina/reads.sorted.aligned.filtered.comp140712_c0_seq3.unique_proteins.csv -->
 
 cp \
 reads.sorted.aligned.filtered.comp140712_c0_seq3.unique_proteins.csv \
@@ -445,25 +442,6 @@ INFILES=$(echo ~/Data/Illumina/*.unique_proteins.csv)
 echo $INFILES
 
 cd RNAEditingCombinatorics
-
-<!-- julia --project=. \
---threads 38 \
-Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
---infiles $INFILES \
---prefix_to_remove reads.sorted.aligned.filtered. \
---postfix_to_remove .unique_proteins.csv \
---idcol Protein \
---firstcolpos 15 \
---datatype Proteins \
---outdir ~/Data/Illumina \
---fracstep 0.2 \
---fracrepetitions 4 \
---algrepetitions 2 \
---algs Ascending Descending \
---run_solve_threaded \
---gcp \
---shutdowngcp \
-2>&1 | tee ~/Data/Illumina/maximal_independent_set_5.comp140712_c0_seq3.log -->
 
 julia --project=. \
 --threads 38 \
@@ -483,3 +461,43 @@ Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 --shutdowngcp \
 2>&1 | tee ~/Data/Illumina/maximal_independent_set_5.comp140712_c0_seq3.log
 ```
+
+## Other 6 samples
+
+Uploaded them manualy.
+
+```
+# get data
+
+cp \
+reads.sorted.aligned.filtered.*.unique_proteins.csv \
+Data/Illumina
+
+
+# run julia
+
+INFILES="/home/shapirakobi/Data/Illumina/reads.sorted.aligned.filtered.comp141532_c3_seq11.unique_proteins.csv /home/shapirakobi/Data/Illumina/reads.sorted.aligned.filtered.comp141565_c6_seq3.unique_proteins.csv /home/shapirakobi/Data/Illumina/reads.sorted.aligned.filtered.comp141574_c0_seq3.unique_proteins.csv /home/shapirakobi/Data/Illumina/reads.sorted.aligned.filtered.comp141684_c0_seq1.unique_proteins.csv /home/shapirakobi/Data/Illumina/reads.sorted.aligned.filtered.comp141880_c1_seq3.unique_proteins.csv /home/shapirakobi/Data/Illumina/reads.sorted.aligned.filtered.comp141882_c0_seq14.unique_proteins.csv"
+echo $INFILES
+
+cd RNAEditingCombinatorics
+
+julia --project=. \
+--threads 38 \
+Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--prefix_to_remove reads.sorted.aligned.filtered. \
+--postfix_to_remove .unique_proteins.csv \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--outdir ~/Data/Illumina \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--gcp \
+--shutdowngcp \
+2>&1 | tee ~/Data/Illumina/maximal_independent_set_5.other_6_samples.log
+```
+* 7.11.22
+* 13:45
