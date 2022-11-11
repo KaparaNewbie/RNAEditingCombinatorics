@@ -28,7 +28,7 @@ Assume the project resides in PROJECT_DIR.
     ```
 
 3. Julia
-   1. Install the Julia programing language
+   1. Install the Julia programing language  
             ```bash
             cd ~
             mkdir Julia
