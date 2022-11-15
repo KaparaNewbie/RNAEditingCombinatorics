@@ -7,7 +7,7 @@ TODO add a brief explanation about the project.
 All code was run on CentOS 7.
 <br>     
 
-Assume the project resides in PROJECT_DIR.
+Assume the project resides in `PROJECT_DIR`.
 
 1. Clone the repository
     ```bash
