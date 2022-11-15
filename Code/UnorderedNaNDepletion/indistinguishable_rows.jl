@@ -8,24 +8,24 @@
 
 "Determine whether a change from `AAᵦ` to `AAᵧ` is considered a similar change."
 function issimilar(
-    AAᵦ::AminoAcid, AAᵧ::AminoAcid, 
-    substitutionmatrix::SubstitutionMatrix{AminoAcid, Int64}, minsimilarityscore::Int64, similarityvalidator::Function
+    AAᵦ::AminoAcid, AAᵧ::AminoAcid,
+    substitutionmatrix::SubstitutionMatrix{AminoAcid,Int64}, minsimilarityscore::Int64, similarityvalidator::Function
 )
-    similarityscore = substitutionmatrix[AAᵦ, AAᵧ] 
+    similarityscore = substitutionmatrix[AAᵦ, AAᵧ]
     similarityvalidator(similarityscore, minsimilarityscore)
 end
 
 "Determine wheter at least one change from `AAᵦ` to `AAᵧ`, `(AAᵦ, AAᵧ) ∈ (Sᵢ x Sⱼ)`, is considered a similar change."
 function issimilar(
-    Sᵢ::Set{AminoAcid}, Sⱼ::Set{AminoAcid}, 
-    substitutionmatrix::SubstitutionMatrix{AminoAcid, Int64}, minsimilarityscore::Int64, similarityvalidator::Function
+    Sᵢ::Set{AminoAcid}, Sⱼ::Set{AminoAcid},
+    substitutionmatrix::SubstitutionMatrix{AminoAcid,Int64}, minsimilarityscore::Int64, similarityvalidator::Function
 )
     ThreadsX.any(
         [
-            issimilar(AAᵦ, AAᵧ, substitutionmatrix, minsimilarityscore, similarityvalidator)
-            for AAᵦ ∈ Sᵢ
-            for AAᵧ ∈ Sⱼ
-        ]
+        issimilar(AAᵦ, AAᵧ, substitutionmatrix, minsimilarityscore, similarityvalidator)
+        for AAᵦ ∈ Sᵢ
+        for AAᵧ ∈ Sⱼ
+    ]
     )
 end
 
@@ -44,8 +44,8 @@ That is, `i` and `j` are uncompatible and thus cannot be considered both as uniq
 Else, `j ∉ G[i]`.
 """
 function indistinguishable_rows(
-    M::Matrix{Set{AminoAcid}}, ids, 
-    substitutionmatrix::SubstitutionMatrix{AminoAcid, Int64}, minsimilarityscore::Int64, similarityvalidator::Function
+    M::Matrix{Set{AminoAcid}}, ids,
+    substitutionmatrix::SubstitutionMatrix{AminoAcid,Int64}, minsimilarityscore::Int64, similarityvalidator::Function
 )
     @info "$(loggingtime())\tindistinguishable_rows"
 
@@ -89,14 +89,14 @@ function indistinguishable_rows(M::Matrix{Set{AminoAcid}}, ids)
         "There should be a bijection between M's rows and ids, in order of appearence."
     )
     nodeseltype = eltype(ids)
-    
+
     AAsets = ThreadsX.Set([x for row ∈ eachrow(M) for x ∈ row])
     # emptyAAintersections = ThreadsX.Set(
     #     [(x, y)
     #      for x ∈ AAsets for y ∈ AAsets
     #      if x ∩ y == ∅]
     # )
-   # sets whose intersection is empty
+    # sets whose intersection is empty
     distinctAAsets = ThreadsX.Set(
         [(x, y)
          for x ∈ AAsets for y ∈ AAsets
@@ -111,7 +111,7 @@ end
 
 
 function indistinguishable_vs_for_u(
-    M::Matrix{Set{AminoAcid}}, 
+    M::Matrix{Set{AminoAcid}},
     # emptyAAintersections, 
     distinctAAsets,
     ids, nodeseltype, i
@@ -190,7 +190,7 @@ end
 
 
 function indistinguishable_rows(
-    df::DataFrame, idcol; 
+    df::DataFrame, idcol;
     firstcolpos::Int=2, areuniuqe::Bool=false
 )
     # if !areuniuqe
@@ -206,8 +206,8 @@ end
 
 
 function indistinguishable_rows(
-    df::DataFrame, idcol; 
-    firstcolpos::Int=2, areuniuqe::Bool=false, 
+    df::DataFrame, idcol;
+    firstcolpos::Int=2, areuniuqe::Bool=false,
     substitutionmatrix, conservationcutoff, cutoffdiff
 )
     # if !areuniuqe
