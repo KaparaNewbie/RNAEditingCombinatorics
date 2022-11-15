@@ -49,6 +49,7 @@ using Transducers
 using ThreadsX
 using InlineStrings  # for saving space on "Reads" col in input `df`
 using TimerOutputs
+using BioAlignments
 
 
 # todo cloud change, verify on the server as well
@@ -445,7 +446,8 @@ end
 
 # reset_timer!(to);
 
-main();
+# todo uncomment
+# main();
 
 # show(to)
 # TimerOutputs.complement!(to);
@@ -458,169 +460,44 @@ main();
 # @benchmark main()
 
 
-# idcol = "Protein"
-# delim = "\t"
-# datatype = "Proteins"
-# firstcolpos = 15
-# fraction = 1.0
-# testfraction = 1.0
+infile = "D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv"
+delim = "\t"
+postfix_to_remove = ".aligned.sorted.MinRQ998.unique_proteins.csv"
+prefix_to_remove = ""
+postfix_to_add = ".SmallCloudTest"
+idcol = "Protein"
+firstcolpos = 15
+datatype = "Proteins"
+outdir = "D.pealeii/MpileupAndTranscripts/RQ998.2"
+fracstep = 0.5
+maxfrac = 1.0
+fracrepetitions = 5
+algrepetitions = 2
+testfraction = 0.001
+randseed = 1892
+run_solve_threaded = false
+sortresults = false
+algs = ["Ascending", "Descending"]
+gcp = false
+shutdowngcp = false
 
 
-# newG = let
-#     infile = "D.pealeii/MpileupAndTranscripts/IlluminaExample2/reads.sorted.aligned.filtered.comp141044_c0_seq2.unique_proteins.csv"
-#     firstcolpos = 15
-#     outdir = "D.pealeii/MpileupAndTranscripts/IlluminaExample2"
-#     df, firstcolpos = preparedf!(infile, delim, datatype, idcol, firstcolpos, testfraction)
-#     # G is the main neighborhood matrix and created only once; samples can create subgraphs induced by it
-#     G = indistinguishable_rows(df, idcol; firstcolpos)
-# end
 
-# newdegsdf = let G = newG
-#     vertices = Vector{eltype(keys(G))}(undef, length(G))
-#     degrees = Vector{Int}(undef, length(G))
-#     for (x, (k, v)) ∈ enumerate(G)
-#         vertices[x] = k
-#         degrees[x] = length(v)
-#     end
-#     degsdf = DataFrame("Node" => vertices, "Neighbors" => degrees)
-#     sort!(degsdf, "Neighbors")
-# end
-
-# varinfo(r"newG") # 14.443 GiB Dict{String3, Set{String3}} with 170080 entries
-
-# # CSV.write("/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/IlluminaExample2/newdegsdf.csv", newdegsdf)
-
-# oldG = let
-#     infile = "D.pealeii/MpileupAndTranscripts/IlluminaExample/reads.sorted.aligned.filtered.comp141044_c0_seq2.unique_proteins.csv"
-#     firstcolpos = 15
-#     outdir = "D.pealeii/MpileupAndTranscripts/IlluminaExample"
-#     df, firstcolpos = preparedf!(infile, delim, datatype, idcol, firstcolpos, testfraction)
-#     # G is the main neighborhood matrix and created only once; samples can create subgraphs induced by it
-#     G = indistinguishable_rows(df, idcol; firstcolpos)
-# end
+df, firstcolpos = preparedf!(
+    infile, delim, datatype, idcol, firstcolpos,
+    testfraction, randseed
+)
 
 
-# olddegsdf = let G = oldG
-#     vertices = Vector{eltype(keys(G))}(undef, length(G))
-#     degrees = Vector{Int}(undef, length(G))
-#     for (x, (k, v)) ∈ enumerate(G)
-#         vertices[x] = k
-#         degrees[x] = length(v)
-#     end
-#     degsdf = DataFrame("Node" => vertices, "Neighbors" => degrees)
-#     sort!(degsdf, "Neighbors")
-# end
+substitutionmatrix = BLOSUM62
+minsimilarityscore = 0
+similarityvalidator = ≥
 
 
 
 
-# # CSV.write("/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/IlluminaExample/olddegsdf.csv", olddegsdf)
 
-# varinfo(r"oldG") # oldG 110.567 GiB Dict{String31, Set{String31}} with 170966 entries
+areuniuqe = false
 
-
-# n1 = olddegsdf[!, :Neighbors]
-# n2 = newdegsdf[!, :Neighbors]
-
-# minimum(n1)
-# minimum(n2)
-# mean(n1)
-# mean(n2)
-# median(n1)
-# median(n2)
-# maximum(n1)
-# maximum(n2)
-
-# s1 = sum(n1)
-# s2 = sum(n2)
-# min(s1, s2) / max(s1, s2)
-
-# vertices = Vector{eltype(keys(G))}(undef, length(G))
-# degrees = Vector{Int}(undef, length(G))
-# for (x, (k, v)) ∈ enumerate(G)
-#     vertices[x] = k
-#     degrees[x] = length(v)
-# end
-# # degs_df = DataFrame("Node" => vertices, "Neighbors" => degrees)
-
-# G_size = 16.576 # GiB varinfo(r"G")
-
-# vs_plus_ns = length(vertices) + sum(degrees)
-# bytes_needed = vs_plus_ns * 4
-# gb_needed = bytes_needed / 10^9
-
-
-
-# infile = "D.pealeii/MpileupAndTranscripts/IlluminaExample2/reads.sorted.aligned.filtered.comp141044_c0_seq2.unique_proteins.csv"
-# samplename = "comp141044_c0_seq2"
-# idcol = "Protein"
-# outdir = "D.pealeii/MpileupAndTranscripts/IlluminaExample2"
-# fracstep = 1.0
-# maxfrac = 1.0
-# fracrepetitions = 1
-# algrepetitions = 1
-# delim = "\t"
-# datatype = "Proteins"
-# fraction = 1.0
-# fracrepetition = 1
-# algrepetitions = 10
-# firstcolpos = 15
-# testfraction = 1.0
-
-# df, firstcolpos = preparedf!(infile, delim, datatype, idcol, firstcolpos, testfraction)
-
-# # G is the main neighborhood matrix and created only once; samples can create subgraphs induced by it
-# @time G = indistinguishable_rows(df, idcol; firstcolpos)
-
-# vertices = Vector{eltype(keys(G))}(undef, length(G))
-# degrees = Vector{Int}(undef, length(G))
-# for (x, (k, v)) ∈ enumerate(G)
-#     vertices[x] = k
-#     degrees[x] = length(v)
-# end
-# # degs_df = DataFrame("Node" => vertices, "Neighbors" => degrees)
-
-# G_size = 16.576 # GiB varinfo(r"G")
-
-# vs_plus_ns = length(vertices) + sum(degrees)
-# bytes_needed = vs_plus_ns * 4
-# gb_needed = bytes_needed / 10^9
-
-# # # having built G, we only need to keep the reads and unique reads/proteins they support
-# # select!(df, idcol)
-
-# # free()
-# # GC.gc()
-# # free()
-
-# # nrows = size(df, 1)
-# # nsamplerows = convert(Int, round(fraction * nrows)) # numbe
-
-# # # assemble sub neighborhood lists of uncompatible sampled rows by using the pre-computed complete graph
-# # sampleG = get_graph_sample(G, fraction, nsamplerows, df, idcol)
-
-# # # # obtain $algrepetitions × 2 (the asc- and desc algorithms) results of compatible rows
-# # @time results = solve(sampleG, fraction, fracrepetition, algrepetitions)
-# # @benchmark solve(sampleG, fraction, fracrepetition, algrepetitions)
-
-
-
-
-# n = 10000
-# reads = collect(1:n)
-# sets = [Set(sample(reads, rand(1:length(reads)), replace=false)) for _ in 1:n/10]
-
-# jaccardindex(s1, s2) = length(s1 ∩ s2) / length(s1 ∪ s2)
-
-# j_m = Matrix{Float64}(undef, length(sets), length(sets))
-
-# for x in eachindex(sets)
-#     s1 = sets[x]
-#     for y in eachindex(sets)
-#         s2 = sets[y]
-#         j_m[x, y] = jaccardindex(s1, s2)
-#     end
-# end
-
-
-
+# G is the main neighborhood matrix and created only once; samples can create subgraphs induced by it
+G = indistinguishable_rows(df, idcol; firstcolpos, substitutionmatrix, minsimilarityscore, issimmilar)
