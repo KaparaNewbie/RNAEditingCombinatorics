@@ -52,3 +52,4 @@ dependencies:
   # - numba
   - jupytext 
   - kmodes 
+  # - blosum  # https://github.com/not-a-feature/blosum
