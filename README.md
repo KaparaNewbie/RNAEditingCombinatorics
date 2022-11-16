@@ -607,214 +607,12 @@ BAMs -> edited transcripts:
 * [Samtools' mpileup](http://www.htslib.org/doc/samtools-mpileup.html) with `--output-QNAME` such that each each base will be annotated with its read name, which will then allow us to aggregate edited bases per read.
 
 
-## Manual tests
-
-### Naive
-
-```
-conda activate combinatorics
-cd /private7/projects/Combinatorics
-
-samtools view D.pealeii/Alignment/Native/PCLO-CNS-RESUB.C0x1291.aligned.sorted.bam comp141882_c0_seq14 | less
-```
-
-```
-touch D.pealeii/Alignment.Test/two_reads.txt
-echo -e "m54278_210226_220806/60358899/ccs" >> D.pealeii/Alignment.Test/two_reads.txt
-echo -e "m54278_210226_220806/5374853/ccs" >> D.pealeii/Alignment.Test/two_reads.txt
-
-samtools view \
--N D.pealeii/Alignment/Native/two_reads.txt \
-D.pealeii/Alignment/Native/PCLO-CNS-RESUB.C0x1291.aligned.sorted.bam comp141882_c0_seq14 \
-| less
 
 
 
+## PacBio (rq 0.998, v. 2)
 
-
-
-
-samtools mpileup \
---positions D.pealeii/Annotations/D.pea.EditingSites.bed \
---region comp141882_c0_seq14 \
---fasta-ref D.pealeii/Annotations/orfs_squ.fa \
---no-BAQ \
---no-output-ins --no-output-ins \
---no-output-del --no-output-del \
---no-output-ends \
---output-QNAME \
-D.pealeii/Alignment/Native/PCLO-CNS-RESUB.C0x1291.aligned.sorted.bam \
-| less
-
-
-
-
-samtools mpileup \
---positions D.pealeii/Annotations/D.pea.EditingSites.bed \
---region comp141882_c0_seq14 \
---fasta-ref D.pealeii/Annotations/orfs_squ.fa \
---no-BAQ \
---no-output-ins --no-output-ins \
---no-output-del --no-output-del \
---no-output-ends \
---output-QNAME \
-D.pealeii/Alignment/Native/PCLO-CNS-RESUB.C0x1291.aligned.sorted.bam \
---output D.pealeii/Alignment.Test/PCLO.mpileup
-
-
-
-
-samtools mpileup \
---positions D.pealeii/Annotations/D.pea.EditingSites.bed \
---region comp141882_c0_seq14 \
---fasta-ref D.pealeii/Annotations/orfs_squ.fa \
---no-BAQ \
---no-output-ins --no-output-ins \
---no-output-del --no-output-del \
---no-output-ends \
---output-QNAME \
---excl-flags 2304 \
-D.pealeii/Alignment/Naive/PCLO-CNS-RESUB.C0x1291.aligned.sorted.bam \
---output D.pealeii/Alignment.Test/PCLO.primary.linear.mpileup
-
-
-
-samtools view -F 256 D.pealeii/Alignment/Naive/PCLO-CNS-RESUB.C0x1291.aligned.sorted.bam \
-| grep "m54278_210226_220806/19268008/ccs" \
-| less
-
-
-
-
-samtools view D.pealeii/Alignment/Naive/PCLO-CNS-RESUB.C0x1291.aligned.sorted.bam \
-| wc -l
->>> 84980
-
-samtools view -F 2304 D.pealeii/Alignment/Naive/PCLO-CNS-RESUB.C0x1291.aligned.sorted.bam \
-| wc -l
->>> 82595
-
-samtools view \
--F 2304 \
--c \
-D.pealeii/Alignment/Naive/PCLO-CNS-RESUB.C0x1291.aligned.sorted.bam \
-comp141882_c0_seq14
->>> 82575
-# it means most of the aligned reads fall within the required region
-```
-
-
-comp141882_c0_seq14
-
-
-### --best-n 1
-
-```bash
-conda activate combinatorics
-cd /private7/projects/Combinatorics
-
-samtools view \
--F 2304 \
--c \
-D.pealeii/Alignment/BestN1/PCLO-CNS-RESUB.C0x1291.aligned.sorted.bam \
-comp141882_c0_seq14
->>> 82548
-
-mkdir D.pealeii/Alignment.Test.N1
-
-samtools mpileup \
---positions D.pealeii/Annotations/D.pea.EditingSites.bed \
---region comp141882_c0_seq14 \
---fasta-ref D.pealeii/Annotations/orfs_squ.fa \
---no-BAQ \
---no-output-ins --no-output-ins \
---no-output-del --no-output-del \
---no-output-ends \
---output-QNAME \
---excl-flags 2304 \
-D.pealeii/Alignment/BestN1/PCLO-CNS-RESUB.C0x1291.aligned.sorted.bam \
---output D.pealeii/Alignment.Test.N1/PCLO.primary.linear.mpileup
-
-cut -f 7 D.pealeii/Alignment.Test.N1/PCLO.primary.linear.mpileup | \
-tr ',' '\n' | \
-sort | \
-uniq | \
-wc -l
->>> 8758
-```
-
-So the change from 82548 aligned reads in the bam file to just 8758 happens in the creation of the pileup file, so it is not a matter of wrong parsing of the pileup file itself.
-
-
-```bash
-samtools mpileup \
---positions D.pealeii/Annotations/D.pea.EditingSites.bed \
---region comp141882_c0_seq14 \
---fasta-ref D.pealeii/Annotations/orfs_squ.fa \
---no-BAQ \
---no-output-ins --no-output-ins \
---no-output-del --no-output-del \
---no-output-ends \
---output-QNAME \
---excl-flags 2304 \
---max-depth 90000 \
-D.pealeii/Alignment/BestN1/PCLO-CNS-RESUB.C0x1291.aligned.sorted.bam \
---output D.pealeii/Alignment.Test.N1/PCLO.primary.linear.max_depth_90k.mpileup
-
-cut -f 7 D.pealeii/Alignment.Test.N1/PCLO.primary.linear.max_depth_90k.mpileup | \
-tr ',' '\n' | \
-sort | \
-uniq | \
-wc -l
->>> 82548
-```
-
-So that problem is fixed. The default `--max-depth 8000` didn't suite my deep sequencing within specific regions.
-
-
-## Python script
-
-
-### W/O max depth per position
-
-```bash
-conda activate combinatorics
-
-cd /private7/projects/Combinatorics
-
-mkdir -p D.pealeii/MpileupAndTranscripts/UnmappedNaN.BestN1.WoMaxDepth
-
-nohup \
-python Code/create_transcripts.py \
---genome D.pealeii/Annotations/orfs_squ.fa \
---data_table D.pealeii/Alignment/BestN1/data_table_wo_prob_bed.csv \
---known_editing_sites D.pealeii/Annotations/D.pea.EditingSites.bed \
---out_dir D.pealeii/MpileupAndTranscripts/UnmappedNaN.BestN1.WoMaxDepth \
-> D.pealeii/MpileupAndTranscripts/UnmappedNaN.BestN1.WoMaxDepth/create_transcripts.3.3.22.out &
-```
-
-### W/O max depth per position, use only reads with rq 0.998
-
-```bash
-conda activate combinatorics
-cd /private7/projects/Combinatorics
-
-mkdir -p D.pealeii/MpileupAndTranscripts/UnmappedNaN.BestN1.WoMaxDepth.RQ998
-
-nohup \
-python Code/create_transcripts.py \
---genome D.pealeii/Annotations/orfs_squ.fa \
---data_table D.pealeii/Alignment/BestN1/data_table_wo_prob_bed.csv \
---known_editing_sites D.pealeii/Annotations/D.pea.EditingSites.bed \
---out_dir D.pealeii/MpileupAndTranscripts/UnmappedNaN.BestN1.WoMaxDepth.RQ998 \
---min_rq 0.998 \
-> D.pealeii/MpileupAndTranscripts/UnmappedNaN.BestN1.WoMaxDepth.RQ998/create_transcripts.3.3.22.out &
-```
-
-
-### rq 0.998, v. 2
-
-#### Pileup
+### Pileup
 
 ```bash
 conda activate combinatorics
@@ -837,7 +635,7 @@ python Code/pileup.py \
 * 09:12
 
 
-#### Reads
+### Distinct transcripts
 
 
 
@@ -863,8 +661,9 @@ D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.Mi
 
 
 
-#### Proteins
+### Distinct proteins
 
+#### Regular
 
 ```bash
 nohup \
@@ -886,12 +685,129 @@ D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.Mi
 * 18.5.22
 * 19:28
 
+#### By AA groups (polar/non-polar/positive/negative)
+
+```
+INFILES=D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv
+echo $INFILES
+
+nohup \
+julia \
+--project=. \
+--threads 40 --proc 4 \
+Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_add .AAgroups \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--useAAgroups \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.2 \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+> D.pealeii/MpileupAndTranscripts/RQ998.2/maximal_independent_nan_depletion_5.Proteins.AAgroups.out &
+```
+* alu 13
+* 16.11.22
+* 12:10
+* 44045
+
+Some processes failed.
+
+```
+INFILES=D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv
+echo $INFILES
+
+nohup \
+julia \
+--project=. \
+--threads 40 --proc 4 \
+Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_add .AAgroups \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--useAAgroups \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.2 \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+> D.pealeii/MpileupAndTranscripts/RQ998.2/maximal_independent_nan_depletion_5.Proteins.AAgroups.2.out &
+```
+* alu 13
+* 16.11.22
+* 15:15
+* 1130
+
+#### By BLOSUM62
+
+```
+INFILES=D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv
+echo $INFILES
+
+nohup \
+julia \
+--project=. \
+--threads 40 --proc 4 \
+Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_add .Blosum62 \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--substitutionmatrix BLOSUM62 \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.2 \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+> D.pealeii/MpileupAndTranscripts/RQ998.2/maximal_independent_nan_depletion_5.Proteins.Blosum62.out &
+```
+* alu 13
+* 16.11.22
+* 15:35
+* 8455
+
+Some processes failed.
+
+```
+INFILES=D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv
+echo $INFILES
+
+nohup \
+julia \
+--project=. \
+--threads 40 --proc 4 \
+Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_add .Blosum62 \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--substitutionmatrix BLOSUM62 \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.2 \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+> D.pealeii/MpileupAndTranscripts/RQ998.2/maximal_independent_nan_depletion_5.Proteins.Blosum62.2.out &
+```
+* alu 13
+* 16.11.22
+* 17:26
+* 27488
 
 
 
-
-
-### Ruti's Illumina PE READS, take 2 (shortened ids)
+## Illumina (Ruti's Illumina PE READS, take 2 (shortened ids))
 
 
 

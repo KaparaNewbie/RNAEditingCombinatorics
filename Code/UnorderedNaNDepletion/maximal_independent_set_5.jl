@@ -1,9 +1,7 @@
-# todo cloud change, verify on the server as well
 # https://discourse.julialang.org/t/julia-python-equivalent-of-main/35433
 if abspath(PROGRAM_FILE) == @__FILE__
     using Pkg
     using Distributed
-    # Pkg.activate(".") # todo cloud change, verify on the server as well
 else
     using BenchmarkTools
 end
@@ -15,6 +13,7 @@ if n_workers > 1
     rmprocs(workers())
     # add new one, but with limited number of threads
     addprocs(
+        # n_workers  = 2
         n_workers,
         exeflags=[
             "--threads=$(Int(round(Threads.nthreads() / n_workers)))",
@@ -22,15 +21,6 @@ if n_workers > 1
         ]
     )
 end
-
-
-# # https://discourse.julialang.org/t/julia-python-equivalent-of-main/35433
-# if abspath(PROGRAM_FILE) == @__FILE__
-#     using Pkg
-#     # Pkg.activate(".") # todo cloud change, verify on the server as well
-# else
-#     using BenchmarkTools
-# end
 
 
 using ArgParse
@@ -50,24 +40,10 @@ using ThreadsX
 using InlineStrings  # for saving space on "Reads" col in input `df`
 using TimerOutputs
 using BioAlignments
+using BioSymbols
 
 
-# todo cloud change, verify on the server as well
-# n_workers = length(workers())
-# if n_workers > 1
-#     # remove previous workers
-#     rmprocs(workers())
-#     # add new one, but with limited number of threads
-#     addprocs(
-#         n_workers,
-#         exeflags=[
-#             "--threads=$(Int(round(Threads.nthreads() / n_workers)))",
-#             "--project"
-#         ]
-#     )
-# end
-
-include(joinpath(@__DIR__, "consts.jl")) # for ∅
+include(joinpath(@__DIR__, "consts.jl")) # for ∅ & AA_groups
 include(joinpath(@__DIR__, "timeformatters.jl"))
 include(joinpath(@__DIR__, "preparedf.jl"))
 include(joinpath(@__DIR__, "indistinguishable_rows.jl"))
@@ -84,6 +60,7 @@ include(joinpath(@__DIR__, "indistinguishable_rows.jl"))
     using IterTools  # for IterTools.imap
     using Random # for MersenneTwister & shuffle
     using TimerOutputs
+    using BioSymbols
     const to = TimerOutput() # Create a TimerOutput, this is the main type that keeps track of everything.
     include(joinpath(@__DIR__, "consts.jl")) # for ∅
     include(joinpath(@__DIR__, "timeformatters.jl"))
@@ -93,6 +70,8 @@ include(joinpath(@__DIR__, "indistinguishable_rows.jl"))
     # using Logging, LoggingExtras
     # include(joinpath(@__DIR__, "setlogger.jl"))
 end
+
+
 
 
 """
@@ -126,9 +105,23 @@ function parsecmd()
         help = "Int location of the first editing position column of each file in `infiles`. As of now, should be 9 for `Reads` and 15 for `Proteins`."
         arg_type = Int
         required = true
+
         "--datatype"
         help = "Data type of the input files. Either `Reads` or `Proteins`."
         required = true
+        "--substitutionmatrix"
+        help = "Use this substitution matrix as a stricter criteria for determination of distinct AAs. Use in conjuction with `datatype == Proteins`. Not compatible with `AA_groups`."
+        "--minsimilarityscore"
+        help = "See `similarityvalidator` below."
+        arg_type = Int
+        default = 0
+        "--similarityvalidator"
+        help = "Use this opeartor to determine similarty of AA change, e.g., whether `5 >= minsimilarityscore`."
+        arg_type = Symbol
+        default = :(>=)
+        "--useAAgroups"
+        help = "Classify AAs by groups (polar/non-polar/positive/negative) as a stricter criteria for determination of distinct AAs. Use in conjuction with `datatype == Proteins`. Not compatible with `substitutionmatrix`."
+        action = :store_true
         "--outdir"
         help = "Write output files to this directory."
         required = true
@@ -174,11 +167,9 @@ function parsecmd()
         "--shutdowngcp"
         help = "Shutdown google cloud VM when the program ends."
         action = :store_true
-
     end
     return parse_args(s)
 end
-
 
 
 
@@ -190,6 +181,11 @@ function main()
 
     # read command-line args
     parsedargs = parsecmd()
+
+
+
+
+
     infiles = parsedargs["infiles"]
     delim = parsedargs["delim"]
     prefix_to_remove = parsedargs["prefix_to_remove"]
@@ -212,6 +208,21 @@ function main()
     shutdowngcp = parsedargs["shutdowngcp"]
 
     algs::Vector{String} = String.(algs)
+
+    _substitutionmatrix = parsedargs["substitutionmatrix"]
+    if _substitutionmatrix !== nothing # it's a string with a matrix name
+        substitutionmatrix = BioAlignments.load_submat(BioSymbols.AminoAcid, uppercase(_substitutionmatrix))
+    else
+        substitutionmatrix = nothing
+    end
+
+    minsimilarityscore = parsedargs["minsimilarityscore"]
+    similarityvalidator = eval(parsedargs["similarityvalidator"])
+    useAAgroups = parsedargs["useAAgroups"]
+
+
+
+
 
     # infiles = ["D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv"]
     # delim = "\t"
@@ -251,7 +262,9 @@ function main()
         @timeit to "run_sample" run_sample(
             infile, delim, samplename, idcol, firstcolpos, datatype, outdir, postfix_to_add,
             fracstep, maxfrac, fracrepetitions, algrepetitions, testfraction, randseed,
-            run_solve_threaded, sortresults, algs
+            run_solve_threaded, sortresults, algs,
+            substitutionmatrix, minsimilarityscore, similarityvalidator,
+            useAAgroups
         )
     end
 
@@ -324,25 +337,6 @@ function prep_pmap_input(fracstep, maxfrac, df, fracrepetitions)
 end
 
 
-# fracstep = 0.25
-# maxfrac = 1.0
-# nrows = 100
-# fracrepetitions = 2
-# fractions = collect(fracstep:fracstep:maxfrac) ∪ maxfrac
-# fraction_nsamplerows = [convert(Int, round(fraction * nrows)) for fraction ∈ fractions]
-# fracrepetitions_inputs = [
-#     interleaved_fold(
-#         [
-#         (fraction=fraction, nsamplerows=nsamplerows, fracrepetition=fracrepetition)
-#         for (fraction, nsamplerows) ∈ zip(fractions, fraction_nsamplerows)
-#     ]
-#     )
-#     for fracrepetition ∈ 1:fracrepetitions
-# ]
-# fracrepetitions_inputs = vcat(fracrepetitions_inputs...)
-
-
-
 
 function run_sample(
     infile::String,
@@ -361,7 +355,11 @@ function run_sample(
     randseed::Int,
     run_solve_threaded::Bool,
     sortresults::Bool,
-    algs::Vector{String}
+    algs::Vector{String},
+    substitutionmatrix::Union{SubstitutionMatrix,Nothing},
+    minsimilarityscore::Int64,
+    similarityvalidator::Function,
+    useAAgroups::Bool
 )
     @info "$(loggingtime())\trun_sample" infile samplename
 
@@ -375,9 +373,16 @@ function run_sample(
         return
     end
 
+
     # G is the main neighborhood matrix and created only once; samples can create subgraphs induced by it
     G = try
-        @timeit to "indistinguishable_rows" indistinguishable_rows(df, idcol; firstcolpos)
+        if substitutionmatrix !== nothing
+            @timeit to "indistinguishable_rows" indistinguishable_rows(df, idcol, substitutionmatrix, minsimilarityscore, similarityvalidator; firstcolpos)
+        elseif useAAgroups
+            @timeit to "indistinguishable_rows" indistinguishable_rows(df, idcol, AA_groups; firstcolpos)
+        else
+            @timeit to "indistinguishable_rows" indistinguishable_rows(df, idcol; firstcolpos)
+        end
     catch e
         @warn "$(loggingtime())\tindistinguishable_rows failed for $infile" e
         return
@@ -397,7 +402,6 @@ function run_sample(
         retry_delays=ExponentialBackOff(n=3, first_delay=5, max_delay=1000)
     ) do (fraction, nsamplerows, fracrepetition)
         try
-            # run_fracrepetition(df, idcol, G, fraction, fracrepetition, nsamplerows)
             run_fracrepetition(
                 df,
                 idcol,
@@ -410,22 +414,6 @@ function run_sample(
                 sortresults,
                 algs
             )
-
-            # run_fracrepetition(
-            #     df::DataFrame,
-            #     idcol::String,
-            #     # G::Dict,
-            #     ArrG::DArray,
-            #     fraction::Float64,
-            #     nsamplerows::Int64,
-            #     fracrepetition::Int64,
-            #     algrepetitions::Int64,
-            #     run_solve_threaded::Bool,
-            #     sortresults::Bool,
-            #     algs::Vector{String},
-            #     # algfuncs::Dict{String,Function}
-            # )
-
         catch e
             @warn "$(loggingtime())\trun_fracrepetition failed" fraction fracrepetition e
             missing
@@ -447,7 +435,7 @@ end
 # reset_timer!(to);
 
 # todo uncomment
-# main();
+main();
 
 # show(to)
 # TimerOutputs.complement!(to);
@@ -460,44 +448,81 @@ end
 # @benchmark main()
 
 
-infile = "D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv"
-delim = "\t"
-postfix_to_remove = ".aligned.sorted.MinRQ998.unique_proteins.csv"
-prefix_to_remove = ""
-postfix_to_add = ".SmallCloudTest"
-idcol = "Protein"
-firstcolpos = 15
-datatype = "Proteins"
-outdir = "D.pealeii/MpileupAndTranscripts/RQ998.2"
-fracstep = 0.5
-maxfrac = 1.0
-fracrepetitions = 5
-algrepetitions = 2
-testfraction = 0.001
-randseed = 1892
-run_solve_threaded = false
-sortresults = false
-algs = ["Ascending", "Descending"]
-gcp = false
-shutdowngcp = false
+# infile = "D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv"
+# delim = "\t"
+# postfix_to_remove = ".aligned.sorted.MinRQ998.unique_proteins.csv"
+# prefix_to_remove = ""
+# postfix_to_add = ".SmallCloudTest"
+# idcol = "Protein"
+# firstcolpos = 15
+# datatype = "Proteins"
+# outdir = "D.pealeii/MpileupAndTranscripts/RQ998.2"
+# fracstep = 0.5
+# maxfrac = 1.0
+# fracrepetitions = 5
+# algrepetitions = 2
+# testfraction = 0.01
+# randseed = 1892
+# run_solve_threaded = false
+# sortresults = false
+# algs = ["Ascending", "Descending"]
+# gcp = false
+# shutdowngcp = false
 
 
 
-df, firstcolpos = preparedf!(
-    infile, delim, datatype, idcol, firstcolpos,
-    testfraction, randseed
-)
+# df, firstcolpos = preparedf!(
+#     infile, delim, datatype, idcol, firstcolpos,
+#     testfraction, randseed
+# )
 
 
-substitutionmatrix = BLOSUM62
-minsimilarityscore = 0
-similarityvalidator = ≥
+# substitutionmatrix = BLOSUM62
+# minsimilarityscore = 0
+# similarityvalidator = ≥
 
 
 
 
 
-areuniuqe = false
 
-# G is the main neighborhood matrix and created only once; samples can create subgraphs induced by it
-G = indistinguishable_rows(df, idcol; firstcolpos, substitutionmatrix, minsimilarityscore, issimmilar)
+# # G is the main neighborhood matrix and created only once; samples can create subgraphs induced by it
+# G1 = indistinguishable_rows(df, idcol; firstcolpos)
+# G2 = indistinguishable_rows(df, idcol, substitutionmatrix, minsimilarityscore, similarityvalidator; firstcolpos)
+# G3 = indistinguishable_rows(df, idcol, AA_groups; firstcolpos)
+
+# numedges1 = sum(length.(values(G1)))
+# numedges2 = sum(length.(values(G2)))
+# numedges3 = sum(length.(values(G3)))
+
+# e = :("BLOSUM45")
+# eval(e)
+# submat = eval("BLOSUM45")
+
+
+
+# BioAlignments.load_submat(BioSymbols.AminoAcid, "BLOSUM45")
+
+# e1 = :(">=")
+# e2 = :(>=)
+
+# typeof(e1)
+# typeof(e2)
+
+# Symbol(e1)
+# stringop = ">="
+# e3 = :($stringop)
+
+# eval(e1)
+# eval(e2)
+
+
+# eval(Symbol(e1))(5, 3)
+
+# eval(:($">="))
+
+# eval(:(>=))
+
+
+
+# op = 
