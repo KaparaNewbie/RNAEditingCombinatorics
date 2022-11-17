@@ -1,11 +1,3 @@
-# using BioSequences
-# using Transducers
-# using LinearAlgebra
-
-
-
-
-
 
 
 
@@ -13,9 +5,9 @@
 "Determine whether a change from `AAᵦ` to `AAᵧ` is considered a similar change according to `AA_groups`' classification."
 function issimilar(
     AAᵦ::AminoAcid, AAᵧ::AminoAcid,
-    AA_groups::Dict{AminoAcid, String}
+    AA_groups::Dict{AminoAcid,String}
 )
-   # the two AAs are different
+    # the two AAs are different
     if AAᵦ ≠ AAᵧ
         # if
         # 1) stop codon isn't classified in any AA group (as expected)
@@ -24,8 +16,8 @@ function issimilar(
         AA_Term ∉ keys(AA_groups) && (AAᵦ == AA_Term || AAᵧ == AA_Term) && return false
         # return true if, altough the two AAs are different, they still belong in the same group
         return AA_groups[AAᵦ] == AA_groups[AAᵧ]
-    # the two AAs are actually the same -> they must be similar
-    else 
+        # the two AAs are actually the same -> they must be similar
+    else
         return true
     end
 end
@@ -47,7 +39,7 @@ according to `AA_groups`' classification.
 "
 function issimilar(
     Sᵢ::Set{AminoAcid}, Sⱼ::Set{AminoAcid},
-    AA_groups::Dict{AminoAcid, String}
+    AA_groups::Dict{AminoAcid,String}
 )
     ThreadsX.any(
         [
@@ -76,7 +68,6 @@ function issimilar(
     )
 end
 
-# issimilar(s1, s2, substitutionmatrix, minsimilarityscore, similarityvalidator)
 
 
 
@@ -93,7 +84,7 @@ Else, `j ∉ G[i]`.
 """
 function indistinguishable_rows(
     M::Matrix{Set{AminoAcid}}, ids,
-    AA_groups::Dict{AminoAcid, String}
+    AA_groups::Dict{AminoAcid,String}
 )
     @info "$(loggingtime())\tindistinguishable_rows"
 
@@ -106,10 +97,10 @@ function indistinguishable_rows(
     AAsets = ThreadsX.Set([x for row ∈ eachrow(M) for x ∈ row])
     distinctAAsets = ThreadsX.Set(
         [
-            (x, y)
-            for x ∈ AAsets for y ∈ AAsets
-            if !issimilar(x, y, AA_groups)
-        ]
+        (x, y)
+        for x ∈ AAsets for y ∈ AAsets
+        if !issimilar(x, y, AA_groups)
+    ]
     )
     Gs = tcollect(indistinguishable_vs_for_u(M, distinctAAsets, ids, nodeseltype, i) for i ∈ 1:nrows)
     G = Dict(k => v for g ∈ Gs for (k, v) ∈ g) # merging Gs into G; each g has a single (k, v) pair
@@ -144,10 +135,10 @@ function indistinguishable_rows(
     AAsets = ThreadsX.Set([x for row ∈ eachrow(M) for x ∈ row])
     distinctAAsets = ThreadsX.Set(
         [
-            (x, y)
-            for x ∈ AAsets for y ∈ AAsets
-            if !issimilar(x, y, substitutionmatrix, minsimilarityscore, similarityvalidator)
-        ]
+        (x, y)
+        for x ∈ AAsets for y ∈ AAsets
+        if !issimilar(x, y, substitutionmatrix, minsimilarityscore, similarityvalidator)
+    ]
     )
     Gs = tcollect(indistinguishable_vs_for_u(M, distinctAAsets, ids, nodeseltype, i) for i ∈ 1:nrows)
     G = Dict(k => v for g ∈ Gs for (k, v) ∈ g) # merging Gs into G; each g has a single (k, v) pair
@@ -179,11 +170,6 @@ function indistinguishable_rows(M::Matrix{Set{AminoAcid}}, ids)
     nodeseltype = eltype(ids)
 
     AAsets = ThreadsX.Set([x for row ∈ eachrow(M) for x ∈ row])
-    # emptyAAintersections = ThreadsX.Set(
-    #     [(x, y)
-    #      for x ∈ AAsets for y ∈ AAsets
-    #      if x ∩ y == ∅]
-    # )
     # sets whose intersection is empty
     distinctAAsets = ThreadsX.Set(
         [(x, y)
@@ -191,7 +177,6 @@ function indistinguishable_rows(M::Matrix{Set{AminoAcid}}, ids)
          if x ∩ y == ∅]
     )
 
-    # Gs = tcollect(indistinguishable_vs_for_u(M, emptyAAintersections, ids, nodeseltype, i) for i ∈ 1:nrows)
     Gs = tcollect(indistinguishable_vs_for_u(M, distinctAAsets, ids, nodeseltype, i) for i ∈ 1:nrows)
     G = Dict(k => v for g ∈ Gs for (k, v) ∈ g) # merging Gs into G; each g has a single (k, v) pair
     return G
@@ -200,7 +185,6 @@ end
 
 function indistinguishable_vs_for_u(
     M::Matrix{Set{AminoAcid}},
-    # emptyAAintersections, 
     distinctAAsets,
     ids, nodeseltype, i
 )
@@ -233,13 +217,11 @@ end
 function indistinguishable_rows(M::Union{Matrix{Float64},Matrix{Int}}, ids)
     @info "$(loggingtime())\tindistinguishable_rows"
 
-    # informativecols = tcollect(i for (i, col) in enumerate(eachcol(M)) if length(unique(col)) > 1)
-    # M = M[:, informativecols]
     nrows = size(M, 1)
     length(ids) == length(ThreadsX.unique(ids)) == nrows || error(
         "Each id (a vertex in the graph) should be unique. " *
         "There should be a bijection between M's rows and ids, in order of appearence."
-    ) # todo verify the integrity of parallelization with ThreadsX
+    )
     nodeseltype = eltype(ids)
     @views M = replace(M, -1 => missing)
     Gs = tcollect(indistinguishable_vs_for_u(M, ids, nodeseltype, i) for i ∈ 1:nrows)
@@ -281,12 +263,6 @@ function indistinguishable_rows(
     df::DataFrame, idcol;
     firstcolpos::Int=2, areuniuqe::Bool=false
 )
-    # if !areuniuqe
-    #     df = unique(df, idcol)
-    #     areuniuqe = true
-    # end
-    # M = Matrix(df[:, firstcolpos:end])
-    # ids = df[:, idcol]
     M, ids = preprocess(df, idcol, firstcolpos; areuniuqe)
     return indistinguishable_rows(M, ids)
 end
@@ -294,32 +270,20 @@ end
 
 
 function indistinguishable_rows(
-    df::DataFrame, idcol, 
+    df::DataFrame, idcol,
     substitutionmatrix::SubstitutionMatrix{AminoAcid,Int64}, minsimilarityscore::Int64, similarityvalidator::Function;
-    firstcolpos::Int=2, areuniuqe::Bool=false,
+    firstcolpos::Int=2, areuniuqe::Bool=false
 )
-    # if !areuniuqe
-    #     df = unique(df, idcol)
-    #     areuniuqe = true
-    # end
-    # M = Matrix(df[:, firstcolpos:end])
-    # ids = df[:, idcol]
     M, ids = preprocess(df, idcol, firstcolpos; areuniuqe)
     return indistinguishable_rows(M, ids, substitutionmatrix, minsimilarityscore, similarityvalidator)
 end
 
 
 function indistinguishable_rows(
-    df::DataFrame, idcol, 
-    AA_groups::Dict{AminoAcid, String};
-    firstcolpos::Int=2, areuniuqe::Bool=false,
+    df::DataFrame, idcol,
+    AA_groups::Dict{AminoAcid,String};
+    firstcolpos::Int=2, areuniuqe::Bool=false
 )
-    # if !areuniuqe
-    #     df = unique(df, idcol)
-    #     areuniuqe = true
-    # end
-    # M = Matrix(df[:, firstcolpos:end])
-    # ids = df[:, idcol]
     M, ids = preprocess(df, idcol, firstcolpos; areuniuqe)
     return indistinguishable_rows(M, ids, AA_groups)
 end

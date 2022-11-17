@@ -1,5 +1,7 @@
-# 4 is the next version after 3B, 
-# the difference should be in unedited rows where it should also deal deal with AAs or sets of AAs
+# this is an old version of maximal_independet_set_5.jl  
+# algorithmically speaking, everything in here exists in the new file - 
+# this version is only kept because some runs were made with it
+
 
 # https://discourse.julialang.org/t/julia-python-equivalent-of-main/35433
 if abspath(PROGRAM_FILE) == @__FILE__
@@ -268,7 +270,7 @@ end
 Iterate over the possible friendships of `u` and any `v ∈ V2 ⊂ V` according to `G = (V, E)`.  
 Technically speaking, `G` is a simple graph represented by a dictionary of neighborhood lists.  
 """
-ifriendships(G, u, V2) = imap(v -> u ∈ G[v], V2)  # todo - parallelize by replacing imap with ThreadsX.map?
+ifriendships(G, u, V2) = imap(v -> u ∈ G[v], V2)
 
 """
     nofriendships(G, u, V2)
@@ -296,8 +298,6 @@ Return the vertices in `V2` in a vector sorted in ascending order of vertices' n
 function distinctascending(G)
 
     G = deepcopy(G)
-
-    # todo - parallelize by working on connenced components of G
 
     # create a vector with tuples of (vertex, degree)
     verticesdegs = [(v, length(G[v])) for v ∈ keys(G)]
@@ -334,8 +334,6 @@ Return the remaining vertices in a vector sorted in ascending order of vertices'
 function distinctdescending(G)
 
     G = deepcopy(G)
-
-    # todo - parallelize by working on connenced components of G
 
     degrees = Dict(v => length(G[v]) for v ∈ keys(G))
     maxdeg = maximum(values(degrees)) # the highest degree in the original graph
@@ -806,7 +804,7 @@ main()
 #     throw("datatype must be either `Reads` or `Proteins`")
 # end
 
-# df = df[vcat(collect(1:10), collect(size(df, 1)-100:size(df, 1))), :] # todo taking a subset for test purposes
+# df = df[vcat(collect(1:10), collect(size(df, 1)-100:size(df, 1))), :] # taking a subset for test purposes
 
 # @time G = uncompatiblerows(df, idcol; firstcolpos)
 

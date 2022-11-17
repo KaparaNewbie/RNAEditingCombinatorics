@@ -68,7 +68,9 @@ function preparedf!(
         throw("datatype must be either `Reads` or `Proteins`")
     end
 
-    # remove uniformative cols (altough we also apply the function on the idcol it shouldn't matter for the idcol, as it has more than one unique value)
+    # remove uniformative cols 
+    # (altough we also apply the function on the idcol it shouldn't matter for the idcol, 
+    # as it has more than one unique value)
     df = df[:, map(col -> length(unique(col)) > 1, eachcol(df))]
 
     return df, firstcolpos
