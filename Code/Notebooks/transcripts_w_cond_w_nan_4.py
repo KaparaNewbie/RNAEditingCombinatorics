@@ -589,6 +589,65 @@ len(unique_proteins_dfs[0].columns[unique_proteins_first_col_pos:])
 # unique_edited_proteins_dfs[0]
 
 
+# %%
+unique_proteins_dfs[1].iloc[:, unique_proteins_first_col_pos:]
+
+# %%
+possible_nonsyns = ["DG", "EG", "HR", "IM", "IV", "KE", "KR", "MV", "ND", "NS", "QR", "RG", "SG", "TA", "YC", "*W"]
+
+# %%
+below_0_blosum62_nonsyns = [
+    "DG", # -1
+    "EG", # -2
+    "RG", # -2
+    "YC", # -2
+    "*W"
+]
+
+
+# %%
+def contains_blosum62_nonsyn(col: pd.Series, below_0_blosum62_nonsyns):
+    original_aa = col.name.split("(")[1][0]
+    for cell in col:
+        aas = cell.split(",")
+        for aa in aas:
+            if f"{original_aa}{aa}" in below_0_blosum62_nonsyns or f"{aa}{original_aa}" in below_0_blosum62_nonsyns: 
+                return True
+    return False
+
+
+# %%
+def contains_blosum62_nonsyn_2(col: pd.Series, below_0_blosum62_nonsyns):
+    cells = [cell.split(",") for cell in set(col)]
+    for x in range(len(cells)-1):
+        aas_x = cells[x]
+        for y in range(x+1,len(cells)):
+            aas_y = cells[y]
+            for aa_x in aas_x:
+                for aa_y in aas_y:
+                    if f"{aa_x}{aa_y}" in below_0_blosum62_nonsyns or f"{aa_y}{aa_x}" in below_0_blosum62_nonsyns: 
+                        return True
+    return False
+
+
+# %%
+cols_which_contain_blosum62_nonsyn = [
+    col
+    for col in unique_proteins_dfs[1].iloc[:, unique_proteins_first_col_pos:].columns
+    if contains_blosum62_nonsyn(unique_proteins_dfs[1][col], below_0_blosum62_nonsyns)
+]
+unique_proteins_dfs[1].loc[:, cols_which_contain_blosum62_nonsyn]
+
+# %%
+cols_which_contain_blosum62_nonsyn_2 = [
+    col
+    for col in unique_proteins_dfs[1].iloc[:, unique_proteins_first_col_pos:].columns
+    if contains_blosum62_nonsyn_2(unique_proteins_dfs[1][col], below_0_blosum62_nonsyns)
+]
+unique_proteins_dfs[1].loc[:, cols_which_contain_blosum62_nonsyn_2]
+
+# %%
+
 # %% [markdown]
 # ### Distinct unique proteins
 
