@@ -1,5 +1,3 @@
-# TODO commit: CLI, gcp, different distinct AA definitions
-
 using ArgParse
 using CSV
 using DataFrames
