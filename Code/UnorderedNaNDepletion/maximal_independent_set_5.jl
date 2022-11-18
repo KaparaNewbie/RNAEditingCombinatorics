@@ -60,7 +60,8 @@ include(joinpath(@__DIR__, "indistinguishable_rows.jl"))
     using IterTools  # for IterTools.imap
     using Random # for MersenneTwister & shuffle
     using TimerOutputs
-    using BioSymbols
+    # using BioSymbols
+    using BioSequences
     const to = TimerOutput() # Create a TimerOutput, this is the main type that keeps track of everything.
     include(joinpath(@__DIR__, "consts.jl")) # for ∅
     include(joinpath(@__DIR__, "timeformatters.jl"))
@@ -182,10 +183,6 @@ function main()
     # read command-line args
     parsedargs = parsecmd()
 
-
-
-
-
     infiles = parsedargs["infiles"]
     delim = parsedargs["delim"]
     prefix_to_remove = parsedargs["prefix_to_remove"]
@@ -211,7 +208,8 @@ function main()
 
     _substitutionmatrix = parsedargs["substitutionmatrix"]
     if _substitutionmatrix !== nothing # it's a string with a matrix name
-        substitutionmatrix = BioAlignments.load_submat(BioSymbols.AminoAcid, uppercase(_substitutionmatrix))
+        # substitutionmatrix = BioAlignments.load_submat(BioSymbols.AminoAcid, uppercase(_substitutionmatrix))
+        substitutionmatrix = BioAlignments.load_submat(BioSequences.AminoAcid, uppercase(_substitutionmatrix))
     else
         substitutionmatrix = nothing
     end

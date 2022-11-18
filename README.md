@@ -687,37 +687,9 @@ D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.Mi
 
 #### By AA groups (polar/non-polar/positive/negative)
 
-```
-INFILES=D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv
-echo $INFILES
+Finding isoforms:
 
-nohup \
-julia \
---project=. \
---threads 40 --proc 4 \
-Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
---infiles $INFILES \
---postfix_to_add .AAgroups \
---idcol Protein \
---firstcolpos 15 \
---datatype Proteins \
---useAAgroups \
---outdir D.pealeii/MpileupAndTranscripts/RQ998.2 \
---fracstep 0.2 \
---fracrepetitions 4 \
---algrepetitions 2 \
---algs Ascending Descending \
---run_solve_threaded \
-> D.pealeii/MpileupAndTranscripts/RQ998.2/maximal_independent_nan_depletion_5.Proteins.AAgroups.out &
-```
-* alu 13
-* 16.11.22
-* 12:10
-* 44045
-
-Some processes failed.
-
-```
+```bash
 INFILES=D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv
 echo $INFILES
 
@@ -745,9 +717,34 @@ Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 * 15:15
 * 1130
 
+Calculating expression levels:
+
+```bash
+DISTINCTFILES="D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.DistinctUniqueProteins.AAgroups.16.11.2022-15:40:10.csv"
+ALLROTSFILES="D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv"
+SAMPLESNAMES="PCLO"
+
+nohup \
+julia \
+--project=. \
+--threads 40 \
+Code/UnorderedNaNDepletion/expressionlevels.jl \
+--distinctfiles $DISTINCTFILES \
+--allprotsfiles $ALLROTSFILES \
+--samplenames $SAMPLESNAMES \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.2 \
+--useAAgroups \
+> D.pealeii/MpileupAndTranscripts/RQ998.2/expressionlevels.AAgroups.PCLO.out &
+```
+* alu 13
+* 18.11.22
+* 10:42
+* 30673
+
+
 #### By BLOSUM62
 
-```
+```bash
 INFILES=D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv
 echo $INFILES
 
@@ -807,6 +804,10 @@ Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 
 
 Yet again some failed. TODO?
+
+
+grep "run_fracrepetition failed" D.pealeii/MpileupAndTranscripts/RQ998.2/maximal_independent_nan_depletion_5.Proteins.Blosum62.2.out | wc -l
+> 3
 
 
 

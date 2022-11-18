@@ -1,5 +1,4 @@
-# TODO complete wrapping this script to be run from the CLI
-
+# TODO commit: CLI, gcp, different distinct AA definitions
 
 using ArgParse
 using CSV
@@ -11,6 +10,80 @@ import Base.Threads.@spawn
 using ThreadsX # for ThreadsX.Set, 
 using Transducers  # for tcollect
 using SymmetricFormats # for SymmetricPacked which creates a symmetric matrix from a triangular array
+using BioAlignments # for SubstitutionMatrix
+
+
+include(joinpath(@__DIR__, "consts.jl")) # for `AA_groups` (polar/non-polar/positive/negative)
+include(joinpath(@__DIR__, "issimilar.jl")) # for issimilar
+
+
+
+
+
+
+"""
+    distances(M, AA_groups)
+
+Create a symmaetrical distances matrix `Δ` which measures the distance between any two 
+`rowᵢ, rowⱼ ∈ M`.  
+The distance between `rowᵢ` to `rowⱼ` is determined by the number of corresponding columns 
+in which the two contain no possible amino acids `AAᵦ` and `AAᵧ`, respectively, 
+such that both `AAᵦ` and `AAᵧ` share the same classification in `AA_groups`.
+"""
+function distances(M::Matrix{Set{AminoAcid}}, AA_groups::Dict{AminoAcid,String})
+    nrows = size(M, 1)
+    Δmax = size(M, 2)  # maximal possible difference between any two proteins
+    uint = smallestuint(Δmax)  # type of each cell in the final distances matrix `Δ`
+    AAsets = ThreadsX.Set([x for row ∈ eachrow(M) for x ∈ row])
+    # sets with no two possible AAs that share a similar classification
+    distinctAAsets = ThreadsX.Set(
+        [
+        (x, y)
+        for x ∈ AAsets for y ∈ AAsets
+        if !anysimilarity(x, y, AA_groups)
+    ]
+    )
+    # for each `rowᵢ`, calc `δᵢ`which is a vector of distances to each `rowⱼ` where `i <= j`
+    Δs = tcollect(i_js_distances(M, distinctAAsets, uint, i) for i ∈ 1:nrows)
+    # merge the triangular array `Δs` into a symmaetrical distances matrix `Δ`
+    Δ = SymmetricPacked(reduce(vcat, Δs))
+    return Δ
+end
+
+
+
+
+"""
+    distances(M, substitutionmatrix, minsimilarityscore, similarityvalidator)
+
+Create a symmaetrical distances matrix `Δ` which measures the distance between any two 
+`rowᵢ, rowⱼ ∈ M`.  
+The distance between `rowᵢ` to `rowⱼ` is determined by the number of corresponding columns 
+in which the two share no possible amino acid.
+"""
+function distances(
+    M::Matrix{Set{AminoAcid}},
+    substitutionmatrix::SubstitutionMatrix{AminoAcid,Int64}, minsimilarityscore::Int64, similarityvalidator::Function
+)
+    nrows = size(M, 1)
+    Δmax = size(M, 2)  # maximal possible difference between any two proteins
+    uint = smallestuint(Δmax)  # type of each cell in the final distances matrix `Δ`
+    AAsets = ThreadsX.Set([x for row ∈ eachrow(M) for x ∈ row])
+    # sets with no two possible AAs whose substitution score is acceptable
+    distinctAAsets = ThreadsX.Set(
+        [
+        (x, y)
+        for x ∈ AAsets for y ∈ AAsets
+        if !anysimilarity(x, y, substitutionmatrix, minsimilarityscore, similarityvalidator)
+    ]
+    )
+    # for each `rowᵢ`, calc `δᵢ`which is a vector of distances to each `rowⱼ` where `i <= j`
+    Δs = tcollect(i_js_distances(M, distinctAAsets, uint, i) for i ∈ 1:nrows)
+    # merge the triangular array `Δs` into a symmaetrical distances matrix `Δ`
+    Δ = SymmetricPacked(reduce(vcat, Δs))
+    return Δ
+end
+
 
 
 
@@ -19,7 +92,7 @@ using SymmetricFormats # for SymmetricPacked which creates a symmetric matrix fr
 
 Create a symmaetrical distances matrix `Δ` which measures the distance between any two 
 `rowᵢ, rowⱼ ∈ M`.  
-The distance between any `rowᵢ` to `rowⱼ` is determined by to the number of corresponding columns 
+The distance between `rowᵢ` to `rowⱼ` is determined by the number of corresponding columns 
 in which the two share no possible amino acid.
 """
 function distances(M::Matrix{Set{AminoAcid}})
@@ -27,14 +100,15 @@ function distances(M::Matrix{Set{AminoAcid}})
     Δmax = size(M, 2)  # maximal possible difference between any two proteins
     uint = smallestuint(Δmax)  # type of each cell in the final distances matrix `Δ`
     AAsets = ThreadsX.Set([x for row ∈ eachrow(M) for x ∈ row])
-    emptyAAintersections = ThreadsX.Set(
+    # sets whose intersection is empty
+    distinctAAsets = ThreadsX.Set(
         [(x, y)
          for x ∈ AAsets
          for y ∈ AAsets
          if x ∩ y == Set()]
     )
     # for each `rowᵢ`, calc `δᵢ`which is a vector of distances to each `rowⱼ` where `i <= j`
-    Δs = tcollect(i_js_distances(M, emptyAAintersections, uint, i) for i ∈ 1:nrows)
+    Δs = tcollect(i_js_distances(M, distinctAAsets, uint, i) for i ∈ 1:nrows)
     # merge the triangular array `Δs` into a symmaetrical distances matrix `Δ`
     Δ = SymmetricPacked(reduce(vcat, Δs))
     return Δ
@@ -42,16 +116,16 @@ end
 
 
 """
-    i_js_distances(M, emptyAAintersections, uint, i)
+    i_js_distances(M, distinctAAsets, uint, i)
 
 Return `δᵢ` which is a vector of distances between `rowᵢ` to every `rowⱼ` in `M`, where `i <= j <= size(M, 1)`.  
 A distance between `rowᵢ` to a `rowⱼ` is determined by to the number of corresponding positions in which the 
-two share no possible amino acid (naturally, the distance between `rowᵢ` to itself is 0). 
-All empty intersections between any two cells are given at `emptyAAintersections`.
+two have distinct sets of possible amino acid (naturally, the distance between `rowᵢ` to itself is 0).  
+All possible distinct sets  between any two cells are given at `distinctAAsets`.  
 `uint` is the type of unsigned int of the distances.
 """
 function i_js_distances(
-    M::Matrix{Set{AminoAcid}}, emptyAAintersections, uint, i
+    M::Matrix{Set{AminoAcid}}, distinctAAsets, uint, i
 )
     @views rowᵢ = M[i, :]
     nrows = size(M, 1)
@@ -65,8 +139,8 @@ function i_js_distances(
         δᵢⱼ::uint = 0   # distance between `rowᵢ` and `rowⱼ`
         for (x, y) ∈ zip(rowᵢ, rowⱼ)
             # increase `δᵢⱼ` for each position in which
-            # the two rows of proteins have no amino acid they possibly share
-            if (x, y) ∈ emptyAAintersections
+            # the two rows of proteins have distinct sets of possible amino acids
+            if (x, y) ∈ distinctAAsets
                 δᵢⱼ += 1
             end
         end
@@ -125,10 +199,16 @@ function allargmins(A)
 end
 
 
+
+
 function run_sample(
     distinctfile, allprotsfile, samplename,
     firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
-    maxmainthreads, outdir
+    maxmainthreads, outdir,
+    substitutionmatrix::Union{SubstitutionMatrix,Nothing},
+    minsimilarityscore::Int64,
+    similarityvalidator::Function,
+    useAAgroups::Bool
 )
     distinctdf = prepare_distinctdf(distinctfile, delim, innerdelim, truestrings, falsestrings)
 
@@ -136,8 +216,19 @@ function run_sample(
         allprotsfile, delim, innerdelim, truestrings, falsestrings, firstcolpos
     )
 
-    M = Matrix(allprotsdf[:, firstcolpos:end]) # the possible amino acids each protein has in each position
-    Δ = distances(M) # the distances between any two proteins according to `M`
+    # the possible amino acids each protein has in each position
+    M = Matrix(allprotsdf[:, firstcolpos:end])
+    # the distances between any two proteins according to `M`
+    # Δ = distances(M) 
+    Δ = begin
+        if substitutionmatrix !== nothing
+            distances(M, substitutionmatrix, minsimilarityscore, similarityvalidator)
+        elseif useAAgroups
+            distances(M, AA_groups)
+        else
+            distances(M)
+        end
+    end
 
     # considering only solutions of desired fractions
     solutions = subset(distinctdf, "Fraction" => x -> x .∈ fractions)[:, "Index"]
@@ -264,78 +355,75 @@ Define command-line arguments.
 function parsecmd()
     s = ArgParseSettings()
     @add_arg_table s begin
-        "--infiles"
-        help = "One or more csv files representing unique reads/proteins."
+        "--distinctfiles"
+        help = "One or more csv files representing distinct unique proteins."
         nargs = '+'
         action = :store_arg
         required = true
-        "--delim"
-        help = "Delimiter for input/output csv files."
-        arg_type = String
-        default = "\t"
-        "--prefix_to_remove", "--prefix"
-        help = "Remove `prefix` from output files` names."
-        default = ""
-        "--postfix_to_remove", "--postfix"
-        help = "Remove `postfix` from output files` names, e.g., `.unique_reads.csv`."
-        default = ""
-        "--postfix_to_add"
-        help = "Add `postfix` to output files` names, e.g., `\$sample.DistinctUnique{Reads,Proteins}\$postfix.\$time.csv`."
-        default = ""
-        "--idcol"
-        help = "Label of unique samples columns. Typically `Transcripts` for `Reads` and `Protein` for `Proteins`."
+        "--allprotsfiles"
+        help = "corresponding csv files representing unique proteins (w.r.t. `distinctfiles`)."
+        nargs = '+'
+        action = :store_arg
+        required = true
+        "--samplenames"
+        nargs = '+'
+        action = :store_arg
         required = true
         "--firstcolpos"
         help = "Int location of the first editing position column of each file in `infiles`. As of now, should be 9 for `Reads` and 15 for `Proteins`."
         arg_type = Int
-        required = true
-        "--datatype"
-        help = "Data type of the input files. Either `Reads` or `Proteins`."
-        required = true
+        default = 15
+        "--delim"
+        help = "Delimiter for input/output csv files."
+        default = "\t"
+        "--innerdelim"
+        help = "Inner delimiter for cells with multiple values in input/output csv files."
+        default = ","
+
+        "--truestrings"
+        help = "Possible representations of truestrings values in csv files. Used for `CSV.FILE`."
+        nargs = '+'
+        action = :store_arg
+        default = ["TRUE", "True", "true"]
+        "--falsestrings"
+        help = "Possible representations of false values in csv files. Same for `CSV.FILE`."
+        nargs = '+'
+        action = :store_arg
+        default = ["FALSE", "False", "false"]
+
+        "--fractions"
+        help = "Consider only solutions of desired fractions."
+        default = [1.0]
+        nargs = '+'
+        action = :store_arg
+
+        "--maxmainthreads"
+        default = 30
+        arg_type = Int
+
         "--outdir"
         help = "Write output files to this directory."
         required = true
-        "--fracstep"
-        help = "Step size for the fraction of the dataset to be used for each iteration, s.t. `fractions = collect(fracstep:fracstep:1.0) ∪ 1.0`."
-        arg_type = Float64
-        default = 0.1
-        "--maxfrac"
-        help = "Maximum fraction of the dataset to be sampled."
-        arg_type = Float64
-        default = 1.0
-        "--fracrepetitions"
-        help = "Number of repetitions of the sampling procedure for each fraction of the data."
-        arg_type = Int
-        default = 10
-        "--algrepetitions"
-        help = "Number of repetitions for each algorithm is run on each repetition of each fraction of the data."
-        arg_type = Int
-        default = 5
-        "--testfraction"
-        help = "Fraction of the dataset to be used for testing. That fraction will correspond to `maxfrac == 1.0`."
-        arg_type = Float64
-        default = 1.0
-        range_tester = x -> 0.0 < x <= 1.0
-        "--randseed"
-        help = "Random seed for sampling test data."
-        arg_type = Int
-        default = 1892
-        "--run_solve_threaded"
-        help = "Run different algorithms/algrepetitions in parallel using threads"
-        action = :store_true
-        "--sortresults"
-        help = "Sort distinct unique samples of reads/proteins."
-        action = :store_true
-        "--algs"
-        help = "Use these algorithms to obtain distinct unique samples of reads/proteins."
-        default = ["Ascending", "Descending", "Unordered"]
-        nargs = '+'
-        range_tester = x -> x ∈ ["Ascending", "Descending", "Unordered"]
+
         "--gcp"
         help = "Program is run on a google cloud VM."
         action = :store_true
         "--shutdowngcp"
         help = "Shutdown google cloud VM when the program ends."
+        action = :store_true
+
+        "--substitutionmatrix"
+        help = "Use this substitution matrix as a stricter criteria for determination of distinct AAs. Use in conjuction with `datatype == Proteins`. Not compatible with `AA_groups`."
+        "--minsimilarityscore"
+        help = "See `similarityvalidator` below."
+        arg_type = Int
+        default = 0
+        "--similarityvalidator"
+        help = "Use this opeartor to determine similarty of AA change, e.g., whether `5 >= minsimilarityscore`."
+        arg_type = Symbol
+        default = :(>=)
+        "--useAAgroups"
+        help = "Classify AAs by groups (polar/non-polar/positive/negative) as a stricter criteria for determination of distinct AAs. Use in conjuction with `datatype == Proteins`. Not compatible with `substitutionmatrix`."
         action = :store_true
 
     end
@@ -347,22 +435,77 @@ end
 function main(
     distinctfiles, allprotsfiles, samplenames,
     firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
-    maxmainthreads, outdir
+    maxmainthreads, outdir,
+    gcp, shutdowngcp,
+    substitutionmatrix::Union{SubstitutionMatrix,Nothing},
+    minsimilarityscore::Int64,
+    similarityvalidator::Function,
+    useAAgroups::Bool
 )
-
-    # todo (1) create a CLI using Comonicon.jl https://github.com/comonicon/Comonicon.jl 
-
-    # (2) run each sample using the `run_sample` function
+    # run each sample using the `run_sample` function
     for (distinctfile, allprotsfile, samplename) ∈ zip(distinctfiles, allprotsfiles, samplenames)
         run_sample(
             distinctfile, allprotsfile, samplename,
             firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
-            maxmainthreads, outdir
+            maxmainthreads, outdir,
+            substitutionmatrix, minsimilarityscore, similarityvalidator, useAAgroups
         )
     end
 
+    # shutdown gcp vm (if needed)
+    gcp && shutdowngcp && run(`sudo shutdown`) # https://cloud.google.com/compute/docs/shutdownscript
 end
 
+
+function CLI_main()
+    # read command-line args
+    parsedargs = parsecmd()
+
+    distinctfiles = parsedargs["distinctfiles"]
+    allprotsfiles = parsedargs["allprotsfiles"]
+    samplenames = parsedargs["samplenames"]
+
+    firstcolpos = parsedargs["firstcolpos"]
+    delim = parsedargs["delim"]
+    innerdelim = parsedargs["innerdelim"]
+    truestrings = parsedargs["truestrings"]
+    falsestrings = parsedargs["falsestrings"]
+
+    fractions = parsedargs["fractions"]
+    fractions = fractions isa Vector{Float64} ? fractions : parse.(Float64, fractions)
+
+    maxmainthreads = parsedargs["maxmainthreads"]
+    outdir = parsedargs["outdir"]
+
+    gcp = parsedargs["gcp"]
+    shutdowngcp = parsedargs["shutdowngcp"]
+
+    _substitutionmatrix = parsedargs["substitutionmatrix"]
+    if _substitutionmatrix !== nothing # it's a string with a matrix name
+        # substitutionmatrix = BioAlignments.load_submat(BioSymbols.AminoAcid, uppercase(_substitutionmatrix))
+        substitutionmatrix = BioAlignments.load_submat(BioSequences.AminoAcid, uppercase(_substitutionmatrix))
+    else
+        substitutionmatrix = nothing
+    end
+
+    minsimilarityscore = parsedargs["minsimilarityscore"]
+    similarityvalidator = eval(parsedargs["similarityvalidator"])
+    useAAgroups = parsedargs["useAAgroups"]
+
+    # run
+    main(
+        distinctfiles, allprotsfiles, samplenames,
+        firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
+        maxmainthreads, outdir,
+        gcp, shutdowngcp,
+        substitutionmatrix, minsimilarityscore, similarityvalidator, useAAgroups
+    )
+end
+
+
+if abspath(PROGRAM_FILE) == @__FILE__
+    CLI_main()
+end
 
 
 # distinctfiles = [

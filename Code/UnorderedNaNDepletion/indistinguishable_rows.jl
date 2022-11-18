@@ -33,11 +33,14 @@ function issimilar(
 end
 
 
-"
+"""
+    anysimilarity(Sᵢ, Sⱼ, AA_groups)
+
 Determine wheter at least one change from `AAᵦ` to `AAᵧ`, `(AAᵦ, AAᵧ) ∈ (Sᵢ x Sⱼ)`, is considered a similar change
-according to `AA_groups`' classification.
-"
-function issimilar(
+according to `AA_groups`' classification.   
+That is, both `AAᵦ` and `AAᵧ` have the same classification and thus considered similar. 
+"""
+function anysimilarity(
     Sᵢ::Set{AminoAcid}, Sⱼ::Set{AminoAcid},
     AA_groups::Dict{AminoAcid,String}
 )
@@ -51,11 +54,15 @@ function issimilar(
 end
 
 
-"
+"""
+    anysimilarity(Sᵢ, Sⱼ, substitutionmatrix, minsimilarityscore, similarityvalidator)
+    
 Determine wheter at least one change from `AAᵦ` to `AAᵧ`, `(AAᵦ, AAᵧ) ∈ (Sᵢ x Sⱼ)`, is considered a similar change
-according to `substitutionmatrix`.
-"
-function issimilar(
+according to `substitutionmatrix`.   
+That it, the substitution score from `AAᵦ` to `AAᵧ` according to `substitutionmatrix` is `>`/`>=`/`<`/`<=`/etc. (according to `similarityvalidator`) 
+relative to `minsimilarityscore`.
+"""
+function anysimilarity(
     Sᵢ::Set{AminoAcid}, Sⱼ::Set{AminoAcid},
     substitutionmatrix::SubstitutionMatrix{AminoAcid,Int64}, minsimilarityscore::Int64, similarityvalidator::Function
 )
@@ -99,7 +106,7 @@ function indistinguishable_rows(
         [
         (x, y)
         for x ∈ AAsets for y ∈ AAsets
-        if !issimilar(x, y, AA_groups)
+        if !anysimilarity(x, y, AA_groups)
     ]
     )
     Gs = tcollect(indistinguishable_vs_for_u(M, distinctAAsets, ids, nodeseltype, i) for i ∈ 1:nrows)
@@ -137,7 +144,7 @@ function indistinguishable_rows(
         [
         (x, y)
         for x ∈ AAsets for y ∈ AAsets
-        if !issimilar(x, y, substitutionmatrix, minsimilarityscore, similarityvalidator)
+        if !anysimilarity(x, y, substitutionmatrix, minsimilarityscore, similarityvalidator)
     ]
     )
     Gs = tcollect(indistinguishable_vs_for_u(M, distinctAAsets, ids, nodeseltype, i) for i ∈ 1:nrows)
