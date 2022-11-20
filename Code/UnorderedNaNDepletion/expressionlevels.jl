@@ -200,7 +200,7 @@ end
 
 
 function run_sample(
-    distinctfile, allprotsfile, samplename,
+    distinctfile, allprotsfile, samplename, postfix_to_add,
     firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
     maxmainthreads, outdir,
     substitutionmatrix::Union{SubstitutionMatrix,Nothing},
@@ -242,7 +242,7 @@ function run_sample(
     finalresults = vcat(Iterators.flatten(results)...)
 
     # save the results
-    outfile = joinpath(abspath(outdir), "$samplename.DistinctUniqueProteins.ExpressionLevels.csv")
+    outfile = joinpath(abspath(outdir), "$samplename.DistinctUniqueProteins.ExpressionLevels$postfix_to_add.csv")
     CSV.write(outfile, finalresults; delim)
 end
 
@@ -367,6 +367,9 @@ function parsecmd()
         nargs = '+'
         action = :store_arg
         required = true
+        "--postfix_to_add"
+        help = "Add `postfix` to output files' names, e.g., `\$sample.DistinctUnique{Reads,Proteins}\$postfix.\$time.csv`."
+        default = ""
         "--firstcolpos"
         help = "Int location of the first editing position column of each file in `infiles`. As of now, should be 9 for `Reads` and 15 for `Proteins`."
         arg_type = Int
@@ -431,7 +434,7 @@ end
 
 
 function main(
-    distinctfiles, allprotsfiles, samplenames,
+    distinctfiles, allprotsfiles, samplenames, postfix_to_add,
     firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
     maxmainthreads, outdir,
     gcp, shutdowngcp,
@@ -443,7 +446,7 @@ function main(
     # run each sample using the `run_sample` function
     for (distinctfile, allprotsfile, samplename) ∈ zip(distinctfiles, allprotsfiles, samplenames)
         run_sample(
-            distinctfile, allprotsfile, samplename,
+            distinctfile, allprotsfile, samplename, postfix_to_add,
             firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
             maxmainthreads, outdir,
             substitutionmatrix, minsimilarityscore, similarityvalidator, useAAgroups
@@ -462,6 +465,7 @@ function CLI_main()
     distinctfiles = parsedargs["distinctfiles"]
     allprotsfiles = parsedargs["allprotsfiles"]
     samplenames = parsedargs["samplenames"]
+    postfix_to_add = parsedargs["postfix_to_add"]
 
     firstcolpos = parsedargs["firstcolpos"]
     delim = parsedargs["delim"]
@@ -492,7 +496,7 @@ function CLI_main()
 
     # run
     main(
-        distinctfiles, allprotsfiles, samplenames,
+        distinctfiles, allprotsfiles, samplenames, postfix_to_add,
         firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
         maxmainthreads, outdir,
         gcp, shutdowngcp,
@@ -534,65 +538,39 @@ distinctfiles = [
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/comp141158_c1_seq2.DistinctUniqueProteins.13.07.2022-01:54:59.csv",
 ]
 
-samplenames = [
-    "RUSC2_MOUSE",
-    "TRIM2_BOVIN",
-    "CA2D3_MOUSE",
-    "ABL_DROME",
-    "DGLA_HUMAN",
-    "K0513_MOUSE",
-    "KCNAS_DROME",
-    "ACHA4_MOUSE",
-    "ANR17_HUMAN",
-    "TWK7_CAEEL",
-    "SCN1_HETBL",
-    "CACB2_RABIT"
-]
-chroms = [
-    "comp141881_c0_seq3",
-    "comp141044_c0_seq2",
-    "comp140439_c0_seq1",
-    "comp126362_c0_seq1",
-    "comp141517_c0_seq1",
-    "comp141840_c0_seq2",
-    "comp141640_c0_seq1",
-    "comp140987_c3_seq1",
-    "comp140910_c2_seq1",
-    "comp136058_c0_seq1",
-    "comp141378_c0_seq7",
-    "comp141158_c1_seq2"
-]
-allprotsfiles = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.$chrom.unique_proteins.csv"
-    for chrom in chroms
-]
-outdir = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina"
-
-firstcolpos = 15
-
-delim = "\t"
-innerdelim = ","
-
-truestrings = ["TRUE", "True", "true"]
-falsestrings = ["FALSE", "False", "false"]
-
-fractions = [1.0]
-
-maxmainthreads = 30
-
-
-
-main(
-    distinctfiles, allprotsfiles, samplenames,
-    firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
-    maxmainthreads, outdir
-)
-
-
-# (1) this is what sent to `additional_assignments` by `main`
-
-# distinctfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA.AllRows.DistinctUniqueProteins.csv"
-# allprotsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv"
+# samplenames = [
+#     "RUSC2_MOUSE",
+#     "TRIM2_BOVIN",
+#     "CA2D3_MOUSE",
+#     "ABL_DROME",
+#     "DGLA_HUMAN",
+#     "K0513_MOUSE",
+#     "KCNAS_DROME",
+#     "ACHA4_MOUSE",
+#     "ANR17_HUMAN",
+#     "TWK7_CAEEL",
+#     "SCN1_HETBL",
+#     "CACB2_RABIT"
+# ]
+# chroms = [
+#     "comp141881_c0_seq3",
+#     "comp141044_c0_seq2",
+#     "comp140439_c0_seq1",
+#     "comp126362_c0_seq1",
+#     "comp141517_c0_seq1",
+#     "comp141840_c0_seq2",
+#     "comp141640_c0_seq1",
+#     "comp140987_c3_seq1",
+#     "comp140910_c2_seq1",
+#     "comp136058_c0_seq1",
+#     "comp141378_c0_seq7",
+#     "comp141158_c1_seq2"
+# ]
+# allprotsfiles = [
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.$chrom.unique_proteins.csv"
+#     for chrom in chroms
+# ]
+# outdir = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina"
 
 # firstcolpos = 15
 
@@ -604,150 +582,14 @@ main(
 
 # fractions = [1.0]
 
-# maxmainthreads = Int(round(Threads.nthreads() / 5))
+# maxmainthreads = 30
 
 
-# # (2) this is run by `additional_assignments`
 
-# distinctdf = prepare_distinctdf(distinctfile, delim, innerdelim, truestrings, falsestrings)
-
-# allprotsdf, firstcolpos = prepare_allprotsdf!(
-#     allprotsfile, delim, innerdelim, truestrings, falsestrings, firstcolpos
+# main(
+#     distinctfiles, allprotsfiles, samplenames,
+#     firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
+#     maxmainthreads, outdir
 # )
 
-# M = Matrix(allprotsdf[:, firstcolpos:end]) # the possible amino acids each protein has in each position
-# Δ = distances(M) # the distances between any two proteins according to `M`
-
-
-
-# # considering only solutions of desired fractions
-# # solutions = subset(distinctdf, "Fraction" => x -> x .∈ fractions)[:, "Index"]
-# # basesize = Int(round(Threads.nthreads() / 5))
-
-
-
-# # ascsolutions = subset(distinctdf, "Fraction" => x -> x .∈ fractions)[1:10:99, :]
-# # descsolutions = subset(distinctdf, "Fraction" => x -> x .∈ fractions)[6:10:99, :]
-# # ascsolutions = subset(distinctdf, "Fraction" => x -> x .∈ fractions)[1:10:99, "Index"]
-# # descsolutions = subset(distinctdf, "Fraction" => x -> x .∈ fractions)[6:10:99, "Index"]
-
-# # solutions = subset(distinctdf, "Fraction" => x -> x .∈ fractions)[1:4, "Index"]
-# # solutions = subset(distinctdf, "Fraction" => x -> x .∈ fractions)[1:10:99, "Index"]
-# solutions = subset(distinctdf, "Fraction" => x -> x .∈ fractions)[collect(1:10:99) ∪ collect(6:10:99), "Index"]
-# basesize = 1
-
-# allsubsolutions = collect(Iterators.partition(solutions, basesize))
-
-# results = tcollect(
-#     additional_assignments(distinctdf, allprotsdf, firstcolpos, Δ, subsolutions)
-#     for subsolutions ∈ allsubsolutions
-# )
-
-# finalresults = vcat(Iterators.flatten(results)...)
-# # finalresults = vcat(results)
-
-
-# samplename = "GRIA"
-# outdir = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2"
-# outfile = joinpath(abspath(outdir), "$samplename.DistinctUniqueProteins.ExpressionLevels.csv")
-# CSV.write(outfile, finalresults; delim)
-
-
-
-
-
-
-# r1 = one_solution_additional_assignment(distinctdf, allprotsdf, firstcolpos, Δ, 901)
-# r2 = one_solution_additional_assignment(distinctdf, allprotsdf, firstcolpos, Δ, 905) 
-
-# r1[!, "#Solution"] .= string.(r1[!, "#Solution"])
-# r2[!, "#Solution"] .= string.(r2[!, "#Solution"])
-
-# r = vcat(r1, r2)
-
-
-# r[!, "#Solution"] .= string.(r[!, "#Solution"])
-
-# using AlgebraOfGraphics
-# using CairoMakie
-
-
-
-# plt = data(r1) * mapping(:TotalEqualSupportingRead) * histogram(bins=20)
-# fg = draw(plt)
-
-
-# plt4 = data(r1) * mapping(:TotalEqualSupportingRead) * histogram(bins=20)
-# fg = draw(plt)
-
-
-# plt2 = data(r) * mapping(:TotalEqualSupportingRead, col="#Solution") * histogram(bins=20)
-# fg2 = draw(plt2)
-
-
-# plt3 = data(r) * mapping(:TotalEqualSupportingRead, col="#Solution") * histogram(bins=20)
-# fg23 = draw(plt23)
-
-
-# ###
-
-# resolution = (800, 600)
-# ff = Figure(; resolution)
-# ax1 = Axis(ff[1, 1])
-# ax2 = Axis(ff[1, 2])
-
-# plt1 = data(r) * mapping(:TotalEqualSupportingRead, color="#Solution", stack="#Solution") * histogram(bins=20)
-# plt2 = data(r) * mapping(:TotalWeightedSupportingRead, color="#Solution", stack="#Solution") * histogram(bins=20)
-
-# grid = draw!(ax1, plt1)
-# grid = draw!(ax2, plt2)
-
-# legend!(ff[1, 3], grid)
-
-# ff
-
-
-
-# resolution = (800, 600)
-# ff = Figure(; resolution)
-
-# ax1 = Axis(ff[1, 1])
-# ax2 = Axis(ff[1, 2])
-# ax3 = Axis(ff[2, 1])
-# ax4 = Axis(ff[2, 2])
-
-# plt1 = data(r1) * mapping(:TotalEqualSupportingRead) * histogram(bins=20)
-# plt2 = data(r1) * mapping(:TotalWeightedSupportingRead) * histogram(bins=20)
-# plt3 = data(r2) * mapping(:TotalEqualSupportingRead) * histogram(bins=20)
-# plt4 = data(r2) * mapping(:TotalWeightedSupportingRead) * histogram(bins=20)
-
-# grid = draw!(ax1, plt1)
-# grid = draw!(ax2, plt2)
-# grid = draw!(ax3, plt3)
-# grid = draw!(ax4, plt4)
-
-# # legend!(ff[1, 3], grid)
-
-# ff
-
-
-
-
-# using AlgebraOfGraphics: density
-
-# resolution = (800, 600)
-# ff = Figure(; resolution)
-# ax1 = Axis(ff[1, 1])
-# ax2 = Axis(ff[1, 2])
-
-# plt1 = data(r) * mapping(:TotalEqualSupportingRead, color="#Solution") * density(bandwidth=0.5)
-# plt2 = data(r) * mapping(:TotalWeightedSupportingRead, color="#Solution") * density(bandwidth=0.5)
-
-# grid = draw!(ax1, plt1)
-# grid = draw!(ax2, plt2)
-
-# legend!(ff[1, 3], grid)
-
-# ff
-###
 
