@@ -97,7 +97,7 @@ function parsecmd()
         help = "Remove `postfix` from output files` names, e.g., `.unique_reads.csv`."
         default = ""
         "--postfix_to_add"
-        help = "Add `postfix` to output files` names, e.g., `\$sample.DistinctUnique{Reads,Proteins}\$postfix.\$time.csv`."
+        help = "Add `postfix` to output files' names, e.g., `\$sample.DistinctUnique{Reads,Proteins}\$postfix.\$time.csv`."
         default = ""
         "--idcol"
         help = "Label of unique samples columns. Typically `Transcripts` for `Reads` and `Protein` for `Proteins`."
