@@ -665,6 +665,8 @@ D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.Mi
 
 #### Regular
 
+Finding isoforms:
+
 ```bash
 nohup \
 julia \
@@ -684,6 +686,31 @@ D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.Mi
 * alu 16
 * 18.5.22
 * 19:28
+
+Calculating expression levels:
+
+```bash
+DISTINCTFILES="D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA.AllRows.DistinctUniqueProteins.csv \
+D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO.AllRows.DistinctUniqueProteins.csv"
+ALLROTSFILES="D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv \
+D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv"
+SAMPLESNAMES="GRIA PCLO"
+
+nohup \
+julia \
+--project=. \
+--threads 40 \
+Code/UnorderedNaNDepletion/expressionlevels.jl \
+--distinctfiles $DISTINCTFILES \
+--allprotsfiles $ALLROTSFILES \
+--samplenames $SAMPLESNAMES \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.2 \
+> D.pealeii/MpileupAndTranscripts/RQ998.2/expressionlevels.out &
+```
+* alu 16
+* 18.11.22
+* 14:28
+* 13596
 
 #### By AA groups (polar/non-polar/positive/negative)
 
@@ -734,12 +761,13 @@ Code/UnorderedNaNDepletion/expressionlevels.jl \
 --samplenames $SAMPLESNAMES \
 --outdir D.pealeii/MpileupAndTranscripts/RQ998.2 \
 --useAAgroups \
+--postfix_to_add .AAgroups \
 > D.pealeii/MpileupAndTranscripts/RQ998.2/expressionlevels.AAgroups.PCLO.out &
 ```
 * alu 13
 * 18.11.22
-* 10:42
-* 30673
+* 14:30
+* 45076
 
 
 #### By BLOSUM62

@@ -306,152 +306,6 @@ def n_repetitions_colormap(subcolors_discrete_map, condition, n_repetitions):
 # %%
 n_repetitions_colormap(subcolors_discrete_map, conditions[0], 10)
 
-# %% [markdown] tags=[]
-# # Jaccard functions - TODO erase?
-
-# %%
-# def jaccard_index(s1: set, s2: set):
-#     """
-#     Calculate Jaccard index for the sets `s1` and `s2`, defined as the size of the intersection divided by the size of the union.
-#     """
-#     return len(s1 & s2) / len(s1 | s2)
-
-# %%
-# def calc_jaccard_df(df: pd.DataFrame, col: str):
-#     """
-#     Create a Jaccard index matrix according to the different sets found at `df[col]`.
-
-#     Notice each cell in `df[col]` actually has to be of `set` type.
-#     """
-#     return df[col].apply(
-#         lambda x: df[col].apply(lambda y: jaccard_index(x, y))
-#     ).reset_index(drop=True)
-
-# %%
-# # def np_jaccard_index(a: np.ndarray, b: np.ndarray, dropna=False):
-# #     if dropna:
-# #         a = a[~np.isnan(a)]
-# #         b = b[~np.isnan(b)]
-# #     return np.intersect1d(a, b, assume_unique=True).shape[0] / np.union1d(a, b).shape[0]
-
-# def np_jaccard_index(a: np.ndarray, b: np.ndarray):
-#     return np.intersect1d(a, b, assume_unique=True).shape[0] / np.union1d(a, b).shape[0]
-
-# %%
-# # # @jit(nopython=True)
-# # @jit
-# # def numba_np_jaccard_index(a: np.ndarray, b: np.ndarray, dropna=False):
-# #     if dropna:
-# #         a = a[~np.isnan(a)]
-# #         b = b[~np.isnan(b)]
-# #     return np.intersect1d(a, b, assume_unique=True).shape[0] / np.union1d(a, b).shape[0]
-
-# # @jit(nopython=True)
-# @jit
-# def numba_np_jaccard_index(a: np.ndarray, b: np.ndarray):
-#     return np.intersect1d(a, b, assume_unique=True).shape[0] / np.union1d(a, b).shape[0]
-
-# %%
-# # def np_calc_jaccard_df(sets_array):
-# #     results = np.empty((sets_array.shape[0], sets_array.shape[0]))
-# #     for i in range(sets_array.shape[0]):
-# #         results[i] = np.apply_along_axis(np_jaccard_index, 1, sets_array, sets_array[i])
-# #     return results
-
-# def np_calc_jaccard_matrix(sets):
-#     results = np.empty((len(sets), len(sets)))
-#     for i in range(len(sets)):
-#         for j in range(len(sets)):
-#             if i == j:
-#                 jacc_ind = 1.0
-#             else:
-#                 jacc_ind = np_jaccard_index(sets[i], sets[j])
-#             results[i][j] = jacc_ind
-#     return np.array(results)
-
-# %%
-# # @jit
-# # def numba_np_calc_jaccard_df(sets_array):
-# #     results = np.empty((sets_array.shape[0], sets_array.shape[0]))
-# #     for i in range(sets_array.shape[0]):
-# #         results[i] = np.apply_along_axis(np_jaccard_index, 1, sets_array, sets_array[i])
-# #     return results
-
-
-# @jit
-# def numba_np_calc_jaccard_matrix(sets):
-#     results = np.empty((len(sets), len(sets)))
-#     for i in range(len(sets)):
-#         for j in range(len(sets)):
-#             if i == j:
-#                 jacc_ind = 1.0
-#             else:
-#                 jacc_ind = np_jaccard_index(sets[i], sets[j])
-#             results[i][j] = jacc_ind
-#     return np.array(results)
-
-
-# # @njit(parallel=True, nopython=False)
-# # def parallel_numba_np_calc_jaccard_matrix(sets):
-# #     results = np.empty((len(sets), len(sets)))
-# #     for i in prange(len(sets)):
-# #         for j in prange(len(sets)):
-# #             if i == j:
-# #                 jacc_ind = 1.0
-# #             else:
-# #                 jacc_ind = np_jaccard_index(sets[i], sets[j])
-# #             results[i][j] = jacc_ind
-# #     return np.array(results)
-
-# %% tags=[]
-# n = 100_000
-# x = [i for i in range(0, n, 2)]
-# y = [i for i in range(0, n, 7)]
-
-# %% tags=[]
-# a = np.array(x)
-# b = np.array(y)
-
-# s1 = set(x)
-# s2 = set(y)
-
-# %% tags=[]
-# # %%timeit
-# jaccard_index(s1, s2)
-
-# %% tags=[]
-# # %%timeit
-# np_jaccard_index(a, b)
-
-# %% tags=[]
-# # %%timeit
-# numba_np_jaccard_index(a, b)
-
-# %%
-# condition = conditions[0]
-# df = distinct_unique_proteins_df.loc[distinct_unique_proteins_df[condition_col] == condition].reset_index(drop=True)
-# n_test_rows = 10
-# df = df.sample(n_test_rows).reset_index(drop=True)
-# # proteins_sets_array = df["Proteins"].apply(lambda x: np.array(x.split(",")))
-# proteins_sets_array = np.array(df["Proteins"].apply(lambda x: np.array(x.split(","), dtype=object)), dtype=object)
-# # proteins_sets_array
-
-# %%
-# # %%timeit
-# np_calc_jaccard_matrix(proteins_sets_array)
-
-# %%
-# # %%timeit
-# numba_np_calc_jaccard_matrix(proteins_sets_array)
-
-# %%
-
-# %%
-# condition = conditions[0]
-# df = distinct_unique_proteins_df.loc[distinct_unique_proteins_df[condition_col] == condition].reset_index(drop=True)
-# proteins_sets_array = np.array(df["Proteins"].apply(lambda x: np.array(x.split(","), dtype=object)), dtype=object)
-# # proteins_sets_array
-
 # %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"} tags=[] toc-hr-collapsed=true toc-hr-collapsed=true tags=[]
 # # Data
 
@@ -3251,7 +3105,7 @@ fig.show()
 # %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"} tags=[]
 # ### Distinct unique proteins
 
-# %% [markdown] toc-hr-collapsed=true toc-hr-collapsed=true
+# %% [markdown] toc-hr-collapsed=true toc-hr-collapsed=true toc-hr-collapsed=true
 # #### Jaccard - TODO - erase?
 
 # %%
@@ -5497,6 +5351,94 @@ fig.for_each_annotation(
     lambda a: a.update(text=a.text.replace(f"{condition_col}=", ""))
 )
 fig.show()
+
+# %%
+shannon_df_wo_equal = shannon_df.loc[shannon_df["EntropyName"] != "EqualExpressionData"]
+shannon_df_wo_equal
+
+# %% tags=[]
+fig = px.bar(
+    shannon_df_wo_equal,
+    x=condition_col,
+    # x="EntropyName",
+    y="EntropyValue",
+    labels={
+        # "EntropyName": "Entropy",
+        "EntropyName": "",
+        "EntropyValue": "",
+    },
+    title=f"Shannon's entropy of a largest solution of each {condition_col.lower()}",
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    pattern_shape="EntropyName",
+    pattern_shape_sequence=["x", "."],
+    barmode='group',
+    category_orders=category_orders,
+    template=template,
+)
+fig.update_layout(
+    showlegend=False, 
+    height=600, 
+    barmode='group',
+    # bargap=0.15, # gap between bars of adjacent location coordinates.
+    # bargroupgap=0.05 # gap between bars of the same location coordinate.
+)
+# fig.update_traces(width=0.1)
+fig.for_each_annotation(
+    lambda a: a.update(text=a.text.replace(f"{condition_col}=", ""))
+)
+fig.show()
+
+# %%
+# animals=['giraffes', 
+#          'orangutans', 
+#          'monkeys'
+#         ]
+
+fig = go.Figure()
+
+
+
+fig.add_trace(
+    go.Bar(
+        # name='giraffes', 
+        x=['giraffes'], y=[20],
+        marker_color="blue"
+    )
+)
+fig.add_trace(
+    go.Bar(
+        # name='giraffes', 
+        x=['giraffes'], y=[14]
+    )
+)
+
+fig.add_trace(
+    go.Bar(
+        # name='orangutans', 
+        x=['orangutans'], y=[20]
+    )
+)
+fig.add_trace(
+    go.Bar(
+        # name='orangutans', 
+        x=['orangutans'], y=[14]
+    )
+)
+
+# Change the bar mode
+fig.update_layout(
+    showlegend=False,
+    barmode='group',
+    bargap=0.15, # gap between bars of adjacent location coordinates.
+    bargroupgap=0.1 # gap between bars of the same location coordinate.
+)
+fig.show()
+
+# %% [markdown]
+# base – Sets where the bar base is drawn (in position axis units). In “stack” or “relative” barmode, traces that set “base” will be excluded and drawn in “overlay” mode instead.
+#
+#
 
 # %% [markdown] tags=[] toc-hr-collapsed=true toc-hr-collapsed=true
 # ## Editing in reads
