@@ -16,16 +16,12 @@ include(joinpath(@__DIR__, "issimilar.jl")) # for issimilar
 
 
 
-
-
-
 """
     distances(M, AA_groups)
 
-Create a symmaetrical distances matrix `Δ` which measures the distance between any two 
-`rowᵢ, rowⱼ ∈ M`.  
-The distance between `rowᵢ` to `rowⱼ` is determined by the number of corresponding columns 
-in which the two contain no possible amino acids `AAᵦ` and `AAᵧ`, respectively, 
+Create a symmaetrical distances matrix `Δ` which measures the distance between any `rowᵢ, rowⱼ ∈ M`.  
+The distance between a `rowᵢ` to a `rowⱼ` is determined by the number of corresponding columns 
+in which the two contain no possible amino acids `(AAᵦ, AAᵧ) ∈ (Sᵢ x Sⱼ)`, 
 such that both `AAᵦ` and `AAᵧ` share the same classification in `AA_groups`.
 """
 function distances(M::Matrix{Set{AminoAcid}}, AA_groups::Dict{AminoAcid,String})
@@ -54,10 +50,11 @@ end
 """
     distances(M, substitutionmatrix, minsimilarityscore, similarityvalidator)
 
-Create a symmaetrical distances matrix `Δ` which measures the distance between any two 
-`rowᵢ, rowⱼ ∈ M`.  
-The distance between `rowᵢ` to `rowⱼ` is determined by the number of corresponding columns 
-in which the two share no possible amino acid.
+Create a symmaetrical distances matrix `Δ` which measures the distance between any `rowᵢ, rowⱼ ∈ M`.  
+The distance between a `rowᵢ` to a `rowⱼ` is determined by the number of corresponding columns 
+in which the two share no possible amino acis `(AAᵦ, AAᵧ) ∈ (Sᵢ x Sⱼ)`, 
+such that their substitution score according to `substitutionmatrix` is `>`/`≥`/`<`/`≤` `minsimilarityscore`. 
+The specific comparison (e.g., `≥`) is determined by `similarityvalidator`.
 """
 function distances(
     M::Matrix{Set{AminoAcid}},
@@ -88,9 +85,8 @@ end
 """
     distances(M)
 
-Create a symmaetrical distances matrix `Δ` which measures the distance between any two 
-`rowᵢ, rowⱼ ∈ M`.  
-The distance between `rowᵢ` to `rowⱼ` is determined by the number of corresponding columns 
+Create a symmaetrical distances matrix `Δ` which measures the distance between any `rowᵢ, rowⱼ ∈ M`.  
+The distance between a `rowᵢ` to a `rowⱼ` is determined by the number of corresponding columns 
 in which the two share no possible amino acid.
 """
 function distances(M::Matrix{Set{AminoAcid}})

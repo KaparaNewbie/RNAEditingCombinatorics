@@ -1,7 +1,7 @@
 using BioSequences
 
 
-"Determine whether a change from `AAᵦ` to `AAᵧ` is considered a similar change according to `AA_groups`' classification."
+"Return `true` if a change from `AAᵦ` to `AAᵧ` is considered a similar change according to `AA_groups`' classification."
 function issimilar(
     AAᵦ::AminoAcid, AAᵧ::AminoAcid,
     AA_groups::Dict{AminoAcid,String}
@@ -22,7 +22,7 @@ function issimilar(
 end
 
 
-"Determine whether a change from `AAᵦ` to `AAᵧ` is considered a similar change according to `substitutionmatrix`."
+"Return `true` if a change from `AAᵦ` to `AAᵧ` is considered a similar change according to `substitutionmatrix`."
 function issimilar(
     AAᵦ::AminoAcid, AAᵧ::AminoAcid,
     substitutionmatrix::SubstitutionMatrix{AminoAcid,Int64}, minsimilarityscore::Int64, similarityvalidator::Function
@@ -35,7 +35,7 @@ end
 """
     anysimilarity(Sᵢ, Sⱼ, AA_groups)
 
-Determine wheter at least one change from `AAᵦ` to `AAᵧ`, `(AAᵦ, AAᵧ) ∈ (Sᵢ x Sⱼ)`, is considered a similar change
+Return `true` if at least one change from a `AAᵦ` to a `AAᵧ`, `(AAᵦ, AAᵧ) ∈ (Sᵢ x Sⱼ)`, is considered a similar change
 according to `AA_groups`' classification.   
 That is, both `AAᵦ` and `AAᵧ` have the same classification and thus considered similar. 
 """
@@ -56,10 +56,10 @@ end
 """
     anysimilarity(Sᵢ, Sⱼ, substitutionmatrix, minsimilarityscore, similarityvalidator)
     
-Determine wheter at least one change from `AAᵦ` to `AAᵧ`, `(AAᵦ, AAᵧ) ∈ (Sᵢ x Sⱼ)`, is considered a similar change
-according to `substitutionmatrix`.   
-That it, the substitution score from `AAᵦ` to `AAᵧ` according to `substitutionmatrix` is `>`/`>=`/`<`/`<=`/etc. (according to `similarityvalidator`) 
-relative to `minsimilarityscore`.
+Return `true` if at least one change from a `AAᵦ` to a `AAᵧ`, `(AAᵦ, AAᵧ) ∈ (Sᵢ x Sⱼ)`, is considered a similar change
+according to their substitution score in `substitutionmatrix`.   
+That it, the substitution score is `>`/`≥`/`<`/`≤` `minsimilarityscore`. 
+The specific comparison (e.g., `≥`) is determined by `similarityvalidator`.
 """
 function anysimilarity(
     Sᵢ::Set{AminoAcid}, Sⱼ::Set{AminoAcid},
