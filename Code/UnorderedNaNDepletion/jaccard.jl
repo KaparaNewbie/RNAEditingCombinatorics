@@ -1,3 +1,7 @@
+# TODO incorperate this calculation of `jaccardmatrix` at the end of `maximal_independent_set_5.jl`
+# (or convert to a CLI app, altough it's less preferable IMO)
+
+
 using CSV
 using DataFrames
 using StatsBase  # for StatsBase.sample
@@ -36,6 +40,10 @@ function jaccardmatrix(sets)
 end
 
 
+
+function main()
+    
+end
 
 
 

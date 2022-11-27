@@ -1307,6 +1307,79 @@ conditions_sets = {
     for positions_df, condition in zip(positions_dfs, conditions)
 }
 
+[len(x) for x in conditions_sets[conditions[0]]]
+
+# %% tags=[]
+conditions_labels = {
+    condition: ["Edited", "KnownEditing", "InProbRegion"] for condition in conditions
+}
+
+conditions_sets = {
+    condition: [
+        set(positions_df.loc[positions_df[label], "Position"])
+        for label in conditions_labels[condition]
+    ]
+    for positions_df, condition in zip(positions_dfs, conditions)
+}
+
+problamatic_regions_exist = False
+
+
+cols = min(facet_col_wrap, len(conditions), 4)
+rows = ceil(len(conditions) / cols)
+
+fig, axs = plt.subplots(
+    nrows=rows, 
+    ncols=cols, 
+    figsize=(3.5 * cols, 2.5 * rows),
+    constrained_layout=True,
+    gridspec_kw=dict(
+        hspace=0.2,
+        wspace=0.3
+    )
+)
+
+for condition, ax in zip(conditions, axs.flat):
+    labels = conditions_labels[condition]
+    sets = conditions_sets[condition]
+    labels[0] = f"Edited\n({len(sets[0])})"
+    labels[1] = f"Known editing\n({len(sets[1])})"
+    if len(sets[2]) == 0:
+        labels = labels[:2]
+        sets = sets[:2]
+        v_func = venn2
+    else:
+        v_func = venn3
+        problamatic_regions_exist = True
+    v_func(sets, set_labels=labels, ax=ax)
+    ax.set_title(condition, fontdict=dict(fontsize=16))
+
+# if problamatic_regions_exist:
+#     title = "Positions' membership: currently edited, known editing, and probalamtic regions"
+# else:
+#     title = "Positions' membership: currently edited & known editing"
+
+# fig.suptitle(title)
+plt.show()
+
+
+# %%
+ic(38 + 65);
+ic(65 + 8);
+
+# %%
+conditions_labels = {
+    condition: ["Edited", "KnownEditing", "InProbRegion"] for condition in conditions
+}
+
+conditions_sets = {
+    condition: [
+        set(positions_df.loc[positions_df[label], "Position"])
+        for label in conditions_labels[condition]
+    ]
+    for positions_df, condition in zip(positions_dfs, conditions)
+}
+
 problamatic_regions_exist = False
 
 fig, axs = plt.subplots(
@@ -2150,7 +2223,7 @@ fig = px.histogram(
     facet_col=condition_col,
     facet_col_spacing=facet_col_spacing,
     # labels={"MeanOfAmbigousPositions": "Mean ambigous positions in proteins of a solution"},
-    title="Distribution of ambigous positions in different solutions",
+    title="Distribution of ambiguous positions in different solutions",
     color=condition_col,
     color_discrete_map=color_discrete_map,
     category_orders=category_orders,
@@ -2210,6 +2283,37 @@ df3.loc[df3["#SolutionIncluded"] > 0].groupby(condition_col).size()
 df3.loc[df3["#SolutionIncluded"] == 100].groupby(condition_col).size()
 
 # %%
+fig = px.histogram(
+    df3,
+    x="AmbigousPositions",
+    y="#SolutionIncluded",
+    histfunc="avg",
+    facet_col=condition_col,
+    facet_col_wrap=facet_col_wrap,
+    facet_col_spacing=facet_col_spacing,
+    facet_row_spacing=facet_row_spacing,
+    labels={"AmbigousPositions": "Ambiguous positions<br>in a protein"},
+    title="#solutions as function of ambiguous positions",
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    category_orders=category_orders,
+    template=template,
+)
+
+# https://stackoverflow.com/questions/58167028/single-axis-caption-in-plotly-express-facet-plot
+# for axis in fig.layout:
+#     if type(fig.layout[axis]) == go.layout.YAxis:
+#         fig.layout[axis].title.text = ""
+fig.update_layout(
+    showlegend=False, 
+    # yaxis_title="# solutions"
+)
+# fig.for_each_yaxis(lambda y: y.update(title="Transcripts"))   # for facet_row
+
+fig.show()
+
+
+# %%
 fig = px.scatter(
     df3,
     x="AmbigousPositions",
@@ -2233,66 +2337,6 @@ fig = px.scatter(
 
 fig.show()
 
-
-# %%
-# df3["="]
-
-fig = px.histogram(
-    df3.loc[df3["#SolutionIncluded"] == 1],
-    x="AmbigousPositions",
-    # y="#SolutionIncluded",
-    facet_col=condition_col,
-    facet_col_spacing=facet_col_spacing,
-    # labels={"MeanOfAmbigousPositions": "Mean ambigous positions in proteins of a solution"},
-    title="#solutions as function of ambigous positions",
-    color=condition_col,
-    color_discrete_map=color_discrete_map,
-    category_orders=category_orders,
-    template=template,
-)
-
-# https://stackoverflow.com/questions/58167028/single-axis-caption-in-plotly-express-facet-plot
-# for axis in fig.layout:
-#     if type(fig.layout[axis]) == go.layout.YAxis:
-#         fig.layout[axis].title.text = ""
-# fig.update_layout(showlegend=False, yaxis_title="# solutions")
-# fig.for_each_yaxis(lambda y: y.update(title="Transcripts"))   # for facet_row
-
-fig.show()
-
-
-# %% tags=[]
-# df3["="]
-
-fig = px.histogram(
-    df3.loc[df3["#SolutionIncluded"] == 100],
-    x="AmbigousPositions",
-    # y="#SolutionIncluded",
-    facet_col=condition_col,
-    facet_col_spacing=facet_col_spacing,
-    # labels={"MeanOfAmbigousPositions": "Mean ambigous positions in proteins of a solution"},
-    title="#solutions as function of ambigous positions",
-    color=condition_col,
-    color_discrete_map=color_discrete_map,
-    category_orders=category_orders,
-    template=template,
-)
-
-# https://stackoverflow.com/questions/58167028/single-axis-caption-in-plotly-express-facet-plot
-# for axis in fig.layout:
-#     if type(fig.layout[axis]) == go.layout.YAxis:
-#         fig.layout[axis].title.text = ""
-# fig.update_layout(showlegend=False, yaxis_title="# solutions")
-# fig.for_each_yaxis(lambda y: y.update(title="Transcripts"))   # for facet_row
-
-fig.show()
-
-
-# %%
-
-# %%
-
-# %%
 
 # %% [markdown]
 # ### Comparing algorithms
@@ -5950,6 +5994,102 @@ shannon_df = pd.DataFrame(
 )
 
 shannon_df
+
+# %%
+fig = go.Figure()
+
+colors = [color_discrete_map[condition] for condition in conditions]
+
+non_syns_per_max_sol_exp_df = [
+    str(max_sol_exp_df.iloc[:, ML_INPUT_FIRST_COL_POS:].shape[1]) 
+    for max_sol_exp_df in max_sol_exp_dfs
+]
+
+fig.add_trace(
+    go.Bar(
+        x=conditions, 
+        y=shannon_df.loc[
+            shannon_df["EntropyName"] == "WeightedExpressionData", 
+            "EntropyValue"
+        ],
+        marker_color=colors,
+        # marker_pattern_shape="x",
+        marker_pattern_shape="/",
+        # name="Data",
+        showlegend=False,
+        # width=0.3
+        
+    )
+)
+
+fig.add_trace(
+    go.Bar(
+        x=conditions, 
+        y=shannon_df.loc[
+            shannon_df["EntropyName"] == "Hypothetical", 
+            "EntropyValue"
+        ],
+        marker_color=colors,
+        marker_pattern_shape=".",
+        text=non_syns_per_max_sol_exp_df,
+        textposition="outside",
+        # name="Hypothetical",
+        showlegend=False,
+        # width=0.3
+        textfont=dict(size=18)
+    )
+)
+
+
+# Add single entropy traces for legend
+fig.add_trace(
+    go.Bar(
+        x=[None], 
+        y=[None],
+        marker_color="white",
+        marker_pattern_shape="/",
+        legendgroup='Observed', 
+        name='Observed',
+        showlegend=True, 
+    )
+)
+fig.add_trace(
+    go.Bar(
+        x=[None], 
+        y=[None],
+        marker_color="white",
+        marker_pattern_shape=".",
+        legendgroup='Hypothetical', 
+        name='Hypothetical',
+        showlegend=True, 
+    )
+)
+
+fig.update_layout(
+    title=f"Shannon's entropy of a largest solution of each {condition_col.lower()}",
+    width=600,
+    height=600,
+    # showlegend=False,
+    template=template,
+    barmode='group',
+    bargap=0.2, # gap between bars of adjacent location coordinates.
+    bargroupgap=0.15, # gap between bars of the same location coordinate.
+    legend=dict(
+        yanchor="bottom",
+        y=1.02,
+        xanchor="right",
+        x=1,
+        orientation="h",
+    ),
+)
+
+fig.update_yaxes(title_text="Entropy")
+
+# fig.update_traces(
+#     marker=dict(line_color="black", line_width=0.3, pattern_fillmode="replace"),
+#     # width=0.3
+# )
+fig.show()
 
 # %% tags=[]
 fig = px.bar(
