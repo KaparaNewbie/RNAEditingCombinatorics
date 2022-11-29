@@ -1,6 +1,7 @@
 /.idea
 /.vscode
 /D.pealeii
+/D.pealeii
 */__pycache__
 *.pyc
 /*.pyc
