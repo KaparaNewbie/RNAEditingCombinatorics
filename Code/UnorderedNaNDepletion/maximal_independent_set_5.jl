@@ -39,7 +39,7 @@ using Transducers
 using ThreadsX
 using InlineStrings  # for saving space on "Reads" col in input `df`
 using TimerOutputs
-using BioAlignments
+using BioAlignments  # right now it's a local branch from my own repo, 
 using BioSymbols
 
 
@@ -111,18 +111,21 @@ function parsecmd()
         help = "Data type of the input files. Either `Reads` or `Proteins`."
         required = true
         "--substitutionmatrix"
-        help = "Use this substitution matrix as a stricter criteria for determination of distinct AAs. Use in conjuction with `datatype == Proteins`. Not compatible with `AA_groups`."
-        "--minsimilarityscore"
+        help = "Use this substitution matrix as a stricter criteria for determination of distinct AAs. Use in conjuction with `datatype == Proteins`. Not compatible with `aagroups`. Use any matrix in https://github.com/KaparaNewbie/BioAlignments.jl/blob/master/src/submat.jl."
+        arg_type = Symbol
+        "--similarityscorecutoff"
         help = "See `similarityvalidator` below."
         arg_type = Int
         default = 0
         "--similarityvalidator"
-        help = "Use this opeartor to determine similarty of AA change, e.g., whether `5 >= minsimilarityscore`."
+        help = "Use this opeartor to determine similarty of AA change, e.g., whether `5 >= similarityscorecutoff`."
         arg_type = Symbol
         default = :(>=)
-        "--useAAgroups"
-        help = "Classify AAs by groups (polar/non-polar/positive/negative) as a stricter criteria for determination of distinct AAs. Use in conjuction with `datatype == Proteins`. Not compatible with `substitutionmatrix`."
-        action = :store_true
+        "--aagroups"
+        help = "Use predifined AAs classification as a stricter criteria for determination of distinct AAs. Use in conjuction with `datatype == Proteins`. Not compatible with `substitutionmatrix`."
+        arg_type = Symbol
+        range_tester = x -> x ∈ [:AA_groups, :AA_groups_Miyata1979]
+
         "--outdir"
         help = "Write output files to this directory."
         required = true
@@ -206,27 +209,17 @@ function main()
 
     algs::Vector{String} = String.(algs)
 
-    _substitutionmatrix = parsedargs["substitutionmatrix"]
-    if _substitutionmatrix !== nothing # it's a string with a matrix name
-        # substitutionmatrix = BioAlignments.load_submat(BioSymbols.AminoAcid, uppercase(_substitutionmatrix))
-        substitutionmatrix = BioAlignments.load_submat(BioSequences.AminoAcid, uppercase(_substitutionmatrix))
-    else
-        substitutionmatrix = nothing
-    end
-
-    minsimilarityscore = parsedargs["minsimilarityscore"]
+    substitutionmatrix = eval(parsedargs["substitutionmatrix"])
+    similarityscorecutoff = parsedargs["similarityscorecutoff"]
     similarityvalidator = eval(parsedargs["similarityvalidator"])
-    useAAgroups = parsedargs["useAAgroups"]
-
-
-
+    aagroups = eval(parsedargs["aagroups"])
 
 
     # infiles = ["D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv"]
     # delim = "\t"
     # postfix_to_remove = ".aligned.sorted.MinRQ998.unique_proteins.csv"
     # prefix_to_remove = ""
-    # postfix_to_add = ".SmallCloudTest"
+    # postfix_to_add = ".GRANTHAM1974-100"
     # idcol = "Protein"
     # firstcolpos = 15
     # datatype = "Proteins"
@@ -261,8 +254,7 @@ function main()
             infile, delim, samplename, idcol, firstcolpos, datatype, outdir, postfix_to_add,
             fracstep, maxfrac, fracrepetitions, algrepetitions, testfraction, randseed,
             run_solve_threaded, sortresults, algs,
-            substitutionmatrix, minsimilarityscore, similarityvalidator,
-            useAAgroups
+            substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups
         )
     end
 
@@ -355,9 +347,9 @@ function run_sample(
     sortresults::Bool,
     algs::Vector{String},
     substitutionmatrix::Union{SubstitutionMatrix,Nothing},
-    minsimilarityscore::Int64,
+    similarityscorecutoff::Int64,
     similarityvalidator::Function,
-    useAAgroups::Bool
+    aagroups::Union{Dict{AminoAcid,String},Nothing}
 )
     @info "$(loggingtime())\trun_sample" infile samplename
 
@@ -375,9 +367,9 @@ function run_sample(
     # G is the main neighborhood matrix and created only once; samples can create subgraphs induced by it
     G = try
         if substitutionmatrix !== nothing
-            @timeit to "indistinguishable_rows" indistinguishable_rows(df, idcol, substitutionmatrix, minsimilarityscore, similarityvalidator; firstcolpos)
-        elseif useAAgroups
-            @timeit to "indistinguishable_rows" indistinguishable_rows(df, idcol, AA_groups; firstcolpos)
+            @timeit to "indistinguishable_rows" indistinguishable_rows(df, idcol, substitutionmatrix, similarityscorecutoff, similarityvalidator; firstcolpos)
+        elseif aagroups !== nothing
+            @timeit to "indistinguishable_rows" indistinguishable_rows(df, idcol, aagroups; firstcolpos)
         else
             @timeit to "indistinguishable_rows" indistinguishable_rows(df, idcol; firstcolpos)
         end
@@ -446,26 +438,26 @@ main();
 # @benchmark main()
 
 
-# infile = "D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv"
+# infile = "D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv"
 # delim = "\t"
-# postfix_to_remove = ".aligned.sorted.MinRQ998.unique_proteins.csv"
-# prefix_to_remove = ""
-# postfix_to_add = ".SmallCloudTest"
+# # postfix_to_remove = ".aligned.sorted.MinRQ998.unique_proteins.csv"
+# # prefix_to_remove = ""
+# # postfix_to_add = ".GRANTHAM1974-100"
 # idcol = "Protein"
 # firstcolpos = 15
 # datatype = "Proteins"
-# outdir = "D.pealeii/MpileupAndTranscripts/RQ998.2"
-# fracstep = 0.5
-# maxfrac = 1.0
-# fracrepetitions = 5
-# algrepetitions = 2
-# testfraction = 0.01
+# # outdir = "D.pealeii/MpileupAndTranscripts/RQ998.2"
+# # fracstep = 0.5
+# # maxfrac = 1.0
+# # fracrepetitions = 5
+# # algrepetitions = 2
+# testfraction = 1.0
 # randseed = 1892
-# run_solve_threaded = false
-# sortresults = false
-# algs = ["Ascending", "Descending"]
-# gcp = false
-# shutdowngcp = false
+# # run_solve_threaded = false
+# # sortresults = false
+# # algs = ["Ascending", "Descending"]
+# # gcp = false
+# # shutdowngcp = false
 
 
 
@@ -475,52 +467,97 @@ main();
 # )
 
 
-# substitutionmatrix = BLOSUM62
-# minsimilarityscore = 0
-# similarityvalidator = ≥
+# substitutionmatrix = GRANTHAM1974
+# similarityscorecutoff = 100
+# similarityvalidator = <
+
+# aagroups = AA_groups_Miyata1979
 
 
-
-
-
-
-# # G is the main neighborhood matrix and created only once; samples can create subgraphs induced by it
+# # # G is the main neighborhood matrix and created only once; samples can create subgraphs induced by it
 # G1 = indistinguishable_rows(df, idcol; firstcolpos)
-# G2 = indistinguishable_rows(df, idcol, substitutionmatrix, minsimilarityscore, similarityvalidator; firstcolpos)
-# G3 = indistinguishable_rows(df, idcol, AA_groups; firstcolpos)
+# G2 = indistinguishable_rows(df, idcol, substitutionmatrix, similarityscorecutoff, similarityvalidator; firstcolpos)
+# G3 = indistinguishable_rows(df, idcol, aagroups; firstcolpos)
 
-# numedges1 = sum(length.(values(G1)))
-# numedges2 = sum(length.(values(G2)))
-# numedges3 = sum(length.(values(G3)))
-
-# e = :("BLOSUM45")
-# eval(e)
-# submat = eval("BLOSUM45")
+# S1 = sum(length.(values(G1)))
+# S2 = sum(length.(values(G2)))
+# S3 = sum(length.(values(G3)))
 
 
 
-# BioAlignments.load_submat(BioSymbols.AminoAcid, "BLOSUM45")
-
-# e1 = :(">=")
-# e2 = :(>=)
-
-# typeof(e1)
-# typeof(e2)
-
-# Symbol(e1)
-# stringop = ">="
-# e3 = :($stringop)
-
-# eval(e1)
-# eval(e2)
+# results2 = solve(
+#     G2,
+#     1.0,
+#     1,
+#     2,
+#     true,
+#     false,
+#     ["Ascending", "Descending"]
+# )
 
 
-# eval(Symbol(e1))(5, 3)
+# distinctfile1 = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO.AllRows.DistinctUniqueProteins.csv"
+# distinctfile2 = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.DistinctUniqueProteins.GRANTHAM1974-100.05.12.2022-13:58:52.csv"
+# distinctfile3 = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.DistinctUniqueProteins.AAgroupsMiyata1979.04.12.2022-18:09:53.csv"
 
-# eval(:($">="))
+# truestrings = ["TRUE", "True", "true"]
+# falsestrings = ["FALSE", "False", "false"]
 
-# eval(:(>=))
+# innerdelim = ","
+
+# function prepare_distinctdf(distinctfile, delim, innerdelim, truestrings, falsestrings)
+#     distinctdf = DataFrame(CSV.File(distinctfile; delim, truestrings, falsestrings))
+#     transform!(distinctdf, :UniqueSamples => (x -> split.(x, innerdelim)) => :UniqueSamples)
+#     distinctdf[!, "Index"] = collect(1:size(distinctdf, 1))
+#     return distinctdf
+# end
+
+# distinctdf1 = prepare_distinctdf(distinctfile1, delim, innerdelim, truestrings, falsestrings)
+# distinctdf2 = prepare_distinctdf(distinctfile2, delim, innerdelim, truestrings, falsestrings)
+# distinctdf3 = prepare_distinctdf(distinctfile3, delim, innerdelim, truestrings, falsestrings)
 
 
 
-# op = 
+# distinct1 = distinctdf1[argmax(distinctdf1[:, "NumUniqueSamples"]), "UniqueSamples"]
+# distinct2 = distinctdf2[argmax(distinctdf2[:, "NumUniqueSamples"]), "UniqueSamples"]
+# distinct3 = distinctdf3[argmax(distinctdf3[:, "NumUniqueSamples"]), "UniqueSamples"]
+
+
+# function verify(G, distinctsamples)
+#     badcouples = []
+#     for (i, x) in enumerate(distinctsamples)
+#         for y in distinctsamples[i+1:end]
+#             if x in G[y] || y in G[x]
+#                 append!(badcouples, (x, y))
+#             end
+#         end
+#     end
+#     badcouples
+# end
+
+
+# badcouples1 = verify(G1, distinct1)
+# badcouples2 = verify(G2, distinct2)
+# badcouples3 = verify(G3, distinct3)
+
+
+
+
+
+
+# using BioAlignments
+# using BioSymbols
+# using UnicodePlots
+
+# sm = GRANTHAM1974
+# AAs = [
+#     AA_A, AA_R, AA_N, AA_D, AA_C, AA_Q, AA_E, AA_G, AA_H, AA_I, 
+#     AA_L, AA_K, AA_M, AA_F, AA_P, AA_S, AA_T, AA_W, AA_Y, AA_V
+# ]
+
+# scores = Int64[]
+# for (i, x) in enumerate(AAs)
+#     for y in AAs[i:end]
+#         append!(scores, sm[x, y])
+#     end
+# end

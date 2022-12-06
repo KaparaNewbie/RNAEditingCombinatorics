@@ -17,14 +17,14 @@ include(joinpath(@__DIR__, "issimilar.jl")) # for issimilar
 
 
 """
-    distances(M, AA_groups)
+    distances(M, aagroups)
 
 Create a symmaetrical distances matrix `Δ` which measures the distance between any `rowᵢ, rowⱼ ∈ M`.  
 The distance between a `rowᵢ` to a `rowⱼ` is determined by the number of corresponding columns 
 in which the two contain no possible amino acids `(AAᵦ, AAᵧ) ∈ (Sᵢ x Sⱼ)`, 
-such that both `AAᵦ` and `AAᵧ` share the same classification in `AA_groups`.
+such that both `AAᵦ` and `AAᵧ` share the same classification in `aagroups`.
 """
-function distances(M::Matrix{Set{AminoAcid}}, AA_groups::Dict{AminoAcid,String})
+function distances(M::Matrix{Set{AminoAcid}}, aagroups::Dict{AminoAcid,String})
     nrows = size(M, 1)
     Δmax = size(M, 2)  # maximal possible difference between any two proteins
     uint = smallestuint(Δmax)  # type of each cell in the final distances matrix `Δ`
@@ -34,7 +34,7 @@ function distances(M::Matrix{Set{AminoAcid}}, AA_groups::Dict{AminoAcid,String})
         [
         (x, y)
         for x ∈ AAsets for y ∈ AAsets
-        if !anysimilarity(x, y, AA_groups)
+        if !anysimilarity(x, y, aagroups)
     ]
     )
     # for each `rowᵢ`, calc `δᵢ`which is a vector of distances to each `rowⱼ` where `i <= j`
@@ -48,17 +48,17 @@ end
 
 
 """
-    distances(M, substitutionmatrix, minsimilarityscore, similarityvalidator)
+    distances(M, substitutionmatrix, similarityscorecutoff, similarityvalidator)
 
 Create a symmaetrical distances matrix `Δ` which measures the distance between any `rowᵢ, rowⱼ ∈ M`.  
 The distance between a `rowᵢ` to a `rowⱼ` is determined by the number of corresponding columns 
 in which the two share no possible amino acis `(AAᵦ, AAᵧ) ∈ (Sᵢ x Sⱼ)`, 
-such that their substitution score according to `substitutionmatrix` is `>`/`≥`/`<`/`≤` `minsimilarityscore`. 
+such that their substitution score according to `substitutionmatrix` is `>`/`≥`/`<`/`≤` `similarityscorecutoff`. 
 The specific comparison (e.g., `≥`) is determined by `similarityvalidator`.
 """
 function distances(
     M::Matrix{Set{AminoAcid}},
-    substitutionmatrix::SubstitutionMatrix{AminoAcid,Int64}, minsimilarityscore::Int64, similarityvalidator::Function
+    substitutionmatrix::SubstitutionMatrix{AminoAcid,Int64}, similarityscorecutoff::Int64, similarityvalidator::Function
 )
     nrows = size(M, 1)
     Δmax = size(M, 2)  # maximal possible difference between any two proteins
@@ -69,7 +69,7 @@ function distances(
         [
         (x, y)
         for x ∈ AAsets for y ∈ AAsets
-        if !anysimilarity(x, y, substitutionmatrix, minsimilarityscore, similarityvalidator)
+        if !anysimilarity(x, y, substitutionmatrix, similarityscorecutoff, similarityvalidator)
     ]
     )
     # for each `rowᵢ`, calc `δᵢ`which is a vector of distances to each `rowⱼ` where `i <= j`
@@ -200,9 +200,9 @@ function run_sample(
     firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
     maxmainthreads, outdir,
     substitutionmatrix::Union{SubstitutionMatrix,Nothing},
-    minsimilarityscore::Int64,
+    similarityscorecutoff::Int64,
     similarityvalidator::Function,
-    useAAgroups::Bool
+    aagroups::Union{Dict{AminoAcid,String},Nothing}
 )
     distinctdf = prepare_distinctdf(distinctfile, delim, innerdelim, truestrings, falsestrings)
 
@@ -216,9 +216,11 @@ function run_sample(
     # Δ = distances(M) 
     Δ = begin
         if substitutionmatrix !== nothing
-            distances(M, substitutionmatrix, minsimilarityscore, similarityvalidator)
-        elseif useAAgroups
-            distances(M, AA_groups)
+            distances(M, substitutionmatrix, similarityscorecutoff, similarityvalidator)
+        # elseif useAAgroups
+        #     distances(M, AA_groups)
+        elseif aagroups !== nothing
+            distances(M, aagroups)
         else
             distances(M)
         end
@@ -410,18 +412,20 @@ function parsecmd()
         action = :store_true
 
         "--substitutionmatrix"
-        help = "Use this substitution matrix as a stricter criteria for determination of distinct AAs. Use in conjuction with `datatype == Proteins`. Not compatible with `AA_groups`."
-        "--minsimilarityscore"
+        help = "Use this substitution matrix as a stricter criteria for determination of distinct AAs. Use in conjuction with `datatype == Proteins`. Not compatible with `aagroups`. Use any matrix in https://github.com/KaparaNewbie/BioAlignments.jl/blob/master/src/submat.jl."
+        arg_type = Symbol
+        "--similarityscorecutoff"
         help = "See `similarityvalidator` below."
         arg_type = Int
         default = 0
         "--similarityvalidator"
-        help = "Use this opeartor to determine similarty of AA change, e.g., whether `5 >= minsimilarityscore`."
+        help = "Use this opeartor to determine similarty of AA change, e.g., whether `5 >= similarityscorecutoff`."
         arg_type = Symbol
         default = :(>=)
-        "--useAAgroups"
-        help = "Classify AAs by groups (polar/non-polar/positive/negative) as a stricter criteria for determination of distinct AAs. Use in conjuction with `datatype == Proteins`. Not compatible with `substitutionmatrix`."
-        action = :store_true
+        "--aagroups"
+        help = "Use predifined AAs classification as a stricter criteria for determination of distinct AAs. Use in conjuction with `datatype == Proteins`. Not compatible with `substitutionmatrix`."
+        arg_type = Symbol
+        range_tester = x -> x ∈ [:AA_groups, :AA_groups_Miyata1979]
 
     end
     return parse_args(s)
@@ -435,9 +439,9 @@ function main(
     maxmainthreads, outdir,
     gcp, shutdowngcp,
     substitutionmatrix::Union{SubstitutionMatrix,Nothing},
-    minsimilarityscore::Int64,
+    similarityscorecutoff::Int64,
     similarityvalidator::Function,
-    useAAgroups::Bool
+    aagroups::Union{Dict{AminoAcid,String},Nothing}
 )
     # run each sample using the `run_sample` function
     for (distinctfile, allprotsfile, samplename) ∈ zip(distinctfiles, allprotsfiles, samplenames)
@@ -445,7 +449,7 @@ function main(
             distinctfile, allprotsfile, samplename, postfix_to_add,
             firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
             maxmainthreads, outdir,
-            substitutionmatrix, minsimilarityscore, similarityvalidator, useAAgroups
+            substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups
         )
     end
 
@@ -478,17 +482,10 @@ function CLI_main()
     gcp = parsedargs["gcp"]
     shutdowngcp = parsedargs["shutdowngcp"]
 
-    _substitutionmatrix = parsedargs["substitutionmatrix"]
-    if _substitutionmatrix !== nothing # it's a string with a matrix name
-        # substitutionmatrix = BioAlignments.load_submat(BioSymbols.AminoAcid, uppercase(_substitutionmatrix))
-        substitutionmatrix = BioAlignments.load_submat(BioSequences.AminoAcid, uppercase(_substitutionmatrix))
-    else
-        substitutionmatrix = nothing
-    end
-
-    minsimilarityscore = parsedargs["minsimilarityscore"]
+    substitutionmatrix = eval(parsedargs["substitutionmatrix"])
+    similarityscorecutoff = parsedargs["similarityscorecutoff"]
     similarityvalidator = eval(parsedargs["similarityvalidator"])
-    useAAgroups = parsedargs["useAAgroups"]
+    aagroups = eval(parsedargs["aagroups"])
 
     # run
     main(
@@ -496,7 +493,7 @@ function CLI_main()
         firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
         maxmainthreads, outdir,
         gcp, shutdowngcp,
-        substitutionmatrix, minsimilarityscore, similarityvalidator, useAAgroups
+        substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups
     )
 end
 

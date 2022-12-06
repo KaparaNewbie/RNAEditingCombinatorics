@@ -19,8 +19,26 @@ function run_fracrepetition(
 )
     @info "$(loggingtime())\trun_fracrepetition" fraction nsamplerows fracrepetition algrepetitions run_solve_threaded sortresults algs myid()
     # assemble sub neighborhood lists of indistinguishable sampled rows by using the pre-computed complete graph
+
     G = @timeit to "`G`" ArrG[1]  # retrive G which is the single element in the distributed array ArrG
+
+    # G = try
+    #     @timeit to "`G`" ArrG[1]
+    # catch e
+    #     @warn "$(loggingtime())\tcan't extract G from ArrG in run_fracrepetition" fraction fracrepetition ArrG e
+    #     return
+    # end
+
+
     sampleG = @timeit to "get_graph_sample" get_graph_sample(G, fraction, nsamplerows, df, idcol)
+
+    # sampleG = try
+    #     @timeit to "get_graph_sample" get_graph_sample(G, fraction, nsamplerows, df, idcol)
+    # catch e
+    #     @warn "$(loggingtime())\tcan't extract sampleG from G in run_fracrepetition" fraction fracrepetition e
+    #     return
+    # end
+
     # obtain sets of distinct rows
     results = @timeit to "solve" solve(
         sampleG,
@@ -30,10 +48,26 @@ function run_fracrepetition(
         run_solve_threaded,
         sortresults,
         algs,
-        # algfuncs
     )
+
+    # results = try
+    #     @timeit to "solve" solve(
+    #         sampleG,
+    #         fraction,
+    #         fracrepetition,
+    #         algrepetitions,
+    #         run_solve_threaded,
+    #         sortresults,
+    #         algs,
+    #     )
+    # catch e
+    #     @warn "$(loggingtime())\tcan't solve sampleG in run_fracrepetition" fraction fracrepetition e
+    #     return
+    # end
+
+
     # garbage collection
-    sampleG = nothing
+    sampleG = nothing # todo check if not assigning nothing to sampleG helps prevent "ArgumentError: array must be non-empty"
     GC.gc()
     return results
 end

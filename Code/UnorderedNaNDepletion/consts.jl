@@ -26,3 +26,41 @@ const AA_groups = Dict(
     AA_D => "NEGATIVE",  # Asp
     AA_E => "NEGATIVE",  # Glu
 )
+
+
+
+
+"""
+Classification by volume and polarity (Miyata et al. 1979).  
+
+https://www.nature.com/articles/nmicrobiol201791#Sec7 - Supplementary Table 1  
+"""
+const AA_groups_Miyata1979 = Dict(
+
+    AA_C => "Special",  # Cys
+    
+    AA_A => "Neutral-Small",  # Ala
+    AA_G => "Neutral-Small",  # Gly
+    AA_P => "Neutral-Small",  # Pro
+    AA_S => "Neutral-Small",  # Ser
+    AA_T => "Neutral-Small",  # Thr
+    
+    AA_N => "Polar-RelativelySmall",  # Asn
+    AA_D => "Polar-RelativelySmall",  # Asp
+    AA_Q => "Polar-RelativelySmall",  # Gln
+    AA_E => "Polar-RelativelySmall",  # Glu
+
+    AA_R => "Polar-RelativelyLarge",  # Arg
+    AA_H => "Polar-RelativelyLarge",  # His
+    AA_K => "Polar-RelativelyLarge",  # Lys
+
+    AA_I => "NonPolar-RelativelySmall",  # Ile
+    AA_L => "NonPolar-RelativelySmall",  # Leu
+    AA_M => "NonPolar-RelativelySmall",  # Met
+    AA_V => "NonPolar-RelativelySmall",  # Val
+    
+    AA_F => "NonPolar-RelativelyLarge",  # Phe
+    AA_W => "NonPolar-RelativelyLarge",  # Trp
+    AA_Y => "NonPolar-RelativelyLarge",  # Tyr 
+
+)
