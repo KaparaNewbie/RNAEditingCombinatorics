@@ -79,6 +79,25 @@ expression_files = [
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA.DistinctUniqueProteins.ExpressionLevels.csv",
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO.DistinctUniqueProteins.ExpressionLevels.csv",
 ]
+distinct_dissimilar_miyata_files = [
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.DistinctUniqueProteins.AAgroupsMiyata1979.06.12.2022-20:29:59.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.DistinctUniqueProteins.AAgroupsMiyata1979.06.12.2022-20:48:08.csv"
+]
+grantham_cutoffs = [50, 75, 100, 125, 150]
+distinct_dissimilar_grantham_files = [
+    [
+        "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.DistinctUniqueProteins.GRANTHAM1974-50.06.12.2022-20:24:15.csv",
+        "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.DistinctUniqueProteins.GRANTHAM1974-75.06.12.2022-21:09:37.csv",
+        "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.DistinctUniqueProteins.GRANTHAM1974-100.07.12.2022-08:25:55.csv",
+        
+    ],
+    [
+        "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.DistinctUniqueProteins.GRANTHAM1974-50.06.12.2022-20:38:37.csv",
+        "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.DistinctUniqueProteins.GRANTHAM1974-75.06.12.2022-22:01:57.csv",
+        "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.DistinctUniqueProteins.GRANTHAM1974-100.07.12.2022-09:37:48.csv",
+        
+    ]
+]
 alg_repetitions = 5
 known_sites_file = (
     "/private7/projects/Combinatorics/D.pealeii/Annotations/D.pea.EditingSites.csv"
@@ -269,6 +288,13 @@ for positions_df, condition in zip(positions_dfs, conditions):
 positions_dfs[0]
 
 
+# %%
+editing_positions_per_sample = [
+    len(df.loc[(df["Edited"])])
+    for df in positions_dfs
+]
+print(f"Average of {sum(editing_positions_per_sample)/len(positions_dfs)} editing sites per sample")
+
 # %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"} tags=[]
 # ## Reads
 
@@ -430,6 +456,13 @@ for unique_proteins_df in unique_proteins_dfs:
     )
 unique_proteins_dfs[0]
 
+
+# %%
+editable_aas_per_sample = [
+    df.iloc[:, unique_proteins_first_col_pos:].shape[1]
+    for df in unique_proteins_dfs
+]
+print(f"Average of {sum(editable_aas_per_sample)/len(unique_proteins_dfs)} editable AAs per sample")
 
 # %%
 unique_proteins_dfs[0].iloc[:, unique_proteins_first_col_pos:]
@@ -1003,27 +1036,6 @@ merged_mi_df = pd.concat(mi_dfs)
 merged_mi_df
 
 # %%
-import plotly.figure_factory as ff
-
-hist_data = [merged_mi_df.loc[merged_mi_df[condition_col] == condition, "NormalizedMutualInformation"] for condition in conditions]
-
-group_labels = conditions
-colors = [color_discrete_map[condition] for condition in conditions]
-
-# Create distplot with curve_type set to 'normal'
-fig = ff.create_distplot(hist_data, group_labels, show_hist=False, colors=colors)
-
-# Add title
-fig.update_layout(
-    title_text="Mutual information between each two editing positions",
-    template=template,
-)
-# fig.update_yaxes(type="log")
-# fig.update_xaxes(type="log")
-fig.update_traces(opacity=0.7)
-fig.show()
-
-# %%
 fig = px.histogram(
     merged_mi_df,
     x="NormalizedMutualInformation",
@@ -1041,6 +1053,27 @@ fig.update_layout(
     barmode='overlay',
 #     # showlegend=False,
 )
+fig.update_traces(opacity=0.7)
+fig.show()
+
+# %%
+import plotly.figure_factory as ff
+
+hist_data = [merged_mi_df.loc[merged_mi_df[condition_col] == condition, "NormalizedMutualInformation"] for condition in conditions]
+
+group_labels = conditions
+colors = [color_discrete_map[condition] for condition in conditions]
+
+# Create distplot with curve_type set to 'normal'
+fig = ff.create_distplot(hist_data, group_labels, show_hist=False, colors=colors)
+
+# Add title
+fig.update_layout(
+    title_text="Mutual information between each two editing positions",
+    template=template,
+)
+# fig.update_yaxes(type="log")
+# fig.update_xaxes(type="log")
 fig.update_traces(opacity=0.7)
 fig.show()
 
@@ -6372,6 +6405,92 @@ fig.update_layout(
 
 fig.update_traces(opacity=0.75)  # Reduce opacity to see both histograms
 fig.update_xaxes(range=[min_x * 0.9, max_x * 1.1])
+
+fig.show()
+
+
+# %% tags=[]
+cols = min(facet_col_wrap, len(conditions), 4)
+rows = ceil(len(conditions) / cols)
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
+
+x_title = "Non-syn mutations per protein"
+y_title = "Proteins"
+title_text = "Distribution of min & max estimates of non-syn mutations per protein"
+
+fig = make_subplots(
+    rows=rows,
+    cols=cols,
+    subplot_titles=conditions,
+    shared_yaxes=True,
+    x_title=x_title,
+    y_title=y_title,
+)
+
+min_x = None
+max_x = 0
+max_y = 0
+
+col_names = ["MinNonSyns", "MaxNonSyns"]
+estimate_names = ["Min", "Max"]
+
+for (row, col), condition, proteins_df in zip(row_col_iter, conditions, proteins_dfs):
+    
+    for i, (col_name, estimate_name) in enumerate(zip(col_names, estimate_names)):
+
+        x = proteins_df[col_name]
+
+        fig.add_trace(
+            go.Histogram(
+                x=x,
+                marker_color=subcolors_discrete_map[condition][i],
+                name=f"{condition}, {estimate_name}",
+            ),
+            row=row,
+            col=col,
+        )
+
+        min_x = min(min_x, x.min()) if min_x else x.min()
+        max_x = max(max_x, x.max())        
+        max_y = max(max_y, len(x))
+        
+
+for (row, col), condition in zip(row_col_iter, conditions):
+    
+    for i, (col_name, estimate_name) in enumerate(zip(col_names, estimate_names)):   
+        
+        fig.add_trace(
+            go.Scatter(
+                x=[0.75 * max_x],
+                y=[(0.13 * max_y) - (1_000 * i)],
+                mode="markers+text",
+                marker=dict(
+                    color=subcolors_discrete_map[condition][i],
+                    size=9,
+                    # opacity=0.7,
+                    symbol="square",
+                    # line=dict(width=0),
+                ),
+                text=estimate_name,
+                textposition="middle right",
+                textfont=dict(size=9)
+            ),
+            row=row,
+            col=col,
+        )
+
+fig.update_layout(
+    template=template,
+    barmode="overlay",  # Overlay both histograms
+    title_text=title_text,
+    title_y=0.95,
+    showlegend=False,
+    height=200*rows
+)
+
+fig.update_traces(opacity=0.75)  # Reduce opacity to see both histograms
+fig.update_xaxes(range=[min_x * 0.9, max_x * 1.1])
+fig.update_yaxes(range=[0, max_y * 0.2])
 
 fig.show()
 

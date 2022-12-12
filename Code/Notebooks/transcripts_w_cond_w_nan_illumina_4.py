@@ -348,6 +348,13 @@ for positions_df, condition in zip(positions_dfs, conditions):
 positions_dfs[0]
 
 
+# %%
+editing_positions_per_sample = [
+    len(df.loc[(df["Edited"]) & (df["CDS"])])
+    for df in positions_dfs
+]
+print(f"Average of {sum(editing_positions_per_sample)/len(positions_dfs)} editing sites per sample")
+
 # %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"} tags=[]
 # ## Reads
 
@@ -514,6 +521,19 @@ for unique_proteins_df in unique_proteins_dfs:
     )
 unique_proteins_dfs[0]
 
+
+# %%
+unique_proteins_dfs[-1].head()
+
+# %%
+editable_aas_per_sample = [
+    df.iloc[:, unique_proteins_first_col_pos:].shape[1]
+    for df in unique_proteins_dfs
+]
+editable_aas_per_sample
+
+# %%
+print(f"Average of {sum(editable_aas_per_sample)/len(unique_proteins_dfs)} editable AAs per sample")
 
 # %%
 unique_proteins_dfs[3].iloc[:, unique_proteins_first_col_pos:]
@@ -3100,7 +3120,7 @@ fig.show()
 # %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"} tags=[]
 # ### Distinct unique proteins
 
-# %% [markdown] toc-hr-collapsed=true toc-hr-collapsed=true toc-hr-collapsed=true tags=[] toc-hr-collapsed=true toc-hr-collapsed=true toc-hr-collapsed=true
+# %% [markdown] toc-hr-collapsed=true toc-hr-collapsed=true toc-hr-collapsed=true tags=[] toc-hr-collapsed=true toc-hr-collapsed=true toc-hr-collapsed=true toc-hr-collapsed=true
 # #### Jaccard - TODO - erase?
 
 # %%
@@ -5718,15 +5738,16 @@ fig.show()
 # ## Distribution of non-syns
 
 # %% tags=[]
-cols = len(conditions)
+cols = min(facet_col_wrap, len(conditions), 4)
+rows = ceil(len(conditions) / cols)
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
 
 x_title = "Non-syn mutations per protein"
 y_title = "Proteins"
 title_text = "Distribution of min & max estimates of non-syn mutations per protein"
 
 fig = make_subplots(
-    rows=1,
-    # rows=2,
+    rows=rows,
     cols=cols,
     subplot_titles=conditions,
     shared_yaxes=True,
@@ -5736,11 +5757,13 @@ fig = make_subplots(
 
 min_x = None
 max_x = 0
+max_y = 0
 
-for col, condition, proteins_df in zip(range(1, cols + 1), conditions, proteins_dfs):
-    col_names = ["MinNonSyns", "MaxNonSyns"]
-    estimate_names = ["Min", "Max"]
+col_names = ["MinNonSyns", "MaxNonSyns"]
+estimate_names = ["Min", "Max"]
 
+for (row, col), condition, proteins_df in zip(row_col_iter, conditions, proteins_dfs):
+    
     for i, (col_name, estimate_name) in enumerate(zip(col_names, estimate_names)):
 
         x = proteins_df[col_name]
@@ -5751,23 +5774,51 @@ for col, condition, proteins_df in zip(range(1, cols + 1), conditions, proteins_
                 marker_color=subcolors_discrete_map[condition][i],
                 name=f"{condition}, {estimate_name}",
             ),
-            row=1,
-            # row=i + 1,
+            row=row,
             col=col,
         )
 
         min_x = min(min_x, x.min()) if min_x else x.min()
-        max_x = max(max_x, x.max())
+        max_x = max(max_x, x.max())        
+        max_y = max(max_y, len(x))
+        
+
+for (row, col), condition in zip(row_col_iter, conditions):
+    
+    for i, (col_name, estimate_name) in enumerate(zip(col_names, estimate_names)):   
+        
+        fig.add_trace(
+            go.Scatter(
+                x=[0.75 * max_x],
+                y=[(0.13 * max_y) - (20_000 * i)],
+                mode="markers+text",
+                marker=dict(
+                    color=subcolors_discrete_map[condition][i],
+                    size=9,
+                    # opacity=0.7,
+                    symbol="square",
+                    # line=dict(width=0),
+                ),
+                text=estimate_name,
+                textposition="middle right",
+                textfont=dict(size=9)
+            ),
+            row=row,
+            col=col,
+        )
 
 fig.update_layout(
     template=template,
     barmode="overlay",  # Overlay both histograms
     title_text=title_text,
-    legend_title_text=f"{condition_col}, Estimate",
+    title_y=0.95,
+    showlegend=False,
+    height=200*rows
 )
 
 fig.update_traces(opacity=0.75)  # Reduce opacity to see both histograms
 fig.update_xaxes(range=[min_x * 0.9, max_x * 1.1])
+fig.update_yaxes(range=[0, max_y * 0.2])
 
 fig.show()
 

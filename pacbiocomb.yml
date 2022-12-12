@@ -12,3 +12,5 @@ dependencies:
   - pbccs = 6.2.0
   - extracthifi = 1.0.0
   - pbbam >= 1.7.0
+  - lima 
+  - isoseq3

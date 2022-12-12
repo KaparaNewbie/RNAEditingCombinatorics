@@ -163,7 +163,38 @@ def remove_illumina_duplicates(
     )
 
 
-def trimmomatic(
+def trimmomatic_se(
+    trimmomatic_path: Path,
+    trimmomatic_adapters_file: Path,
+    threads: int,
+    phred_offset: int,
+    in_file: Path,
+    out_file: Path,
+    fastqc_path: Path,
+):
+    # 1 - trim
+    # http://www.usadellab.org/cms/?page=trimmomatic
+    cmd = (
+        f"{trimmomatic_path} "
+        "SE "
+        f"-threads {threads} "
+        f"-phred{phred_offset} "  # 33 or 64 (for older data)
+        f"{in_file} "
+        f"{out_file} "
+        # f"ILLUMINACLIP:{trimmomatic_adapters_file}:2:30:10 "  # Remove adapters (ILLUMINACLIP:TruSeq3-PE.fa:2:30:10)
+        f"ILLUMINACLIP:{trimmomatic_adapters_file}:4:30:30 "  # Remove adapters (ILLUMINACLIP:TruSeq3-PE.fa:2:30:10)
+    )
+    subprocess.run(cmd, shell=True)
+    # 2 - fastqc for trimmed file
+    fastqc(
+        fastqc_path=fastqc_path,
+        seq_file=out_file,
+        out_dir=out_file.parent,
+        threads=threads,
+    )
+
+
+def trimmomatic_pe(
     trimmomatic_path: Path,
     trimmomatic_adapters_file: Path,
     threads: int,
@@ -336,7 +367,7 @@ def illumina_main(
 
     with Pool(processes=processes) as pool:
         pool.starmap(
-            func=trimmomatic,
+            func=trimmomatic_pe,
             iterable=[
                 (
                     trimmomatic_path,
@@ -454,6 +485,116 @@ def illumina_main(
         + decompressed_trimmed_wo_dup_files
         + [f for f in trimmed_wo_dup_dir.iterdir() if "singletons" in f.name]
     )
+    for file_to_delete in files_to_delete:
+        subprocess.run(f"rm -rf {file_to_delete}", shell=True)
+
+
+def pacbio_preprocessed_isoseq_main(
+    *,
+    in_dir: Path,
+    postfix: str,
+    recursive: bool,
+    out_dir: Path,
+    decompress_cmd: str,
+    compress_cmd: str,
+    processes: int,
+    threads: int,
+    fastqc_path: Path,
+    multiqc_path: Path,
+    trimmomatic_path: Path,
+    trimmomatic_adapters_file: Path,
+    phred_offset: int,
+    **kwargs,
+):
+    out_dir.mkdir(exist_ok=True)
+    raw_files = find_files(in_dir, postfix, recursive)
+    final_postfix = postfix.split(".")[
+        -1
+    ]  # should be gz or lzma or something like that
+
+    # 1 - QC for raw fastq files
+
+    decompressed_raw_files = [
+        Path(fastq_file.parent, fastq_file.stem) for fastq_file in raw_files
+    ]
+
+    with Pool(processes=processes) as pool:
+        pool.starmap(
+            func=decompress,
+            iterable=[
+                (decompress_cmd, raw_fastq_file, decompressed_raw_fastq_file)
+                for raw_fastq_file, decompressed_raw_fastq_file in zip(
+                    raw_files, decompressed_raw_files
+                )
+            ],
+        )
+
+    with Pool(processes=processes) as pool:
+        pool.starmap(
+            func=fastqc,
+            iterable=[
+                (fastqc_path, decompressed_raw_fastq_file, in_dir, threads)
+                for decompressed_raw_fastq_file in decompressed_raw_files
+            ],
+        )
+
+    multiqc(multiqc_path, in_dir)
+
+    # 2 - trim adapters
+
+    samples_names = [
+        extract_sample_name(fastq_file, postfix.removesuffix(f".{final_postfix}"))
+        for fastq_file in decompressed_raw_files
+    ]
+
+    trimmed_dir = Path(out_dir, "Trimmed")
+    trimmed_dir.mkdir(exist_ok=True)
+
+    decompressed_trimmed_files = [
+        Path(trimmed_dir, f"{sample_name}.fastq") for sample_name in samples_names
+    ]
+
+    with Pool(processes=processes) as pool:
+        pool.starmap(
+            func=trimmomatic_se,
+            iterable=[
+                (
+                    trimmomatic_path,
+                    trimmomatic_adapters_file,
+                    threads,
+                    phred_offset,
+                    in_file,
+                    out_file,
+                    fastqc_path,
+                )
+                for (in_file, out_file) in zip(
+                    decompressed_raw_files,
+                    decompressed_trimmed_files,
+                )
+            ],
+        )
+
+    multiqc(multiqc_path, trimmed_dir)
+
+    # 3 - compress final files, delete decompressed & other unneeded files
+
+    compressed_trimmed_files = [
+        Path(trimmed_dir, f"{decompressed_file.name}.{final_postfix}")
+        for decompressed_file in decompressed_trimmed_files
+    ]
+
+    with Pool(processes=processes) as pool:
+        pool.starmap(
+            func=compress,
+            iterable=[
+                (compress_cmd, decompressed_in_file, compressed_out_file)
+                for decompressed_in_file, compressed_out_file in zip(
+                    decompressed_trimmed_files, compressed_trimmed_files
+                )
+            ],
+        )
+
+    files_to_delete = decompressed_raw_files + decompressed_trimmed_files
     for file_to_delete in files_to_delete:
         subprocess.run(f"rm -rf {file_to_delete}", shell=True)
 
@@ -698,6 +839,92 @@ def define_args() -> argparse.ArgumentParser:
         default=0.99,
         type=float,
         help="Minimum predicted accuracy in [0, 1] of PacBio's CCS.",
+    )
+
+    # pacbio isoseq args
+
+    pacbio_preprocessed_isoseq_parser = subparsers.add_parser(
+        "pacbio_preprocessed_isoseq", help="Preprocessed IsoSeq reads help"
+    )
+    pacbio_preprocessed_isoseq_parser.set_defaults(func=pacbio_preprocessed_isoseq_main)
+
+    pacbio_preprocessed_isoseq_parser.add_argument(
+        "--postfix",
+        default=".fastq.gz",
+        help="Postfix of wanted files in `in_dir`. Should be the *full* postfix.",
+    )
+    pacbio_preprocessed_isoseq_parser.add_argument(
+        "--decompress_cmd",
+        help=(
+            "Command to decompress files, e.g., `gunzip -c`. "
+            "Should match the form `$decompress_cmd $in_file > $out_file`."
+        ),
+        default="gunzip -c",
+    )
+    pacbio_preprocessed_isoseq_parser.add_argument(
+        "--compress_cmd",
+        help=(
+            "Command to compress files, e.g., `gzip`. "
+            "Should match the form `$compress_cmd $in_file > $out_file`."
+        ),
+        default="gzip -c",
+    )
+    # pacbio_preprocessed_isoseq_parser.add_argument(
+    #     "--compress_cmd",
+    #     help=(
+    #         "Command to compress files, e.g., `gzip`. "
+    #         "Should match the form `$compress_cmd $in_file > $out_file`."
+    #     ),
+    #     default="gzip -c",
+    # )
+    # pacbio_preprocessed_isoseq_parser.add_argument(
+    #     "--prinseq_lite_path",
+    #     type=expanded_path_from_str,
+    #     default=Path("~/anaconda3/envs/combinatorics/bin/prinseq-lite.pl").expanduser(),
+    #     help="Prinseq-lite executable.",
+    # )
+    # pacbio_preprocessed_isoseq_parser.add_argument(
+    #     "--min_qual_mean", default=30, type=int, help="Minimum mean quality for a read."
+    # )
+    # pacbio_preprocessed_isoseq_parser.add_argument(
+    #     "--trim_to_len",
+    #     default=sys.maxsize,
+    #     type=int,
+    #     help="Trim all sequence from the 3'-end to result in sequence with this length.",
+    # )
+    # pacbio_preprocessed_isoseq_parser.add_argument(
+    #     "--min_len", default=0, type=int, help="Filter sequence shorter than min_len."
+    # )
+    # pacbio_preprocessed_isoseq_parser.add_argument(
+    #     "--trim_left",
+    #     default=0,
+    #     type=int,
+    #     help="Trim sequence at the 5'-end by trim_left positions.",
+    # )
+    # pacbio_preprocessed_isoseq_parser.add_argument(
+    #     "--trim_right",
+    #     default=0,
+    #     type=int,
+    #     help="Trim sequence at the 3'-end by trim_left positions.",
+    # )
+
+    pacbio_preprocessed_isoseq_parser.add_argument(
+        "--trimmomatic_path",
+        type=expanded_path_from_str,
+        default=Path("~/anaconda3/envs/combinatorics/bin/trimmomatic").expanduser(),
+        help="Trimmomatic executable.",
+    )
+    pacbio_preprocessed_isoseq_parser.add_argument(
+        "--trimmomatic_adapters_file",
+        type=abs_path_from_str,
+        default=Path("Code/Data/illumina_small_rna_adapters.fa").absolute(),
+        help="A fasta file with adapters to trim.",
+    )
+    pacbio_preprocessed_isoseq_parser.add_argument(
+        "--phred_offset",
+        default=33,
+        type=int,
+        help="Phred offset. Either 33 (usually) or 64 (old Illumina machines).",
     )
 
     # illumina args

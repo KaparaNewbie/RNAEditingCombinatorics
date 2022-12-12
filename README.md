@@ -401,6 +401,98 @@ illumina \
 * 15:13
 
 
+## O.vulgaris annotations
+
+```bash
+mkdir O.vulgaris/Annotations
+cd O.vulgaris/Annotations
+
+wget https://springernature.figshare.com/ndownloader/files/13876385
+tar -xzf 13876385
+rm 13876385
+rm octopus_abyss41_k41-scaffolds.fa octopus_abyss81_k81-scaffolds.fa scaffolds_81_abyss2_redudance13c.fasta
+```
+
+## O.vulgaris Iso-Seq data
+
+
+### Download data
+
+https://www.science.org/doi/10.1126/sciadv.add9938#T1
+
+<!-- ```bash
+mkdir -p O.vulgaris/Data/PRJNA791920/Raw
+accessions=(SRR17321895 SRR17321896 SRR17321897 SRR17321898 SRR17321899 SRR17321900 SRR17321901)
+OUTPUT_DIR=O.vulgaris/Data/PRJNA791920/Raw
+for acc in ${accessions[@]}; do prefetch.2.10.8 -C yes -p $acc -O $OUTPUT_DIR && fastq-dump.2.10.8 --split-e --skip-technical -O $OUTPUT_DIR $OUTPUT_DIR/$acc.sra && rm $OUTPUT_DIR/$acc.sra; done
+gzip O.vulgaris/Data/PRJNA791920/Raw/*
+``` -->
+
+
+```bash
+mkdir -p O.vulgaris/Data/PRJNA791920/IsoSeq/Raw
+
+accessions=(SRR17321895 SRR17321896 SRR17321897 SRR17321898 SRR17321899 SRR17321900 SRR17321901)
+
+OUTPUT_DIR=O.vulgaris/Data/PRJNA791920/IsoSeq/Raw
+
+for acc in ${accessions[@]}; do prefetch.2.10.8 -C yes -p $acc -O $OUTPUT_DIR && fastq-dump.2.10.8 --split-e --skip-technical -O $OUTPUT_DIR $OUTPUT_DIR/$acc.sra && rm $OUTPUT_DIR/$acc.sra; done
+
+gzip O.vulgaris/Data/PRJNA791920/IsoSeq/Raw/*
+```
+
+
+```bash
+nohup \
+python Code/prepare_data.py \
+--in_dir O.vulgaris/Data/PRJNA791920/IsoSeq/Raw \
+--out_dir O.vulgaris/Data/PRJNA791920/IsoSeq \
+--processes 7 \
+pacbio_preprocessed_isoseq \
+> O.vulgaris/Data/PRJNA791920/IsoSeq/prepare_data.11.12.22.out &
+```
+* alu 15
+* 11.12.1222
+* 14:38
+* 1399
+
+
+
+```
+lima \
+--num-threads 20 \
+--isoseq \
+O.vulgaris/Data/PRJNA791920/IsoSeq/Raw/SRR17321896.fastq \
+Code/Data/ClontechSMARTer-NEBcDNA.primers.fasta \
+O.vulgaris/Data/PRJNA791920/IsoSeq/Raw/SRR17321896.fl.fastq 
+```
+
+
+
+## O.vulgaris FLAM-seq data
+
+
+```bash
+mkdir -p O.vulgaris/Data/PRJNA791920/FLAMSeq/Raw
+
+accessions=(SRR17321871 SRR17321872 SRR17321873 SRR17321874 SRR17321875 SRR17321892 SRR17321893 SRR17321894)
+
+OUTPUT_DIR=O.vulgaris/Data/PRJNA791920/FLAMSeq/Raw
+
+for acc in ${accessions[@]}; do prefetch.2.10.8 -C yes -p $acc -O $OUTPUT_DIR && fastq-dump.2.10.8 --split-e --skip-technical -O $OUTPUT_DIR $OUTPUT_DIR/$acc.sra && rm $OUTPUT_DIR/$acc.sra; done
+
+gzip O.vulgaris/Data/PRJNA791920/FLAMSeq/Raw/*
+```
+
+```
+cd Code
+git clone https://github.com/rajewsky-lab/FLAMAnalysis
+```
+
+
+
+
+
 # Alignment
 
 
@@ -770,6 +862,7 @@ Code/UnorderedNaNDepletion/expressionlevels.jl \
 * 45076
 
 
+
 #### By BLOSUM62
 
 ```bash
@@ -837,6 +930,386 @@ Yet again some failed. TODO?
 grep "run_fracrepetition failed" D.pealeii/MpileupAndTranscripts/RQ998.2/maximal_independent_nan_depletion_5.Proteins.Blosum62.2.out | wc -l
 > 3
 
+
+
+#### AA_groups_Miyata1979
+
+Finding isoforms:
+
+```bash
+INFILES=$(echo D.pealeii/MpileupAndTranscripts/RQ998.2/*.unique_proteins.csv)
+echo $INFILES
+
+nohup \
+julia \
+--project=. \
+--threads 40 \
+Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .unique_proteins.csv \
+--postfix_to_add .AAgroupsMiyata1979 \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--aagroups AA_groups_Miyata1979 \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.2 \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+> D.pealeii/MpileupAndTranscripts/RQ998.2/maximal_independent_nan_depletion_5.Proteins.AAgroupsMiyata1979.out &
+```
+* alu 13
+* 6.12.22
+* 20:03
+* 12148
+
+
+Calculating expression levels:
+
+```bash
+DISTINCTFILES="D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.DistinctUniqueProteins.AAgroupsMiyata1979.06.12.2022-20:29:59.csv \
+D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.DistinctUniqueProteins.AAgroupsMiyata1979.06.12.2022-20:48:08.csv"
+ALLROTSFILES="D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv \
+D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv"
+SAMPLESNAMES="GRIA PCLO"
+
+nohup \
+julia \
+--project=. \
+--threads 40 \
+Code/UnorderedNaNDepletion/expressionlevels.jl \
+--distinctfiles $DISTINCTFILES \
+--allprotsfiles $ALLROTSFILES \
+--samplenames $SAMPLESNAMES \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.2 \
+--aagroups AA_groups_Miyata1979 \
+--postfix_to_add .AAgroupsMiyata1979 \
+> D.pealeii/MpileupAndTranscripts/RQ998.2/expressionlevels.AAgroupsMiyata1979.out &
+```
+* alu 16
+* 7.12.22
+* 09:30
+* 9820
+
+
+
+#### By GRANTHAM1974
+
+50-75-100-125-150
+
+Finding isoforms:
+
+```bash
+INFILES=$(echo D.pealeii/MpileupAndTranscripts/RQ998.2/*.unique_proteins.csv)
+echo $INFILES
+```
+
+> 50
+
+```
+nohup \
+julia \
+--project=. \
+--threads 50 \
+Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .unique_proteins.csv \
+--postfix_to_add .GRANTHAM1974-50 \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--substitutionmatrix GRANTHAM1974 \
+--similarityscorecutoff 50 \
+--similarityvalidator "<" \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.2 \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+> D.pealeii/MpileupAndTranscripts/RQ998.2/maximal_independent_nan_depletion_5.Proteins.GRANTHAM1974-50.out &
+```
+* alu 15
+* 6.12.22
+* 20:07
+* 13835
+
+> 75
+
+```
+nohup \
+julia \
+--project=. \
+--threads 50 \
+Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .unique_proteins.csv \
+--postfix_to_add .GRANTHAM1974-75 \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--substitutionmatrix GRANTHAM1974 \
+--similarityscorecutoff 75 \
+--similarityvalidator "<" \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.2 \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+> D.pealeii/MpileupAndTranscripts/RQ998.2/maximal_independent_nan_depletion_5.Proteins.GRANTHAM1974-75.out &
+```
+* alu 16
+* 6.12.22
+* 20:09
+* 33065
+
+> 100
+
+```
+nohup \
+julia \
+--project=. \
+--threads 50 \
+Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .unique_proteins.csv \
+--postfix_to_add .GRANTHAM1974-100 \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--substitutionmatrix GRANTHAM1974 \
+--similarityscorecutoff 100 \
+--similarityvalidator "<" \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.2 \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+> D.pealeii/MpileupAndTranscripts/RQ998.2/maximal_independent_nan_depletion_5.Proteins.GRANTHAM1974-100.out &
+```
+* alu 15
+* 6.12.22
+* 21:37
+* 23392
+
+> 125
+
+```
+nohup \
+julia \
+--project=. \
+--threads 40 \
+Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .unique_proteins.csv \
+--postfix_to_add .GRANTHAM1974-125 \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--substitutionmatrix GRANTHAM1974 \
+--similarityscorecutoff 125 \
+--similarityvalidator "<" \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.2 \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+> D.pealeii/MpileupAndTranscripts/RQ998.2/maximal_independent_nan_depletion_5.Proteins.GRANTHAM1974-125.out &
+```
+* alu 13
+* 6.12.22
+* 21:37
+* 5445
+
+> 150
+
+```
+nohup \
+julia \
+--project=. \
+--threads 50 \
+Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .unique_proteins.csv \
+--postfix_to_add .GRANTHAM1974-150 \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--substitutionmatrix GRANTHAM1974 \
+--similarityscorecutoff 150 \
+--similarityvalidator "<" \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.2 \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+> D.pealeii/MpileupAndTranscripts/RQ998.2/maximal_independent_nan_depletion_5.Proteins.GRANTHAM1974-150.out &
+```
+* alu 16
+* 6.12.22
+* 22:15
+* 50969
+
+
+
+
+Calculating expression levels:
+
+> 50
+
+```bash
+DISTINCTFILES="D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.DistinctUniqueProteins.GRANTHAM1974-50.06.12.2022-20:24:15.csv \
+D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.DistinctUniqueProteins.GRANTHAM1974-50.06.12.2022-20:38:37.csv"
+ALLROTSFILES="D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv \
+D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv"
+SAMPLESNAMES="GRIA PCLO"
+
+
+nohup \
+julia \
+--project=. \
+--threads 40 \
+Code/UnorderedNaNDepletion/expressionlevels.jl \
+--distinctfiles $DISTINCTFILES \
+--allprotsfiles $ALLROTSFILES \
+--samplenames $SAMPLESNAMES \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.2 \
+--substitutionmatrix GRANTHAM1974 \
+--similarityscorecutoff 50 \
+--similarityvalidator "<" \
+--postfix_to_add .GRANTHAM1974-50 \
+> D.pealeii/MpileupAndTranscripts/RQ998.2/expressionlevels.GRANTHAM1974-50.out &
+```
+* alu 13
+* 7.12.22
+* 09:37
+* 28181
+
+> 75
+
+```bash
+DISTINCTFILES="D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.DistinctUniqueProteins.GRANTHAM1974-75.06.12.2022-21:09:37.csv \
+D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.DistinctUniqueProteins.GRANTHAM1974-75.06.12.2022-22:01:57.csv"
+ALLROTSFILES="D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv \
+D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv"
+SAMPLESNAMES="GRIA PCLO"
+
+
+nohup \
+julia \
+--project=. \
+--threads 40 \
+Code/UnorderedNaNDepletion/expressionlevels.jl \
+--distinctfiles $DISTINCTFILES \
+--allprotsfiles $ALLROTSFILES \
+--samplenames $SAMPLESNAMES \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.2 \
+--substitutionmatrix GRANTHAM1974 \
+--similarityscorecutoff 75 \
+--similarityvalidator "<" \
+--postfix_to_add .GRANTHAM1974-75 \
+> D.pealeii/MpileupAndTranscripts/RQ998.2/expressionlevels.GRANTHAM1974-75.out &
+```
+* alu 13
+* 7.12.22
+* 09:46
+* 48923
+
+> 100
+
+```bash
+DISTINCTFILES="D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.DistinctUniqueProteins.GRANTHAM1974-100.07.12.2022-08:25:55.csv \
+D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.DistinctUniqueProteins.GRANTHAM1974-100.07.12.2022-09:37:48.csv"
+ALLROTSFILES="D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv \
+D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv"
+SAMPLESNAMES="GRIA PCLO"
+
+
+nohup \
+julia \
+--project=. \
+--threads 40 \
+Code/UnorderedNaNDepletion/expressionlevels.jl \
+--distinctfiles $DISTINCTFILES \
+--allprotsfiles $ALLROTSFILES \
+--samplenames $SAMPLESNAMES \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.2 \
+--substitutionmatrix GRANTHAM1974 \
+--similarityscorecutoff 100 \
+--similarityvalidator "<" \
+--postfix_to_add .GRANTHAM1974-100 \
+> D.pealeii/MpileupAndTranscripts/RQ998.2/expressionlevels.GRANTHAM1974-100.out &
+```
+* alu 13
+* 7.12.22
+* 13:42
+* 1596
+
+> 125
+
+```bash
+DISTINCTFILES="D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.DistinctUniqueProteins.GRANTHAM1974-125.06.12.2022-22:44:40.csv \
+D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.DistinctUniqueProteins.GRANTHAM1974-125.07.12.2022-00:06:52.csv"
+ALLROTSFILES="D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv \
+D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv"
+SAMPLESNAMES="GRIA PCLO"
+
+
+nohup \
+julia \
+--project=. \
+--threads 40 \
+Code/UnorderedNaNDepletion/expressionlevels.jl \
+--distinctfiles $DISTINCTFILES \
+--allprotsfiles $ALLROTSFILES \
+--samplenames $SAMPLESNAMES \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.2 \
+--substitutionmatrix GRANTHAM1974 \
+--similarityscorecutoff 125 \
+--similarityvalidator "<" \
+--postfix_to_add .GRANTHAM1974-125 \
+> D.pealeii/MpileupAndTranscripts/RQ998.2/expressionlevels.GRANTHAM1974-125.out &
+```
+* alu 15
+* 7.12.22
+* 13:44
+* 24143
+
+> 150
+
+```bash
+DISTINCTFILES="D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.DistinctUniqueProteins.GRANTHAM1974-150.07.12.2022-00:03:50.csv \
+D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.DistinctUniqueProteins.GRANTHAM1974-150.07.12.2022-02:17:58.csv"
+ALLROTSFILES="D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv \
+D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv"
+SAMPLESNAMES="GRIA PCLO"
+
+
+nohup \
+julia \
+--project=. \
+--threads 40 \
+Code/UnorderedNaNDepletion/expressionlevels.jl \
+--distinctfiles $DISTINCTFILES \
+--allprotsfiles $ALLROTSFILES \
+--samplenames $SAMPLESNAMES \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.2 \
+--substitutionmatrix GRANTHAM1974 \
+--similarityscorecutoff 150 \
+--similarityvalidator "<" \
+--postfix_to_add .GRANTHAM1974-150 \
+> D.pealeii/MpileupAndTranscripts/RQ998.2/expressionlevels.GRANTHAM1974-150.out &
+```
+* alu 16
+* 7.12.22
+* 13:46
+* 17980
 
 
 ## Illumina (Ruti's Illumina PE READS, take 2 (shortened ids))
