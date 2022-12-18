@@ -54,3 +54,7 @@ def decompress(decompress_cmd: str, in_file: Path, out_file: Path):
 def compress(compress_cmd: str, in_file: Path, out_file: Path):
     cmd = f"{compress_cmd} {in_file} > {out_file}"
     subprocess.run(cmd, shell=True)
+
+
+def copy(in_file: Path, out_file: Path):
+    out_file.write_text(in_file.read_text())
