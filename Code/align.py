@@ -1,9 +1,9 @@
 import argparse
-from concurrent.futures import thread
 import subprocess
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Sequence
+from typing import Union
 
 import pysam
 import pandas as pd
@@ -16,10 +16,11 @@ from General.os_utils import (
     group_pe_fastq_files,
     decompress,
     delete_folder_with_files,
-    copy,
+    copy_bytes,
 )
 from General.argparse_utils import abs_path_from_str, expanded_path_from_str
 from Alignment.alignment_utils import count_reads
+from EditingUtils.gff3 import read_gff
 
 # from Alignment.alignment_utils import samtools_statistics
 
@@ -181,8 +182,11 @@ def separte_to_chroms(
             f"{samtools_path} view -@ {threads} -h -o {bam_in_region} {bam} {chrom}"
         )
         subprocess.run(filter_cmd, shell=True)
-        index_cmd = f"{samtools_path} index {bam_in_region}"
-        subprocess.run(index_cmd, shell=True, cwd=by_chrom_dir)
+        # it is somehow possible (why?) to get chrom with no reads aligned to it --> the bam_in_region is not created,
+        # and, naturally, we would like to index only existing bam files...
+        if bam_in_region.exists():
+            index_cmd = f"{samtools_path} index {bam_in_region}"
+            subprocess.run(index_cmd, shell=True, cwd=by_chrom_dir)
 
 
 def pacbio_align(
@@ -315,6 +319,7 @@ def illumina_main(
 def pacbio_preprocessed_isoseq_main(
     *,
     genome: Path,
+    gff: Path,
     in_dir: Path,
     postfix: str,
     recursive: bool,
@@ -330,6 +335,7 @@ def pacbio_preprocessed_isoseq_main(
     **kwargs,
 ):
     preset = "ISOSEQ"
+    interfix = ".aligned.sorted"
 
     out_dir.mkdir(exist_ok=True)
 
@@ -350,9 +356,6 @@ def pacbio_preprocessed_isoseq_main(
     )
 
     # align
-
-    interfix = ".aligned.sorted"
-
     with Pool(processes=processes) as pool:
         pool.starmap(
             func=pacbio_align,
@@ -389,40 +392,148 @@ def pacbio_preprocessed_isoseq_main(
         for f in by_chrom_sample_dir.iterdir()
         if f.suffix.endswith("bam")
     }
-    _chroms = []  # for stats
-    _samples = []  # for stats
-    _reads = []  # for stats
+
     main_by_chrom_dir = Path(out_dir, "ByChrom")
-    for chrom in chroms:
-        chrom_dir = Path(main_by_chrom_dir, chrom)
-        chrom_dir_created = False
-        for sample_name, by_chrom_sample_dir in zip(
-            samples_names, by_chrom_samples_dirs
-        ):
-            bam_in_region = Path(
-                by_chrom_sample_dir, f"{sample_name}{interfix}.{chrom}.bam"
-            )
-            if bam_in_region.exists():
-                if not chrom_dir_created:
-                    chrom_dir.mkdir(exist_ok=True)
-                    chrom_dir_created = True
-                bam_in_region_copy = Path(chrom_dir, bam_in_region.name)
-                copy(bam_in_region, bam_in_region_copy)
-                # update stats
-                _chroms.append(chrom)
-                _samples.append(sample_name)
-                _reads.append(
-                    count_reads(samtools_path, bam_in_region, None, None, None, threads)
+    main_by_chrom_dir.mkdir(exist_ok=True)
+
+    # _chroms = []  # for stats
+    # _samples = []  # for stats
+    # _mapped_reads = []  # for stats
+
+    # for chrom in chroms:
+    #     chrom_dir = Path(main_by_chrom_dir, chrom)
+    #     chrom_dir_created = False
+    #     for sample_name, by_chrom_sample_dir in zip(
+    #         samples_names, by_chrom_samples_dirs
+    #     ):
+    #         bam_in_region = Path(
+    #             by_chrom_sample_dir, f"{sample_name}{interfix}.{chrom}.bam"
+    #         )
+    #         if bam_in_region.exists():
+    #             if not chrom_dir_created:
+    #                 chrom_dir.mkdir(exist_ok=True)
+    #                 chrom_dir_created = True
+    #             bam_in_region_copy = Path(chrom_dir, bam_in_region.name)
+    #             copy_bytes(bam_in_region, bam_in_region_copy)
+    #             # update stats
+    #             _chroms.append(chrom)
+    #             _samples.append(sample_name)
+    #             _mapped_reads.append(
+    #                 count_reads(samtools_path, bam_in_region, None, None, None, threads)
+    #             )
+
+    # df = pd.DataFrame(
+    #     {"Chrom": _chroms, "Sample": _samples, "MappedReads": _mapped_reads}
+    # )
+
+    include_flags = None
+    exclude_flags = None
+    with Pool(processes=processes) as pool:
+        by_chrom_dfs = pool.starmap(
+            func=gather_by_chrom_bams_and_collect_stats,
+            iterable=[
+                (
+                    samtools_path,
+                    main_by_chrom_dir,
+                    chrom,
+                    samples_names,
+                    by_chrom_samples_dirs,
+                    interfix,
+                    threads,
+                    include_flags,
+                    exclude_flags,
                 )
-    # write by=chrom stats
-    df = pd.DataFrame({"Chrom": _chroms, "Sample": _samples, "MappedReads": _reads})
-    df.to_csv(Path(out_dir, "ByChromSummary.tsv"), sep="\t", index=False)
+                for chrom in chroms
+            ],
+        )
+
+    # write mapping stats
+    df = pd.concat(by_chrom_dfs, ignore_index=True)
+
+    agg_df = (
+        df.groupby("Chrom")
+        .agg({"MappedReads": sum, "Sample": len})
+        .reset_index()
+        .rename(columns={"Sample": "Samples"})
+    )
+    agg_df["MappedReadsPerSample"] = agg_df["MappedReads"] / agg_df["Samples"]
+
+    gff_df = read_gff(gff)
+    exon_conatining_chroms = gff_df.loc[gff_df["Type"] == "exon"][
+        "Chrom"
+    ].drop_duplicates()
+
+    agg_df = pd.merge(
+        agg_df, exon_conatining_chroms, on="Chrom", how="left", indicator=True
+    ).rename(columns={"_merge": "InExon"})
+    agg_df["InExon"] = (
+        agg_df["InExon"].replace({"both": True, "left_only": False}).astype(bool)
+    )
+    agg_df = agg_df.sort_values(
+        ["InExon", "MappedReadsPerSample", "MappedReads", "Samples"], ascending=False
+    ).reset_index(drop=True)
+
+    df.to_csv(Path(out_dir, "ByChromBySampleSummary.tsv"), sep="\t", index=False)
+    agg_df.to_csv(
+        Path(out_dir, "AggregatedByChromBySampleSummary.tsv"), sep="\t", index=False
+    )
 
     # run MultiQC on the reports created for each whole aligned file
     multiqc(multiqc_path=multiqc_path, data_dir=out_dir)
 
     # delete the genome's index (it's quite heavy)
     genome_index_file.unlink(missing_ok=True)
+
+
+def gather_by_chrom_bams_and_collect_stats(
+    samtools_path: Path,
+    main_by_chrom_dir: Path,
+    chrom: str,
+    samples_names: list[str],
+    by_chrom_samples_dirs: list[Path],
+    interfix: str,
+    threads: int,
+    include_flags: Union[int, str, None],
+    exclude_flags: Union[int, str, None],
+):
+    # stats containers
+    _samples_names = []
+    _mapped_reads = []
+    # the per-chrom dir that will hold the per-sample-per-chrom bams
+    chrom_dir = Path(main_by_chrom_dir, chrom)
+    chrom_dir_created = False
+    for sample_name, by_chrom_sample_dir in zip(samples_names, by_chrom_samples_dirs):
+        bam_in_region = Path(
+            by_chrom_sample_dir, f"{sample_name}{interfix}.{chrom}.bam"
+        )
+        # not each sample has reads mapped to this specific chrom
+        if bam_in_region.exists():
+            # create this dir only if necessary - maybe no sample has reads mapped to that chrom
+            if not chrom_dir_created:
+                chrom_dir.mkdir(exist_ok=True)
+                chrom_dir_created = True
+            # # copy the per-sample-per-chrom bam to the per-chrom dir
+            # bam_in_region_copy = Path(chrom_dir, bam_in_region.name)
+            # copy_bytes(bam_in_region, bam_in_region_copy)
+            # soft-link the per-sample-per-chrom bam to the per-chrom dir
+            bam_in_region_link = Path(chrom_dir, bam_in_region.name)
+            bam_in_region_link.symlink_to(bam_in_region)
+            # update stats
+            _samples_names.append(sample_name)
+            _mapped_reads.append(
+                count_reads(
+                    samtools_path,
+                    bam_in_region,
+                    None,
+                    include_flags,
+                    exclude_flags,
+                    threads,
+                )
+            )
+    df = pd.DataFrame(
+        {"Chrom": chrom, "Sample": _samples_names, "MappedReads": _mapped_reads}
+    )
+    return df
 
 
 def pacbio_main(
@@ -615,6 +726,12 @@ def define_args() -> argparse.Namespace:
         type=int,
         default=1,
         help="Output at maximum N alignments for each read, 0 means no maximum.",
+    )
+    pacbio_preprocessed_isoseq_parser.add_argument(
+        "--gff",
+        required=True,
+        type=abs_path_from_str,
+        help=("GFF3 annotation file for by-chrom separation of BAM files."),
     )
 
     # illumina args
