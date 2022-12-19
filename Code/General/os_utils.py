@@ -56,5 +56,9 @@ def compress(compress_cmd: str, in_file: Path, out_file: Path):
     subprocess.run(cmd, shell=True)
 
 
-def copy(in_file: Path, out_file: Path):
+def copy_text(in_file: Path, out_file: Path):
     out_file.write_text(in_file.read_text())
+
+
+def copy_bytes(in_file: Path, out_file: Path):
+    out_file.write_bytes(in_file.read_bytes())
