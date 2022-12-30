@@ -352,7 +352,7 @@ def define_args() -> argparse.Namespace:
         default="Region",
         help=(
             "Region col label in `data_table`."
-            "It's values should be given in a samtools-compatble format, i.e., either `chrom` of `chrom:start-end`, "
+            "It's values should be given in a samtools-compatible format, i.e., either `chrom` of `chrom:start-end`, "
             "where `start` is 1-based and `end` - inclusive. "
             "Should represent an ORF (or part of it) in the transcriptome, so its length should be a multiple of 3."
         ),

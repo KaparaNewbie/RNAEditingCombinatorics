@@ -60,15 +60,36 @@ def count_reads(
     exclude_flags: Union[int, str, None],
     threads: int,
 ):
+    """Count number of reads in `in_bam`. Optionally, count only reads satisfying certain conditions.
+
+    Args:
+        samtools_path (Path): path to executable
+        in_bam (Path): input BAM file
+        region (Union[str, None]): if not None, count only reads mapped to `region`
+        include_flags (Union[int, str, None]): if not None, count only reads with these flags
+        exclude_flags (Union[int, str, None]): if not None, count only reads *without* these flags
+        threads (int): number of `threads` to use
+
+    Returns:
+        int: number of reads in `in_bam` satisfying certain conditions (or all reads if no conditions were specified)
+    """
     cmd = f"{samtools_path} view -c --threads {threads} "
     if include_flags:
         cmd += f"--require-flags {include_flags} "
     if exclude_flags:
         cmd += f"--excl-flags {exclude_flags} "
-    cmd += f"{in_bam} " 
+    cmd += f"{in_bam} "
     if region:
         cmd += f"{region}"
-    reads = int(subprocess.run(cmd, shell=True, capture_output=True).stdout.decode())
+
+    # reads = int(subprocess.run(cmd, shell=True, capture_output=True).stdout.decode())
+
+    stdout = subprocess.run(cmd, shell=True, capture_output=True).stdout.decode()
+    if stdout == "":
+        reads = 0
+    else:
+        reads = int(stdout)
+
     return reads
 
 

@@ -401,16 +401,25 @@ illumina \
 * 15:13
 
 
+
+
 ## O.vulgaris annotations
 
 ```bash
 mkdir O.vulgaris/Annotations
 cd O.vulgaris/Annotations
-
-wget https://springernature.figshare.com/ndownloader/files/13876385
+wget https://springernature.figshare.com/ndownloader/files/13876385  # https://www.nature.com/articles/s41597-019-0017-6#Sec8
 tar -xzf 13876385
 rm 13876385
 rm octopus_abyss41_k41-scaffolds.fa octopus_abyss81_k81-scaffolds.fa scaffolds_81_abyss2_redudance13c.fasta
+```
+
+```python
+from Code.EditingUtils.gff3 import divide_to_files_by_type
+gff3_file = "O.vulgaris/Annotations/gene_models.chromosomer.gff"
+out_dir = "O.vulgaris/Annotations"
+prefix = "gene_models.chromosomer."
+divide_to_files_by_type(gff3_file, out_dir, prefix)
 ```
 
 ## O.vulgaris Iso-Seq data
@@ -483,6 +492,21 @@ for acc in ${accessions[@]}; do prefetch.2.10.8 -C yes -p $acc -O $OUTPUT_DIR &&
 
 gzip O.vulgaris/Data/PRJNA791920/FLAMSeq/Raw/*
 ```
+
+```bash
+nohup \
+python Code/prepare_data.py \
+--in_dir O.vulgaris/Data/PRJNA791920/FLAMSeq/Raw \
+--out_dir O.vulgaris/Data/PRJNA791920/FLAMSeq \
+--processes 8 \
+pacbio_preprocessed_isoseq \
+> O.vulgaris/Data/PRJNA791920/FLAMSeq/prepare_data.13.12.22.out &
+```
+* alu 15
+* 13.12.1222
+* 13:11
+* 47881
+
 
 ```
 cd Code
@@ -683,6 +707,33 @@ illumina \
 * alu 15
 * 17:05
 * 23.5.22
+
+
+### O. vulgaris
+
+```bash
+mkdir -p O.vulgaris/Alignment/PRJNA791920/IsoSeq
+
+nohup \
+python Code/align.py \
+--genome O.vulgaris/Annotations/chromosomer.fa \
+--in_dir O.vulgaris/Data/PRJNA791920/IsoSeq/Raw \
+--out_dir O.vulgaris/Alignment/PRJNA791920/IsoSeq \
+--processes 7 \
+--threads 10 \
+pacbio_preprocessed_isoseq \
+--gff O.vulgaris/Annotations/gene_models.chromosomer.gff \
+> O.vulgaris/Alignment/PRJNA791920/IsoSeq/align.30.12.22.out &
+```
+* alu 13
+* 30.12.22
+* 14:09
+* 44496
+
+
+
+
+
 
 
 
