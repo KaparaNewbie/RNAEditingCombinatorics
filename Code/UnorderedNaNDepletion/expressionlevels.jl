@@ -198,13 +198,16 @@ end
 function run_sample(
     distinctfile, allprotsfile, samplename, postfix_to_add,
     firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
-    maxmainthreads, outdir,
+    maxmainthreads, outdir, algs, onlymaxdistinct,
     substitutionmatrix::Union{SubstitutionMatrix,Nothing},
     similarityscorecutoff::Int64,
     similarityvalidator::Function,
     aagroups::Union{Dict{AminoAcid,String},Nothing}
 )
-    distinctdf = prepare_distinctdf(distinctfile, delim, innerdelim, truestrings, falsestrings)
+    distinctdf = prepare_distinctdf(
+        distinctfile, delim, innerdelim, truestrings, falsestrings,
+        fractions, algs, onlymaxdistinct
+    )
 
     allprotsdf, firstcolpos = prepare_allprotsdf!(
         allprotsfile, delim, innerdelim, truestrings, falsestrings, firstcolpos
@@ -226,8 +229,10 @@ function run_sample(
         end
     end
 
-    # considering only solutions of desired fractions
-    solutions = subset(distinctdf, "Fraction" => x -> x .∈ fractions)[:, "Index"]
+    # # considering only solutions of desired fractions
+    # solutions = subset(distinctdf, "Fraction" => x -> x .∈ fractions)[:, "Index"]
+    # get rows' indices
+    solutions = distinctdf[:, "Index"]
 
     # basesize = Int(round(Threads.nthreads()))
     # maxmainthreads = Int(round(Threads.nthreads() / 5))
@@ -254,10 +259,30 @@ function additional_assignments(distinctdf, allprotsdf, firstcolpos, Δ, solutio
 end
 
 
-function prepare_distinctdf(distinctfile, delim, innerdelim, truestrings, falsestrings)
+function prepare_distinctdf(
+    distinctfile, delim, innerdelim, truestrings, falsestrings,
+    fractions, algs, onlymaxdistinct
+)
     distinctdf = DataFrame(CSV.File(distinctfile; delim, truestrings, falsestrings))
     transform!(distinctdf, :UniqueSamples => (x -> split.(x, innerdelim)) => :UniqueSamples)
+    
     distinctdf[!, "Index"] = collect(1:size(distinctdf, 1))
+    
+    distinctdf = subset(
+        distinctdf, 
+        "Fraction" => x -> x .∈ fractions,  # keep only solutions of desired fractions
+        "Algorithm" => x -> occursin.(x, algs) # keep only solutions of desired algortihms
+    )
+
+    if onlymaxdistinct
+        maxdistinct = maximum(distinctdf[!, "NumUniqueSamples"])
+        distinctdf = subset(
+            distinctdf, 
+            "NumUniqueSamples" => x -> x .== maxdistinct
+        )
+
+    end
+    
     return distinctdf
 end
 
@@ -395,6 +420,15 @@ function parsecmd()
         default = [1.0]
         nargs = '+'
         action = :store_arg
+        "--algs"
+        help = "Consider only solutions achieved by desired algorithms."
+        default = ["Ascending", "Descending"]
+        nargs = '+'
+        range_tester = x -> x ∈ ["Ascending", "Descending", "Unordered"]
+        action = :store_arg
+        "--onlymaxdistinct"
+        help = "Consider only solution with maximum number of distinct proteins, within allowed fractions and algorithms."
+        action = :store_true
 
         "--maxmainthreads"
         default = 30
@@ -436,7 +470,7 @@ end
 function main(
     distinctfiles, allprotsfiles, samplenames, postfix_to_add,
     firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
-    maxmainthreads, outdir,
+    maxmainthreads, outdir, algs, onlymaxdistinct,
     gcp, shutdowngcp,
     substitutionmatrix::Union{SubstitutionMatrix,Nothing},
     similarityscorecutoff::Int64,
@@ -448,7 +482,7 @@ function main(
         run_sample(
             distinctfile, allprotsfile, samplename, postfix_to_add,
             firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
-            maxmainthreads, outdir,
+            maxmainthreads, outdir, algs, onlymaxdistinct,
             substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups
         )
     end
@@ -475,6 +509,8 @@ function CLI_main()
 
     fractions = parsedargs["fractions"]
     fractions = fractions isa Vector{Float64} ? fractions : parse.(Float64, fractions)
+    algs = parsedargs["algs"]
+    onlymaxdistinct = parsedargs["onlymaxdistinct"]
 
     maxmainthreads = parsedargs["maxmainthreads"]
     outdir = parsedargs["outdir"]
@@ -491,7 +527,7 @@ function CLI_main()
     main(
         distinctfiles, allprotsfiles, samplenames, postfix_to_add,
         firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
-        maxmainthreads, outdir,
+        maxmainthreads, outdir, algs, onlymaxdistinct,
         gcp, shutdowngcp,
         substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups
     )
@@ -503,61 +539,16 @@ if abspath(PROGRAM_FILE) == @__FILE__
 end
 
 
-# distinctfiles = [
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA.AllRows.DistinctUniqueProteins.csv",
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO.AllRows.DistinctUniqueProteins.csv"
-# ]
 
-# allprotsfiles = [
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv",
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv"
-# ]
-
-# samplenames = ["GRIA", "PCLO"]
-# outdir = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2"
 
 # distinctfiles = [
 #     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/comp141881_c0_seq3.DistinctUniqueProteins.12.07.2022-20:54:38.csv",
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/comp141044_c0_seq2.DistinctUniqueProteins.13.07.2022-06:33:23.csv",
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/comp140439_c0_seq1.DistinctUniqueProteins.12.07.2022-22:51:22.csv",
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/comp126362_c0_seq1.DistinctUniqueProteins.15.07.2022-06:11:18.csv",
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/comp141517_c0_seq1.DistinctUniqueProteins.14.07.2022-07:43:15.csv",
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/comp141840_c0_seq2.DistinctUniqueProteins.13.07.2022-20:30:25.csv",
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/comp141640_c0_seq1.DistinctUniqueProteins.12.07.2022-19:44:02.csv",
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/comp140987_c3_seq1.DistinctUniqueProteins.18.07.2022-07:50:43.csv",
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/comp140910_c2_seq1.DistinctUniqueProteins.13.07.2022-16:15:35.csv",
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/comp136058_c0_seq1.DistinctUniqueProteins.21.07.2022-07:57:53.csv",
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/comp141378_c0_seq7.DistinctUniqueProteins.19.07.2022-08:12:24.csv",
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/comp141158_c1_seq2.DistinctUniqueProteins.13.07.2022-01:54:59.csv",
 # ]
-
 # samplenames = [
 #     "RUSC2_MOUSE",
-#     "TRIM2_BOVIN",
-#     "CA2D3_MOUSE",
-#     "ABL_DROME",
-#     "DGLA_HUMAN",
-#     "K0513_MOUSE",
-#     "KCNAS_DROME",
-#     "ACHA4_MOUSE",
-#     "ANR17_HUMAN",
-#     "TWK7_CAEEL",
-#     "SCN1_HETBL",
-#     "CACB2_RABIT"
 # ]
 # chroms = [
 #     "comp141881_c0_seq3",
-#     "comp141044_c0_seq2",
-#     "comp140439_c0_seq1",
-#     "comp126362_c0_seq1",
-#     "comp141517_c0_seq1",
-#     "comp141840_c0_seq2",
-#     "comp141640_c0_seq1",
-#     "comp140987_c3_seq1",
-#     "comp140910_c2_seq1",
-#     "comp136058_c0_seq1",
-#     "comp141378_c0_seq7",
-#     "comp141158_c1_seq2"
 # ]
 # allprotsfiles = [
 #     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.$chrom.unique_proteins.csv"
@@ -565,17 +556,74 @@ end
 # ]
 # outdir = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina"
 
-# firstcolpos = 15
 
-# delim = "\t"
-# innerdelim = ","
+# input
 
-# truestrings = ["TRUE", "True", "true"]
-# falsestrings = ["FALSE", "False", "false"]
+distinctfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA.AllRows.DistinctUniqueProteins.csv"
+allprotsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv"
+samplename = "GRIA"
+postfix_to_add = ""
 
-# fractions = [1.0]
+firstcolpos = 15
+delim = "\t"
+innerdelim = ","
+truestrings = ["TRUE", "True", "true"]
+falsestrings = ["FALSE", "False", "false"]
+fractions = [1.0]
+maxmainthreads = 30
+outdir = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2"
 
-# maxmainthreads = 30
+
+# run_sample
+
+distinctdf = prepare_distinctdf(distinctfile, delim, innerdelim, truestrings, falsestrings)
+
+
+# considering only solutions of desired fractions
+
+algs = ["Ascending"]
+
+
+distinctdf = subset(distinctdf, "Fraction" => x -> x .∈ fractions, "Algorithm" => x -> occursin.(x, algs))
+
+
+maxdistinct = maximum(distinctdf[!, "NumUniqueSamples"])
+distinctdf = subset(distinctdf, "NumUniqueSamples" => x -> x .== maxdistinct)
+
+
+
+subset(distinctdf, "Fraction" => x -> x .∈ fractions, "NumUniqueSamples" => x -> x .== maxdistinct)
+
+
+# original
+solutions = subset(distinctdf, "Fraction" => x -> x .∈ fractions)[:, "Index"]
+
+
+# basesize = Int(round(Threads.nthreads()))
+# maxmainthreads = Int(round(Threads.nthreads() / 5))
+# basesize = Int(round(Threads.nthreads() / 5))
+allsubsolutions = collect(Iterators.partition(solutions, maxmainthreads))
+results = tcollect(
+    additional_assignments(distinctdf, allprotsdf, firstcolpos, Δ, subsolutions)
+    for subsolutions ∈ allsubsolutions
+)
+finalresults = vcat(Iterators.flatten(results)...)
+
+# save the results
+outfile = joinpath(abspath(outdir), "$samplename.DistinctUniqueProteins.ExpressionLevels$postfix_to_add.csv")
+CSV.write(outfile, finalresults; delim)
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
