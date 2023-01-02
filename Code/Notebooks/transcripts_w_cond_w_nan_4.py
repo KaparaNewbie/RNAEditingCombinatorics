@@ -271,6 +271,9 @@ n_repetitions_colormap(subcolors_discrete_map, "GRIA", 10)
 # proteins_sets_array = np.array(df["Proteins"].apply(lambda x: np.array(x.split(","), dtype=object)), dtype=object)
 # # proteins_sets_array
 
+# %%
+25_000 / (750 * 1.17)
+
 # %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"} tags=[] toc-hr-collapsed=true toc-hr-collapsed=true tags=[] toc-hr-collapsed=true toc-hr-collapsed=true tags=[] toc-hr-collapsed=true
 # # Data
 
