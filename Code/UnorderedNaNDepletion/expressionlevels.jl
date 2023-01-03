@@ -557,61 +557,61 @@ end
 # outdir = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina"
 
 
-# input
+# # input
 
-distinctfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA.AllRows.DistinctUniqueProteins.csv"
-allprotsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv"
-samplename = "GRIA"
-postfix_to_add = ""
+# distinctfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA.AllRows.DistinctUniqueProteins.csv"
+# allprotsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv"
+# samplename = "GRIA"
+# postfix_to_add = ""
 
-firstcolpos = 15
-delim = "\t"
-innerdelim = ","
-truestrings = ["TRUE", "True", "true"]
-falsestrings = ["FALSE", "False", "false"]
-fractions = [1.0]
-maxmainthreads = 30
-outdir = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2"
-
-
-# run_sample
-
-distinctdf = prepare_distinctdf(distinctfile, delim, innerdelim, truestrings, falsestrings)
+# firstcolpos = 15
+# delim = "\t"
+# innerdelim = ","
+# truestrings = ["TRUE", "True", "true"]
+# falsestrings = ["FALSE", "False", "false"]
+# fractions = [1.0]
+# maxmainthreads = 30
+# outdir = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2"
 
 
-# considering only solutions of desired fractions
+# # run_sample
 
-algs = ["Ascending"]
-
-
-distinctdf = subset(distinctdf, "Fraction" => x -> x .∈ fractions, "Algorithm" => x -> occursin.(x, algs))
+# distinctdf = prepare_distinctdf(distinctfile, delim, innerdelim, truestrings, falsestrings)
 
 
-maxdistinct = maximum(distinctdf[!, "NumUniqueSamples"])
-distinctdf = subset(distinctdf, "NumUniqueSamples" => x -> x .== maxdistinct)
+# # considering only solutions of desired fractions
+
+# algs = ["Ascending"]
+
+
+# distinctdf = subset(distinctdf, "Fraction" => x -> x .∈ fractions, "Algorithm" => x -> occursin.(x, algs))
+
+
+# maxdistinct = maximum(distinctdf[!, "NumUniqueSamples"])
+# distinctdf = subset(distinctdf, "NumUniqueSamples" => x -> x .== maxdistinct)
 
 
 
-subset(distinctdf, "Fraction" => x -> x .∈ fractions, "NumUniqueSamples" => x -> x .== maxdistinct)
+# subset(distinctdf, "Fraction" => x -> x .∈ fractions, "NumUniqueSamples" => x -> x .== maxdistinct)
 
 
-# original
-solutions = subset(distinctdf, "Fraction" => x -> x .∈ fractions)[:, "Index"]
+# # original
+# solutions = subset(distinctdf, "Fraction" => x -> x .∈ fractions)[:, "Index"]
 
 
-# basesize = Int(round(Threads.nthreads()))
-# maxmainthreads = Int(round(Threads.nthreads() / 5))
-# basesize = Int(round(Threads.nthreads() / 5))
-allsubsolutions = collect(Iterators.partition(solutions, maxmainthreads))
-results = tcollect(
-    additional_assignments(distinctdf, allprotsdf, firstcolpos, Δ, subsolutions)
-    for subsolutions ∈ allsubsolutions
-)
-finalresults = vcat(Iterators.flatten(results)...)
+# # basesize = Int(round(Threads.nthreads()))
+# # maxmainthreads = Int(round(Threads.nthreads() / 5))
+# # basesize = Int(round(Threads.nthreads() / 5))
+# allsubsolutions = collect(Iterators.partition(solutions, maxmainthreads))
+# results = tcollect(
+#     additional_assignments(distinctdf, allprotsdf, firstcolpos, Δ, subsolutions)
+#     for subsolutions ∈ allsubsolutions
+# )
+# finalresults = vcat(Iterators.flatten(results)...)
 
-# save the results
-outfile = joinpath(abspath(outdir), "$samplename.DistinctUniqueProteins.ExpressionLevels$postfix_to_add.csv")
-CSV.write(outfile, finalresults; delim)
+# # save the results
+# outfile = joinpath(abspath(outdir), "$samplename.DistinctUniqueProteins.ExpressionLevels$postfix_to_add.csv")
+# CSV.write(outfile, finalresults; delim)
 
 
 
