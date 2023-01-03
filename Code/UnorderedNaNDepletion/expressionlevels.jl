@@ -205,8 +205,7 @@ function run_sample(
     aagroups::Union{Dict{AminoAcid,String},Nothing}
 )
     distinctdf = prepare_distinctdf(
-        distinctfile, delim, innerdelim, truestrings, falsestrings,
-        fractions, algs, onlymaxdistinct
+        distinctfile, delim, innerdelim, truestrings, falsestrings
     )
 
     allprotsdf, firstcolpos = prepare_allprotsdf!(
@@ -216,12 +215,9 @@ function run_sample(
     # the possible amino acids each protein has in each position
     M = Matrix(allprotsdf[:, firstcolpos:end])
     # the distances between any two proteins according to `M`
-    # Δ = distances(M) 
     Δ = begin
         if substitutionmatrix !== nothing
             distances(M, substitutionmatrix, similarityscorecutoff, similarityvalidator)
-        # elseif useAAgroups
-        #     distances(M, AA_groups)
         elseif aagroups !== nothing
             distances(M, aagroups)
         else
@@ -229,14 +225,11 @@ function run_sample(
         end
     end
 
-    # # considering only solutions of desired fractions
-    # solutions = subset(distinctdf, "Fraction" => x -> x .∈ fractions)[:, "Index"]
-    # get rows' indices
-    solutions = distinctdf[:, "Index"]
+    # considering only desired solutions (rows' indices)
+    # solutions = distinctdf[:, "Index"]
+    solutions = choosesolutions(distinctdf, fractions, algs, onlymaxdistinct)
 
-    # basesize = Int(round(Threads.nthreads()))
-    # maxmainthreads = Int(round(Threads.nthreads() / 5))
-    # basesize = Int(round(Threads.nthreads() / 5))
+
     allsubsolutions = collect(Iterators.partition(solutions, maxmainthreads))
     results = tcollect(
         additional_assignments(distinctdf, allprotsdf, firstcolpos, Δ, subsolutions)
@@ -250,39 +243,41 @@ function run_sample(
 end
 
 
-function additional_assignments(distinctdf, allprotsdf, firstcolpos, Δ, solutions)
-    results = map(solutions) do solution
-        one_solution_additional_assignment(distinctdf, allprotsdf, firstcolpos, Δ, solution)
-    end
-    return results
-    # vcat(results)
-end
-
-
-function prepare_distinctdf(
-    distinctfile, delim, innerdelim, truestrings, falsestrings,
-    fractions, algs, onlymaxdistinct
-)
-    distinctdf = DataFrame(CSV.File(distinctfile; delim, truestrings, falsestrings))
-    transform!(distinctdf, :UniqueSamples => (x -> split.(x, innerdelim)) => :UniqueSamples)
-    
-    distinctdf[!, "Index"] = collect(1:size(distinctdf, 1))
-    
-    distinctdf = subset(
+"Get indices of eligible solutions from `distinctdf` on which expression levels should be calculated."
+function choosesolutions(distinctdf, fractions, algs, onlymaxdistinct)
+    _distinctdf = subset(
         distinctdf, 
         "Fraction" => x -> x .∈ fractions,  # keep only solutions of desired fractions
         "Algorithm" => x -> occursin.(x, algs) # keep only solutions of desired algortihms
     )
 
     if onlymaxdistinct
-        maxdistinct = maximum(distinctdf[!, "NumUniqueSamples"])
-        distinctdf = subset(
+        maxdistinct = maximum(_distinctdf[!, "NumUniqueSamples"])
+        _distinctdf = subset(
             distinctdf, 
             "NumUniqueSamples" => x -> x .== maxdistinct
         )
 
     end
-    
+
+    solutions = _distinctdf[:, "Index"]
+end
+
+
+function additional_assignments(distinctdf, allprotsdf, firstcolpos, Δ, solutions)
+    results = map(solutions) do solution
+        one_solution_additional_assignment(distinctdf, allprotsdf, firstcolpos, Δ, solution)
+    end
+    return results
+end
+
+
+function prepare_distinctdf(
+    distinctfile, delim, innerdelim, truestrings, falsestrings,
+)
+    distinctdf = DataFrame(CSV.File(distinctfile; delim, truestrings, falsestrings))
+    transform!(distinctdf, :UniqueSamples => (x -> split.(x, innerdelim)) => :UniqueSamples)
+    distinctdf[!, "Index"] = collect(1:size(distinctdf, 1))
     return distinctdf
 end
 
@@ -574,7 +569,7 @@ end
 # outdir = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2"
 
 
-# # run_sample
+# # # run_sample
 
 # distinctdf = prepare_distinctdf(distinctfile, delim, innerdelim, truestrings, falsestrings)
 
