@@ -214,9 +214,10 @@ len(positions_files)
 # %% papermill={"duration": 2.901153, "end_time": "2022-02-01T09:42:46.125355", "exception": false, "start_time": "2022-02-01T09:42:43.224202", "status": "completed"} tags=[]
 import sys
 from functools import reduce
-from itertools import chain, product
+from itertools import chain, product, combinations
 from math import ceil
 from pathlib import Path
+from multiprocessing import Pool
 
 from scipy import interpolate  # todo unimport this later?
 import matplotlib.pyplot as plt
@@ -634,6 +635,9 @@ distinct_unique_proteins_df
 
 
 # %%
+distinct_unique_proteins_df.loc[distinct_unique_proteins_df["NumOfProteins"] == distinct_unique_proteins_df["NumOfProteins"].max()]
+
+# %%
 
 # %%
 # unique_edited_proteins_dfs[0].columns[:unique_proteins_first_col_pos]
@@ -857,40 +861,40 @@ distinct_unique_proteins_df2
 # %%
 # todo update & uncomment
 
-fig = px.bar(
-    long_data_loss_df.sort_values("Count"),
-    y="Stage",
-    x="Count",
-    text="%InitialCount",
-    title="Data loss through the different processing stages",
-    labels={"Count": "", "Stage": ""},
-    color=condition_col,
-    color_discrete_map=color_discrete_map,
-    category_orders=horizontal_category_orders,
-    template=template,
-    barmode="group",
-    orientation="h",
-    width=1000,
-    height=1400,
-    log_x=True
-)
-
-# line_x = long_data_loss_df["Count"].max() * 1.1
-# line_y0 = "Aligned reads<br>(within ORF)"
-# line_y1 = "Compatible unique edited reads<br>(mean)"
-# fig.add_shape(
-#     type="line",
-#     x0=line_x,
-#     x1=line_x,
-#     y0=line_y0,
-#     y1=line_y1,
-#     line=dict(color="black", width=13),
-#     opacity=0.5
+# fig = px.bar(
+#     long_data_loss_df.sort_values("Count"),
+#     y="Stage",
+#     x="Count",
+#     text="%InitialCount",
+#     title="Data loss through the different processing stages",
+#     labels={"Count": "", "Stage": ""},
+#     color=condition_col,
+#     color_discrete_map=color_discrete_map,
+#     category_orders=horizontal_category_orders,
+#     template=template,
+#     barmode="group",
+#     orientation="h",
+#     width=1000,
+#     height=1400,
+#     log_x=True
 # )
 
-# fig.update_traces(bargroupgap=0.01)
+# # line_x = long_data_loss_df["Count"].max() * 1.1
+# # line_y0 = "Aligned reads<br>(within ORF)"
+# # line_y1 = "Compatible unique edited reads<br>(mean)"
+# # fig.add_shape(
+# #     type="line",
+# #     x0=line_x,
+# #     x1=line_x,
+# #     y0=line_y0,
+# #     y1=line_y1,
+# #     line=dict(color="black", width=13),
+# #     opacity=0.5
+# # )
 
-fig.show()
+# # fig.update_traces(bargroupgap=0.01)
+
+# fig.show()
 
 
 # %% [markdown] papermill={"duration": 0.124528, "end_time": "2022-02-01T09:43:10.054394", "exception": false, "start_time": "2022-02-01T09:43:09.929866", "status": "completed"} tags=[]
@@ -918,10 +922,13 @@ vmax = max(corr.max().max() for corr in corrs)
 masks = [np.triu(np.ones_like(corr, dtype=bool)) for corr in corrs]
 
 # Generate a custom diverging colormap
-cmap = sns.diverging_palette(230, 20, as_cmap=True)
+# cmap = sns.diverging_palette(230, 20, as_cmap=True)
 
 
 # %%
+cmap = sns.diverging_palette(230, 20, as_cmap=True)
+# cmap = sns.cubehelix_palette(start=2, rot=0, dark=0, light=.95, reverse=True, as_cmap=True)
+
 for condition, corr, mask in zip(conditions, corrs, masks):
 
     fig, ax = plt.subplots(figsize=(11, 9))
@@ -943,6 +950,8 @@ for condition, corr, mask in zip(conditions, corrs, masks):
     plt.title(
         f"Pearson correlation coefficient between editing sites in {condition} reads"
     )
+    
+    # break
 
 
 # %% [markdown]
@@ -1040,9 +1049,6 @@ for df, condition in zip(reads_w_nan_dfs, conditions):
 merged_mi_df = pd.concat(mi_dfs)
 merged_mi_df
 
-# %%
-merged_mi_df
-
 
 # %%
 def get_symmetric_mi_df(mi_df, positions):
@@ -1086,6 +1092,9 @@ def get_symmetric_mi_df(mi_df, positions):
 
 
 # %%
+conditions
+
+# %%
 pclo_index = conditions.index("PCLO_CHICK")
 
 symmetric_pclo_mi_df = get_symmetric_mi_df(
@@ -1093,17 +1102,16 @@ symmetric_pclo_mi_df = get_symmetric_mi_df(
     positions = reads_w_nan_dfs[pclo_index].iloc[:, reads_first_col_pos:].columns
 )
 
-# symmetric_pclo_mi_df
-
+# %%
 sns.set_theme(style="white")
 
 # Generate a mask for the upper triangle
 mask = np.triu(np.ones_like(symmetric_pclo_mi_df, dtype=bool))
 
 # Generate a custom diverging colormap
-cmap = sns.diverging_palette(230, 20, as_cmap=True)
-# cmap = sns.diverging_palette(220, 10, s=74, l=50, sep=10, n=0, center='light', as_cmap=True)
-# cmap = sns.cubehelix_palette(as_cmap=True)
+# cmap = sns.diverging_palette(230, 20, as_cmap=True)
+cmap = sns.color_palette("YlOrBr", as_cmap=True)
+# cmap = sns.light_palette("seagreen", as_cmap=True)
 
 # vmin = symmetric_pclo_mi_df.min().min()
 # vmax = symmetric_pclo_mi_df.max().max()
@@ -1900,9 +1908,9 @@ fig.show()
 distinct_proteins_per_mapped_reads_df = distinct_unique_proteins_df.copy()
 distinct_proteins_per_mapped_reads_df = distinct_proteins_per_mapped_reads_df.loc[distinct_proteins_per_mapped_reads_df["Algorithm"] == "Descending"]
 distinct_proteins_per_mapped_reads_df = distinct_proteins_per_mapped_reads_df.loc[distinct_proteins_per_mapped_reads_df["Fraction"] == 1.0]
-distinct_proteins_per_mapped_reads_df["NumOfProteins/MappedReads"] = distinct_proteins_per_mapped_reads_df["NumOfProteins"] / df["NumOfReads"]
+distinct_proteins_per_mapped_reads_df["NumOfProteins/MappedReads"] = distinct_proteins_per_mapped_reads_df["NumOfProteins"] / distinct_proteins_per_mapped_reads_df["NumOfReads"]
 editable_aas_per_sample_dict = {condition: editable_aas for condition, editable_aas in zip(conditions, editable_aas_per_sample)}
-distinct_proteins_per_mapped_reads_df["EditableAAs"] = [editable_aas_per_sample_dict[condition] for condition in df[condition_col]]
+distinct_proteins_per_mapped_reads_df["EditableAAs"] = [editable_aas_per_sample_dict[condition] for condition in distinct_proteins_per_mapped_reads_df[condition_col]]
 # df["NumOfProteins/Read/EditableAmicoAcids"] = df["NumOfProteins"] / df["NumOfReads"] / df["EditableAminoAcidsPerSample"]
 distinct_proteins_per_mapped_reads_df
 
@@ -2198,7 +2206,8 @@ expanded_distinct_unique_proteins_df
 
 # %%
 ambigous_positions_df = (
-    expanded_distinct_unique_proteins_df.groupby(
+    expanded_distinct_unique_proteins_df.loc[expanded_distinct_unique_proteins_df["Algorithm"] == "Descending"]
+    .groupby(
         [
             condition_col,
             "Fraction",
@@ -2252,7 +2261,7 @@ fig.show()
 # %%
 df1 = (
     expanded_distinct_unique_proteins_df.loc[
-        expanded_distinct_unique_proteins_df["Fraction"] == 1.0
+        (expanded_distinct_unique_proteins_df["Fraction"] == 1.0) & (expanded_distinct_unique_proteins_df["Algorithm"] == "Descending")
     ]
     .groupby([condition_col, "Protein"])
     .agg(NumOfSolutions=("Protein", "size"))
@@ -2291,67 +2300,65 @@ df3.loc[df3["#SolutionIncluded"] > 0].groupby(condition_col).size()
 # %%
 df3.loc[df3["#SolutionIncluded"] == 100].groupby(condition_col).size()
 
-# %%
-fig = px.histogram(
-    df3,
-    x="AmbigousPositions",
-    y="#SolutionIncluded",
-    histfunc="avg",
-    facet_col=condition_col,
-    facet_col_wrap=5,
-    # facet_col_spacing=facet_col_spacing,
-    # facet_row_spacing=facet_row_spacing,
-    labels={"AmbigousPositions": "Ambiguous positions<br>in a protein"},
-    title="#solutions as function of ambiguous positions",
-    color=condition_col,
-    color_discrete_map=color_discrete_map,
-    category_orders=category_orders,
-    template=template,
+# %% tags=[]
+cols = min(facet_col_wrap, len(conditions), 5)
+rows = ceil(len(conditions) / cols)
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
+
+x_title = "Ambiguous positions in a protein"
+y_title = "Num solutions a protein is included at (avg)"
+# title_text = "Distribution of min & max estimates of non-syn mutations per protein"
+
+fig = make_subplots(
+    rows=rows,
+    cols=cols,
+    subplot_titles=conditions,
+    shared_yaxes=True,
+    shared_xaxes=True,
+    x_title=x_title,
+    y_title=y_title,
 )
 
-# https://stackoverflow.com/questions/58167028/single-axis-caption-in-plotly-express-facet-plot
-# for axis in fig.layout:
-#     if type(fig.layout[axis]) == go.layout.YAxis:
-#         fig.layout[axis].title.text = ""
+# plot averaged histograms
+for (row, col), condition, in zip(row_col_iter, conditions):    
+    _df3 = df3.loc[df3[condition_col] == condition]
+    x = _df3["AmbigousPositions"]
+    y = _df3["#SolutionIncluded"]
+    fig.add_trace(
+        go.Histogram(
+            x=x,
+            y=y,
+            histfunc="avg",
+            marker_color=color_discrete_map[condition],
+            name=condition,
+        ),
+        row=row,
+        col=col,
+    )
+
+# find max_x and max_y
+f = fig.full_figure_for_development(warn=False)
+data_traces = {}
+for condition in conditions:
+    for data in f.data:
+        if data.name == condition:
+            data_traces[condition] = data
+            continue
+max_x = max([max(data_traces[condition].x) for condition in conditions])
+max_y = max([max(data_traces[condition].y) for condition in conditions])
+        
 fig.update_layout(
-    showlegend=False,
-    # yaxis_title="# solutions"
-    height=500,
-    width=1000
-)
-# fig.for_each_yaxis(lambda y: y.update(title="Transcripts"))   # for facet_row
-
-fig.show()
-
-
-# %%
-fig = px.scatter(
-    df3,
-    x="AmbigousPositions",
-    y="#SolutionIncluded",
-    facet_col=condition_col,
-    facet_col_wrap=5,
-    # facet_col_spacing=facet_col_spacing,
-    # facet_row_spacing=facet_row_spacing,
-    # labels={"MeanOfAmbigousPositions": "Mean ambigous positions in proteins of a solution"},
-    title="#solutions as function of ambigous positions",
-    color=condition_col,
-    color_discrete_map=color_discrete_map,
-    category_orders=category_orders,
     template=template,
-)
-
-# https://stackoverflow.com/questions/58167028/single-axis-caption-in-plotly-express-facet-plot
-# for axis in fig.layout:
-#     if type(fig.layout[axis]) == go.layout.YAxis:
-#         fig.layout[axis].title.text = ""
-fig.update_layout(
+    barmode="overlay",  # Overlay both histograms
+    # title_text=title_text,
+    # title_y=0.95,
     showlegend=False,
-    # yaxis_title="# solutions"
-    height=500,
-    width=1000
+    height=max(170*rows, 300),
+    width=max(220*cols, 500)
 )
-# fig.for_each_yaxis(lambda y: y.update(title="Transcripts"))   # for facet_row
+        
+fig.update_xaxes(range=[0, max_x * 1.1])
+fig.update_yaxes(range=[0, max_y * 1.1])
 
 fig.show()
 

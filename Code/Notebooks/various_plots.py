@@ -56,6 +56,9 @@ from EditingUtils.seq import make_fasta_dict
 from EditingUtils.logo import multiple_logos_from_fasta_files, make_freq_df
 
 # %%
+px.colors
+
+# %%
 # %load_ext autoreload
 # %autoreload 2
 
@@ -414,6 +417,8 @@ zerolinewidth = 4
 
 # %%
 px.colors
+
+# %%
 
 # %%
 known_sites_file = (
