@@ -408,7 +408,8 @@ def illumina_main(
 def pacbio_preprocessed_isoseq_main(
     *,
     genome: Path,
-    gff: Path,
+    # gff: Path,
+    known_sites_bed_file: Path,
     in_dir: Path,
     postfix: str,
     recursive: bool,
@@ -446,9 +447,10 @@ def pacbio_preprocessed_isoseq_main(
         threads,
     )
 
-    gene_regions = get_nonoverlapping_gene_regions(gff)
-    separate_by_chrom = False
-    seperate_by_gene = True
+    # gene_regions = get_nonoverlapping_gene_regions(gff)
+    gene_regions = None
+    separate_by_chrom = True
+    seperate_by_gene = False
     include_flags = None
     exclude_flags = None
 
@@ -481,194 +483,343 @@ def pacbio_preprocessed_isoseq_main(
             ],
         )
 
-    be_gene_samples_dirs = [
-        Path(out_dir, f"{sample_name}.ByGene") for sample_name in samples_names
+    # gather separated-by-chrom bams
+    # first to main sub-dir
+    # and then subdir for chrom, containing bams from different samples
+    by_chrom_samples_dirs = [
+        Path(out_dir, f"{sample_name}.ByChrom") for sample_name in samples_names
     ]
+    chroms = {
+        f.suffixes[-2].removeprefix(".")
+        for by_chrom_sample_dir in by_chrom_samples_dirs
+        for f in by_chrom_sample_dir.iterdir()
+        if f.suffix.endswith("bam")
+    }
 
-    main_by_gene_dir = Path(out_dir, "ByGene")
-    main_by_gene_dir.mkdir(exist_ok=True)
+    main_by_chrom_dir = Path(out_dir, "ByChrom")
+    main_by_chrom_dir.mkdir(exist_ok=True)
+
 
     with Pool(processes=processes) as pool:
-        by_gene_dfs = pool.starmap(
-            func=gather_by_gene_bams_and_collect_stats,
+        by_chrom_dfs = pool.starmap(
+            func=gather_by_chrom_bams_and_collect_stats,
             iterable=[
                 (
                     samtools_path,
-                    main_by_gene_dir,
-                    gene_region,
+                    main_by_chrom_dir,
+                    chrom,
                     samples_names,
-                    be_gene_samples_dirs,
+                    by_chrom_samples_dirs,
                     interfix,
                     threads,
                     include_flags,
                     exclude_flags,
                 )
-                for gene_region in gene_regions
+                for chrom in chroms
             ],
         )
 
     # write mapping stats
-    by_gene_df = pd.concat(by_gene_dfs, ignore_index=True)
-
-    chrom_startend = by_gene_df["GeneRegion"].str.split(":", expand=True)
-    chrom = chrom_startend.iloc[:, 0]
-    start_end = chrom_startend.iloc[:, 1].str.split("-", expand=True)
-    start = start_end.iloc[:, 0].astype(int)
-    end = start_end.iloc[:, 1].astype(int)
-
-    by_gene_df.insert(by_gene_df.columns.get_loc("GeneRegion") + 1, "Chrom", chrom)
-    by_gene_df.insert(by_gene_df.columns.get_loc("GeneRegion") + 2, "Start", start)
-    by_gene_df.insert(by_gene_df.columns.get_loc("GeneRegion") + 3, "End", end)
-
-    by_gene_df = by_gene_df.sort_values(
-        ["Chrom", "Start", "End", "Sample"]
-    ).reset_index(drop=True)
-
-    mapped_genes_bed3_df = by_gene_df.loc[:, ["Chrom", "Start", "End"]].drop_duplicates(
-        ignore_index=True
-    )
-    mapped_genes_bed3_df["Start"] = mapped_genes_bed3_df["Start"] - 1
-    mapped_genes_bed3_bedtool = BedTool().from_dataframe(mapped_genes_bed3_df).sort()
-
-    gff_df = read_gff(gff)
-
-    exons_gff_df = gff_df.loc[gff_df["Type"] == "exon"]
-    exons_bed6_df = exons_gff_df.loc[:, ["Chrom", "Start", "End", "Score", "Strand"]]
-    exons_bed6_df["Start"] = exons_bed6_df["Start"].astype(int) - 1
-    exons_bed6_df["End"] = exons_bed6_df["End"].astype(int)
-    exons_bed6_df.insert(exons_bed6_df.columns.get_loc("End") + 1, "Name", ".")
-    exons_bed6_bedtools = BedTool().from_dataframe(exons_bed6_df)
-
-    genes_gff_df = gff_df.loc[gff_df["Type"] == "gene"]
-    genes_bed_df = genes_gff_df.loc[:, ["Chrom", "Start", "End", "Strand"]]
-    genes_bed_df["Start"] = genes_bed_df["Start"].astype(int)
-    genes_bed_df["Start"] = genes_bed_df["Start"] - 1
-    genes_bed_df["End"] = genes_bed_df["End"].astype(int)
-    genes_bed_df.insert(genes_bed_df.columns.get_loc("End") + 1, "Name", ".")
-    genes_bed_df.insert(genes_bed_df.columns.get_loc("Name") + 1, "Score", ".")
-    genes_bedtool = BedTool().from_dataframe(genes_bed_df).sort()
-
-    mapped_genes_bed6_bedtool = genes_bedtool.intersect(
-        mapped_genes_bed3_bedtool
-    ).intersect(  # retain only mapped genes
-        exons_bed6_bedtools, s=True, c=True
-    )  # count number in exons in each such gene
-
-    mapped_genes_df = (
-        mapped_genes_bed6_bedtool.to_dataframe()
-        .drop(["name", "score"], axis=1)
-        .rename(
-            columns={
-                "chrom": "Chrom",
-                "start": "Start",
-                "end": "End",
-                "strand": "Strand",
-                "thickStart": "ExonsInGene",
-            }
-        )
-    )
-    mapped_genes_df["Start"] = mapped_genes_df["Start"] + 1
-
-    by_gene_df = by_gene_df.merge(mapped_genes_df, on=["Chrom", "Start", "End"])
-    by_gene_df = reorder_df_by_wanted_cols(
-        by_gene_df, wanted_first_cols=["GeneRegion", "Chrom", "Start", "End", "Strand"]
-    )
+    df = pd.concat(by_chrom_dfs, ignore_index=True)
 
     agg_df = (
-        by_gene_df.groupby(
-            ["GeneRegion", "Chrom", "Start", "End", "Strand", "ExonsInGene"]
-        )
+        df.groupby("Chrom")
         .agg({"MappedReads": sum, "Sample": len})
         .reset_index()
         .rename(columns={"Sample": "Samples"})
     )
     agg_df["MappedReadsPerSample"] = agg_df["MappedReads"] / agg_df["Samples"]
-    agg_df["CodingGene"] = agg_df["ExonsInGene"] > 0
+
+    # known_sites_bed_file = "/private7/projects/Combinatorics/O.vulgaris/Annotations/O.vul.EditingSites.bed"
+    # min_known_sites = 5
+    known_sites_df = pd.read_csv(known_sites_bed_file, sep="\t", names="Chrom Start End Name Score Strand".split(), comment="#")
+    known_sites_df = known_sites_df.groupby("Chrom").size().reset_index().rename(columns={0: "KnownSites"}).sort_values("KnownSites", ascending=False)
+    
+    agg_df = agg_df.merge(known_sites_df, how="left")
+    agg_df["KnownSites"] = agg_df["KnownSites"].fillna(0)
+    
     agg_df = agg_df.sort_values(
-        ["CodingGene", "MappedReadsPerSample", "MappedReads", "Samples"],
-        ascending=False,
+        ["KnownSites", "MappedReadsPerSample", "MappedReads", "Samples"], ascending=False
     ).reset_index(drop=True)
+    
 
-    by_gene_df.to_csv(
-        Path(out_dir, "ByGeneRegionBySampleSummary.tsv"), sep="\t", index=False
-    )
+    df.to_csv(Path(out_dir, "ByChromBySampleSummary.tsv"), sep="\t", index=False)
     agg_df.to_csv(
-        Path(out_dir, "AggregatedByGeneBySampleSummary.tsv"), sep="\t", index=False
+        Path(out_dir, "AggregatedByChromBySampleSummary.tsv"), sep="\t", index=False
     )
-
-    # # gather separated-by-chrom bams
-    # # first to main sub-dir
-    # # and then subdir for chrom, containing bams from different samples
-    # by_chrom_samples_dirs = [
-    #     Path(out_dir, f"{sample_name}.ByChrom") for sample_name in samples_names
-    # ]
-    # chroms = {
-    #     f.suffixes[-2].removeprefix(".")
-    #     for by_chrom_sample_dir in by_chrom_samples_dirs
-    #     for f in by_chrom_sample_dir.iterdir()
-    #     if f.suffix.endswith("bam")
-    # }
-
-    # main_by_chrom_dir = Path(out_dir, "ByChrom")
-    # main_by_chrom_dir.mkdir(exist_ok=True)
-
-    # # include_flags = None
-    # # exclude_flags = None
-    # with Pool(processes=processes) as pool:
-    #     by_chrom_dfs = pool.starmap(
-    #         func=gather_by_chrom_bams_and_collect_stats,
-    #         iterable=[
-    #             (
-    #                 samtools_path,
-    #                 main_by_chrom_dir,
-    #                 chrom,
-    #                 samples_names,
-    #                 by_chrom_samples_dirs,
-    #                 interfix,
-    #                 threads,
-    #                 include_flags,
-    #                 exclude_flags,
-    #             )
-    #             for chrom in chroms
-    #         ],
-    #     )
-
-    # # write mapping stats
-    # df = pd.concat(by_chrom_dfs, ignore_index=True)
-
-    # agg_df = (
-    #     df.groupby("Chrom")
-    #     .agg({"MappedReads": sum, "Sample": len})
-    #     .reset_index()
-    #     .rename(columns={"Sample": "Samples"})
-    # )
-    # agg_df["MappedReadsPerSample"] = agg_df["MappedReads"] / agg_df["Samples"]
-
-    # gff_df = read_gff(gff)
-    # exon_conatining_chroms = gff_df.loc[gff_df["Type"] == "exon"][
-    #     "Chrom"
-    # ].drop_duplicates()
-
-    # agg_df = pd.merge(
-    #     agg_df, exon_conatining_chroms, on="Chrom", how="left", indicator=True
-    # ).rename(columns={"_merge": "InExon"})
-    # agg_df["InExon"] = (
-    #     agg_df["InExon"].replace({"both": True, "left_only": False}).astype(bool)
-    # )
-    # agg_df = agg_df.sort_values(
-    #     ["InExon", "MappedReadsPerSample", "MappedReads", "Samples"], ascending=False
-    # ).reset_index(drop=True)
-
-    # df.to_csv(Path(out_dir, "ByChromBySampleSummary.tsv"), sep="\t", index=False)
-    # agg_df.to_csv(
-    #     Path(out_dir, "AggregatedByChromBySampleSummary.tsv"), sep="\t", index=False
-    # )
 
     # run MultiQC on the reports created for each whole aligned file
     multiqc(multiqc_path=multiqc_path, data_dir=out_dir)
 
     # delete the genome's index (it's quite heavy)
     genome_index_file.unlink(missing_ok=True)
+
+
+
+# def pacbio_preprocessed_isoseq_main(
+#     *,
+#     genome: Path,
+#     gff: Path,
+#     in_dir: Path,
+#     postfix: str,
+#     recursive: bool,
+#     out_dir: Path,
+#     base_conda_env_dir: Path,
+#     pb_conda_env_name: str,
+#     pbmm2_path: Path,
+#     best_n_alignments_per_read: int,
+#     processes: int,
+#     threads: int,
+#     samtools_path: Path,
+#     multiqc_path: Path,
+#     # include_flags: Union[int, str, None],
+#     # exclude_flags: Union[int, str, None],
+#     **kwargs,
+# ):
+#     preset = "ISOSEQ"
+#     interfix = ".aligned.sorted"
+
+#     out_dir.mkdir(exist_ok=True)
+
+#     in_files = find_files(in_dir, postfix, recursive)
+#     samples_names = [extract_sample_name(in_file, postfix) for in_file in in_files]
+
+#     genome_index_file = Path(out_dir, f"{genome.name}.mmi")
+
+#     # index genome
+#     pacbio_index_genome(
+#         base_conda_env_dir,
+#         pb_conda_env_name,
+#         pbmm2_path,
+#         genome,
+#         genome_index_file,
+#         preset,
+#         threads,
+#     )
+
+#     gene_regions = get_nonoverlapping_gene_regions(gff)
+#     separate_by_chrom = False
+#     seperate_by_gene = True
+#     include_flags = None
+#     exclude_flags = None
+
+#     # align
+#     with Pool(processes=processes) as pool:
+#         pool.starmap(
+#             func=pacbio_align,
+#             iterable=[
+#                 (
+#                     base_conda_env_dir,
+#                     pb_conda_env_name,
+#                     pbmm2_path,
+#                     preset,
+#                     best_n_alignments_per_read,
+#                     threads,
+#                     genome_index_file,
+#                     in_file,
+#                     Path(out_dir, f"{sample_name}{interfix}.bam"),
+#                     samtools_path,
+#                     out_dir,
+#                     sample_name,
+#                     interfix,
+#                     gene_regions,
+#                     include_flags,
+#                     exclude_flags,
+#                     separate_by_chrom,
+#                     seperate_by_gene,
+#                 )
+#                 for in_file, sample_name in zip(in_files, samples_names)
+#             ],
+#         )
+
+#     be_gene_samples_dirs = [
+#         Path(out_dir, f"{sample_name}.ByGene") for sample_name in samples_names
+#     ]
+
+#     main_by_gene_dir = Path(out_dir, "ByGene")
+#     main_by_gene_dir.mkdir(exist_ok=True)
+
+#     with Pool(processes=processes) as pool:
+#         by_gene_dfs = pool.starmap(
+#             func=gather_by_gene_bams_and_collect_stats,
+#             iterable=[
+#                 (
+#                     samtools_path,
+#                     main_by_gene_dir,
+#                     gene_region,
+#                     samples_names,
+#                     be_gene_samples_dirs,
+#                     interfix,
+#                     threads,
+#                     include_flags,
+#                     exclude_flags,
+#                 )
+#                 for gene_region in gene_regions
+#             ],
+#         )
+
+#     # write mapping stats
+#     by_gene_df = pd.concat(by_gene_dfs, ignore_index=True)
+
+#     chrom_startend = by_gene_df["GeneRegion"].str.split(":", expand=True)
+#     chrom = chrom_startend.iloc[:, 0]
+#     start_end = chrom_startend.iloc[:, 1].str.split("-", expand=True)
+#     start = start_end.iloc[:, 0].astype(int)
+#     end = start_end.iloc[:, 1].astype(int)
+
+#     by_gene_df.insert(by_gene_df.columns.get_loc("GeneRegion") + 1, "Chrom", chrom)
+#     by_gene_df.insert(by_gene_df.columns.get_loc("GeneRegion") + 2, "Start", start)
+#     by_gene_df.insert(by_gene_df.columns.get_loc("GeneRegion") + 3, "End", end)
+
+#     by_gene_df = by_gene_df.sort_values(
+#         ["Chrom", "Start", "End", "Sample"]
+#     ).reset_index(drop=True)
+
+#     mapped_genes_bed3_df = by_gene_df.loc[:, ["Chrom", "Start", "End"]].drop_duplicates(
+#         ignore_index=True
+#     )
+#     mapped_genes_bed3_df["Start"] = mapped_genes_bed3_df["Start"] - 1
+#     mapped_genes_bed3_bedtool = BedTool().from_dataframe(mapped_genes_bed3_df).sort()
+
+#     gff_df = read_gff(gff)
+
+#     exons_gff_df = gff_df.loc[gff_df["Type"] == "exon"]
+#     exons_bed6_df = exons_gff_df.loc[:, ["Chrom", "Start", "End", "Score", "Strand"]]
+#     exons_bed6_df["Start"] = exons_bed6_df["Start"].astype(int) - 1
+#     exons_bed6_df["End"] = exons_bed6_df["End"].astype(int)
+#     exons_bed6_df.insert(exons_bed6_df.columns.get_loc("End") + 1, "Name", ".")
+#     exons_bed6_bedtools = BedTool().from_dataframe(exons_bed6_df)
+
+#     genes_gff_df = gff_df.loc[gff_df["Type"] == "gene"]
+#     genes_bed_df = genes_gff_df.loc[:, ["Chrom", "Start", "End", "Strand"]]
+#     genes_bed_df["Start"] = genes_bed_df["Start"].astype(int)
+#     genes_bed_df["Start"] = genes_bed_df["Start"] - 1
+#     genes_bed_df["End"] = genes_bed_df["End"].astype(int)
+#     genes_bed_df.insert(genes_bed_df.columns.get_loc("End") + 1, "Name", ".")
+#     genes_bed_df.insert(genes_bed_df.columns.get_loc("Name") + 1, "Score", ".")
+#     genes_bedtool = BedTool().from_dataframe(genes_bed_df).sort()
+
+#     mapped_genes_bed6_bedtool = genes_bedtool.intersect(
+#         mapped_genes_bed3_bedtool
+#     ).intersect(  # retain only mapped genes
+#         exons_bed6_bedtools, s=True, c=True
+#     )  # count number in exons in each such gene
+
+#     mapped_genes_df = (
+#         mapped_genes_bed6_bedtool.to_dataframe()
+#         .drop(["name", "score"], axis=1)
+#         .rename(
+#             columns={
+#                 "chrom": "Chrom",
+#                 "start": "Start",
+#                 "end": "End",
+#                 "strand": "Strand",
+#                 "thickStart": "ExonsInGene",
+#             }
+#         )
+#     )
+#     mapped_genes_df["Start"] = mapped_genes_df["Start"] + 1
+
+#     by_gene_df = by_gene_df.merge(mapped_genes_df, on=["Chrom", "Start", "End"])
+#     by_gene_df = reorder_df_by_wanted_cols(
+#         by_gene_df, wanted_first_cols=["GeneRegion", "Chrom", "Start", "End", "Strand"]
+#     )
+
+#     agg_df = (
+#         by_gene_df.groupby(
+#             ["GeneRegion", "Chrom", "Start", "End", "Strand", "ExonsInGene"]
+#         )
+#         .agg({"MappedReads": sum, "Sample": len})
+#         .reset_index()
+#         .rename(columns={"Sample": "Samples"})
+#     )
+#     agg_df["MappedReadsPerSample"] = agg_df["MappedReads"] / agg_df["Samples"]
+#     agg_df["CodingGene"] = agg_df["ExonsInGene"] > 0
+#     agg_df = agg_df.sort_values(
+#         ["CodingGene", "MappedReadsPerSample", "MappedReads", "Samples"],
+#         ascending=False,
+#     ).reset_index(drop=True)
+
+#     by_gene_df.to_csv(
+#         Path(out_dir, "ByGeneRegionBySampleSummary.tsv"), sep="\t", index=False
+#     )
+#     agg_df.to_csv(
+#         Path(out_dir, "AggregatedByGeneBySampleSummary.tsv"), sep="\t", index=False
+#     )
+
+#     # # gather separated-by-chrom bams
+#     # # first to main sub-dir
+#     # # and then subdir for chrom, containing bams from different samples
+#     # by_chrom_samples_dirs = [
+#     #     Path(out_dir, f"{sample_name}.ByChrom") for sample_name in samples_names
+#     # ]
+#     # chroms = {
+#     #     f.suffixes[-2].removeprefix(".")
+#     #     for by_chrom_sample_dir in by_chrom_samples_dirs
+#     #     for f in by_chrom_sample_dir.iterdir()
+#     #     if f.suffix.endswith("bam")
+#     # }
+
+#     # main_by_chrom_dir = Path(out_dir, "ByChrom")
+#     # main_by_chrom_dir.mkdir(exist_ok=True)
+
+#     # # include_flags = None
+#     # # exclude_flags = None
+#     # with Pool(processes=processes) as pool:
+#     #     by_chrom_dfs = pool.starmap(
+#     #         func=gather_by_chrom_bams_and_collect_stats,
+#     #         iterable=[
+#     #             (
+#     #                 samtools_path,
+#     #                 main_by_chrom_dir,
+#     #                 chrom,
+#     #                 samples_names,
+#     #                 by_chrom_samples_dirs,
+#     #                 interfix,
+#     #                 threads,
+#     #                 include_flags,
+#     #                 exclude_flags,
+#     #             )
+#     #             for chrom in chroms
+#     #         ],
+#     #     )
+
+#     # # write mapping stats
+#     # df = pd.concat(by_chrom_dfs, ignore_index=True)
+
+#     # agg_df = (
+#     #     df.groupby("Chrom")
+#     #     .agg({"MappedReads": sum, "Sample": len})
+#     #     .reset_index()
+#     #     .rename(columns={"Sample": "Samples"})
+#     # )
+#     # agg_df["MappedReadsPerSample"] = agg_df["MappedReads"] / agg_df["Samples"]
+
+#     # gff_df = read_gff(gff)
+#     # exon_conatining_chroms = gff_df.loc[gff_df["Type"] == "exon"][
+#     #     "Chrom"
+#     # ].drop_duplicates()
+
+#     # agg_df = pd.merge(
+#     #     agg_df, exon_conatining_chroms, on="Chrom", how="left", indicator=True
+#     # ).rename(columns={"_merge": "InExon"})
+#     # agg_df["InExon"] = (
+#     #     agg_df["InExon"].replace({"both": True, "left_only": False}).astype(bool)
+#     # )
+#     # agg_df = agg_df.sort_values(
+#     #     ["InExon", "MappedReadsPerSample", "MappedReads", "Samples"], ascending=False
+#     # ).reset_index(drop=True)
+
+#     # df.to_csv(Path(out_dir, "ByChromBySampleSummary.tsv"), sep="\t", index=False)
+#     # agg_df.to_csv(
+#     #     Path(out_dir, "AggregatedByChromBySampleSummary.tsv"), sep="\t", index=False
+#     # )
+
+#     # run MultiQC on the reports created for each whole aligned file
+#     multiqc(multiqc_path=multiqc_path, data_dir=out_dir)
+
+#     # delete the genome's index (it's quite heavy)
+#     genome_index_file.unlink(missing_ok=True)
 
 
 def gather_by_gene_bams_and_collect_stats(
@@ -977,12 +1128,19 @@ def define_args() -> argparse.Namespace:
         default=1,
         help="Output at maximum N alignments for each read, 0 means no maximum.",
     )
+    # pacbio_preprocessed_isoseq_parser.add_argument(
+    #     "--gff",
+    #     # required=True,
+    #     type=abs_path_from_str,
+    #     help=("GFF3 annotation file for by-chrom separation of BAM files."),
+    # )
     pacbio_preprocessed_isoseq_parser.add_argument(
-        "--gff",
+        "--known_sites_bed_file",
         required=True,
         type=abs_path_from_str,
-        help=("GFF3 annotation file for by-chrom separation of BAM files."),
+        help=("BED file of known editing sites used for by-chrom separation of BAM files."),
     )
+    
 
     # illumina args
 
