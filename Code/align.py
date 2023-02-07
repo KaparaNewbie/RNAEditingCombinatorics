@@ -922,12 +922,21 @@ def gather_by_chrom_bams_and_collect_stats(
             if not chrom_dir_created:
                 chrom_dir.mkdir(exist_ok=True)
                 chrom_dir_created = True
+
             # # copy the per-sample-per-chrom bam to the per-chrom dir
             # bam_in_region_copy = Path(chrom_dir, bam_in_region.name)
             # copy_bytes(bam_in_region, bam_in_region_copy)
+
             # soft-link the per-sample-per-chrom bam to the per-chrom dir
             bam_in_region_link = Path(chrom_dir, bam_in_region.name)
             bam_in_region_link.symlink_to(bam_in_region)
+            # also link the .bai index file
+            bam_in_region_index = Path(
+                bam_in_region.parent, f"{bam_in_region.name}.bai"
+            )
+            bam_in_region_index_link = Path(chrom_dir, bam_in_region_index.name)
+            bam_in_region_index_link.symlink_to(bam_in_region_index)
+
             # update stats
             _samples_names.append(sample_name)
             _mapped_reads.append(
