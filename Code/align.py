@@ -499,7 +499,6 @@ def pacbio_preprocessed_isoseq_main(
     main_by_chrom_dir = Path(out_dir, "ByChrom")
     main_by_chrom_dir.mkdir(exist_ok=True)
 
-
     with Pool(processes=processes) as pool:
         by_chrom_dfs = pool.starmap(
             func=gather_by_chrom_bams_and_collect_stats,
@@ -532,16 +531,27 @@ def pacbio_preprocessed_isoseq_main(
 
     # known_sites_bed_file = "/private7/projects/Combinatorics/O.vulgaris/Annotations/O.vul.EditingSites.bed"
     # min_known_sites = 5
-    known_sites_df = pd.read_csv(known_sites_bed_file, sep="\t", names="Chrom Start End Name Score Strand".split(), comment="#")
-    known_sites_df = known_sites_df.groupby("Chrom").size().reset_index().rename(columns={0: "KnownSites"}).sort_values("KnownSites", ascending=False)
-    
-    agg_df = agg_df.merge(known_sites_df, how="left")
+    known_sites_df = pd.read_csv(
+        known_sites_bed_file,
+        sep="\t",
+        names="Chrom Start End Name Score Strand".split(),
+        comment="#",
+    )
+    known_sites_per_chrom_df = (
+        known_sites_df.groupby("Chrom")
+        .size()
+        .reset_index()
+        .rename(columns={0: "KnownSites"})
+        .sort_values("KnownSites", ascending=False)
+    )
+
+    agg_df = agg_df.merge(known_sites_per_chrom_df, how="left")
     agg_df["KnownSites"] = agg_df["KnownSites"].fillna(0)
-    
+
     agg_df = agg_df.sort_values(
-        ["KnownSites", "MappedReadsPerSample", "MappedReads", "Samples"], ascending=False
+        ["KnownSites", "MappedReadsPerSample", "MappedReads", "Samples"],
+        ascending=False,
     ).reset_index(drop=True)
-    
 
     df.to_csv(Path(out_dir, "ByChromBySampleSummary.tsv"), sep="\t", index=False)
     agg_df.to_csv(
@@ -553,7 +563,6 @@ def pacbio_preprocessed_isoseq_main(
 
     # delete the genome's index (it's quite heavy)
     genome_index_file.unlink(missing_ok=True)
-
 
 
 # def pacbio_preprocessed_isoseq_main(
@@ -1138,9 +1147,10 @@ def define_args() -> argparse.Namespace:
         "--known_sites_bed_file",
         required=True,
         type=abs_path_from_str,
-        help=("BED file of known editing sites used for by-chrom separation of BAM files."),
+        help=(
+            "BED file of known editing sites used for by-chrom separation of BAM files."
+        ),
     )
-    
 
     # illumina args
 
