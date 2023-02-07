@@ -2387,7 +2387,7 @@ fig.add_trace(
     ),
 )
 
-fig.update_yaxes(type="log")
+# fig.update_yaxes(type="log")
 
 fig.update_layout(
     title_text=head_title,
@@ -2402,6 +2402,194 @@ fig.update_layout(
 fig.write_image("Distinct unique proteins vs. sequencing depth - PacBio.svg", width=650, height=500)
 fig.show()
 
+
+# %%
+distinct_unique_proteins_df["NumOfProteins"].max()
+
+# %%
+np.log10(distinct_unique_proteins_df["NumOfProteins"].max())
+
+# %%
+from math import floor
+
+# %%
+floor(np.log10(distinct_unique_proteins_df["NumOfProteins"].max()))
+
+# %%
+floor(np.log10(x_measured.max()))
+
+# %%
+x_measured.max()
+
+# %%
+x_axis_name = "Reads"
+y_axis_name = "Distinct unique proteins"
+head_title = (
+    "Distinct unique proteins vs. sequencing depth"
+    # "<br>"
+    # # f"<sub>({alg_repetitions * 2} repetitions over each fraction of data)</sub>"
+    # "<sub>(100 repetitions over each fraction of data)</sub>"
+)
+_marker_size = 5
+maximal_x = 0
+
+# Initialize figure with subplots
+fig = make_subplots(
+    rows=1, cols=1, print_grid=False, x_title=x_axis_name, y_title=y_axis_name
+)
+
+max_y = 0
+first_data_trace = True
+
+# Add traces
+for condition in conditions:
+
+    df = distinct_unique_proteins_df.loc[
+        (distinct_unique_proteins_df[condition_col] == condition) &
+        (distinct_unique_proteins_df["Algorithm"] == "Descending")
+    ]
+    color = color_discrete_map[condition]
+    name = condition
+    
+    x_measured = df["NumOfReads"]
+    y_measured = df["NumOfProteins"]
+    
+    max_y = max(max_y, y_measured.max())
+
+    if first_data_trace:
+        fig.add_trace(
+            go.Scatter(
+                x=x_measured,
+                y=y_measured,
+                mode="markers",
+                # marker=dict(color=subcolors_discrete_map[condition][0], size=_marker_size),
+                marker=dict(color=color, 
+                            size=_marker_size, 
+                            # symbol=symbol,
+                #             line=dict(
+                #     width=2,
+                #     # color=line_color
+                # )
+                           ),
+                legendgroup="Full-CDS, PacBio",  # this can be any string
+                legendgrouptitle_text="Full-CDS, PacBio",
+                name=name
+            ),
+        )
+        first_data_trace = False
+    else:
+        fig.add_trace(
+            go.Scatter(
+                x=x_measured,
+                y=y_measured,
+                mode="markers",
+                # marker=dict(color=subcolors_discrete_map[condition][0], size=_marker_size),
+                marker=dict(color=color, 
+                            size=_marker_size,
+                            # symbol=symbol, 
+                #             line=dict(
+                #     width=2,
+                #     # color=line_color
+                # )
+                           ),
+                legendgroup="Full-CDS, PacBio",  # this can be any string
+                name=name
+            ),
+        )
+
+    grouped_df = df.groupby("Fraction")
+    x_fraction_mean = grouped_df["NumOfReads"].mean().reset_index()
+    y_fraction_mean = grouped_df["NumOfProteins"].mean().reset_index()
+    mean_fraction_df = x_fraction_mean.merge(y_fraction_mean, on="Fraction")
+
+    maximal_x = max(maximal_x, x_measured.max())
+
+    fig.add_trace(
+        go.Scatter(
+            x=mean_fraction_df["NumOfReads"],
+            y=mean_fraction_df["NumOfProteins"],
+            mode="lines",
+            # marker=dict(color=subcolors_discrete_map[condition][0], size=_marker_size),
+            line=dict(
+                color=color, 
+                width=_marker_size*.2, 
+            ),
+            opacity=0.5,
+            showlegend=False,
+        ),
+    )
+
+dscam_ys = [19_008, 18_496, ]
+dscam_legend_names = ["Theoretical maximum", "Measured", ]
+# dscam_legend_names = ["measured", "theoretical maximum"]
+dscam_colors = ["grey", "black"]
+fig.add_trace(
+    go.Scatter(
+        x=[0.05 * maximal_x, 1.05 * maximal_x],
+        y=[dscam_ys[0], dscam_ys[0]],
+        mode="lines",
+        line=dict(
+            color=dscam_colors[0],
+            dash="dash",
+            # width=3
+        ),
+        legendgroup="DSCAM",  # this can be any string
+        legendgrouptitle_text="DSCAM",
+        name=dscam_legend_names[0],
+        # name=f"DSCAM {dscam_legend_names[1]}",
+    ),
+)
+fig.add_trace(
+    go.Scatter(
+        x=[0.05 * maximal_x, 1.05 * maximal_x],
+        y=[dscam_ys[1], dscam_ys[1]],
+        mode="lines",
+        line=dict(
+            color=dscam_colors[1],
+            dash="dash",
+            # width=3
+        ),
+        legendgroup="DSCAM",  # this can be any string
+        name=dscam_legend_names[1],
+        # name=f"DSCAM {dscam_legend_names[0]}",
+    ),
+)
+
+fig.update_yaxes(
+    # type="log",
+    # # tick0=0,
+    # dtick="D2",
+    # # exponentformat="power",
+    # showexponent='all',
+    # range=[0, (floor(np.log10(max_y)) + ceil(np.log10(max_y))) / 2],
+    range=[0, max_y*1.2],
+    # zeroline=True
+)
+fig.update_layout(
+    title_text=head_title,
+    template=template,
+    # legend_font=dict(size=8),
+    # legend_grouptitlefont=dict(size=8),
+    # legend_tracegroupgap=4,
+    # width=100*maximal_x/10
+    height=600,
+    width=1000
+)
+fig.write_image("Distinct unique proteins vs. sequencing depth - Flash talk - PacBio.svg", width=650, height=500)
+fig.show()
+
+
+# %%
+np.log10(max_y*2)
+
+# %%
+floor(np.log10(max_y))
+
+# %%
+ceil(np.log10(max_y))
+
+# %%
+(floor(np.log10(max_y)) + ceil(np.log10(max_y))) / 2
 
 # %% [markdown]
 # ### NaNs distribution
@@ -5687,8 +5875,8 @@ top_1000_kmodes_clusters_2 = [
 
 # %%
 fig = px.scatter(
-    x=cluster_sizes,
-    y=top_1000_kmodes_sumofsq,
+    x=cluster_sizes+cluster_sizes_2,
+    y=top_1000_kmodes_sumofsq+top_1000_kmodes_sumofsq_2,
     template=template,
     labels={
         "x": "Number of clusters (k)",
@@ -6521,43 +6709,60 @@ top_100_combinatorics_df = (
 top_100_combinatorics_df
 
 # %%
-data = top_100_combinatorics_df.values
-
-fig = px.imshow(
-    data,
-    labels=dict(x="", y="Top 100 expressed proteins", color=""),
-    # range_color=[0.0, 1.0],
-    # color_continuous_scale=[
-    #     (0.0, "red"), (0.5, "red"),
-    #     (0.5, "blue"), (1.0, "blue")
-    # ]
-    range_color=[-1.0, 1.0],
-    color_continuous_scale=[
-        
-        (0.0, "red"), (0.5, "red"),
-        (0.5, "blue"), (1.0, "blue")
-    ]
-)
-
-fig.update_layout(
-    height=900,
-    width=650,
-    template=template,
-    coloraxis_colorbar=dict(
-        title="Non-syn change?",
-        tickmode="array",
-        tickvals=[1, 2],
-        ticktext=["Yes", "No"],
-        # lenmode="pixels", 
-        len=0.3,
-    )
-)
-
-fig.show()
+print("ho")
 
 # %%
-import plotly.io as pio
-list(pio.templates)
+data = top_100_combinatorics_df.replace(0, 0.5).replace(-1, 0).values
+
+fig = go.Figure(
+    go.Heatmap(
+        z=data,
+        y=top_100_combinatorics_df.index+1,
+        # x=
+        # colorscale=[
+        #     [0, "rgb(192,192,192)"],
+        #     [0.5, "black"],
+        #     [1.0, "rgb(74,246,38)"]
+        # ],
+        # colorscale=[
+        #     [0, "rgb(192,192,192)"], [0.33, "rgb(192,192,192)"],
+        #     [0.33, "black"], [0.66, "black"],
+        #     [0.66, "rgb(74,246,38)"], [1.0, "rgb(74,246,38)"]
+        # ],
+        colorscale=[
+            [0, "rgb(192,192,192)"], [0.3, "rgb(192,192,192)"],
+            [0.375, "black"], [0.625, "black"],
+            [0.7, "rgb(74,246,38)"], [1.0, "rgb(74,246,38)"]
+        ],
+        colorbar=dict(
+            title="Non-syn change?",
+            # tick0=0,
+            # dtick=1,
+            tickmode="array",
+            tickvals=[0.15, 0.5, 0.85],
+            # tickvals=[1, 2, 3],
+            ticktext=["Missing", "No", "Yes"],
+            len=0.3,
+        )
+    )
+)
+fig.update_xaxes(title="Editable amino acids", side="top", showticklabels=False)
+fig.update_yaxes(
+    title="Top 100 expressed proteins<br>in PCLO",
+    autorange="reversed",
+    tick0=1,
+    range=[1, 100]
+)
+fig.update_layout(
+    height=700,
+    width=650,
+    template=template,
+    font_size=16
+)
+
+fig.write_image("Combinatorics of top 100 expressed proteins in PCLO - Flash talk - PacBio.svg", width=650, height=700)
+
+fig.show()
 
 # %% [markdown] tags=[] toc-hr-collapsed=true
 # ## Editing in reads

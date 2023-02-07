@@ -2198,6 +2198,146 @@ fig.write_image(
 fig.show()
 
 
+# %%
+x_axis_name = "Reads"
+y_axis_name = "Distinct unique proteins"
+head_title = (
+    "Distinct unique proteins vs. sequencing depth"
+    # "<br>"
+    # # f"<sub>({alg_repetitions * 2} repetitions over each fraction of data)</sub>"
+    # "<sub>(100 repetitions over each fraction of data)</sub>"
+)
+_marker_size = 7
+maximal_x = 0
+
+# Initialize figure with subplots
+fig = make_subplots(
+    rows=1, cols=1, print_grid=False, x_title=x_axis_name, y_title=y_axis_name
+)
+
+first_data_trace = True
+
+# Add traces
+for col, condition in enumerate(conditions, start=1):
+
+    df = distinct_unique_proteins_df.loc[
+        distinct_unique_proteins_df[condition_col] == condition
+    ]
+    x_measured = df["NumOfReads"]
+    y_measured = df["NumOfProteins"]
+
+    if first_data_trace:
+        fig.add_trace(
+            go.Scatter(
+                x=x_measured,
+                y=y_measured,
+                mode="markers",
+                marker=dict(
+                    color=subcolors_discrete_map[condition][0], size=_marker_size
+                ),
+                legendgroup="Partial-CDS, Illumina",  # this can be any string
+                legendgrouptitle_text="Partial-CDS, Illumina",
+                # name="Measured",
+                name=condition,
+            ),
+        )
+        first_data_trace = False
+    else:
+        fig.add_trace(
+            go.Scatter(
+                x=x_measured,
+                y=y_measured,
+                mode="markers",
+                marker=dict(
+                    color=subcolors_discrete_map[condition][0], size=_marker_size
+                ),
+                legendgroup="Partial-CDS, Illumina",  # this can be any string
+                name=condition,
+            ),
+        )
+
+    grouped_df = df.groupby("Fraction")
+    x_fraction_mean = grouped_df["NumOfReads"].mean().reset_index()
+    y_fraction_mean = grouped_df["NumOfProteins"].mean().reset_index()
+    mean_fraction_df = x_fraction_mean.merge(y_fraction_mean, on="Fraction")
+
+    fig.add_trace(
+        go.Scatter(
+            x=mean_fraction_df["NumOfReads"],
+            y=mean_fraction_df["NumOfProteins"],
+            mode="lines",
+            marker=dict(color=subcolors_discrete_map[condition][0], size=_marker_size),
+            showlegend=False,
+        ),
+    )
+
+    maximal_x = max(maximal_x, x_measured.max())
+
+dscam_ys = [
+    19_008,
+    18_496,
+]
+dscam_legend_names = [
+    "Theoretical maximum",
+    "Measured",
+]
+# dscam_legend_names = ["measured", "theoretical maximum"]
+dscam_colors = ["grey", "black"]
+fig.add_trace(
+    go.Scatter(
+        x=[0.05 * maximal_x, 1.05 * maximal_x],
+        y=[dscam_ys[0], dscam_ys[0]],
+        mode="lines",
+        line=dict(
+            color=dscam_colors[0],
+            dash="dash",
+            # width=3
+        ),
+        legendgroup="DSCAM",  # this can be any string
+        legendgrouptitle_text="DSCAM",
+        name=dscam_legend_names[0],
+        # name=f"DSCAM {dscam_legend_names[1]}",
+    ),
+)
+fig.add_trace(
+    go.Scatter(
+        x=[0.05 * maximal_x, 1.05 * maximal_x],
+        y=[dscam_ys[1], dscam_ys[1]],
+        mode="lines",
+        line=dict(
+            color=dscam_colors[1],
+            dash="dash",
+            # width=3
+        ),
+        legendgroup="DSCAM",  # this can be any string
+        name=dscam_legend_names[1],
+        # name=f"DSCAM {dscam_legend_names[0]}",
+    ),
+)
+
+# fig.update_xaxes(type="log")
+# fig.update_yaxes(type="log")
+
+fig.update_layout(
+    title_text=head_title,
+    # legend_title_text=condition_col,
+    # legend_title_text="Partial-CDS, Illumina",
+    template=template,
+    # legend_font=dict(size=8),
+    # legend_grouptitlefont=dict(size=8),
+    # legend_tracegroupgap=4,
+    width=900,
+    height=650,
+)
+# fig.write_image("Distinct unique proteins vs. sequencing depth - Illumina.png", format='png',engine='kaleido')
+fig.write_image(
+    "Distinct unique proteins vs. sequencing depth - Flash Talk - Illumina.svg",
+    width=900,
+    height=650,
+)
+fig.show()
+
+
 # %% [markdown]
 # ### NaNs distribution
 
