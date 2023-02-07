@@ -422,6 +422,70 @@ prefix = "gene_models.chromosomer."
 divide_to_files_by_type(gff3_file, out_dir, prefix)
 ```
 
+Aligning O.vul's gegome against D.pea's transcriptome, using tblastn, to find O.vul's 
+editing sites based on the already known D.pea's ones.
+
+
+```
+COMB && cd O.vulgaris/Annotations/tblastn.chromosomer.D.pea
+
+head -n 50107 chromosomer.fa > chromosomer.test.fa
+samtools faidx chromosomer.test.fa
+
+makeblastdb \
+-in orfs_squ.fa \
+-dbtype nucl \
+-parse_seqids \
+-title orfs_squ.NucDB \
+-out orfs_squ.NucDB
+
+
+tblastx \
+-query chromosomer.test.fa \
+-db orfs_squ.NucDB \
+-out TBlastX.Results.test.tsv \
+-outfmt "6 qaccver saccver pident length qframe mismatch gapopen qstart qend sstart send evalue bitscore" \
+-num_threads 20 \
+-evalue 1e-6
+```
+
+
+
+
+```bash
+nohup \
+python Code/known_sites_alignment.py \
+> O.vulgaris/Annotations/known_sites_alignment.out &
+```
+* alu 17
+* 19.01.2023
+* 17:31
+* 19063
+
+
+We change direction and use the known vulgaris site in the transcriptome.
+
+```bash
+mv O.vulgaris/Annotations O.vulgaris/GenomicAnnotations
+
+mkdir O.vulgaris/Annotations 
+cd O.vulgaris/Annotations 
+wget https://www.tau.ac.il/~elieis/squid/orfs_oct.fa
+samtools faidx orfs_oct.fa
+
+wget https://www.tau.ac.il/~elieis/squid/editing_sites.xlsx
+
+cd -  # return to the main dir of the project
+
+python \
+Code/parse_known_sites.py \
+--editing_sites_excel_file O.vulgaris/Annotations/editing_sites.xlsx \
+--sheet_name "O.vul Editing sites" \
+--out_csv_file O.vulgaris/Annotations/O.vul.EditingSites.csv \
+--out_bed_file O.vulgaris/Annotations/O.vul.EditingSites.bed
+```
+
+
 ## O.vulgaris Iso-Seq data
 
 
@@ -732,8 +796,28 @@ pacbio_preprocessed_isoseq \
 
 
 
+Re-aligning using the transcriptomic data.
 
+```bash
+mv O.vulgaris/Alignment O.vulgaris/GenomicAlignment
 
+mkdir -p O.vulgaris/Alignment/PRJNA791920/IsoSeq
+
+nohup \
+python Code/align.py \
+--genome O.vulgaris/Annotations/orfs_oct.fa \
+--in_dir O.vulgaris/Data/PRJNA791920/IsoSeq/Raw \
+--out_dir O.vulgaris/Alignment/PRJNA791920/IsoSeq \
+--processes 7 \
+--threads 10 \
+pacbio_preprocessed_isoseq \
+--known_sites_bed_file O.vulgaris/Annotations/O.vul.EditingSites.bed \
+> O.vulgaris/Alignment/PRJNA791920/IsoSeq/align.6.2.23.out &
+```
+* alu 13
+* 6.2.23
+* 20:26
+* 29390
 
 
 
