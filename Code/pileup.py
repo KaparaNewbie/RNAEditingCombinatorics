@@ -29,28 +29,28 @@ from Pileup.proteins import proteins_and_unique_proteins
 DataFrameOrSeries = Union[pd.DataFrame, pd.Series]
 
 
-def summarize(
-    *,
-    out_dir: Path,
-    template_transcripts_notebook: Path,
-    executed_transcripts_notebook_base_name: str,
-    reads_files: list[Path],
-    transcripts_files: list[Path],
-    condition_col: str,
-    conditions: list[str],
-):
+# def summarize(
+#     *,
+#     out_dir: Path,
+#     template_transcripts_notebook: Path,
+#     executed_transcripts_notebook_base_name: str,
+#     reads_files: list[Path],
+#     transcripts_files: list[Path],
+#     condition_col: str,
+#     conditions: list[str],
+# ):
 
-    execute_notebook(
-        template_transcripts_notebook,
-        out_dir,
-        executed_transcripts_notebook_base_name,
-        reads_files=[str(reads_file) for reads_file in reads_files],
-        transcripts_files=[
-            str(transcripts_file) for transcripts_file in transcripts_files
-        ],
-        condition_col=condition_col,
-        conditions=conditions,
-    )
+#     execute_notebook(
+#         template_transcripts_notebook,
+#         out_dir,
+#         executed_transcripts_notebook_base_name,
+#         reads_files=[str(reads_file) for reads_file in reads_files],
+#         transcripts_files=[
+#             str(transcripts_file) for transcripts_file in transcripts_files
+#         ],
+#         condition_col=condition_col,
+#         conditions=conditions,
+#     )
 
 
 def main(
@@ -79,7 +79,7 @@ def main(
     samtools_path: Path,
     processes: int,
     threads: int,
-    transcripts_notebook_template: Path,
+    # transcripts_notebook_template: Path,
     min_rq: Union[float, None],
     min_bq: int,
     out_files_sep: str,
@@ -297,28 +297,6 @@ def main(
             ],
         )
 
-    # todo uncomment later for part 7
-    # proteins_dfs = [x[0] for x in proteins_and_unique_proteins_dfs]
-    # unique_proteins_dfs = [x[1] for x in proteins_and_unique_proteins_dfs]
-
-    # 7 - find compatible reads & proteins with julia
-
-    # todo
-
-    # 8 - run summary notebook
-
-    # todo
-
-    # summarize(
-    #     out_dir=out_dir,
-    #     template_transcripts_notebook=transcripts_notebook_template,
-    #     executed_transcripts_notebook_base_name=f"ReadsAndTranscripts",
-    #     reads_files=reads_files,
-    #     transcripts_files=unique_reads_files,
-    #     condition_col=group_col,
-    #     conditions=groups,
-    # )
-
 
 def define_args() -> argparse.Namespace:
 
@@ -461,12 +439,12 @@ def define_args() -> argparse.Namespace:
     parser.add_argument(
         "--threads", type=int, default=10, help="Threads used in each process."
     )
-    parser.add_argument(
-        "--transcripts_notebook_template",
-        default=Path("Code/Notebooks/transcripts_w_cond_w_nan.ipynb").absolute(),
-        type=abs_path_from_str,
-        help="Summary notebook template file.",
-    )
+    # parser.add_argument(
+    #     "--transcripts_notebook_template",
+    #     default=Path("Code/Notebooks/transcripts_w_cond_w_nan.ipynb").absolute(),
+    #     type=abs_path_from_str,
+    #     help="Summary notebook template file.",
+    # )
     parser.add_argument(
         "--min_rq",
         # default=0.99,
