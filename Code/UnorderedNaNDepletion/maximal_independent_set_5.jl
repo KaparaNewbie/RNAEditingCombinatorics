@@ -240,8 +240,17 @@ function main()
     @info "$(loggingtime())\tmain" delim prefix_to_remove postfix_to_remove postfix_to_add idcol firstcolpos datatype outdir fracstep maxfrac fracrepetitions algrepetitions testfraction randseed run_solve_threaded sortresults algs gcp shutdowngcp
 
     # do the thing for each file, in ascending order of file size
+    
     sort!(infiles, by=(x -> filesize(x)))
-    samplesnames = map(x -> replace(splitdir(x)[2], prefix_to_remove => "", postfix_to_remove => ""), infiles)
+    if prefix_to_remove != "" && postfix_to_remove != ""
+        samplesnames = map(x -> replace(splitdir(x)[2], prefix_to_remove => "", postfix_to_remove => ""), infiles)
+    elseif prefix_to_remove != ""
+        samplesnames = map(x -> replace(splitdir(x)[2], prefix_to_remove => ""), infiles)
+    elseif postfix_to_remove != ""
+        samplesnames = map(x -> replace(splitdir(x)[2], postfix_to_remove => ""), infiles)
+    else
+        samplesnames = map(x -> splitdir(x)[2], infiles)
+    end
 
     # logfile = joinpath(outdir, "log.$(writingtime()).txt")
     # run(`touch $logfile`)
