@@ -245,11 +245,12 @@ end
 
 "Get indices of eligible solutions from `distinctdf` on which expression levels should be calculated."
 function choosesolutions(distinctdf, fractions, algs, onlymaxdistinct)
-    _distinctdf = subset(
-        distinctdf, 
-        "Fraction" => x -> x .∈ fractions,  # keep only solutions of desired fractions
-        "Algorithm" => x -> occursin.(x, algs) # keep only solutions of desired algortihms
-    )
+    # _distinctdf = subset(
+    #     distinctdf, 
+    #     "Fraction" => x -> x .∈ fractions,  # keep only solutions of desired fractions
+    #     "Algorithm" => x -> occursin.(x, algs) # keep only solutions of desired algortihms
+    # )
+    _distinctdf = distinctdf[in.(distinctdf.Algorithm, Ref(algs)) .& in.(distinctdf.Fraction, Ref(fractions)), :]
 
     if onlymaxdistinct
         maxdistinct = maximum(_distinctdf[!, "NumUniqueSamples"])
@@ -537,26 +538,23 @@ end
 
 
 # distinctfiles = [
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/comp141881_c0_seq3.DistinctUniqueProteins.12.07.2022-20:54:38.csv",
-# ]
-# samplenames = [
-#     "RUSC2_MOUSE",
-# ]
-# chroms = [
-#     "comp141881_c0_seq3",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.DistinctUniqueProteins.03.03.2023-15:36:38.csv"
 # ]
 # allprotsfiles = [
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.$chrom.unique_proteins.csv"
-#     for chrom in chroms
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
 # ]
-# outdir = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina"
+# samplenames = [
+#     "GRIA",
+# ]
+# outdir = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3"
 
 
 # # input
 
-# distinctfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA.AllRows.DistinctUniqueProteins.csv"
-# allprotsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv"
+# distinctfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.DistinctUniqueProteins.03.03.2023-15:36:38.csv"
+# allprotsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
 # samplename = "GRIA"
+# outdir = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3"
 # postfix_to_add = ""
 
 # firstcolpos = 15
@@ -566,13 +564,82 @@ end
 # falsestrings = ["FALSE", "False", "false"]
 # fractions = [1.0]
 # maxmainthreads = 30
-# outdir = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2"
+# algs = ["Ascending", "Descending"]
+# onlymaxdistinct = false
 
 
-# # # run_sample
+# # # # run_sample
 
-# distinctdf = prepare_distinctdf(distinctfile, delim, innerdelim, truestrings, falsestrings)
+# distinctdf = prepare_distinctdf(
+#     distinctfile, delim, innerdelim, truestrings, falsestrings
+# )
 
+# # considering only desired solutions (rows' indices)
+# # solutions = distinctdf[:, "Index"]
+
+# _distinctdf1 = subset(
+#     distinctdf, 
+#     "Fraction" => x -> x .∈ fractions,  # keep only solutions of desired fractions
+#     # "Algorithm" => x -> occursin.(x, algs) # keep only solutions of desired algortihms
+# )
+
+# occursin.("Ascending", Ref(algs))
+# occursin.("Ascending", algs)
+# any(occursin.("Ascending", algs))
+
+# _distinctdf2 = subset(
+#     distinctdf, 
+#     # "Algorithm" => x -> occursin.(x, algs) # keep only solutions of desired algortihms
+#     "Algorithm" => x -> occursin.(x, Ref(algs)) # keep only solutions of desired algortihms
+#     # "Algorithm" => x -> any(occursin.(x, algs)) # keep only solutions of desired algortihms
+# )
+
+# subset(
+#     distinctdf[!, ["Algorithm"]],
+#     # "Algorithm" => x -> any(occursin.(x, algs)) # keep only solutions of desired algortihms
+#     "Algorithm" => x -> occursin.(x, algs) # keep only solutions of desired algortihms
+#     # "Algorithm" => x -> x .∈ algs # keep only solutions of desired algortihms
+# )
+
+
+
+
+# df = DataFrame(
+#     Algorithm = ["Ascending", "Ascending", "Naive", "Naive", "Descending", "Descending"],
+#     Fraction = [0.5, 1.0, 0.5, 1.0, 0.5, 1.0]
+# )
+# algs = ["Ascending", "Descending"]
+# fractions = [1.0]
+# # subset(
+# #     df,
+# #     "Algorithm" => x -> any(occursin.(x, algs)) # keep only solutions of desired algortihms
+# #     # "Algorithm" => x -> occursin.(x, algs) # keep only solutions of desired algortihms
+# #     # "Algorithm" => x -> x .∈ algs # keep only solutions of desired algortihms
+# # )
+
+# in.(df.Algorithm, Ref(algs))
+# in.(df.Fraction, Ref(fractions))
+
+# in.(df.Algorithm, Ref(algs)) .& in.(df.Fraction, Ref(fractions))
+
+# df[in.(df.Algorithm, Ref(algs)) .& in.(df.Fraction, Ref(fractions)), :]
+
+# occursin.("Ascending", algs)
+
+
+# a = [true, false]
+# b = [true, true]
+# a .& b
+# a .| b
+
+# _distinctdf = subset(
+#     distinctdf, 
+#     "Fraction" => x -> x .∈ fractions,  # keep only solutions of desired fractions
+#     "Algorithm" => x -> occursin.(x, algs) # keep only solutions of desired algortihms
+# )
+
+
+# solutions = choosesolutions(distinctdf, fractions, algs, onlymaxdistinct)
 
 # # considering only solutions of desired fractions
 
