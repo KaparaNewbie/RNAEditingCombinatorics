@@ -421,7 +421,10 @@ def define_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--parity", help="Parity of the reads.", choices=["SE", "se", "PE", "pe"]
+        "--parity",
+        help="Parity of the reads.",
+        choices=["SE", "se", "PE", "pe"],
+        required=True,
     )
     parser.add_argument("--out_dir", type=abs_path_from_str, required=True)
     parser.add_argument(
