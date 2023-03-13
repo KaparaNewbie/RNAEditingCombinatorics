@@ -58,7 +58,8 @@ def mpileup(
         mpileup_cmd += f"--excl-flags {exclude_flags} "  # 2304 (default) = remove secondary and supplementary (chimeric) alignments
     if min_bq:
         mpileup_cmd += f"--min-BQ {min_bq} "
-    mpileup_cmd += f"{in_bam} --output {out_file} "
+    # mpileup_cmd += f"{in_bam} --output {out_file} "
+    mpileup_cmd += f"--output {out_file} {in_bam}"
 
     ic(mpileup_cmd)
 
