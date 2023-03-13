@@ -11,6 +11,7 @@ import argparse
 from multiprocessing import Pool
 from pathlib import Path
 from typing import Union
+from collections import defaultdict
 
 import pandas as pd
 import numpy as np
@@ -21,10 +22,10 @@ from General.argparse_utils import abs_path_from_str, expanded_path_from_str
 from EditingUtils.summary_utils import execute_notebook
 from Alignment.alignment_utils import filter_bam_by_read_quality
 from Pileup.mpileup import mpileup
-from Pileup.positions import pileup_to_positions
+from Pileup.positions import pileup_to_positions, multisample_pileups_to_positions
 from Pileup.reads import reads_and_unique_reads
 from Pileup.proteins import proteins_and_unique_proteins
-
+from icecream import ic
 
 DataFrameOrSeries = Union[pd.DataFrame, pd.Series]
 
@@ -53,35 +54,26 @@ DataFrameOrSeries = Union[pd.DataFrame, pd.Series]
 #     )
 
 
-def pacbio_preprocessed_isoseq_pre_main(
+def undirected_sequencing_main(
     *,
     transcriptome: Path,
-    # data_table: Path,
-    # data_table_sep: str,
     samples_table: Path,
     samples_table_sep: str,
     sample_col: str,
     group_col: str,
-    # region_col: str,
-    # start_col: str,
-    # end_col: str,
-    # strand_col: str,
-    # path_col: str,
-    # prob_regions_bed_col: str,
     known_editing_sites: Path,
     cds_regions: Path,
     min_percent_of_max_coverage: float,
-    # snp_noise_level: float,
-    # top_x_noisy_positions: int,
-    # assurance_factor: float,
     include_flags: str,
     exclude_flags: str,
     parity: str,
+    snp_noise_level: float,
+    top_x_noisy_positions: int,
+    assurance_factor: float,
     out_dir: Path,
     samtools_path: Path,
     processes: int,
     threads: int,
-    # transcripts_notebook_template: Path,
     min_rq: Union[float, None],
     min_bq: int,
     out_files_sep: str,
@@ -95,6 +87,8 @@ def pacbio_preprocessed_isoseq_pre_main(
     main_by_chrom_dir: Path,
     postfix: str,
     interfix_start: str,
+    remove_non_refbase_noisy_positions: bool,
+    **kwargs,
 ):
     out_dir.mkdir(exist_ok=True)
 
@@ -107,7 +101,9 @@ def pacbio_preprocessed_isoseq_pre_main(
         comment="#",
     )
     samples_df = pd.read_csv(samples_table, sep=samples_table_sep)
-    sample_to_group_dict = {row[sample_col]: row[group_col] for _, row in samples_df.iterrows()}
+    sample_to_group_dict = {
+        row[sample_col]: row[group_col] for _, row in samples_df.iterrows()
+    }
     alignments_stats_df = pd.read_csv(
         alignments_stats_table, sep=alignments_stats_table_sep
     )
@@ -116,20 +112,13 @@ def pacbio_preprocessed_isoseq_pre_main(
         & (alignments_stats_df["MappedReadsPerSample"] >= min_mapped_reads_per_sample)
         & (alignments_stats_df["KnownSites"] >= min_known_sites)
     ]
-    
+
     alignments_stats_df = alignments_stats_df.merge(cds_df, how="left")
 
-    # samples = data_table[
-    #     sample_col
-    # ].tolist()  # needed if there are number of samples in each group
-    # groups = [str(group) for group in data_table[group_col]]
-    # regions = data_table[region_col].tolist()
-    # starts = data_table[start_col].tolist()
-    # ends = data_table[end_col].tolist()
-    # strands = data_table[strand_col].tolist()
-    #
+    # test_chroms = "comp183313_c0_seq12, comp162994_c0_seq1, comp183909_c0_seq7, comp181233_c0_seq10, comp183670_c0_seq3, comp183256_c0_seq35, comp183782_c0_seq5, comp183377_c0_seq11, comp181723_c2_seq2, comp169467_c0_seq1, comp183713_c0_seq9"
 
     chroms = []
+    strands = []
     swissprot_names = []
     samples = []
     groups = []
@@ -138,21 +127,26 @@ def pacbio_preprocessed_isoseq_pre_main(
     pileup_formatted_regions = []
     orfs_strands = []
     bam_files = []
-
     for _, row in alignments_stats_df.iterrows():
         chrom = row["Chrom"]
+        
+        # if chrom not in test_chroms:
+        #     continue
+        
         swissprot_name = row["Name"]
         start = row["Start"]
         end = row["End"]
         strand = row["Strand"]
-        region =  f"{region}:{start+1}-{end}"
+        region = f"{chrom}:{start+1}-{end}"
         bams_in_chrom = list(
             Path(main_by_chrom_dir, chrom).glob(f"*{postfix}")
         )  # should be something like `*.bam`
         for bam_in_chrom in bams_in_chrom:
-            sample = bam_in_chrom.stem[:bam_in_chrom.stem.index[interfix_start]]
+            # ic(bam_in_chrom)
+            sample = bam_in_chrom.stem[: bam_in_chrom.stem.index(interfix_start)]
             group = sample_to_group_dict[sample]
             chroms.append(chrom)
+            strands.append(strand)
             swissprot_names.append(swissprot_name)
             samples.append(sample)
             groups.append(group)
@@ -186,32 +180,132 @@ def pacbio_preprocessed_isoseq_pre_main(
         Path(pileup_dir, f"{sample}.{chrom}.pileup")
         for sample, chrom in zip(samples, chroms)
     ]
-    
+
+    # todo uncomment
+    # with Pool(processes=processes) as pool:
+    #     pool.starmap(
+    #         func=mpileup,
+    #         iterable=[
+    #             (
+    #                 samtools_path,
+    #                 transcriptome,
+    #                 region,
+    #                 include_flags,
+    #                 exclude_flags,
+    #                 min_bq,
+    #                 in_bam,
+    #                 out_pileup,
+    #                 threads,
+    #             )
+    #             for region, in_bam, out_pileup in zip(
+    #                 pileup_formatted_regions,
+    #                 filtered_bam_files,
+    #                 pileup_files,
+    #             )
+    #         ],
+    #     )
+
+    compression_postfix = ".gz" if gz_compression else ""
+
+    # 4 - pileup files -> positions dfs
+
+    unique_chroms = set(chroms)
+    # unique_samples = set(samples)
+
+    positions_dir = Path(out_dir, "PositionsFiles")
+    # positions_dir = Path(out_dir, "PositionsFilesTest") # todo revert to old, regular name of this dir
+    positions_dir.mkdir(exist_ok=True)
+
+    reads_mapping_files = [
+        Path(positions_dir, f"{chrom}.OldToNewReads.csv{compression_postfix}")
+        for chrom in unique_chroms
+    ]
+    positions_files = [
+        Path(positions_dir, f"{chrom}.positions.csv{compression_postfix}")
+        for chrom in unique_chroms
+    ]
+
+    # pileup_files_per_chroms = [
+    #     [Path(pileup_dir, f"{sample}.{chrom}.pileup") for sample in unique_samples]
+    #     for chrom in unique_chroms
+    # ]
+
+    pileup_files_per_chroms = defaultdict(list)
+    samples_per_chroms = defaultdict(list)
+    for sample, chrom, pileup_file in zip(samples, chroms, pileup_files):
+        pileup_files_per_chroms[chrom].append(pileup_file)
+        samples_per_chroms[chrom].append(sample)
+
+    orf_strand_per_chrom = {chrom: strand for chrom, strand in zip(chroms, strands)}
+
+    prob_regions_bed = None  # we don't deal with individual "problamitic" sites in such large scale analysis
+
+    denovo_detection = True
+
     with Pool(processes=processes) as pool:
         pool.starmap(
-            func=mpileup,
+            func=multisample_pileups_to_positions,
             iterable=[
                 (
-                    samtools_path,
-                    transcriptome,
-                    region,
-                    include_flags,
-                    exclude_flags,
-                    min_bq,
-                    in_bam,
-                    out_pileup,
-                    threads,
+                    pileup_files_per_chroms[chrom],
+                    samples_per_chroms[chrom],
+                    orf_strand_per_chrom[chrom],
+                    min_percent_of_max_coverage,
+                    snp_noise_level,
+                    top_x_noisy_positions,
+                    assurance_factor,
+                    prob_regions_bed,
+                    known_editing_sites,
+                    cds_regions,
+                    positions_file,
+                    reads_mapping_file,
+                    out_files_sep,
+                    keep_pileup_files,
+                    remove_non_refbase_noisy_positions,
+                    denovo_detection,
                 )
-                for region, in_bam, out_pileup in zip(
-                    pileup_formatted_regions,
-                    filtered_bam_files,
-                    pileup_files,
+                for reads_mapping_file, chrom, positions_file in zip(
+                    reads_mapping_files, unique_chroms, positions_files
+                )
+            ],
+        )
+
+    # 5 - positions dfs -> reads & unique reads dfs
+
+    reads_dir = Path(out_dir, "Reads")
+    reads_dir.mkdir(exist_ok=True)
+
+    reads_files = [
+        Path(reads_dir, f"{chrom}.reads.csv{compression_postfix}")
+        for chrom in unique_chroms
+    ]
+    unique_reads_files = [
+        Path(reads_dir, f"{chrom}.unique_reads.csv{compression_postfix}")
+        for chrom in unique_chroms
+    ]
+
+    with Pool(processes=processes) as pool:
+        pool.starmap(
+            func=reads_and_unique_reads,
+            iterable=[
+                (
+                    positions_file,
+                    strand,
+                    group_col,
+                    group,
+                    parity,
+                    reads_file,
+                    unique_reads_file,
+                    out_files_sep,
+                )
+                for positions_file, strand, group, reads_file, unique_reads_file in zip(
+                    positions_files, strands, groups, reads_files, unique_reads_files
                 )
             ],
         )
 
 
-def main(
+def directed_sequencing_main(
     *,
     transcriptome: Path,
     data_table: Path,
@@ -356,6 +450,7 @@ def main(
         for pileup_file in pileup_files
     ]
 
+    remove_non_refbase_noisy_positions = True
     with Pool(processes=int(processes / 2)) as pool:
         pool.starmap(
             func=pileup_to_positions,
@@ -374,6 +469,7 @@ def main(
                     reads_mapping_file,
                     out_files_sep,
                     keep_pileup_files,
+                    remove_non_refbase_noisy_positions,
                 )
                 for pileup_file, reads_mapping_file, strand, prob_regions_bed, positions_file in zip(
                     pileup_files,
@@ -537,6 +633,31 @@ def define_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--snp_noise_level",
+        type=float,
+        default=0.1,
+        help="Treat non-refbase positions with noise >= snp_noise_level as SNPs, so they won't be considered for noise threshold.",
+    )
+    parser.add_argument(
+        "--top_x_noisy_positions",
+        type=int,
+        default=3,
+        help="Consider the top X noisy positions to define initial noise threshold.",
+    )
+    parser.add_argument(
+        "--assurance_factor",
+        type=float,
+        default=1.5,
+        help=(
+            "The noise in a certain position is defined as number of bases of the most abundant alt_base, "
+            "divided by the same number + the number of ref_base bases. "
+            "This is done for all ref_bases that aren't A on the positive strand or T on the negative strand. "
+            "Then, the actual noise level is determined by the "
+            "initial noise threshold (see `top_x_noisy_positions`) * assurance_factor. "
+            "That actual noise level is used to decide wether a position undergoes RNA editing."
+        ),
+    )
+    parser.add_argument(
         "--out_files_sep", default="\t", help="Delimiter for csv out files."
     )
     parser.add_argument(
@@ -546,23 +667,24 @@ def define_args() -> argparse.Namespace:
     )
     parser.add_argument("--gz_compression", action="store_true")
 
-    default_subparser = subparsers.add_parser(
-        "default", help="Original use of this program by suplying a data table"
+    directed_sequencing_subparser = subparsers.add_parser(
+        "undirected_sequencing_data",
+        help="Original use of this program by suplying a data table",
     )
-    default_subparser.set_defaults(func=main)
-    default_subparser.add_argument(
+    directed_sequencing_subparser.set_defaults(func=directed_sequencing_main)
+    directed_sequencing_subparser.add_argument(
         "--data_table", type=abs_path_from_str, required=True
     )
-    default_subparser.add_argument(
+    directed_sequencing_subparser.add_argument(
         "--data_table_sep", default=",", help="Delimiter used in `data_table`."
     )
-    default_subparser.add_argument(
+    directed_sequencing_subparser.add_argument(
         "--sample_col", default="Sample", help="Sample col label in `data_table`."
     )
-    default_subparser.add_argument(
+    directed_sequencing_subparser.add_argument(
         "--group_col", default="Gene", help="Group col label in `data_table`."
     )
-    default_subparser.add_argument(
+    directed_sequencing_subparser.add_argument(
         "--region_col",
         default="Region",
         help=(
@@ -572,27 +694,27 @@ def define_args() -> argparse.Namespace:
             "Should represent an ORF (or part of it) in the transcriptome, so its length should be a multiple of 3."
         ),
     )
-    default_subparser.add_argument(
+    directed_sequencing_subparser.add_argument(
         "--start_col",
         default="Start",
         help=(
             "Start col label in `data_table`. Its values should be 0-based (as in BED format).",
         ),
     )
-    default_subparser.add_argument(
+    directed_sequencing_subparser.add_argument(
         "--end_col",
         default="End",
         help=(
             "End col label in `data_table`. Its values should be inclusive (as in BED format)."
         ),
     )
-    default_subparser.add_argument(
+    directed_sequencing_subparser.add_argument(
         "--strand_col", default="Strand", help="Strand col label in `data_table`."
     )
-    default_subparser.add_argument(
+    directed_sequencing_subparser.add_argument(
         "--path_col", default="Path", help="Path col label in `data_table`."
     )
-    default_subparser.add_argument(
+    directed_sequencing_subparser.add_argument(
         "--cds_regions",
         type=abs_path_from_str,
         help=(
@@ -601,78 +723,56 @@ def define_args() -> argparse.Namespace:
             "Pay attention! In its abscence, all positions are assumed to be within coding regions!"
         ),
     )
-    default_subparser.add_argument(
+    directed_sequencing_subparser.add_argument(
         "--prob_regions_bed_col",
         default="ProbRegionsBED",
-        help="Problematic regions to exclude col label in `data_table`. Its values shpuld be paths to BED files.",
-    )
-    default_subparser.add_argument(
-        "--snp_noise_level",
-        type=float,
-        default=0.1,
-        help="Treat non-refbase positions with noise >= snp_noise_level as SNPs, so they won't be considered for noise threshold.",
-    )
-    default_subparser.add_argument(
-        "--top_x_noisy_positions",
-        type=int,
-        default=1,
-        help="Consider the top X noisy positions to define initial noise threshold.",
-    )
-    default_subparser.add_argument(
-        "--assurance_factor",
-        type=float,
-        default=1.5,
-        help=(
-            "The noise in a certain position is defined as number of bases of the must abundant alt_base, "
-            "divided by the same number + the number of ref_base bases. "
-            "This is done for all ref_bases that aren't A on the positive strand or T on the negative strand."
-            "Then, the actual noise level is determined by the "
-            "initial noise threshold (see `top_x_noisy_positions`) * assurance_factor. "
-            "That actual noise level is used to decide wether a position undergoes RNA editing."
-        ),
+        help="Problematic regions to exclude col label in `data_table`. Its values should be paths to BED files.",
     )
 
-    pacbio_preprocessed_isoseq_subparser = subparsers.add_parser(
-        "pacbio_preprocessed_isoseq",
-        help="Use multiple BAMs, each aligned to different trasncript, of multiple samples, using predefined editing sites",
+    undirected_sequencing_subparser = subparsers.add_parser(
+        "undirected_sequencing_data",
+        help=(
+            "Use multiple BAMs, each aligned to different trasncript, of multiple samples, "
+            "using either predefined editing sites and/or denovo detected ones."
+        ),
     )
-    pacbio_preprocessed_isoseq_subparser.set_defaults(
-        func=pacbio_preprocessed_isoseq_pre_main
-    )
-    pacbio_preprocessed_isoseq_subparser.add_argument(
+    undirected_sequencing_subparser.set_defaults(func=undirected_sequencing_main)
+    undirected_sequencing_subparser.add_argument(
         "--alignments_stats_table",
         help="By-chrom-by-sample alignments stats file. This table also includes the number of known editing sites per chrom.",
         required=True,
         type=abs_path_from_str,
     )
-    pacbio_preprocessed_isoseq_subparser.add_argument(
+    undirected_sequencing_subparser.add_argument(
         "--alignments_stats_table_sep",
         default="\t",
         help="Delimiter of the by-chrom-by-sample alignments stats table.",
     )
-    pacbio_preprocessed_isoseq_subparser.add_argument(
+    undirected_sequencing_subparser.add_argument(
         "--min_samples",
         default=7,
         help="Use only chroms with at least that many samples mapped to them.",
         type=int,
     )
-    pacbio_preprocessed_isoseq_subparser.add_argument(
+    undirected_sequencing_subparser.add_argument(
         "--min_mapped_reads_per_sample",
         default=100,
         help="Use only chroms with whose mean coverage is at least that.",
         type=float,
     )
-    pacbio_preprocessed_isoseq_subparser.add_argument(
+    undirected_sequencing_subparser.add_argument(
         "--min_known_sites",
         default=5,
         help="Use only chroms with at least that many known editing sites in them.",
         type=int,
     )
-    pacbio_preprocessed_isoseq_subparser.add_argument(
-        "--main_by_chrom_dir", type=abs_path_from_str, help=""
+    undirected_sequencing_subparser.add_argument(
+        "--main_by_chrom_dir",
+        type=abs_path_from_str,
+        help="Folder whose each of its subfolders contain BAMs of different samples aligned to a certain chrom.",
     )
-    pacbio_preprocessed_isoseq_subparser.add_argument("--postfix", default=".bam")
-    pacbio_preprocessed_isoseq_subparser.add_argument(
+    undirected_sequencing_subparser.add_argument("--postfix", default=".bam")
+    undirected_sequencing_subparser.add_argument(
         "--interfix_start",
         default=".aligned.sorted",
         help=(
@@ -680,32 +780,33 @@ def define_args() -> argparse.Namespace:
             "the interfix_start allows to get the sample's name.",
         ),
     )
-    pacbio_preprocessed_isoseq_subparser.add_argument(
+    undirected_sequencing_subparser.add_argument(
         "--cds_regions",
         type=abs_path_from_str,
         help=("6-col bed file of coding regions - used to define ORFs' boundries."),
         required=True,
     )
-    default_subparser.add_argument(
+    undirected_sequencing_subparser.add_argument(
         "--samples_table", type=abs_path_from_str, required=True
     )
-    default_subparser.add_argument(
+    undirected_sequencing_subparser.add_argument(
         "--samples_table_sep", default=",", help="Delimiter used in `samples_table`."
     )
-    default_subparser.add_argument(
+    undirected_sequencing_subparser.add_argument(
         "--sample_col", default="Sample", help="Sample col label in `samples_table`."
     )
-    default_subparser.add_argument(
+    undirected_sequencing_subparser.add_argument(
         "--group_col", default="Tissue", help="Group col label in `samples_table`."
+    )
+    undirected_sequencing_subparser.add_argument(
+        "--remove_non_refbase_noisy_positions",
+        action="store_true",
+        help="Whether to remove non ref-base positions whose noise are high.",
     )
 
     # subparsers.default = "default"
 
     return parser
-
-    # # parse args
-    # args = parser.parse_args()
-    # return args
 
 
 if __name__ == "__main__":
