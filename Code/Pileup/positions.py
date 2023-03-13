@@ -38,7 +38,7 @@ def replace_reads_names(
         )
     )
 
-    # verify correct replacement of substrings of old to new reads, both seperated by `reads_sep`
+    # verify correct replacement of substrings of old to new reads, `both` seperated by `reads_sep`
     # tests 1 - proof that `reads_sep` is used in `reads_col` only to sepearate reads, i.e., reads don't have `reads_sep` in their names
     # if positions_df[total_coverage_col].ne(positions_df[reads_col].str.count(reads_sep) + 1).any():
     if (
@@ -271,21 +271,29 @@ def annotate_edited_sites(
     positions_df: pd.DataFrame,
     strand: str,
     noise_threshold: float,
+    denovo_detection: bool = True,
 ):
-    """Find currently-edited sites.
+    """Determine which sites are currently edited.
 
-    For each position, check if editing_frequency > noise_threshold.
+    For each position, do this by checking if editing_frequency > noise_threshold.
 
     Args:
         positions_df (pd.DataFrame): The positions dataframe.
         strand (str): The ORF's strand.
-        noise_threshold (float): a site is considered edited if its editing frequency is above the noise threshold.
+        noise_threshold (float): A site is considered edited if its editing frequency is above the noise threshold.
+        denovo_detection (bool): Whether to determine both new ("denovo") and known sites as edited, or only known ones. Defaults to True.
     """
     ref_base = "A" if strand == "+" else "T"
 
-    edited_positions = positions_df.loc[positions_df["RefBase"] == ref_base].apply(
-        lambda x: x["EditingFrequency"] > noise_threshold, axis=1
-    )
+    if denovo_detection:
+        edited_positions = positions_df.loc[positions_df["RefBase"] == ref_base].apply(
+            lambda x: x["EditingFrequency"] > noise_threshold, axis=1
+        )
+    else:
+        edited_positions = positions_df.loc[positions_df["RefBase"] == ref_base].apply(
+            lambda x: (x["EditingFrequency"] > noise_threshold) and (x["KnownEditing"]),
+            axis=1,
+        )
     edited = [
         i in edited_positions.loc[edited_positions].index for i in positions_df.index
     ]
@@ -306,6 +314,8 @@ def pileup_to_positions(
     reads_mapping_file: Union[Path, str, None] = None,
     out_files_sep: str = "\t",
     keep_pileup_file: bool = False,
+    remove_non_refbase_noisy_positions: bool = True,
+    denovo_detection: bool = True,
 ) -> pd.DataFrame:
     """Read pileup file into a DataFrame.
     Verify format and change to 0-based coordinates.
@@ -325,6 +335,8 @@ def pileup_to_positions(
         reads_mapping_file (Union[Path, str, None]): If given, write mapping from the original reads to their shortened versions to this file.
         out_files_sep (str): Use this char as a seperator for csv out files. Defaults to tab.
         keep_pileup_file(bool): If True, keep the pileup file from which the positions.csv file is made.
+        remove_non_refbase_noisy_positions (bool): If true, remove non refbase positions with too-high noise. Even if this is False, these positions are not considered for noise_threshold determination.
+        denovo_detection (bool): Whether to determine both new ("denovo") and known sites as edited, or only known ones. Defaults to True.
 
     Raises:
         ValueError: If the 5th col doens't contain only base match/ bash mismatch characters, and/or the number of
@@ -397,26 +409,240 @@ def pileup_to_positions(
 
     ref_base = "A" if strand == "+" else "T"
 
-    # remove non refbase positions with too-high noise
-    positions_before = len(positions_df)
-    positions_df = positions_df.loc[
-        (positions_df["RefBase"] == ref_base)
-        | (positions_df["Noise"] < snp_noise_level)
-    ]
-    positions_after = len(positions_df)
-    removed_positions = positions_before - positions_after
-    print(f"{removed_positions} extremely noisy positions removed")
+    if remove_non_refbase_noisy_positions:
+        # remove non refbase positions with too-high noise
+        positions_before = len(positions_df)
+        positions_df = positions_df.loc[
+            (positions_df["RefBase"] == ref_base)
+            | (positions_df["Noise"] < snp_noise_level)
+        ]
+        positions_after = len(positions_df)
+        removed_positions = positions_before - positions_after
+        print(f"{removed_positions} extremely noisy positions removed")
 
-    # same as `positions_df["Noise"].max()` if `top_x_noise_samples == 1`
-    # noise_threshold = positions_df.loc[positions_df["RefBase"] != "A", "Noise"].sort_values(ascending=False)[:top_x_noisy_positions].mean()
-    noise_threshold = (
-        positions_df["Noise"]
-        .sort_values(ascending=False)[:top_x_noisy_positions]
-        .mean()
-    )
+        # same as `positions_df["Noise"].max()` if `top_x_noise_samples == 1`
+        # noise_threshold = positions_df.loc[positions_df["RefBase"] != "A", "Noise"].sort_values(ascending=False)[:top_x_noisy_positions].mean()
+        noise_threshold = (
+            positions_df["Noise"]
+            .sort_values(ascending=False)[:top_x_noisy_positions]
+            .mean()
+        )
+    else:
+        noise_threshold = (
+            positions_df.loc[positions_df["Noise"] < snp_noise_level, "Noise"]
+            .sort_values(ascending=False)[:top_x_noisy_positions]
+            .mean()
+        )
     noise_threshold *= assurance_factor
     annotate_editing_frequency_per_position(positions_df, strand)
-    annotate_edited_sites(positions_df, strand, noise_threshold)
+    annotate_edited_sites(positions_df, strand, noise_threshold, denovo_detection)
+
+    # verify that noise is only applied to non ref_base positions, and vice versa for editing frequency
+    non_ref_base_edit_freq = positions_df.loc[
+        positions_df["RefBase"] != ref_base, "EditingFrequency"
+    ].unique()
+    assert len(non_ref_base_edit_freq) == 1 and np.isnan(non_ref_base_edit_freq[0])
+    ref_base_noise = positions_df.loc[
+        positions_df["RefBase"] == ref_base, "Noise"
+    ].unique()
+    assert len(ref_base_noise) == 1 and np.isnan(ref_base_noise[0])
+
+    if positions_out_file:
+        positions_df.to_csv(
+            positions_out_file, sep=out_files_sep, index=False, na_rep=np.NaN
+        )
+
+    if not keep_pileup_file:
+        subprocess.run(f"rm {pileup_file}", shell=True)
+
+    # return positions_df
+
+
+def multisample_pileups_to_positions(
+    pileup_files: list[Path],
+    samples: list[str],
+    strand: str,
+    min_percent_of_max_coverage: float,
+    snp_noise_level: float,
+    top_x_noisy_positions: int,
+    assurance_factor: float,
+    problamatic_regions_file: Union[Path, str, None] = None,
+    known_sites_file: Union[Path, str, None] = None,
+    cds_regions_file: Union[Path, str, None] = None,
+    positions_out_file: Union[Path, str, None] = None,
+    reads_mapping_file: Union[Path, str, None] = None,
+    out_files_sep: str = "\t",
+    keep_pileup_file: bool = False,
+    remove_non_refbase_noisy_positions: bool = True,
+    denovo_detection: bool = True,
+):
+    """Read pileup file into a DataFrame.
+    Verify format and change to 0-based coordinates.
+    Possibly remove unedited positions, and possibly mask positions in problamatic regions.
+
+    Args:
+        `pileup_files` (Path): A list of paths to files creates by the `mpileup` function, each belonging to a different sample.
+        `samples`: list[str]: A list of samples' names corresponding to `pileup_files`.
+        `strand` (str): The ORF's strand.
+        `min_percent_of_max_coverage` (float): Keep only positions with coverage >= min_percent_of_max_coverage * max_coverage.
+        `snp_noise_level` (float): Treat non-refbase positions with noise >= snp_noise_level as SNPs, so they won't be considered for noise threshold.
+        `top_x_noisy_positions` (int): Use this many positions with highest noise levels to define initial noise threshold.
+        `assurance_factor` (float): Multiply the measured noise by this factor to define the actual noise threshold.
+        `problamatic_regions_file` (Union[Path, str, None]): If given, annotate positions as residing in problamatic genomic regions.
+        `known_sites_file` (Union[Path, str, None]): If given, annotate positions as known editing sites.
+        `cds_regions_file` (Union[Path, str, None]): If given, annotate positions as coding sites. Else, *all sites are considered as coding!*.
+        `positions_out_file` (Union[Path, str, None]): If given, write positions_df to this file.
+        `reads_mapping_file` (Union[Path, str, None]): If given, write mapping from the original reads to their shortened versions to this file.
+        `out_files_sep` (str): Use this char as a seperator for csv out files. Defaults to tab.
+        `keep_pileup_file`(bool): If True, keep the pileup file from which the positions.csv file is made.
+        `remove_non_refbase_noisy_positions` (bool): If true, remove non refbase positions with too-high noise. Even if this is False, these positions are not considered for noise_threshold determination.
+        `denovo_detection` (bool): Whether to determine both new ("denovo") and known sites as edited, or only known ones. Defaults to True.
+
+    Raises:
+        ValueError: If the 5th col doens't contain only base match/ bash mismatch characters, and/or the number of
+        reads' names in the 7th col isn't equal to the number of characters in the 5th col.
+
+    Returns:
+        pd.DataFrame: A df of the parsed pileup file.
+    """
+    cols = [
+        "Chrom",
+        "Position",
+        "RefBase",
+        "TotalCoverage",
+        "MappedBases",
+        "Phred",
+        "Reads",
+    ]
+    # ic()
+    # ic(pileup_files)
+    # ic(samples)
+
+    positions_dfs = [
+        pd.read_csv(pileup_file, sep="\t", names=cols) for pileup_file in pileup_files
+    ]
+    for positions_df, sample in zip(positions_dfs, samples):
+        positions_df.insert(0, "Sample", sample)
+
+    # merge the separate pileups tables into a multi-sample one
+    positions_df = pd.concat(positions_dfs, ignore_index=True)
+
+    # filter out zero-coverage positions (probably due to deletions) - they are irrelevent, and also disturb `replace_reads_names` later
+    positions_df = positions_df.loc[positions_df["TotalCoverage"] > 0]
+
+    # del positions_df["Phred"]
+
+    # change editing position to 0-based
+    positions_df["Position"] = positions_df["Position"] - 1
+
+    # present all reads as if they were mapped to the positive strand
+    positions_df["MappedBases"] = positions_df["MappedBases"].str.upper()
+    positions_df["MappedBases"] = positions_df["MappedBases"].replace(
+        {r"[,]": ".", r"[<]": r">"}, regex=True
+    )
+
+    # make sure we know how to deal with all kinds of mapped bases
+    unique_mapped_bases = set(chain.from_iterable(positions_df["MappedBases"]))
+    if not unique_mapped_bases <= {">", "*", ".", "A", "C", "G", "T", "N"}:
+        raise Exception(f"{unique_mapped_bases = }")
+
+    # verify that the number of mapped bases (6th col) corresponds
+    # to the number of reads' names (8th col)
+
+    for row_num, row in enumerate(positions_df.itertuples()):
+        bases = row.MappedBases
+        reads = row.Reads.split(",")
+        if len(bases) != len(reads):
+            sample = row.Sample
+            # get the first element of a signle-element list
+            pileup_file = [
+                pileup_file
+                for pileup_file in pileup_files
+                if sample in pileup_file.name
+            ][0]
+            raise ValueError(
+                f"Line {row_num} in {pileup_file} contains indels and/or doesn't have the "
+                "same number of mapped bases and reads."
+            )
+
+    # replace reads' names with a shortened, memory-efficient version
+    replace_reads_names(
+        positions_df,
+        "TotalCoverage",
+        "Reads",
+        reads_sep=",",
+        mapping_out_file=reads_mapping_file,
+        out_files_sep=out_files_sep,
+    )
+
+    positions_df["Sample"] = positions_df["Sample"].astype(str)
+    # positions_df["TotalCoverage"] = positions_df["TotalCoverage"].astype(int)
+    positions_df["MappedBases"] = positions_df["MappedBases"].astype(str)
+    positions_df["Phred"] = positions_df["Phred"].astype(str)
+    positions_df["Reads"] = positions_df["Reads"].astype(str)
+
+    # join multi-sample data per position
+    try:
+        positions_df = (
+            positions_df.groupby(["Chrom", "Position", "RefBase"])
+            .agg(
+                {
+                    "Sample": ",".join,
+                    "TotalCoverage": sum,
+                    "MappedBases": ",".join,
+                    "Phred": ",".join,
+                    "Reads": ",".join,
+                }
+            )
+            .reset_index()
+        )
+    except TypeError as e:
+        ic()
+        ic(e)
+        ic(pileup_files)
+
+    # remove positions with insufficient coverage
+    max_coverage = positions_df["TotalCoverage"].max()
+    required_coverage = max_coverage * min_percent_of_max_coverage
+    positions_df = positions_df.loc[positions_df["TotalCoverage"] >= required_coverage]
+
+    annotate_prolamatic_sites(positions_df, strand, problamatic_regions_file)
+    annotate_known_sites(positions_df, strand, known_sites_file)
+    annotate_coding_sites(positions_df, strand, cds_regions_file)
+    annotate_base_counts(positions_df)
+    annotate_noise(positions_df, strand)
+
+    # positions_df.loc[~positions_df["KnownEditing"], "Noise"].describe()
+
+    ref_base = "A" if strand == "+" else "T"
+
+    if remove_non_refbase_noisy_positions:
+        # remove non refbase positions with too-high noise
+        positions_before = len(positions_df)
+        positions_df = positions_df.loc[
+            (positions_df["RefBase"] == ref_base)
+            | (positions_df["Noise"] < snp_noise_level)
+        ]
+        positions_after = len(positions_df)
+        removed_positions = positions_before - positions_after
+        print(f"{removed_positions} extremely noisy positions removed")
+
+        # same as `positions_df["Noise"].max()` if `top_x_noise_samples == 1`
+        # noise_threshold = positions_df.loc[positions_df["RefBase"] != "A", "Noise"].sort_values(ascending=False)[:top_x_noisy_positions].mean()
+        noise_threshold = (
+            positions_df["Noise"]
+            .sort_values(ascending=False)[:top_x_noisy_positions]
+            .mean()
+        )
+    else:
+        noise_threshold = (
+            positions_df.loc[positions_df["Noise"] < snp_noise_level, "Noise"]
+            .sort_values(ascending=False)[:top_x_noisy_positions]
+            .mean()
+        )
+    noise_threshold *= assurance_factor
+    annotate_editing_frequency_per_position(positions_df, strand)
+    annotate_edited_sites(positions_df, strand, noise_threshold, denovo_detection)
 
     # verify that noise is only applied to non ref_base positions, and vice versa for editing frequency
     non_ref_base_edit_freq = positions_df.loc[
