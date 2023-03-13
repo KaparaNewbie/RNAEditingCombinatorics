@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.14.0
+#       jupytext_version: 1.14.4
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -1079,3 +1079,465 @@ multiple_logos_from_fasta_files(
     width=14,
     height=4
 );
+
+# %% [markdown] tags=[]
+# # Pooled editing levels comparisons
+
+# %%
+known_sites_file = (
+    "/private7/projects/Combinatorics/D.pealeii/Annotations/D.pea.EditingSites.csv"
+)
+
+pacbio_positions_files = [
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
+]
+illumina_positions_files = [
+    f"/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.{chrom}.positions.csv"
+    for chrom in [
+        "comp141881_c0_seq3",
+        "comp141044_c0_seq2",
+        "comp140439_c0_seq1",
+        "comp126362_c0_seq1",
+        "comp141517_c0_seq1",
+        "comp141840_c0_seq2",
+        "comp141640_c0_seq1",
+        "comp140987_c3_seq1",
+        "comp140910_c2_seq1",
+        "comp136058_c0_seq1",
+        "comp141378_c0_seq7",
+        "comp141158_c1_seq2",
+        "comp140712_c0_seq3",
+        "comp141882_c0_seq14",
+        "comp141880_c1_seq3",
+        "comp141565_c6_seq3",
+        "comp141684_c0_seq1",
+        "comp141532_c3_seq11",
+        "comp141574_c0_seq3"
+    ]
+]
+positions_files = pacbio_positions_files + illumina_positions_files
+
+sep = "\t"
+
+pacbio_strands = ["+", "+", ]
+illumina_strands = [
+    "+",
+    "+",
+    "+",
+    "+",
+    "+",
+    "+",
+    "+",
+    "+",
+    "+",
+    "+",
+    "+",
+    "+",
+    "+",
+    "+",
+    "+",
+    "+",
+    "+",
+    "+",
+    "+"
+]
+strands = pacbio_strands + illumina_strands
+
+# condition_cols = ["Platform", "Transcript"]
+
+condition_col = "Transcript-Platform"
+
+pacbio_transcripts = ["GRIA", "PCLO"]
+illumina_transcripts = [
+    "RUSC2_MOUSE",
+    "TRIM2_BOVIN",
+    "CA2D3_MOUSE",
+    "ABL_DROME",
+    "DGLA_HUMAN",
+    "K0513_MOUSE",
+    "KCNAS_DROME",
+    "ACHA4_MOUSE",
+    "ANR17_HUMAN",
+    "TWK7_CAEEL",
+    "SCN1_HETBL",
+    "CACB2_RABIT",
+    "RIMS2_RAT",
+    "PCLO_CHICK",
+    "DOP1_HUMAN",
+    "IQEC1_HUMAN",
+    "CSKI1_MOUSE",
+    "MTUS2_HUMAN",
+    "ROBO2_HUMAN"
+]
+transcripts = pacbio_transcripts + illumina_transcripts
+
+platforms = ["PacBio"] * len(pacbio_transcripts) + ["Illumina"] * len(illumina_transcripts)
+
+conditions = [f"{transcript}-{platform}" for transcript, platform in zip(transcripts, platforms)]
+
+# conditions = ["PacBio", "Illumina"]
+
+# chrom = "comp141882_c0_seq14"
+# colors = [
+#     px.colors.qualitative.G10[1],
+#     px.colors.qualitative.Dark24[13],
+#     # px.colors.qualitative.Set3[11]
+#     px.colors.qualitative.Vivid[5],
+# ]
+# start = 0
+# end = 6294
+
+# %% tags=[]
+positions_dfs = [
+    pd.read_csv(position_file, sep=sep) for position_file in positions_files
+]
+for positions_df, condition in zip(positions_dfs, conditions):
+    positions_df.insert(0, condition_col, condition)
+positions_dfs[0]
+
+
+# %%
+positions_dfs[5]
+
+# %%
+len(positions_dfs)
+
+# %%
+known_sites_df = pd.read_csv(known_sites_file)
+# new_known_sites_cols = ["Chrom", "SwissProt", "Position", "OriginalAA", "NewAA", "RefBase", "Editing", "%Editing", "DNA"]
+new_known_sites_cols = [
+    "Chrom",
+    "SwissProt",
+    "Position",
+    "OriginalAA",
+    "NewAA",
+    "RefBase",
+    "Editing",
+    "EditingFrequency",
+    "DNA",
+]
+known_sites_df = known_sites_df.set_axis(new_known_sites_cols, axis="columns")
+known_sites_df.insert(
+    5, "Coverage", known_sites_df["RefBase"] + known_sites_df["Editing"]
+)
+known_sites_df = known_sites_df.drop(["RefBase", "DNA"], axis="columns")
+known_sites_df["Position"] = known_sites_df["Position"] - 1
+# known_sites_df["%Editing"] = known_sites_df["%Editing"] * 100
+known_sites_df
+
+
+# %%
+ref_base_positions_dfs = []
+
+for positions_df, strand in zip(positions_dfs, strands):
+    ref_base = "A" if strand == "+" else "T"
+    alt_base = "G" if strand == "+" else "C"
+    positions_df = positions_df.loc[positions_df["RefBase"] == ref_base]
+    positions_df.insert(
+        positions_df.columns.get_loc("EditingFrequency"),
+        "EditedReads",
+        positions_df[alt_base],
+    )
+    positions_df = positions_df.drop(
+        [
+            "MappedBases",
+            "Reads",
+            "Noise",
+            "RefBase",
+            "A",
+            "T",
+            "C",
+            "G",
+            "InProbRegion",
+        ],
+        axis=1,
+    )
+    ref_base_positions_dfs.append(positions_df)
+
+merged_ref_base_positions_df = pd.concat(ref_base_positions_dfs).reset_index(drop=True)
+
+merged_ref_base_positions_df = merged_ref_base_positions_df.merge(
+    known_sites_df.loc[:, ["Chrom", "Position", "EditingFrequency"]],
+    how="left",
+    on=["Chrom", "Position"],
+    suffixes=["", "Known"],
+)
+
+merged_ref_base_positions_df["Position"] = merged_ref_base_positions_df[
+    "Position"
+].astype("str")
+
+# merged_ref_base_positions_df = merged_ref_base_positions_df.fillna(0)
+
+merged_ref_base_positions_df.insert(
+    merged_ref_base_positions_df.columns.get_loc("EditingFrequency"),
+    "%Editing",
+    merged_ref_base_positions_df["EditingFrequency"] * 100,
+)
+merged_ref_base_positions_df.insert(
+    merged_ref_base_positions_df.columns.get_loc("EditingFrequencyKnown"),
+    "%EditingKnown",
+    merged_ref_base_positions_df["EditingFrequencyKnown"] * 100,
+)
+merged_ref_base_positions_df = merged_ref_base_positions_df.drop(
+    ["EditingFrequency", "EditingFrequencyKnown"], axis=1
+)
+
+merged_ref_base_positions_df
+
+
+# %% [markdown]
+# ## Current vs. known editing levels
+
+# %%
+both_df = merged_ref_base_positions_df.loc[merged_ref_base_positions_df["Edited"] & merged_ref_base_positions_df["KnownEditing"]]
+
+all_df = merged_ref_base_positions_df.loc[merged_ref_base_positions_df["Edited"] | merged_ref_base_positions_df["KnownEditing"]]
+all_df
+
+
+# %%
+def editing_status_color(
+    edited: bool, 
+    known_editing: bool,
+    both_color="black",
+    edited_color="red",
+    known_editing_color="green"
+):
+    if edited and known_editing:
+        return both_color
+    elif edited:
+        return edited_color
+    else:
+        return known_editing_color
+
+
+# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"} tags=[]
+# todo retain nan rows and turn nans to 0?
+
+both_df = merged_ref_base_positions_df.loc[merged_ref_base_positions_df["Edited"] & merged_ref_base_positions_df["KnownEditing"]]
+edited_df = merged_ref_base_positions_df.loc[merged_ref_base_positions_df["Edited"] & ~merged_ref_base_positions_df["KnownEditing"]]
+known_editing_df = merged_ref_base_positions_df.loc[~merged_ref_base_positions_df["Edited"] & merged_ref_base_positions_df["KnownEditing"]]
+
+# all_df = merged_ref_base_positions_df.loc[merged_ref_base_positions_df["Edited"] | merged_ref_base_positions_df["KnownEditing"]]
+
+fig = make_subplots(
+    rows=1,
+    cols=1,
+    # subplot_titles=conditions,
+    # shared_yaxes=True,
+    # shared_xaxes=True,
+    x_title="% editing",
+    y_title="% known editing",
+)
+
+# df = merged_ref_base_positions_df.copy()
+# df = merged_ref_base_positions_df.loc[merged_ref_base_positions_df["Edited"] & merged_ref_base_positions_df["KnownEditing"]]
+x = all_df["%Editing"].fillna(0)
+y = all_df["%EditingKnown"].fillna(0)
+
+all_colors = all_df.apply(
+    lambda x: editing_status_color(x["Edited"], x["KnownEditing"]),
+    axis=1
+)
+
+x_both = both_df["%Editing"].fillna(0)
+y_both = both_df["%EditingKnown"].fillna(0)
+r, pv = scipy.stats.pearsonr(x_both, y_both)
+
+fig.add_trace(
+    go.Scatter(
+        x=x,
+        y=y,
+        # name=condition,
+        mode="markers",
+        # marker_color="black",
+        marker_color=all_colors,
+        # marker_line_color=colors,
+        # marker_line=dict(
+        #     color=colors
+        # ),
+        # marker_color="white",
+        marker_size=6,
+        # marker_symbol="circle-open"
+    ),
+    row=1,
+    col=1,
+)
+
+fig.add_annotation(
+    row=1,
+    col=1,
+    x=20,
+    y=85,
+    xref="x",
+    yref="y",
+    text=f"<b>Pearson's r</b><br>p-val = {pv:.2e}<br>ρ = {r:.2g}",
+    bgcolor="white",
+    borderpad=4,
+    opacity=0.7,
+    showarrow=False,
+)
+
+fig.update_layout(
+    title_text="Correlation between current & previously-reported editing levels",
+    showlegend=False,
+    template=template,
+    width=600,
+    height=500
+)
+
+fig.update_xaxes(range=[0, 100])
+fig.update_yaxes(range=[0, 100])
+
+fig.show()
+
+
+# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"} tags=[]
+# todo retain nan rows and turn nans to 0?
+
+both_df = merged_ref_base_positions_df.loc[merged_ref_base_positions_df["Edited"] & merged_ref_base_positions_df["KnownEditing"]]
+edited_df = merged_ref_base_positions_df.loc[(merged_ref_base_positions_df["Edited"]) & (~merged_ref_base_positions_df["KnownEditing"])]
+known_editing_df = merged_ref_base_positions_df.loc[(~merged_ref_base_positions_df["Edited"]) & (merged_ref_base_positions_df["KnownEditing"])]
+all_df = merged_ref_base_positions_df.loc[merged_ref_base_positions_df["Edited"] | merged_ref_base_positions_df["KnownEditing"]]
+
+assert len(both_df) + len(edited_df) + len(known_editing_df) == len(all_df)
+
+
+# %%
+edited_df
+
+# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"} tags=[]
+fig = make_subplots(
+    rows=1,
+    cols=1,
+    x_title="% editing",
+    y_title="% known editing",
+)
+
+# all_colors = all_df.apply(
+#     lambda x: editing_status_color(x["Edited"], x["KnownEditing"]),
+#     axis=1
+# )
+
+x_both = both_df["%Editing"].fillna(0)
+y_both = both_df["%EditingKnown"].fillna(0)
+
+x_edited = edited_df["%Editing"].fillna(0)
+y_edited = edited_df["%EditingKnown"].fillna(0)
+
+x_known_editing = known_editing_df["%Editing"].fillna(0)
+y_known_editing = known_editing_df["%EditingKnown"].fillna(0)
+
+xs_ys = [
+    (x_both, y_both),
+    (x_edited, y_edited),
+    (x_known_editing, y_known_editing)
+]
+names = ["Both", "Currently edited", "Known editing"]
+colors = ["black", "green", "red"]
+
+for (x, y), name, color in zip(xs_ys, names, colors):
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=y,
+            name=name,
+            mode="markers",
+            marker_color=color,
+            marker_size=6,
+        ),
+        row=1,
+        col=1,
+    )
+
+x_all = all_df["%Editing"].fillna(0)
+y_all = all_df["%EditingKnown"].fillna(0)
+r, pv = scipy.stats.pearsonr(x_all, y_all)
+    
+fig.add_annotation(
+    row=1,
+    col=1,
+    x=20,
+    y=85,
+    xref="x",
+    yref="y",
+    text=f"<b>Pearson's r</b><br>p-val = {pv:.2e}<br>ρ = {r:.2g}",
+    bgcolor="white",
+    borderpad=4,
+    opacity=0.7,
+    showarrow=False,
+)
+
+fig.update_layout(
+    title_text="Correlation between current & previously-reported editing levels",
+    # showlegend=False,
+    template=template,
+    width=600,
+    height=500
+)
+
+fig.update_xaxes(range=[0, 100])
+fig.update_yaxes(range=[0, 100])
+
+fig.show()
+
+
+# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"} tags=[]
+fig = make_subplots(
+    rows=1,
+    cols=1,
+    x_title="Editing status",
+    y_title="% editing",
+)
+
+y_both = both_df["%Editing"].fillna(0)
+y_edited = edited_df["%Editing"].fillna(0)
+y_known_editing = known_editing_df["%EditingKnown"].fillna(0)
+ys = [y_both, y_edited, y_known_editing]
+
+names = ["Both", "Currently edited", "Known editing"]
+colors = ["black", "green", "red"]
+
+for name, y, color in zip(names, ys, colors):
+    fig.add_trace(
+        go.Box(
+            x=[name]*len(y),
+            y=y,
+            boxpoints='all',
+            # jitter=0.8,
+            whiskerwidth=0.2,
+            marker_size=2,
+            line_width=1,
+            # fillcolor=color,
+            line_color=color,
+            
+            # points="all"
+            # name=name,
+            # mode="markers",
+            marker_color=color,
+            # marker_size=6,
+        ),
+        row=1,
+        col=1,
+    )
+
+
+fig.update_layout(
+    # title_text="Correlation between current & previously-reported editing levels",
+    showlegend=False,
+    template=template,
+    width=600,
+    height=500
+)
+# fig.update_traces(
+#     boxpoints='all', 
+#     # jitter=0
+# )
+
+# fig.update_xaxes(range=[0, 100])
+fig.update_yaxes(range=[0, 100])
+
+fig.show()
+
