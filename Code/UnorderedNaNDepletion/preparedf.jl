@@ -26,7 +26,7 @@ Parse `infile` into a DataFrame to be later used for building a graph of (distin
 - `randseed=1892`: the seed for the random number generator in case `testfraction < 1.0`.
 """
 function preparedf!(
-    infile::String, delim::String, datatype::String, idcol::String, firstcolpos::Int, 
+    infile::String, delim::String, datatype::String, idcol::String, firstcolpos::Int,
     testfraction::Float64=1.0, randseed=1892
 )
     @info "$(loggingtime())\tpreparedf" infile delim datatype idcol firstcolpos testfraction randseed
@@ -35,7 +35,9 @@ function preparedf!(
     if datatype == "Reads"
         df = DataFrame(CSV.File(infile, delim=delim))
     elseif datatype == "Proteins"
-        df1 = DataFrame(CSV.File(infile, delim=delim, select=collect(1:firstcolpos-1)))
+        # df1 = DataFrame(CSV.File(infile, delim=delim, select=collect(1:firstcolpos-1)))
+        df1 = DataFrame(CSV.File(infile, delim=delim, select=collect(1:firstcolpos-1), types=Dict("Protein" => String)))
+        df1[!, "Protein"] = InlineString.(df1[!, :Protein])
         # make sure columns of AAs containing only Ts aren't parsed as boolean columns
         df2 = DataFrame(CSV.File(infile, delim=delim, drop=collect(1:firstcolpos-1), types=String))
         df = hcat(df1, df2)
@@ -52,7 +54,7 @@ function preparedf!(
         samplerows = sample(MersenneTwister(randseed), 1:nrows, nsamplerows, replace=false)
         df = df[samplerows, :]
     end
-    
+
 
     # flatten the df by exploding the `Reads` col, 
     # which denotes the reads supporting the unique observation (read / unique) the row represents
