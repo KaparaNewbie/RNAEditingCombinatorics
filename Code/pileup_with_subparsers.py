@@ -23,8 +23,11 @@ from EditingUtils.summary_utils import execute_notebook
 from Alignment.alignment_utils import filter_bam_by_read_quality
 from Pileup.mpileup import mpileup
 from Pileup.positions import pileup_to_positions, multisample_pileups_to_positions
-from Pileup.reads import reads_and_unique_reads
-from Pileup.proteins import proteins_and_unique_proteins
+from Pileup.reads import reads_and_unique_reads, multisample_reads_and_unique_reads
+from Pileup.proteins import (
+    proteins_and_unique_proteins,
+    multisample_proteins_and_unique_proteins,
+)
 from icecream import ic
 
 DataFrameOrSeries = Union[pd.DataFrame, pd.Series]
@@ -70,6 +73,7 @@ def undirected_sequencing_main(
     snp_noise_level: float,
     top_x_noisy_positions: int,
     assurance_factor: float,
+    pooled_transcript_noise_threshold: float,
     out_dir: Path,
     samtools_path: Path,
     processes: int,
@@ -118,7 +122,6 @@ def undirected_sequencing_main(
     # test_chroms = "comp183313_c0_seq12, comp162994_c0_seq1, comp183909_c0_seq7, comp181233_c0_seq10, comp183670_c0_seq3, comp183256_c0_seq35, comp183782_c0_seq5, comp183377_c0_seq11, comp181723_c2_seq2, comp169467_c0_seq1, comp183713_c0_seq9"
 
     chroms = []
-    strands = []
     swissprot_names = []
     samples = []
     groups = []
@@ -129,10 +132,10 @@ def undirected_sequencing_main(
     bam_files = []
     for _, row in alignments_stats_df.iterrows():
         chrom = row["Chrom"]
-        
+
         # if chrom not in test_chroms:
         #     continue
-        
+
         swissprot_name = row["Name"]
         start = row["Start"]
         end = row["End"]
@@ -146,7 +149,6 @@ def undirected_sequencing_main(
             sample = bam_in_chrom.stem[: bam_in_chrom.stem.index(interfix_start)]
             group = sample_to_group_dict[sample]
             chroms.append(chrom)
-            strands.append(strand)
             swissprot_names.append(swissprot_name)
             samples.append(sample)
             groups.append(group)
@@ -181,39 +183,46 @@ def undirected_sequencing_main(
         for sample, chrom in zip(samples, chroms)
     ]
 
-    # todo uncomment
-    # with Pool(processes=processes) as pool:
-    #     pool.starmap(
-    #         func=mpileup,
-    #         iterable=[
-    #             (
-    #                 samtools_path,
-    #                 transcriptome,
-    #                 region,
-    #                 include_flags,
-    #                 exclude_flags,
-    #                 min_bq,
-    #                 in_bam,
-    #                 out_pileup,
-    #                 threads,
-    #             )
-    #             for region, in_bam, out_pileup in zip(
-    #                 pileup_formatted_regions,
-    #                 filtered_bam_files,
-    #                 pileup_files,
-    #             )
-    #         ],
-    #     )
+    with Pool(processes=processes) as pool:
+        pool.starmap(
+            func=mpileup,
+            iterable=[
+                (
+                    samtools_path,
+                    transcriptome,
+                    region,
+                    include_flags,
+                    exclude_flags,
+                    min_bq,
+                    in_bam,
+                    out_pileup,
+                    threads,
+                )
+                for region, in_bam, out_pileup in zip(
+                    pileup_formatted_regions,
+                    filtered_bam_files,
+                    pileup_files,
+                )
+            ],
+        )
 
     compression_postfix = ".gz" if gz_compression else ""
 
     # 4 - pileup files -> positions dfs
 
-    unique_chroms = set(chroms)
-    # unique_samples = set(samples)
+    unique_chroms = []
+    unique_orfs_starts = []
+    unique_orfs_ends = []
+    unique_orfs_strands = []
+    for chrom, start, end, strand in zip(chroms, orfs_starts, orfs_ends, orfs_strands):
+        if chrom in unique_chroms:
+            continue
+        unique_chroms.append(chrom)
+        unique_orfs_starts.append(start)
+        unique_orfs_ends.append(end)
+        unique_orfs_strands.append(strand)
 
     positions_dir = Path(out_dir, "PositionsFiles")
-    # positions_dir = Path(out_dir, "PositionsFilesTest") # todo revert to old, regular name of this dir
     positions_dir.mkdir(exist_ok=True)
 
     reads_mapping_files = [
@@ -236,8 +245,6 @@ def undirected_sequencing_main(
         pileup_files_per_chroms[chrom].append(pileup_file)
         samples_per_chroms[chrom].append(sample)
 
-    orf_strand_per_chrom = {chrom: strand for chrom, strand in zip(chroms, strands)}
-
     prob_regions_bed = None  # we don't deal with individual "problamitic" sites in such large scale analysis
 
     denovo_detection = True
@@ -249,7 +256,8 @@ def undirected_sequencing_main(
                 (
                     pileup_files_per_chroms[chrom],
                     samples_per_chroms[chrom],
-                    orf_strand_per_chrom[chrom],
+                    # orf_strand_per_chrom[chrom],
+                    strand,
                     min_percent_of_max_coverage,
                     snp_noise_level,
                     top_x_noisy_positions,
@@ -264,15 +272,18 @@ def undirected_sequencing_main(
                     remove_non_refbase_noisy_positions,
                     denovo_detection,
                 )
-                for reads_mapping_file, chrom, positions_file in zip(
-                    reads_mapping_files, unique_chroms, positions_files
+                for reads_mapping_file, chrom, strand, positions_file in zip(
+                    reads_mapping_files,
+                    unique_chroms,
+                    unique_orfs_strands,
+                    positions_files,
                 )
             ],
         )
 
     # 5 - positions dfs -> reads & unique reads dfs
 
-    reads_dir = Path(out_dir, "Reads")
+    reads_dir = Path(out_dir, "ReadsFiles")
     reads_dir.mkdir(exist_ok=True)
 
     reads_files = [
@@ -286,7 +297,7 @@ def undirected_sequencing_main(
 
     with Pool(processes=processes) as pool:
         pool.starmap(
-            func=reads_and_unique_reads,
+            func=multisample_reads_and_unique_reads,
             iterable=[
                 (
                     positions_file,
@@ -294,12 +305,63 @@ def undirected_sequencing_main(
                     group_col,
                     group,
                     parity,
+                    snp_noise_level,
+                    top_x_noisy_positions,
+                    pooled_transcript_noise_threshold,
                     reads_file,
                     unique_reads_file,
                     out_files_sep,
                 )
                 for positions_file, strand, group, reads_file, unique_reads_file in zip(
-                    positions_files, strands, groups, reads_files, unique_reads_files
+                    positions_files,
+                    unique_orfs_strands,
+                    groups,
+                    reads_files,
+                    unique_reads_files,
+                )
+            ],
+        )
+
+    # 6 - reads & unique reads dfs -> proteins & unique proteins dfs
+
+    proteins_dir = Path(out_dir, "ProteinsFiles")
+    proteins_dir.mkdir(exist_ok=True)
+
+    Path(reads_dir, f"{chrom}.reads.csv{compression_postfix}")
+
+    proteins_files = [
+        Path(proteins_dir, f"{chrom}.proteins.csv{compression_postfix}")
+        for chrom in unique_chroms
+    ]
+    unique_proteins_files = [
+        Path(proteins_dir, f"{chrom}.unique_proteins.csv{compression_postfix}")
+        for chrom in unique_chroms
+    ]
+
+    with Pool(processes=processes) as pool:
+        pool.starmap(
+            func=multisample_proteins_and_unique_proteins,
+            iterable=[
+                (
+                    unique_reads_file,
+                    chrom,
+                    start,
+                    end,
+                    strand,
+                    transcriptome,
+                    group_col,
+                    proteins_file,
+                    unique_proteins_file,
+                    out_files_sep,
+                )
+                for unique_reads_file, chrom, start, end, strand, proteins_file, unique_proteins_file in zip(
+                    unique_reads_files,
+                    unique_chroms,
+                    unique_orfs_starts,
+                    unique_orfs_ends,
+                    unique_orfs_strands,
+                    proteins_files,
+                    unique_proteins_files,
                 )
             ],
         )
@@ -765,6 +827,16 @@ def define_args() -> argparse.Namespace:
         default=5,
         help="Use only chroms with at least that many known editing sites in them.",
         type=int,
+    )
+    undirected_sequencing_subparser.add_argument(
+        "--pooled_transcript_noise_threshold",
+        default=0.06,
+        help=(
+            "Use only transcripts whose pooled_transcript_noise "
+            "(same as noise level before the multiplication by assurance factor) "
+            "is below pooled_transcript_noise_threshold"
+        ),
+        type=float,
     )
     undirected_sequencing_subparser.add_argument(
         "--main_by_chrom_dir",

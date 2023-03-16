@@ -55,7 +55,7 @@ def filter_triplets(possible_triplets, base, pos):
 #     return amino_acids
 
 
-def guided_translation_2(
+def guided_translation(
     x1: str,
     y1: str,
     z1: str,
@@ -128,82 +128,6 @@ def annotate_min_max_non_syns(
     df.insert(new_cols_first_pos + 1, "MaxNonSyns", max_non_syns)
     df.insert(new_cols_first_pos + 2, "MinNonSynsFrequency", min_non_syns_frequency)
     df.insert(new_cols_first_pos + 3, "MaxNonSynsFrequency", max_non_syns_frequency)
-
-
-# def find_uninformative_cols(df, cols):
-#     return [col for col in cols if len(df[col].unique()) == 1]
-
-
-# def unique_reads_to_proteins(
-#     unique_reads_df: pd.DataFrame,
-#     region: str,
-#     start: int,
-#     end: int,
-#     strand: str,
-#     transcriptome: Union[str, Path],
-#     first_pos_loc: int = 8
-# ):
-#     positions_cols = set(unique_reads_df.columns[first_pos_loc:])
-
-#     if strand == "+":
-#         ref_base, alt_base = "A", "G"
-#     else:
-#         ref_base, alt_base = "T", "C"  # get complementary bases
-#     position_to_base = {-1: -1, 0: ref_base, 1: alt_base}
-
-#     transcriptome_dict = make_fasta_dict(transcriptome)
-#     m_rna = transcriptome_dict[region][start:end]
-#     original_triplets = [m_rna[x : x + 3] for x in range(0, len(m_rna), 3)]
-#     if strand == "-":
-#         original_triplets = [triplet.reverse_complement() for triplet in original_triplets]
-#     assert len(original_triplets[0]) == len(original_triplets[-1]) == 3
-#     transalted_orf_length = len(original_triplets)
-
-#     new_triplets_positions = [(x, x + 1, x + 2) for x in range(start, end, 3)]
-
-#     transcripts_dict = unique_reads_df.to_dict(orient="records")
-
-#     aas_per_unique_read = defaultdict(list)  # amino acids per unique read
-#     triplets_cols = []
-#     original_aas = []
-
-#     for original_triplet, new_triplet_positions in zip(
-#         original_triplets, new_triplets_positions
-#     ):
-#         x1, y1, z1 = list(original_triplet)
-#         pos_x2, pos_y2, pos_z2 = new_triplet_positions
-#         pos_x2_exist = pos_x2 in positions_cols
-#         pos_y2_exist = pos_y2 in positions_cols
-#         pos_z2_exist = pos_z2 in positions_cols
-#         if not any([pos_x2_exist, pos_y2_exist, pos_z2_exist]):
-#             continue
-#         original_aa = AA_BY_TRIPLET[original_triplet]
-#         triplets_cols.append(f"{pos_x2}:{pos_x2 + 3}({original_aa})")
-#         original_aas.append(original_aa)
-#         for row in transcripts_dict:
-#             row_id = row["Transcript"]
-#             x2 = position_to_base[row[pos_x2]] if pos_x2_exist else None
-#             y2 = position_to_base[row[pos_y2]] if pos_y2_exist else None
-#             z2 = position_to_base[row[pos_z2]] if pos_z2_exist else None
-#             if strand == "-":
-#                 # reverse the bases (they're already complementary due to position_to_base)
-#                 x2, z2 = z2, x2
-#             # aa = guided_translation(x1, y1, z1, x2, y2, z2)
-#             aa = guided_translation_2(x1, y1, z1, x2, y2, z2)
-#             aas_per_unique_read[row_id].append(aa)
-
-#     proteins_df = pd.DataFrame(aas_per_unique_read)
-#     proteins_df = proteins_df.T.reset_index().rename(
-#         {"index": "Transcript"}, axis="columns"
-#     )
-#     proteins_df = proteins_df.set_axis(["Transcript"] + triplets_cols, axis="columns")
-#     proteins_df = unique_reads_df.iloc[:, :first_pos_loc].merge(proteins_df, on="Transcript")
-#     annotate_min_max_non_syns(proteins_df, transalted_orf_length, original_aas, first_pos_loc, 1)
-#     # uninformative_cols = find_uninformative_cols(
-#     #     proteins_df, proteins_df.columns[first_pos_loc:]
-#     # )  # remove cols with a single AA
-#     # proteins_df = proteins_df.drop(uninformative_cols, axis="columns")
-#     return proteins_df
 
 
 def unique_reads_to_proteins(
@@ -279,7 +203,7 @@ def unique_reads_to_proteins(
                 # reverse the bases (they're already complementary due to position_to_base)
                 x2, z2 = z2, x2
             # aa = guided_translation(x1, y1, z1, x2, y2, z2)
-            aa = guided_translation_2(x1, y1, z1, x2, y2, z2)
+            aa = guided_translation(x1, y1, z1, x2, y2, z2)
             aas_per_unique_read[row_id].append(aa)
 
     proteins_df = pd.DataFrame(aas_per_unique_read)
@@ -293,6 +217,92 @@ def unique_reads_to_proteins(
     annotate_min_max_non_syns(
         proteins_df, transalted_orf_length, original_aas, first_pos_loc, 1
     )
+    return proteins_df
+
+
+def multisample_unique_reads_to_proteins(
+    unique_reads_file: Union[str, Path],
+    sep: str,
+    region: str,
+    start: int,
+    end: int,
+    strand: str,
+    transcriptome: Union[str, Path],
+    first_pos_loc: int = 9,
+):
+    unique_reads_df = pd.read_csv(unique_reads_file, sep=sep, dtype={"UniqueRead": str})
+
+    # really shouldn't happen, that bug has been fixed by not creating ids with "NA*"
+    if len(unique_reads_df.loc[unique_reads_df["UniqueRead"].isna()]) != 0:
+        raise Exception("NaN values in `UniqueRead` col of `unique_reads_df`!")
+
+    unique_reads_df = unique_reads_df.rename(
+        columns={col: int(col) for col in unique_reads_df.columns[first_pos_loc:]}
+    )
+
+    positions_cols = set(unique_reads_df.columns[first_pos_loc:])
+
+    position_to_base = {-1: -1, 0: "A", 1: "G"}
+
+    transcriptome_dict = make_fasta_dict(transcriptome)
+    m_rna = transcriptome_dict[region][start:end]
+    original_triplets = [m_rna[x : x + 3] for x in range(0, len(m_rna), 3)]
+    if strand == "-":
+        original_triplets = [
+            triplet.reverse_complement() for triplet in original_triplets
+        ]
+    assert len(original_triplets[0]) == len(original_triplets[-1]) == 3
+    transalted_orf_length = len(original_triplets)
+
+    new_triplets_positions = [(x, x + 1, x + 2) for x in range(start, end, 3)]
+
+    unique_reads_dict = unique_reads_df.to_dict(orient="records")
+
+    aas_per_unique_read = defaultdict(list)  # amino acids per unique read
+    triplets_cols = []
+    original_aas = []
+
+    for original_triplet, new_triplet_positions in zip(
+        original_triplets, new_triplets_positions
+    ):
+        # the original triplet's bases according to the reference
+        x1, y1, z1 = list(original_triplet)
+        # corresponding indices - to be used by the reads
+        pos_x2, pos_y2, pos_z2 = new_triplet_positions
+        pos_x2_exist = pos_x2 in positions_cols
+        pos_y2_exist = pos_y2 in positions_cols
+        pos_z2_exist = pos_z2 in positions_cols
+        # check wether there are reads with any of theses positions edited
+        # if not - continue to the next triplet
+        if not any([pos_x2_exist, pos_y2_exist, pos_z2_exist]):
+            continue
+        original_aa = AA_BY_TRIPLET[original_triplet]
+        triplets_cols.append(f"{pos_x2}:{pos_x2 + 3}({original_aa})")
+        original_aas.append(original_aa)
+        for row in unique_reads_dict:
+            row_id = row["UniqueRead"]
+            x2 = position_to_base[row[pos_x2]] if pos_x2_exist else None
+            y2 = position_to_base[row[pos_y2]] if pos_y2_exist else None
+            z2 = position_to_base[row[pos_z2]] if pos_z2_exist else None
+            if strand == "-":
+                # reverse the bases (they're already complementary due to position_to_base)
+                x2, z2 = z2, x2
+            # aa = guided_translation(x1, y1, z1, x2, y2, z2)
+            aa = guided_translation(x1, y1, z1, x2, y2, z2)
+            aas_per_unique_read[row_id].append(aa)
+
+    proteins_df = pd.DataFrame(aas_per_unique_read)
+    proteins_df = proteins_df.T.reset_index().rename(
+        {"index": "UniqueRead"}, axis="columns"
+    )
+    proteins_df = proteins_df.set_axis(["UniqueRead"] + triplets_cols, axis="columns")
+    proteins_df = unique_reads_df.iloc[:, :first_pos_loc].merge(
+        proteins_df, on="UniqueRead"
+    )
+    annotate_min_max_non_syns(
+        proteins_df, transalted_orf_length, original_aas, first_pos_loc, 1
+    )
+
     return proteins_df
 
 
@@ -355,15 +365,6 @@ def proteins_to_unique_proteins(
         unique_proteins_df["NumOfReads"] * unique_proteins_df["MaxNonSyns"]
     )
 
-    # unique_proteins_df.insert(
-    #     1,
-    #     "Protein",
-    #     pd.Series(
-    #         unique_proteins_df[group_col]
-    #         + "-"
-    #         + unique_proteins_df.index.values.astype(str)
-    #     ),
-    # )
     unique_proteins_df.insert(
         1, "Protein", serialize_compressed_ids(len(unique_proteins_df))
     )
@@ -371,27 +372,66 @@ def proteins_to_unique_proteins(
     return unique_proteins_df
 
 
-# def proteins_and_unique_proteins(
-#     unique_reads_df: pd.DataFrame,
-#     region: str,
-#     start: int,
-#     end: int,
-#     strand: str,
-#     transcriptome: Union[str, Path],
-#     group_col: str,
-#     proteins_out_file: Union[Path, str, None] = None,
-#     unique_proteins_out_file: Union[Path, str, None] = None,
-#     out_files_sep: str = "\t"
-# ):
-#     proteins_df = unique_reads_to_proteins(unique_reads_df, region, start, end, strand, transcriptome)
-#     unique_proteins_df = proteins_to_unique_proteins(proteins_df, group_col)
+def multisample_proteins_to_unique_proteins(
+    proteins_df: pd.DataFrame, group_col: str, first_pos_loc: int = 13
+):
+    unique_proteins_df = proteins_df.copy()
 
-#     if proteins_out_file:
-#         proteins_df.to_csv(proteins_out_file, sep=out_files_sep, index=False, na_rep=np.NaN)
-#     if unique_proteins_out_file:
-#         unique_proteins_df.to_csv(unique_proteins_out_file, sep=out_files_sep, index=False, na_rep=np.NaN)
+    proteins_grouped_by_positions = unique_proteins_df.groupby(
+        unique_proteins_df.columns[first_pos_loc:].tolist()
+    )
 
-#     return proteins_df, unique_proteins_df
+    # join unique reads
+    unique_proteins_df.insert(
+        unique_proteins_df.columns.get_loc("UniqueRead"),
+        "UniqueReads",
+        proteins_grouped_by_positions["UniqueRead"].transform(lambda x: ",".join(x)),
+    )
+    # drop the col of individual unique reads
+    unique_proteins_df = unique_proteins_df.drop(["UniqueRead"], axis=1)
+    # count the num of unique reads
+    unique_proteins_df.insert(
+        unique_proteins_df.columns.get_loc("UniqueReads") + 1,
+        "NumOfUniqueReads",
+        unique_proteins_df["UniqueReads"].apply(lambda x: len(x.split(","))),
+    )
+    first_pos_loc += 1
+
+    # join samples
+    unique_proteins_df["Samples"] = proteins_grouped_by_positions["Samples"].transform(
+        lambda x: ",".join(x)
+    )
+
+    # join reads
+    unique_proteins_df["Reads"] = proteins_grouped_by_positions["Samples"].transform(
+        lambda x: ",".join(x)
+    )
+    # sum joined reads
+    unique_proteins_df["NumOfReads"] = proteins_grouped_by_positions[
+        "NumOfReads"
+    ].transform(sum)
+
+    unique_proteins_df = (
+        unique_proteins_df.drop_duplicates(
+            subset=unique_proteins_df.columns[first_pos_loc:]
+        )
+        .sort_values("NumOfReads", ascending=False)
+        .reset_index(drop=True)
+    )
+
+    assert proteins_df["NumOfReads"].sum() == unique_proteins_df["NumOfReads"].sum()
+    assert sum(proteins_df["NumOfReads"] * proteins_df["MinNonSyns"]) == sum(
+        unique_proteins_df["NumOfReads"] * unique_proteins_df["MinNonSyns"]
+    )
+    assert sum(proteins_df["NumOfReads"] * proteins_df["MaxNonSyns"]) == sum(
+        unique_proteins_df["NumOfReads"] * unique_proteins_df["MaxNonSyns"]
+    )
+
+    unique_proteins_df.insert(
+        1, "Protein", serialize_compressed_ids(len(unique_proteins_df))
+    )
+
+    return unique_proteins_df
 
 
 def proteins_and_unique_proteins(
@@ -413,6 +453,36 @@ def proteins_and_unique_proteins(
         unique_reads_file, sep, region, start, end, strand, transcriptome
     )
     unique_proteins_df = proteins_to_unique_proteins(proteins_df, group_col)
+
+    if proteins_out_file:
+        proteins_df.to_csv(proteins_out_file, sep=sep, index=False, na_rep=np.NaN)
+    if unique_proteins_out_file:
+        unique_proteins_df.to_csv(
+            unique_proteins_out_file, sep=sep, index=False, na_rep=np.NaN
+        )
+
+    return proteins_df, unique_proteins_df
+
+
+def multisample_proteins_and_unique_proteins(
+    unique_reads_file: Union[str, Path],
+    region: str,
+    start: int,
+    end: int,
+    strand: str,
+    transcriptome: Union[str, Path],
+    group_col: str,
+    proteins_out_file: Union[Path, str, None] = None,
+    unique_proteins_out_file: Union[Path, str, None] = None,
+    sep: str = "\t",
+):
+    if not Path(unique_reads_file).exists():
+        return
+
+    proteins_df = multisample_unique_reads_to_proteins(
+        unique_reads_file, sep, region, start, end, strand, transcriptome
+    )
+    unique_proteins_df = multisample_proteins_to_unique_proteins(proteins_df, group_col)
 
     if proteins_out_file:
         proteins_df.to_csv(proteins_out_file, sep=sep, index=False, na_rep=np.NaN)

@@ -84,7 +84,11 @@ def positions_df_to_bed(positions_df: pd.DataFrame, strand: str) -> BedTool:
     """
     positions_bed = BedTool.from_dataframe(
         positions_df.loc[:, ["Chrom", "Position"]].assign(
-            EndPosition=positions_df.iloc[:, 1] + 1, Name=".", Score=".", Strand=strand
+            # EndPosition=positions_df.iloc[:, 1] + 1,
+            EndPosition=positions_df["Position"] + 1,
+            Name=".",
+            Score=".",
+            Strand=strand,
         )
     )
     return positions_bed
@@ -576,10 +580,18 @@ def multisample_pileups_to_positions(
     )
 
     positions_df["Sample"] = positions_df["Sample"].astype(str)
-    # positions_df["TotalCoverage"] = positions_df["TotalCoverage"].astype(int)
     positions_df["MappedBases"] = positions_df["MappedBases"].astype(str)
     positions_df["Phred"] = positions_df["Phred"].astype(str)
     positions_df["Reads"] = positions_df["Reads"].astype(str)
+
+    positions_df.insert(
+        positions_df.columns.get_loc("Sample") + 1,
+        "Samples",
+        positions_df.apply(
+            lambda x: ",".join([x["Sample"] for _ in range(len(x["MappedBases"]))]),
+            axis=1,
+        ),
+    )
 
     # join multi-sample data per position
     try:
@@ -587,10 +599,10 @@ def multisample_pileups_to_positions(
             positions_df.groupby(["Chrom", "Position", "RefBase"])
             .agg(
                 {
-                    "Sample": ",".join,
+                    "Samples": ",".join,
                     "TotalCoverage": sum,
-                    "MappedBases": ",".join,
-                    "Phred": ",".join,
+                    "MappedBases": "".join,
+                    "Phred": "".join,
                     "Reads": ",".join,
                 }
             )
@@ -653,6 +665,16 @@ def multisample_pileups_to_positions(
         positions_df["RefBase"] == ref_base, "Noise"
     ].unique()
     assert len(ref_base_noise) == 1 and np.isnan(ref_base_noise[0])
+
+    # verify that the number of mapped bases == 
+    # number of reads' names ==
+    # number of samples
+    for row_num, row in enumerate(positions_df.itertuples()):
+        mapped_bases = row.MappedBases
+        mapped_reads = row.Reads.split(",")
+        mapped_samples = row.Samples.split(",")
+        if not(len(mapped_bases) == len(mapped_reads) == len(mapped_samples)):
+            raise ValueError
 
     if positions_out_file:
         positions_df.to_csv(
