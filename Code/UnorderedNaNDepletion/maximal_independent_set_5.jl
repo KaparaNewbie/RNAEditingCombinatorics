@@ -4,6 +4,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     using Distributed
 else
     using BenchmarkTools
+    using Distributed
 end
 
 
@@ -447,13 +448,19 @@ main();
 # @benchmark main()
 
 
-# infile = "D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv"
+# infile = "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/comp144504_c0_seq1.unique_proteins.csv"
+# firstcolpos = 16
+
+
+# infile = "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
+# firstcolpos = 15
+
 # delim = "\t"
 # # postfix_to_remove = ".aligned.sorted.MinRQ998.unique_proteins.csv"
 # # prefix_to_remove = ""
 # # postfix_to_add = ".GRANTHAM1974-100"
 # idcol = "Protein"
-# firstcolpos = 15
+
 # datatype = "Proteins"
 # # outdir = "D.pealeii/MpileupAndTranscripts/RQ998.2"
 # # fracstep = 0.5
@@ -475,6 +482,8 @@ main();
 #     testfraction, randseed
 # )
 
+
+# describe(df)
 
 # substitutionmatrix = GRANTHAM1974
 # similarityscorecutoff = 100
