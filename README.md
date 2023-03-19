@@ -1781,12 +1781,12 @@ undirected_sequencing_data \
 --main_by_chrom_dir O.vulgaris/Alignment/PRJNA791920/IsoSeq/ByChrom \
 --cds_regions O.vulgaris/Annotations/orfs_oct.bed \
 --samples_table O.vulgaris/Data/PRJNA791920/IsoSeq/Raw/samples.csv \
-> O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/pileup.16.3.23.out & 
+> O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/pileup.19.3.23.out & 
 ```
 * alu 16
-* 15.3.23
-* 16:40
-* 49790
+* 19.3.23
+* 15:42
+* 9132
 
 
 
@@ -1824,11 +1824,11 @@ Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 --algrepetitions 2 \
 --algs Ascending Descending \
 --run_solve_threaded \
-2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.regular.16.3.23.log
+2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.regular.19.3.23.log
 ```
 * alu 15
-* 16.3.23
-* 17:35
+* 19.3.23
+* 16:48
 
 
 

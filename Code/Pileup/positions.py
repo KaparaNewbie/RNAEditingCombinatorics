@@ -666,14 +666,14 @@ def multisample_pileups_to_positions(
     ].unique()
     assert len(ref_base_noise) == 1 and np.isnan(ref_base_noise[0])
 
-    # verify that the number of mapped bases == 
+    # verify that the number of mapped bases ==
     # number of reads' names ==
     # number of samples
     for row_num, row in enumerate(positions_df.itertuples()):
         mapped_bases = row.MappedBases
         mapped_reads = row.Reads.split(",")
         mapped_samples = row.Samples.split(",")
-        if not(len(mapped_bases) == len(mapped_reads) == len(mapped_samples)):
+        if not (len(mapped_bases) == len(mapped_reads) == len(mapped_samples)):
             raise ValueError
 
     if positions_out_file:
