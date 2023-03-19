@@ -250,12 +250,12 @@ function choosesolutions(distinctdf, fractions, algs, onlymaxdistinct)
     #     "Fraction" => x -> x .∈ fractions,  # keep only solutions of desired fractions
     #     "Algorithm" => x -> occursin.(x, algs) # keep only solutions of desired algortihms
     # )
-    _distinctdf = distinctdf[in.(distinctdf.Algorithm, Ref(algs)) .& in.(distinctdf.Fraction, Ref(fractions)), :]
+    _distinctdf = distinctdf[in.(distinctdf.Algorithm, Ref(algs)).&in.(distinctdf.Fraction, Ref(fractions)), :]
 
     if onlymaxdistinct
         maxdistinct = maximum(_distinctdf[!, "NumUniqueSamples"])
         _distinctdf = subset(
-            distinctdf, 
+            distinctdf,
             "NumUniqueSamples" => x -> x .== maxdistinct
         )
 
@@ -273,10 +273,15 @@ function additional_assignments(distinctdf, allprotsdf, firstcolpos, Δ, solutio
 end
 
 
+# distinctfile = distinctfiles[58]
+
 function prepare_distinctdf(
     distinctfile, delim, innerdelim, truestrings, falsestrings,
 )
-    distinctdf = DataFrame(CSV.File(distinctfile; delim, truestrings, falsestrings))
+    # distinctdf = DataFrame(CSV.File(distinctfile; delim, truestrings, falsestrings))
+    distinctdf = DataFrame(CSV.File(distinctfile; delim, truestrings, falsestrings, types=Dict("UniqueSamples" => String)))
+    # distinctdf[!, "UniqueSamples"] = InlineString.(distinctdf[!, "UniqueSamples"])
+
     transform!(distinctdf, :UniqueSamples => (x -> split.(x, innerdelim)) => :UniqueSamples)
     distinctdf[!, "Index"] = collect(1:size(distinctdf, 1))
     return distinctdf
@@ -287,8 +292,18 @@ toAAset(x, innerdelim) = Set(map(aa -> convert(AminoAcid, only(aa)), split(x, in
 
 
 function prepare_allprotsdf!(allprotsfile, delim, innerdelim, truestrings, falsestrings, firstcolpos)
-    allprotsdf = DataFrame(CSV.File(allprotsfile; delim, truestrings, falsestrings))
-    allprotsdf = hcat(allprotsdf[:, begin:firstcolpos-1], toAAset.(allprotsdf[:, firstcolpos:end], innerdelim))
+    # allprotsfile = allprotsfiles[1]
+
+    # allprotsdf = DataFrame(CSV.File(allprotsfile; delim, truestrings, falsestrings))
+    # allprotsdf = hcat(allprotsdf[:, begin:firstcolpos-1], toAAset.(allprotsdf[:, firstcolpos:end], innerdelim))
+
+    df1 = DataFrame(CSV.File(allprotsfile, delim=delim, select=collect(1:firstcolpos-1), types=Dict("Protein" => String)))
+    df1[!, "Protein"] = InlineString.(df1[!, :Protein])
+    # make sure columns of AAs containing only Ts aren't parsed as boolean columns
+    df2 = DataFrame(CSV.File(allprotsfile, delim=delim, drop=collect(1:firstcolpos-1), types=String))
+    df2 = toAAset.(df2, innerdelim)
+
+    allprotsdf = hcat(df1, df2)
 
     insertcols!(allprotsdf, firstcolpos, :Index => 1:size(allprotsdf, 1))
     firstcolpos += 1
@@ -533,6 +548,77 @@ end
 if abspath(PROGRAM_FILE) == @__FILE__
     CLI_main()
 end
+
+
+
+
+
+
+# distinctfiles = split(readchomp(`cat "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/DistinctProteinsForExpressionLevels.txt"`))
+# allprotsfiles = split(readchomp(`cat "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/UniqueProteinsForExpressionLevels.txt"`))
+# samplenames = split(readchomp(`cat "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/ChromsNamesForExpressionLevels.txt"`))
+
+# `echo O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/*.ExpressionLevels.csv`
+
+# run(`echo "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/*.ExpressionLevels.csv"`)
+
+# read(`echo "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/*.ExpressionLevels.csv"`, String)
+
+# expressionfiles = split(read(`echo "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/*.ExpressionLevels.csv"`, String))
+
+# protsdir = "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles"
+
+# expressionfiles = [
+#     f for f in readdir(protsdir) if occursin("ExpressionLevels.csv", f)
+# ]
+
+# outdir = "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles"
+# postfix_to_add = ""
+# firstcolpos = 16
+# delim = "\t"
+# innerdelim = ","
+# truestrings = ["TRUE", "True", "true"]
+# falsestrings = ["FALSE", "False", "false"]
+# # fractions = [1.0]
+# fractions = [0.2, 0.4, 0.6, 0.8, 1.0]
+# maxmainthreads = 30
+# algs = ["Ascending", "Descending"]
+# onlymaxdistinct = false
+# gcp = false
+# shutdowngcp = false
+# substitutionmatrix = nothing
+# aagroups = nothing
+# similarityscorecutoff = 0
+# similarityvalidator = >=
+
+# x = 59
+
+# distinctdf = prepare_distinctdf(
+#     distinctfiles[x], delim, innerdelim, truestrings, falsestrings
+# )
+
+# allprotsdf, firstcolpos = prepare_allprotsdf!(
+#     allprotsfiles[x], delim, innerdelim, truestrings, falsestrings, firstcolpos
+# )
+
+# M = Matrix(allprotsdf[:, firstcolpos:end])
+
+# Δ = distances(M)
+
+# solutions = choosesolutions(distinctdf, fractions, algs, onlymaxdistinct)
+
+
+# main(
+#     distinctfiles, allprotsfiles, samplenames, postfix_to_add,
+#     firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
+#     maxmainthreads, outdir, algs, onlymaxdistinct,
+#     gcp, shutdowngcp,
+#     substitutionmatrix,
+#     similarityscorecutoff,
+#     similarityvalidator,
+#     aagroups
+# )
+
 
 
 

@@ -1,3 +1,5 @@
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
 TODO add a brief explanation about the project.
 
 
@@ -451,7 +453,7 @@ tblastx \
 
 
 
-
+<!-- 
 ```bash
 nohup \
 python Code/known_sites_alignment.py \
@@ -460,7 +462,16 @@ python Code/known_sites_alignment.py \
 * alu 17
 * 19.01.2023
 * 17:31
-* 19063
+* 19063 -->
+
+
+```bash
+python Code/orfs_fasta_to_bed.py \
+--in_fasta O.vulgaris/Annotations/orfs_oct.fa \
+--out_bed O.vulgaris/Annotations/orfs_oct.bed
+```
+* alu 13
+* 7.2.2023
 
 
 We change direction and use the known vulgaris site in the transcriptome.
@@ -812,12 +823,12 @@ python Code/align.py \
 --threads 10 \
 pacbio_preprocessed_isoseq \
 --known_sites_bed_file O.vulgaris/Annotations/O.vul.EditingSites.bed \
-> O.vulgaris/Alignment/PRJNA791920/IsoSeq/align.6.2.23.out &
+> O.vulgaris/Alignment/PRJNA791920/IsoSeq/align.7.2.23.out &
 ```
 * alu 13
-* 6.2.23
-* 20:26
-* 29390
+* 7.2.23
+* 13:51
+* 44025
 
 
 
@@ -1446,6 +1457,247 @@ Code/UnorderedNaNDepletion/expressionlevels.jl \
 * 13:46
 * 17980
 
+## PacBio (rq 0.998, 3 top noisy positions)
+
+### Pileup
+
+```bash
+conda activate combinatorics
+cd /private7/projects/Combinatorics
+
+mkdir -p D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3
+
+nohup \
+python Code/pileup.py \
+--transcriptome D.pealeii/Annotations/orfs_squ.fa \
+--data_table D.pealeii/Alignment/BestN1/data_table_wo_prob_bed.2.csv \
+--known_editing_sites D.pealeii/Annotations/D.pea.EditingSites.bed \
+--out_dir D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3 \
+--min_rq 0.998 \
+--assurance_factor 1.5 \
+--min_percent_of_max_coverage 0.1 \
+--snp_noise_level 0.1 \
+--top_x_noisy_positions 3 \
+--parity SE \
+--gz_compression \
+> D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/pileup.2.3.23.out &
+```
+* alu 13
+* 2.3.23
+* 17:57
+* 27336
+
+
+### Distinct proteins
+
+#### Regular
+
+A new tmux session:
+
+```bash
+tmux new -s julia13
+```
+
+Finding isoforms:
+
+```bash
+INFILES=$(echo D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/*.unique_proteins.csv.gz)
+echo $INFILES
+
+julia \
+--project=. \
+--threads 40 --proc 6 \
+Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3 \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/DistinctProteins.regular.3.3.23.log
+```
+* alu 13
+* 3.3.23
+* 15:20
+
+Calculating expression levels:
+
+```bash
+DISTINCTFILES="D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.DistinctUniqueProteins.03.03.2023-15:36:38.csv \
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.DistinctUniqueProteins.03.03.2023-15:53:01.csv"
+ALLROTSFILES="D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
+SAMPLESNAMES="GRIA PCLO"
+
+nohup \
+julia \
+--project=. \
+--threads 40 \
+Code/UnorderedNaNDepletion/expressionlevels.jl \
+--distinctfiles $DISTINCTFILES \
+--allprotsfiles $ALLROTSFILES \
+--samplenames $SAMPLESNAMES \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3 \
+> D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/expressionlevels.regular.8.3.23.out &
+```
+* alu 13
+* 8.3.22
+* 13:15
+* 37076
+
+
+#### AA_groups_Miyata1979
+
+
+A new tmux session:
+
+```bash
+tmux new -s julia16
+```
+
+Finding isoforms:
+
+```bash
+INFILES=$(echo D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/*.unique_proteins.csv.gz)
+echo $INFILES
+
+julia \
+--project=. \
+--threads 40 --proc 6 \
+Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+--postfix_to_add .AAgroupsMiyata1979 \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--aagroups AA_groups_Miyata1979 \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3 \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/DistinctProteins.AAgroupsMiyata1979.3.3.23.log
+```
+* alu 16
+* 3.3.23
+* 15:22
+
+
+Calculating expression levels:
+
+```bash
+
+DISTINCTFILES="""
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.DistinctUniqueProteins.AAgroupsMiyata1979.03.03.2023-15:49:55.csv \
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.DistinctUniqueProteins.AAgroupsMiyata1979.03.03.2023-16:09:24.csv
+"""
+ALLROTSFILES="""
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz
+"""
+SAMPLESNAMES="GRIA PCLO"
+
+nohup \
+julia \
+--project=. \
+--threads 40 \
+Code/UnorderedNaNDepletion/expressionlevels.jl \
+--distinctfiles $DISTINCTFILES \
+--allprotsfiles $ALLROTSFILES \
+--samplenames $SAMPLESNAMES \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3 \
+--aagroups AA_groups_Miyata1979 \
+--postfix_to_add .AAgroupsMiyata1979 \
+> D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/expressionlevels.AAgroupsMiyata1979.8.3.23.out &
+```
+* alu 16
+* 8.3.23
+* 13:17
+* 44868
+
+
+#### By GRANTHAM1974
+
+```bash
+tmux new -s julia15
+```
+
+Finding isoforms:
+
+```bash
+INFILES=$(echo D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/*.unique_proteins.csv.gz)
+echo $INFILES
+
+> 100
+
+```
+julia \
+--project=. \
+--threads 40 --proc 6 \
+Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+--postfix_to_add .GRANTHAM1974-100 \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--substitutionmatrix GRANTHAM1974 \
+--similarityscorecutoff 100 \
+--similarityvalidator "<" \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3 \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/DistinctProteins.GRANTHAM1974-100.8.3.23.log
+```
+* alu 15
+* 8.3.23
+* 11:26
+
+
+
+Calculating expression levels:
+
+```bash
+DISTINCTFILES="""
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.DistinctUniqueProteins.GRANTHAM1974-100.08.03.2023-12:37:40.csv \
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.DistinctUniqueProteins.GRANTHAM1974-100.08.03.2023-13:53:05.csv
+"""
+ALLROTSFILES="""
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz
+"""
+SAMPLESNAMES="GRIA PCLO"
+
+nohup \
+julia \
+--project=. \
+--threads 40 \
+Code/UnorderedNaNDepletion/expressionlevels.jl \
+--distinctfiles $DISTINCTFILES \
+--allprotsfiles $ALLROTSFILES \
+--samplenames $SAMPLESNAMES \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3 \
+--substitutionmatrix GRANTHAM1974 \
+--similarityscorecutoff 100 \
+--similarityvalidator "<" \
+--postfix_to_add .GRANTHAM1974-100 \
+> D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/expressionlevels.GRANTHAM1974-100.8.3.23.out &
+```
+* alu 15
+* 8.3.23
+* 14:01
+* 24812
+
 
 ## Illumina (Ruti's Illumina PE READS, take 2 (shortened ids))
 
@@ -1504,18 +1756,131 @@ Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 
 
 
+## O.vul IsoSeq data
+
+### Pileup
+
+```bash
+mkdir -p O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq
+
+nohup python Code/pileup_with_subparsers.py \
+--transcriptome O.vulgaris/Annotations/orfs_oct.fa \
+--known_editing_sites O.vulgaris/Annotations/O.vul.EditingSites.bed \
+--exclude_flags 2304 \
+--parity SE \
+--out_dir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq \
+--processes 10 \
+--threads 10 \
+--keep_pileup_files \
+undirected_sequencing_data \
+--alignments_stats_table O.vulgaris/Alignment/PRJNA791920/IsoSeq/AggregatedByChromBySampleSummary.tsv \
+--min_samples 7 \
+--min_mapped_reads_per_sample 100 \
+--min_known_sites 5 \
+--pooled_transcript_noise_threshold 0.06 \
+--main_by_chrom_dir O.vulgaris/Alignment/PRJNA791920/IsoSeq/ByChrom \
+--cds_regions O.vulgaris/Annotations/orfs_oct.bed \
+--samples_table O.vulgaris/Data/PRJNA791920/IsoSeq/Raw/samples.csv \
+> O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/pileup.16.3.23.out & 
+```
+* alu 16
+* 15.3.23
+* 16:40
+* 49790
 
 
 
 
+### Distinct proteins
+
+#### Regular
+
+A new tmux session:
+
+```bash
+tmux new -s julia15
+```
+
+Finding isoforms:
+
+```bash
+INFILES=$(echo O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/*.unique_proteins.csv)
+
+echo $INFILES
 
 
-   
+julia \
+--project=. \
+--threads 40 --proc 6 \
+Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .unique_proteins.csv \
+--idcol Protein \
+--firstcolpos 16 \
+--datatype Proteins \
+--outdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.regular.16.3.23.log
+```
+* alu 15
+* 16.3.23
+* 17:35
 
 
 
+Calculating expression levels:
+
+```python
+from pathlib import Path
+
+proteins_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles")
+
+distinct_proteins_files = list(proteins_dir.glob("*DistinctUniqueProteins.*.csv"))
+unique_proteins_files = [
+    Path(proteins_dir, f"{distinct_proteins_files.name.split('.')[0]}.unique_proteins.csv")
+    for distinct_proteins_files in distinct_proteins_files
+]
+chroms_names = [
+    distinct_proteins_files.name.split('.')[0]
+    for distinct_proteins_files in distinct_proteins_files
+]
+
+distinct_proteins_list = Path(proteins_dir, "DistinctProteinsForExpressionLevels.txt")
+unique_proteins_list = Path(proteins_dir, "UniqueProteinsForExpressionLevels.txt")
+chroms_names_list = Path(proteins_dir, "ChromsNamesForExpressionLevels.txt")
+
+lists = [distinct_proteins_files, unique_proteins_files, chroms_names]
+lists_file_names = [distinct_proteins_list, unique_proteins_list, chroms_names_list]
+
+for _list, list_file_name in zip(lists, lists_file_names):
+    with list_file_name.open("w") as list_file_name:
+        list_file_name.write(" ".join(map(str, _list)))
+```
 
 
+```bash
+DISTINCTFILES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/DistinctProteinsForExpressionLevels.txt)
+ALLROTSFILES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/UniqueProteinsForExpressionLevels.txt)
+SAMPLESNAMES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/ChromsNamesForExpressionLevels.txt)
 
-
-
+nohup \
+julia \
+--project=. \
+--threads 20 \
+Code/UnorderedNaNDepletion/expressionlevels.jl \
+--distinctfiles $DISTINCTFILES \
+--allprotsfiles $ALLROTSFILES \
+--samplenames $SAMPLESNAMES \
+--firstcolpos 16 \
+--fractions 0.2 0.4 0.6 0.8 1.0 \
+--outdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles \
+> O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/expressionlevels.regular.19.3.23.out &
+```
+* alu 15
+* 19.3.22
+* 12:35
+* 2066
