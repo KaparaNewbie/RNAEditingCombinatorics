@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.14.0
+#       jupytext_version: 1.14.4
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -2319,19 +2319,25 @@ fig.add_trace(
 # fig.update_yaxes(type="log")
 
 fig.update_layout(
-    title_text=head_title,
+    # title_text=head_title,
     # legend_title_text=condition_col,
     # legend_title_text="Partial-CDS, Illumina",
     template=template,
-    # legend_font=dict(size=8),
-    # legend_grouptitlefont=dict(size=8),
+    legend_font=dict(size=12),
+    legend_grouptitlefont=dict(size=14),
+    # legend_font=dict(size=14),
+    # legend_grouptitlefont=dict(size=16),
     # legend_tracegroupgap=4,
     width=900,
     height=650,
+    # width=650,
+    # height=500,
 )
 # fig.write_image("Distinct unique proteins vs. sequencing depth - Illumina.png", format='png',engine='kaleido')
 fig.write_image(
     "Distinct unique proteins vs. sequencing depth - Flash Talk - Illumina.svg",
+    # width=1100,
+    # height=1000,
     width=900,
     height=650,
 )

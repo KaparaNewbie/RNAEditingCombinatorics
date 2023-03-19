@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.14.0
+#       jupytext_version: 1.14.4
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -2565,6 +2565,321 @@ fig.update_yaxes(
     range=[0, max_y*1.2],
     # zeroline=True
 )
+fig.update_xaxes(range=[0, maximal_x*1.1])
+fig.update_layout(
+    # title_text=head_title,
+    template=template,
+    legend_font=dict(size=8),
+    legend_grouptitlefont=dict(size=10),
+    # legend_font=dict(size=12),
+    # legend_grouptitlefont=dict(size=14),
+    # legend_font=dict(size=8),
+    # legend_grouptitlefont=dict(size=8),
+    # legend_tracegroupgap=4,
+    # width=100*maximal_x/10
+    height=600,
+    width=1000
+)
+fig.write_image("Distinct unique proteins vs. sequencing depth - Flash talk - PacBio.svg", width=650, height=500)
+fig.show()
+
+
+# %%
+fig = make_subplots(
+    rows=1, cols=1, print_grid=False, 
+)
+_distinct_dissimilar_dfs = {
+    # "Regular": distinct_unique_proteins_df,
+    "Miyata": distinct_dissimilar_miyata_proteins_df,
+    "Grantham 100": distinct_dissimilar_grantham_proteins_df.loc[distinct_dissimilar_grantham_proteins_df["CutoffScore"] == 100]
+}
+
+symbols = ["circle", "square-dot", "diamond", "circle", "star", "star-square", "triangle-down"]
+n_similarities = 2
+fill_color_similarities = [True] * n_similarities + [False] * (len(symbols) - n_similarities)
+_marker_size = 3
+maximal_x = 0
+
+# Add traces
+for condition in conditions:
+    for _distinction, _distinct_df in _distinct_dissimilar_dfs.items():
+        if _distinction.startswith("Grantham"):
+            i = _distinctions[_distinction.split(" ")[0]]   # same as _distinctions["Grantham"]
+            cutoff_score = int(_distinction.split(" ")[1])
+            j = i - 1 + grantham_cutoff_scores.index(cutoff_score)
+        else:
+            i =_distinctions[_distinction]
+            j = i - 1
+        line_color = _dissimilar_colormaps[condition][i]
+        fill_color = line_color if fill_color_similarities[j] else "white"
+        symbol = symbols[j]
+        name = f"{condition} - {_distinction}"
+        df = _distinct_df.loc[
+            (_distinct_df[condition_col] == condition) &
+            (_distinct_df["Algorithm"] == "Descending")
+        ]
+        x_measured = df["NumOfReads"]
+        y_measured = df["NumOfProteins"]
+        fig.add_trace(
+                go.Scatter(
+                    x=x_measured,
+                    y=y_measured,
+                    mode="markers",
+                    # marker=dict(color=subcolors_discrete_map[condition][0], size=_marker_size),
+                    marker=dict(color=fill_color, size=_marker_size, symbol=symbol, line=dict(
+                        width=2,
+                        color=line_color
+                    )),
+                    name=name
+                )
+        )
+        grouped_df = df.groupby("Fraction")
+        x_fraction_mean = grouped_df["NumOfReads"].mean().reset_index()
+        y_fraction_mean = grouped_df["NumOfProteins"].mean().reset_index()
+        mean_fraction_df = x_fraction_mean.merge(y_fraction_mean, on="Fraction")
+        maximal_x = max(maximal_x, x_measured.max())
+        fig.add_trace(
+            go.Scatter(
+                x=mean_fraction_df["NumOfReads"],
+                y=mean_fraction_df["NumOfProteins"],
+                mode="lines",
+                # marker=dict(color=subcolors_discrete_map[condition][0], size=_marker_size),
+                line=dict(
+                    color=line_color, 
+                    width=_marker_size*.2, 
+                ),
+                opacity=0.5,
+                showlegend=False,
+            ),
+        )
+        
+# dscam_ys = [19_008, 18_496, ]
+# dscam_legend_names = ["Theoretical maximum", "Measured", ]
+# # dscam_legend_names = ["measured", "theoretical maximum"]
+# dscam_colors = ["grey", "black"]
+# fig.add_trace(
+#     go.Scatter(
+#         x=[0.05 * maximal_x, 1.05 * maximal_x],
+#         y=[dscam_ys[0], dscam_ys[0]],
+#         mode="lines",
+#         line=dict(
+#             color=dscam_colors[0],
+#             dash="dash",
+#             # width=3
+#         ),
+#         showlegend=False,
+#         # legendgroup="DSCAM",  # this can be any string
+#         # legendgrouptitle_text="DSCAM",
+#         # name=dscam_legend_names[0],
+#         # # name=f"DSCAM {dscam_legend_names[1]}",
+#     ),
+# )
+# fig.add_trace(
+#     go.Scatter(
+#         x=[0.05 * maximal_x, 1.05 * maximal_x],
+#         y=[dscam_ys[1], dscam_ys[1]],
+#         mode="lines",
+#         line=dict(
+#             color=dscam_colors[1],
+#             dash="dash",
+#             # width=3
+#         ),
+#         showlegend=False,
+#         # legendgroup="DSCAM",  # this can be any string
+#         # name=dscam_legend_names[1],
+#         # name=f"DSCAM {dscam_legend_names[0]}",
+#     ),
+# )
+
+# fig.update_yaxes(type="log", exponentformat="power")
+fig.update_xaxes(range=[0, maximal_x*1.1])
+
+fig.update_layout(
+    # title_text=head_title,
+    template=template,
+    # legend=dict(
+    #     orientation="h",
+    #     yanchor="bottom",
+    #     # y=1.02,
+    #     # xanchor="right",
+    #     # x=1
+    # ),
+    legend_font=dict(size=8),
+    # legend_grouptitlefont=dict(size=8),
+    # legend_tracegroupgap=4,
+    # width=100*maximal_x/10
+    height=300,
+    width=450
+)
+fig.write_image("Distinct dissimilar unique proteins vs. sequencing depth - PacBio - Illanit 2023.svg", width=400, height=300)
+fig.show()
+
+# %%
+x_axis_name = "Reads"
+y_axis_name = "Distinct unique proteins"
+head_title = (
+    "Distinct unique proteins vs. sequencing depth"
+    # "<br>"
+    # # f"<sub>({alg_repetitions * 2} repetitions over each fraction of data)</sub>"
+    # "<sub>(100 repetitions over each fraction of data)</sub>"
+)
+_marker_size = 5
+maximal_x = 0
+
+# Initialize figure with subplots
+fig = make_subplots(
+    rows=1, cols=1, print_grid=False, x_title=x_axis_name, y_title=y_axis_name
+)
+
+_distinct_dfs = {
+    # "Regular": distinct_unique_proteins_df,
+    "Miyata": distinct_dissimilar_miyata_proteins_df,
+    # "Grantham": distinct_dissimilar_grantham_proteins_df
+}
+for cutoff_score in grantham_cutoff_scores:
+    _distinct_dfs[f"Grantham {cutoff_score}"] = distinct_dissimilar_grantham_proteins_df.loc[distinct_dissimilar_grantham_proteins_df["CutoffScore"] == cutoff_score]
+
+_dissimilar_colormaps = {
+    condition: n_repetitions_colormap(subcolors_discrete_map, condition, 3)
+    for condition in conditions
+}
+_distinctions = {
+    # "Regular": 1, 
+    "Miyata": 2, "Grantham": 3
+}
+
+# basic_symbols = ["x", "star", "circle", "square", "diamond", "star-square", "triangle-down", ]
+# symbol_modifiers = [ "", "", "-dot"]
+
+# symbols = ["circle", "square-dot", "star", "circle", "diamond", "star-square", "triangle-down"]
+symbols = ["square-dot", "diamond",]
+n_similarities = 2
+fill_color_similarities = [True] * n_similarities + [False] * (len(symbols) - n_similarities)
+# fill_color_similarities = [False, True, False, False, False, False, False]
+
+first_data_trace = True
+
+# Add traces
+for col, condition in enumerate(conditions, start=1):
+
+    for _distinction, _distinct_df in _distinct_dfs.items():
+    
+        if _distinction.startswith("Grantham"):
+            i = _distinctions[_distinction.split(" ")[0]]   # same as _distinctions["Grantham"]
+            cutoff_score = int(_distinction.split(" ")[1])
+            j = i - 1 + grantham_cutoff_scores.index(cutoff_score)
+        else:
+            i =_distinctions[_distinction]
+            j = i - 1
+
+        line_color = _dissimilar_colormaps[condition][i]
+        fill_color = line_color if fill_color_similarities[j] else "white"
+        
+        symbol = symbols[j]
+        
+        name = f"{condition} - {_distinction}"
+        
+        df = _distinct_df.loc[
+            (_distinct_df[condition_col] == condition) &
+            (_distinct_df["Algorithm"] == "Descending")
+        ]
+        
+        x_measured = df["NumOfReads"]
+        y_measured = df["NumOfProteins"]
+
+        if first_data_trace:
+            fig.add_trace(
+                go.Scatter(
+                    x=x_measured,
+                    y=y_measured,
+                    mode="markers",
+                    # marker=dict(color=subcolors_discrete_map[condition][0], size=_marker_size),
+                    marker=dict(color=fill_color, size=_marker_size, symbol=symbol, line=dict(
+                        width=2,
+                        color=line_color
+                    )),
+                    legendgroup="Full-CDS, PacBio",  # this can be any string
+                    legendgrouptitle_text="Full-CDS, PacBio",
+                    name=name
+                ),
+            )
+            first_data_trace = False
+        else:
+            fig.add_trace(
+                go.Scatter(
+                    x=x_measured,
+                    y=y_measured,
+                    mode="markers",
+                    # marker=dict(color=subcolors_discrete_map[condition][0], size=_marker_size),
+                    marker=dict(color=fill_color, size=_marker_size, symbol=symbol, line=dict(
+                        width=2,
+                        color=line_color
+                    )),
+                    legendgroup="Full-CDS, PacBio",  # this can be any string
+                    name=name
+                ),
+            )
+
+        grouped_df = df.groupby("Fraction")
+        x_fraction_mean = grouped_df["NumOfReads"].mean().reset_index()
+        y_fraction_mean = grouped_df["NumOfProteins"].mean().reset_index()
+        mean_fraction_df = x_fraction_mean.merge(y_fraction_mean, on="Fraction")
+        
+        maximal_x = max(maximal_x, x_measured.max())
+
+        fig.add_trace(
+            go.Scatter(
+                x=mean_fraction_df["NumOfReads"],
+                y=mean_fraction_df["NumOfProteins"],
+                mode="lines",
+                # marker=dict(color=subcolors_discrete_map[condition][0], size=_marker_size),
+                line=dict(
+                    color=line_color, 
+                    width=_marker_size*.2, 
+                ),
+                opacity=0.5,
+                showlegend=False,
+            ),
+        )
+
+dscam_ys = [19_008, 18_496, ]
+dscam_legend_names = ["Theoretical maximum", "Measured", ]
+# dscam_legend_names = ["measured", "theoretical maximum"]
+dscam_colors = ["grey", "black"]
+fig.add_trace(
+    go.Scatter(
+        x=[0.05 * maximal_x, 1.05 * maximal_x],
+        y=[dscam_ys[0], dscam_ys[0]],
+        mode="lines",
+        line=dict(
+            color=dscam_colors[0],
+            dash="dash",
+            # width=3
+        ),
+        legendgroup="DSCAM",  # this can be any string
+        legendgrouptitle_text="DSCAM",
+        name=dscam_legend_names[0],
+        # name=f"DSCAM {dscam_legend_names[1]}",
+    ),
+)
+fig.add_trace(
+    go.Scatter(
+        x=[0.05 * maximal_x, 1.05 * maximal_x],
+        y=[dscam_ys[1], dscam_ys[1]],
+        mode="lines",
+        line=dict(
+            color=dscam_colors[1],
+            dash="dash",
+            # width=3
+        ),
+        legendgroup="DSCAM",  # this can be any string
+        name=dscam_legend_names[1],
+        # name=f"DSCAM {dscam_legend_names[0]}",
+    ),
+)
+
+# fig.update_yaxes(type="log")
+
 fig.update_layout(
     title_text=head_title,
     template=template,
@@ -2575,7 +2890,7 @@ fig.update_layout(
     height=600,
     width=1000
 )
-fig.write_image("Distinct unique proteins vs. sequencing depth - Flash talk - PacBio.svg", width=650, height=500)
+fig.write_image("Distinct unique proteins vs. sequencing depth - PacBio.svg", width=650, height=500)
 fig.show()
 
 
