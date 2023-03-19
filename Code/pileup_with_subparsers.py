@@ -147,11 +147,11 @@ def undirected_sequencing_main(
         for bam_in_chrom in bams_in_chrom:
             # ic(bam_in_chrom)
             sample = bam_in_chrom.stem[: bam_in_chrom.stem.index(interfix_start)]
-            group = sample_to_group_dict[sample]
+            # group = sample_to_group_dict[sample]
             chroms.append(chrom)
             swissprot_names.append(swissprot_name)
             samples.append(sample)
-            groups.append(group)
+            # groups.append(group)
             orfs_starts.append(start)
             orfs_ends.append(end)
             pileup_formatted_regions.append(region)
@@ -210,17 +210,23 @@ def undirected_sequencing_main(
 
     # 4 - pileup files -> positions dfs
 
+    group_col = "Transcript"  # todo make more visible
+
     unique_chroms = []
     unique_orfs_starts = []
     unique_orfs_ends = []
     unique_orfs_strands = []
-    for chrom, start, end, strand in zip(chroms, orfs_starts, orfs_ends, orfs_strands):
+    unique_swissprot_names = []
+    for chrom, start, end, strand, swissprot_name in zip(
+        chroms, orfs_starts, orfs_ends, orfs_strands, swissprot_names
+    ):
         if chrom in unique_chroms:
             continue
         unique_chroms.append(chrom)
         unique_orfs_starts.append(start)
         unique_orfs_ends.append(end)
         unique_orfs_strands.append(strand)
+        unique_swissprot_names.append(swissprot_name)
 
     positions_dir = Path(out_dir, "PositionsFiles")
     positions_dir.mkdir(exist_ok=True)
@@ -233,11 +239,6 @@ def undirected_sequencing_main(
         Path(positions_dir, f"{chrom}.positions.csv{compression_postfix}")
         for chrom in unique_chroms
     ]
-
-    # pileup_files_per_chroms = [
-    #     [Path(pileup_dir, f"{sample}.{chrom}.pileup") for sample in unique_samples]
-    #     for chrom in unique_chroms
-    # ]
 
     pileup_files_per_chroms = defaultdict(list)
     samples_per_chroms = defaultdict(list)
@@ -256,7 +257,6 @@ def undirected_sequencing_main(
                 (
                     pileup_files_per_chroms[chrom],
                     samples_per_chroms[chrom],
-                    # orf_strand_per_chrom[chrom],
                     strand,
                     min_percent_of_max_coverage,
                     snp_noise_level,
@@ -315,7 +315,7 @@ def undirected_sequencing_main(
                 for positions_file, strand, group, reads_file, unique_reads_file in zip(
                     positions_files,
                     unique_orfs_strands,
-                    groups,
+                    unique_swissprot_names,
                     reads_files,
                     unique_reads_files,
                 )
