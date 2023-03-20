@@ -403,7 +403,7 @@ def multisample_proteins_to_unique_proteins(
     )
 
     # join reads
-    unique_proteins_df["Reads"] = proteins_grouped_by_positions["Samples"].transform(
+    unique_proteins_df["Reads"] = proteins_grouped_by_positions["Reads"].transform(
         lambda x: ",".join(x)
     )
     # sum joined reads
