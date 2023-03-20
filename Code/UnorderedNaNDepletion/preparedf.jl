@@ -72,8 +72,11 @@ function preparedf!(
 
     # remove uniformative cols 
     # (altough we also apply the function on the idcol it shouldn't matter for the idcol, 
-    # as it has more than one unique value)
-    df = df[:, map(col -> length(unique(col)) > 1, eachcol(df))]
+    # if it has more than one unique value)
+    informativedf = df[:, map(col -> length(unique(col)) > 1, eachcol(df))]
+    if size(informativedf)[1] == 0
+        df = df[1, :]
+    end
 
     return df, firstcolpos
 end

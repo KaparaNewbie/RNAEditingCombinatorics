@@ -1781,12 +1781,12 @@ undirected_sequencing_data \
 --main_by_chrom_dir O.vulgaris/Alignment/PRJNA791920/IsoSeq/ByChrom \
 --cds_regions O.vulgaris/Annotations/orfs_oct.bed \
 --samples_table O.vulgaris/Data/PRJNA791920/IsoSeq/Raw/samples.csv \
-> O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/pileup.19.3.23.out & 
+> O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/pileup.20.3.23.out & 
 ```
 * alu 16
-* 19.3.23
-* 15:42
-* 9132
+* 20.3.23
+* 11:31
+* 6200
 
 
 
@@ -1804,27 +1804,47 @@ tmux new -s julia15
 Finding isoforms:
 
 ```bash
+mkdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteinsFiles
+
 INFILES=$(echo O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/*.unique_proteins.csv)
 
 echo $INFILES
 
+# julia \
+# --project=. \
+# --threads 40 --proc 6 \
+# Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+# --infiles $INFILES \
+# --postfix_to_remove .unique_proteins.csv \
+# --idcol Protein \
+# --firstcolpos 16 \
+# --datatype Proteins \
+# --outdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteinsFiles \
+# --fracstep 0.2 \
+# --fracrepetitions 4 \
+# --algrepetitions 2 \
+# --algs Ascending Descending \
+# --run_solve_threaded \
+# 2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.regular.20.3.23.log
+
+rm -rf /private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteinsFiles/*
 
 julia \
 --project=. \
---threads 40 --proc 6 \
+--threads 20 \
 Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 --infiles $INFILES \
 --postfix_to_remove .unique_proteins.csv \
 --idcol Protein \
 --firstcolpos 16 \
 --datatype Proteins \
---outdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles \
+--outdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteinsFiles \
 --fracstep 0.2 \
 --fracrepetitions 4 \
 --algrepetitions 2 \
 --algs Ascending Descending \
 --run_solve_threaded \
-2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.regular.19.3.23.log
+2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.regular.20.3.23.log
 ```
 * alu 15
 * 19.3.23

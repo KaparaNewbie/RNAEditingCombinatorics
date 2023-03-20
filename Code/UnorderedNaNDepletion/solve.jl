@@ -21,7 +21,8 @@ Then, initialize a subset of vertices `V2` and, iteratively, add vertices from `
 of any other vertices already present in `V2` (according to the original edges `E`).  
 Return the vertices in `V2` in a vector. Use `sortresults=true` to return them sorted in ascending order of vertices' names.
 """
-@timeit to function distinctascending(G, sortresults::Bool=false)
+# @timeit to function distinctascending(G, sortresults::Bool=false)
+function distinctascending(G, sortresults::Bool=false)
 
     # create a vector with tuples of (vertex, degree)
     verticesdegs = [(v, length(G[v])) for v ∈ keys(G)]
@@ -87,7 +88,8 @@ Return the remaining vertices in a vector. Use `sort=true` to return them in asc
 
 Same as `distinctdescending_old` except it's supposed to be faster due to better management of `maxdeg` & `maxdegvertices`.
 """
-@timeit to function distinctdescending(G, sortresults::Bool=false)
+# @timeit to function distinctdescending(G, sortresults::Bool=false)
+function distinctdescending(G, sortresults::Bool=false)
 
     G = deepcopy(G) # todo should we remove the deepcopy? it depends on the repetion scheme
 
@@ -280,14 +282,20 @@ function solve(
         for algrepetition ∈ 1:algrepetitions
     ]
     mapfunc = threaded ? ThreadsX.map : map
-    @timeit to "algfunc (obtaining distinct isoforoms using ascending / aescending function)" begin
-        distinctsamples_alg_algrepetition_sets = mapfunc(mapinputs) do (alg, algrepetition)
-            algfunc = algfuncs[alg] # the function implementing `alg`
-            distinctsamples = algfunc(sampleG, sortresults)  # distinct unique samples obtained by `algfunc`
-            (distinctsamples, alg, algrepetition)
-        end    
+    # @timeit to "algfunc (obtaining distinct isoforoms using ascending / aescending function)" begin
+    #     distinctsamples_alg_algrepetition_sets = mapfunc(mapinputs) do (alg, algrepetition)
+    #         algfunc = algfuncs[alg] # the function implementing `alg`
+    #         distinctsamples = algfunc(sampleG, sortresults)  # distinct unique samples obtained by `algfunc`
+    #         (distinctsamples, alg, algrepetition)
+    #     end    
+    # end
+    distinctsamples_alg_algrepetition_sets = mapfunc(mapinputs) do (alg, algrepetition)
+        algfunc = algfuncs[alg] # the function implementing `alg`
+        distinctsamples = algfunc(sampleG, sortresults)  # distinct unique samples obtained by `algfunc`
+        (distinctsamples, alg, algrepetition)
     end
-    
+
+
     # create an empty results df 
     results = emptyresults()
     # add the distinct unique samples (reads/proteins) to the results

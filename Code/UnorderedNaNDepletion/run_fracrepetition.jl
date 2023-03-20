@@ -20,7 +20,8 @@ function run_fracrepetition(
     @info "$(loggingtime())\trun_fracrepetition" fraction nsamplerows fracrepetition algrepetitions run_solve_threaded sortresults algs myid()
     # assemble sub neighborhood lists of indistinguishable sampled rows by using the pre-computed complete graph
 
-    G = @timeit to "`G`" ArrG[1]  # retrive G which is the single element in the distributed array ArrG
+    # G = @timeit to "`G`" ArrG[1]  # retrive G which is the single element in the distributed array ArrG
+    G = ArrG[1]  # retrive G which is the single element in the distributed array ArrG
 
     # G = try
     #     @timeit to "`G`" ArrG[1]
@@ -29,8 +30,12 @@ function run_fracrepetition(
     #     return
     # end
 
+    # fraction = 0.6
+    # nrows = size(df, 1)
+    # nsamplerows = convert(Int, round(fraction * nrows))
 
-    sampleG = @timeit to "get_graph_sample" get_graph_sample(G, fraction, nsamplerows, df, idcol)
+    # sampleG = @timeit to "get_graph_sample" get_graph_sample(G, fraction, nsamplerows, df, idcol)
+    sampleG = get_graph_sample(G, fraction, nsamplerows, df, idcol)
 
     # sampleG = try
     #     @timeit to "get_graph_sample" get_graph_sample(G, fraction, nsamplerows, df, idcol)
@@ -40,7 +45,8 @@ function run_fracrepetition(
     # end
 
     # obtain sets of distinct rows
-    results = @timeit to "solve" solve(
+    # results = @timeit to "solve" solve(
+    results = solve(
         sampleG,
         fraction,
         fracrepetition,

@@ -63,7 +63,7 @@ include(joinpath(@__DIR__, "indistinguishable_rows.jl"))
     using TimerOutputs
     # using BioSymbols
     using BioSequences
-    const to = TimerOutput() # Create a TimerOutput, this is the main type that keeps track of everything.
+    # const to = TimerOutput() # Create a TimerOutput, this is the main type that keeps track of everything.
     include(joinpath(@__DIR__, "consts.jl")) # for ∅
     include(joinpath(@__DIR__, "timeformatters.jl"))
     include(joinpath(@__DIR__, "solve.jl"))
@@ -241,7 +241,7 @@ function main()
     @info "$(loggingtime())\tmain" delim prefix_to_remove postfix_to_remove postfix_to_add idcol firstcolpos datatype outdir fracstep maxfrac fracrepetitions algrepetitions testfraction randseed run_solve_threaded sortresults algs gcp shutdowngcp
 
     # do the thing for each file, in ascending order of file size
-    
+
     sort!(infiles, by=(x -> filesize(x)))
     if prefix_to_remove != "" && postfix_to_remove != ""
         samplesnames = map(x -> replace(splitdir(x)[2], prefix_to_remove => "", postfix_to_remove => ""), infiles)
@@ -260,7 +260,13 @@ function main()
     for x ∈ eachindex(infiles)  # could be eachindex(samplesnames) as well
         infile = infiles[x]
         samplename = samplesnames[x]
-        @timeit to "run_sample" run_sample(
+        # @timeit to "run_sample" run_sample(
+        #     infile, delim, samplename, idcol, firstcolpos, datatype, outdir, postfix_to_add,
+        #     fracstep, maxfrac, fracrepetitions, algrepetitions, testfraction, randseed,
+        #     run_solve_threaded, sortresults, algs,
+        #     substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups
+        # )
+        run_sample(
             infile, delim, samplename, idcol, firstcolpos, datatype, outdir, postfix_to_add,
             fracstep, maxfrac, fracrepetitions, algrepetitions, testfraction, randseed,
             run_solve_threaded, sortresults, algs,
@@ -268,8 +274,8 @@ function main()
         )
     end
 
-    # Print the timings in the default way
-    show(to)
+    # # Print the timings in the default way
+    # show(to)
 
     # shutdown gcp vm
     gcp && shutdowngcp && run(`sudo shutdown`) # https://cloud.google.com/compute/docs/shutdownscript
@@ -364,7 +370,11 @@ function run_sample(
     @info "$(loggingtime())\trun_sample" infile samplename
 
     df, firstcolpos = try
-        @timeit to "preparedf!" preparedf!(
+        # @timeit to "preparedf!" preparedf!(
+        #     infile, delim, datatype, idcol, firstcolpos,
+        #     testfraction, randseed
+        # )
+        preparedf!(
             infile, delim, datatype, idcol, firstcolpos,
             testfraction, randseed
         )
@@ -373,56 +383,78 @@ function run_sample(
         return
     end
 
+    if length(size(df)) > 1  # df has 2 dimensions, i.e., not a row of a single protein
 
-    # G is the main neighborhood matrix and created only once; samples can create subgraphs induced by it
-    G = try
-        if substitutionmatrix !== nothing
-            @timeit to "indistinguishable_rows" indistinguishable_rows(df, idcol, substitutionmatrix, similarityscorecutoff, similarityvalidator; firstcolpos)
-        elseif aagroups !== nothing
-            @timeit to "indistinguishable_rows" indistinguishable_rows(df, idcol, aagroups; firstcolpos)
-        else
-            @timeit to "indistinguishable_rows" indistinguishable_rows(df, idcol; firstcolpos)
-        end
-    catch e
-        @warn "$(loggingtime())\tindistinguishable_rows failed for $infile" e
-        return
-    end
-    ArrG = @DArray [G for _ ∈ 1:1]  # move G across processes on a distributed array in order to save memory
-
-    # having built G, we only need to keep the reads and unique reads/proteins they support
-    select!(df, idcol)
-    GC.gc() # free up memory, just in case
-
-
-    # define input parameters for pmap
-    @timeit to "fracrepetitions_inputs" fracrepetitions_inputs = prep_pmap_input(fracstep, maxfrac, df, fracrepetitions)
-
-    @timeit to "run_fracrepetition" fracrepetitions_results = pmap(
-        fracrepetitions_inputs;
-        retry_delays=ExponentialBackOff(n=3, first_delay=5, max_delay=1000)
-    ) do (fraction, nsamplerows, fracrepetition)
-        try
-            run_fracrepetition(
-                df,
-                idcol,
-                ArrG,
-                fraction,
-                nsamplerows,
-                fracrepetition,
-                algrepetitions,
-                run_solve_threaded,
-                sortresults,
-                algs
-            )
+        # G is the main neighborhood matrix and created only once; samples can create subgraphs induced by it
+        G = try
+            if substitutionmatrix !== nothing
+                # @timeit to "indistinguishable_rows" indistinguishable_rows(df, idcol, substitutionmatrix, similarityscorecutoff, similarityvalidator; firstcolpos)
+                indistinguishable_rows(df, idcol, substitutionmatrix, similarityscorecutoff, similarityvalidator; firstcolpos)
+            elseif aagroups !== nothing
+                # @timeit to "indistinguishable_rows" indistinguishable_rows(df, idcol, aagroups; firstcolpos)
+                indistinguishable_rows(df, idcol, aagroups; firstcolpos)
+            else
+                # @timeit to "indistinguishable_rows" indistinguishable_rows(df, idcol; firstcolpos)
+                indistinguishable_rows(df, idcol; firstcolpos)
+            end
         catch e
-            @warn "$(loggingtime())\trun_fracrepetition failed" fraction fracrepetition e
-            missing
+            @warn "$(loggingtime())\tindistinguishable_rows failed for $infile" e
+            return
         end
-    end
+        ArrG = @DArray [G for _ ∈ 1:1]  # move G across processes on a distributed array in order to save memory
 
-    @timeit to "`fracrepetitions_results` -> sorted `results`" begin
+        # having built G, we only need to keep the reads and unique reads/proteins they support
+        select!(df, idcol)
+        GC.gc() # free up memory, just in case
+
+
+        # define input parameters for pmap
+        # @timeit to "fracrepetitions_inputs" fracrepetitions_inputs = prep_pmap_input(fracstep, maxfrac, df, fracrepetitions)
+        fracrepetitions_inputs = prep_pmap_input(fracstep, maxfrac, df, fracrepetitions)
+
+        # @timeit to "run_fracrepetition" fracrepetitions_results = pmap(
+        fracrepetitions_results = pmap(
+            fracrepetitions_inputs;
+            retry_delays=ExponentialBackOff(n=3, first_delay=5, max_delay=1000)
+        ) do (fraction, nsamplerows, fracrepetition)
+            try
+                run_fracrepetition(
+                    df,
+                    idcol,
+                    ArrG,
+                    fraction,
+                    nsamplerows,
+                    fracrepetition,
+                    algrepetitions,
+                    run_solve_threaded,
+                    sortresults,
+                    algs
+                )
+            catch e
+                @warn "$(loggingtime())\trun_fracrepetition failed" infile fraction fracrepetition e
+                missing
+            end
+        end
+
+        # @timeit to "`fracrepetitions_results` -> sorted `results`" begin
+        #     results::DataFrame = vcat(skipmissing(fracrepetitions_results)...)
+        #     sort!(results, ["Fraction", "FractionRepetition", "Algorithm", "AlgorithmRepetition"])
+        # end
         results::DataFrame = vcat(skipmissing(fracrepetitions_results)...)
         sort!(results, ["Fraction", "FractionRepetition", "Algorithm", "AlgorithmRepetition"])
+
+
+    else
+
+        try
+            results = emptyresults()
+            for alg in algs
+                push!(results, [1.0, 1, alg, 1, 1, df[idcol]]; promote=true)
+            end
+        catch e
+            @warn samplename e
+            missing
+        end
     end
 
     # write the results to a csv file
@@ -450,6 +482,52 @@ main();
 
 # infile = "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/comp144504_c0_seq1.unique_proteins.csv"
 # firstcolpos = 16
+# delim = "\t"
+# idcol = "Protein"
+# datatype = "Proteins"
+# testfraction = 1.0
+# randseed = 1892
+
+# samplename = "comp179788_c0_seq1"
+# outdir = "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq"
+# postfix_to_add = ""
+# fracstep = 0.2
+# maxfrac = 1.0
+# fracrepetitions = 5
+# algrepetitions = 2
+# run_solve_threaded = true
+# sortresults = false
+# algs = ["Ascending", "Descending"]
+# substitutionmatrix = nothing
+# aagroups = nothing
+# similarityscorecutoff = 0
+# similarityvalidator = >=
+
+
+# df, firstcolpos = preparedf!(
+#     infile, delim, datatype, idcol, firstcolpos,
+#     testfraction, randseed
+# )
+
+# G = indistinguishable_rows(df, idcol; firstcolpos)
+
+
+# ArrG = @DArray [G for _ ∈ 1:1]  # move G across processes on a distributed array in order to save memory
+
+# # having built G, we only need to keep the reads and unique reads/proteins they support
+# select!(df, idcol)
+
+
+# run_sample(
+#     infile, delim, samplename, idcol, firstcolpos, datatype, outdir, postfix_to_add,
+#     fracstep, maxfrac, fracrepetitions, algrepetitions, testfraction, randseed,
+#     run_solve_threaded, sortresults, algs,
+#     substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups
+# )
+
+
+
+
 
 
 # infile = "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
@@ -482,6 +560,7 @@ main();
 #     testfraction, randseed
 # )
 
+# G = indistinguishable_rows(df, idcol; firstcolpos)
 
 # describe(df)
 
