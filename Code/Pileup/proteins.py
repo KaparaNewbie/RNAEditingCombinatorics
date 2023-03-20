@@ -230,7 +230,9 @@ def multisample_unique_reads_to_proteins(
     transcriptome: Union[str, Path],
     first_pos_loc: int = 9,
 ):
-    unique_reads_df = pd.read_csv(unique_reads_file, sep=sep, dtype={"UniqueRead": str})
+    unique_reads_df = pd.read_csv(
+        unique_reads_file, sep=sep, dtype={"UniqueRead": str, "Reads": str}
+    )
 
     # really shouldn't happen, that bug has been fixed by not creating ids with "NA*"
     if len(unique_reads_df.loc[unique_reads_df["UniqueRead"].isna()]) != 0:
