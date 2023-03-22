@@ -92,8 +92,14 @@ def undirected_sequencing_main(
     postfix: str,
     interfix_start: str,
     remove_non_refbase_noisy_positions: bool,
+    known_sites_only: bool,
     **kwargs,
 ):
+    prob_regions_bed = None  # we don't deal with individual "problamitic" sites in such large scale analysis
+
+    # denovo_detection = True
+    denovo_detection = not known_sites_only
+
     out_dir.mkdir(exist_ok=True)
 
     # 1 - get data
@@ -228,7 +234,10 @@ def undirected_sequencing_main(
         unique_orfs_strands.append(strand)
         unique_swissprot_names.append(swissprot_name)
 
-    positions_dir = Path(out_dir, "PositionsFiles")
+    positions_dir_name = (
+        "PositionsFiles" if denovo_detection else "PositionsFilesKnownSites"
+    )
+    positions_dir = Path(out_dir, positions_dir_name)
     positions_dir.mkdir(exist_ok=True)
 
     reads_mapping_files = [
@@ -245,10 +254,6 @@ def undirected_sequencing_main(
     for sample, chrom, pileup_file in zip(samples, chroms, pileup_files):
         pileup_files_per_chroms[chrom].append(pileup_file)
         samples_per_chroms[chrom].append(sample)
-
-    prob_regions_bed = None  # we don't deal with individual "problamitic" sites in such large scale analysis
-
-    denovo_detection = True
 
     with Pool(processes=processes) as pool:
         pool.starmap(
@@ -283,7 +288,8 @@ def undirected_sequencing_main(
 
     # 5 - positions dfs -> reads & unique reads dfs
 
-    reads_dir = Path(out_dir, "ReadsFiles")
+    reads_dir_name = "ReadsFiles" if denovo_detection else "ReadsFilesKnownSites"
+    reads_dir = Path(out_dir, reads_dir_name)
     reads_dir.mkdir(exist_ok=True)
 
     reads_files = [
@@ -324,7 +330,10 @@ def undirected_sequencing_main(
 
     # 6 - reads & unique reads dfs -> proteins & unique proteins dfs
 
-    proteins_dir = Path(out_dir, "ProteinsFiles")
+    proteins_dir_name = (
+        "ProteinsFiles" if denovo_detection else "ProteinsFilesKnownSites"
+    )
+    proteins_dir = Path(out_dir, proteins_dir_name)
     proteins_dir.mkdir(exist_ok=True)
 
     Path(reads_dir, f"{chrom}.reads.csv{compression_postfix}")
@@ -873,7 +882,12 @@ def define_args() -> argparse.Namespace:
     undirected_sequencing_subparser.add_argument(
         "--remove_non_refbase_noisy_positions",
         action="store_true",
-        help="Whether to remove non ref-base positions whose noise are high.",
+        help="Remove non ref-base positions whose noise are high.",
+    )
+    undirected_sequencing_subparser.add_argument(
+        "--known_sites_only",
+        action="store_true",
+        help="Allow only known sites to be considered as edited, rather than denovo ones too.",
     )
 
     # subparsers.default = "default"
