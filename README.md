@@ -1789,6 +1789,65 @@ undirected_sequencing_data \
 * 6200
 
 
+```bash
+nohup python Code/pileup_with_subparsers.py \
+--transcriptome O.vulgaris/Annotations/orfs_oct.fa \
+--known_editing_sites O.vulgaris/Annotations/O.vul.EditingSites.bed \
+--exclude_flags 2304 \
+--parity SE \
+--out_dir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq \
+--processes 10 \
+--threads 10 \
+--keep_pileup_files \
+undirected_sequencing_data \
+--alignments_stats_table O.vulgaris/Alignment/PRJNA791920/IsoSeq/AggregatedByChromBySampleSummary.tsv \
+--min_samples 7 \
+--min_mapped_reads_per_sample 100 \
+--min_known_sites 5 \
+--pooled_transcript_noise_threshold 0.06 \
+--main_by_chrom_dir O.vulgaris/Alignment/PRJNA791920/IsoSeq/ByChrom \
+--cds_regions O.vulgaris/Annotations/orfs_oct.bed \
+--samples_table O.vulgaris/Data/PRJNA791920/IsoSeq/Raw/samples.csv \
+--known_sites_only \
+--positions_dir_name PositionsFilesKnownSites \
+--reads_dir_name ReadsFilesKnownSites \
+--proteins_dir_name ProteinsFilesKnownSites \
+> O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/pileup.KnownSitesOnly.22.3.23.out & 
+```
+* alu 16
+* 22.3.23
+* 16:15
+
+
+```bash
+nohup python Code/pileup_with_subparsers.py \
+--transcriptome O.vulgaris/Annotations/orfs_oct.fa \
+--known_editing_sites O.vulgaris/Annotations/O.vul.EditingSites.bed \
+--exclude_flags 2304 \
+--parity SE \
+--out_dir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq \
+--processes 15 \
+--threads 10 \
+--keep_pileup_files \
+--snp_noise_level 0 \
+undirected_sequencing_data \
+--alignments_stats_table O.vulgaris/Alignment/PRJNA791920/IsoSeq/AggregatedByChromBySampleSummary.tsv \
+--min_samples 7 \
+--min_mapped_reads_per_sample 100 \
+--min_known_sites 5 \
+--pooled_transcript_noise_threshold 1 \
+--main_by_chrom_dir O.vulgaris/Alignment/PRJNA791920/IsoSeq/ByChrom \
+--cds_regions O.vulgaris/Annotations/orfs_oct.bed \
+--samples_table O.vulgaris/Data/PRJNA791920/IsoSeq/Raw/samples.csv \
+--known_sites_only \
+--positions_dir_name "PositionsFiles.KnownSites.NoNoiseFiltration" \
+--reads_dir_name "ReadsFiles.KnownSites.NoNoiseFiltration" \
+--proteins_dir_name "ProteinsFiles.KnownSites.NoNoiseFiltration" \
+> O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/pileup.KnownSitesOnly.NoNoiseFiltration.26.3.23.out &
+```
+* alu 16
+* 26.3.23
+* 17:16
 
 
 ### Distinct proteins
@@ -1858,8 +1917,9 @@ Calculating expression levels:
 from pathlib import Path
 
 proteins_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles")
+distinct_proteins_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteinsFiles")
 
-distinct_proteins_files = list(proteins_dir.glob("*DistinctUniqueProteins.*.csv"))
+distinct_proteins_files = list(distinct_proteins_dir.glob("*DistinctUniqueProteins.*.csv"))
 unique_proteins_files = [
     Path(proteins_dir, f"{distinct_proteins_files.name.split('.')[0]}.unique_proteins.csv")
     for distinct_proteins_files in distinct_proteins_files
@@ -1869,9 +1929,9 @@ chroms_names = [
     for distinct_proteins_files in distinct_proteins_files
 ]
 
-distinct_proteins_list = Path(proteins_dir, "DistinctProteinsForExpressionLevels.txt")
-unique_proteins_list = Path(proteins_dir, "UniqueProteinsForExpressionLevels.txt")
-chroms_names_list = Path(proteins_dir, "ChromsNamesForExpressionLevels.txt")
+distinct_proteins_list = Path(distinct_proteins_dir, "DistinctProteinsForExpressionLevels.txt")
+unique_proteins_list = Path(distinct_proteins_dir, "UniqueProteinsForExpressionLevels.txt")
+chroms_names_list = Path(distinct_proteins_dir, "ChromsNamesForExpressionLevels.txt")
 
 lists = [distinct_proteins_files, unique_proteins_files, chroms_names]
 lists_file_names = [distinct_proteins_list, unique_proteins_list, chroms_names_list]
@@ -1883,9 +1943,9 @@ for _list, list_file_name in zip(lists, lists_file_names):
 
 
 ```bash
-DISTINCTFILES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/DistinctProteinsForExpressionLevels.txt)
-ALLROTSFILES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/UniqueProteinsForExpressionLevels.txt)
-SAMPLESNAMES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/ChromsNamesForExpressionLevels.txt)
+DISTINCTFILES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteinsFiles/DistinctProteinsForExpressionLevels.txt)
+ALLROTSFILES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteinsFiles/UniqueProteinsForExpressionLevels.txt)
+SAMPLESNAMES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteinsFiles/ChromsNamesForExpressionLevels.txt)
 
 nohup \
 julia \
@@ -1897,10 +1957,105 @@ Code/UnorderedNaNDepletion/expressionlevels.jl \
 --samplenames $SAMPLESNAMES \
 --firstcolpos 16 \
 --fractions 0.2 0.4 0.6 0.8 1.0 \
---outdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles \
-> O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/expressionlevels.regular.19.3.23.out &
+--outdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteinsFiles \
+> O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/expressionlevels.regular.20.3.23.out &
 ```
-* alu 15
-* 19.3.22
-* 12:35
-* 2066
+* alu 16
+* 20.3.22
+* 22:42
+* 36821
+
+
+
+
+
+
+
+
+
+
+
+```bash
+mkdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteinsFilesKnownSites
+
+INFILES=$(echo O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFilesKnownSites/*.unique_proteins.csv)
+
+echo $INFILES
+
+julia \
+--project=. \
+--threads 40 --proc 6 \
+Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .unique_proteins.csv \
+--idcol Protein \
+--firstcolpos 16 \
+--datatype Proteins \
+--outdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteinsFilesKnownSites \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.regular.KnownSitesOnly.22.3.23.log
+
+
+```
+* alu 16
+* 22.3.23
+
+
+
+```python
+from pathlib import Path
+
+# proteins_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFilesKnownSites")
+# distinct_proteins_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteinsFilesKnownSites")
+
+proteins_dir = Path("O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFilesKnownSites")
+distinct_proteins_dir = Path("O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteinsFilesKnownSites")
+
+distinct_proteins_files = list(distinct_proteins_dir.glob("*DistinctUniqueProteins.*.csv"))
+unique_proteins_files = [
+    Path(proteins_dir, f"{distinct_proteins_files.name.split('.')[0]}.unique_proteins.csv")
+    for distinct_proteins_files in distinct_proteins_files
+]
+chroms_names = [
+    distinct_proteins_files.name.split('.')[0]
+    for distinct_proteins_files in distinct_proteins_files
+]
+
+distinct_proteins_list = Path(distinct_proteins_dir, "DistinctProteinsForExpressionLevels.txt")
+unique_proteins_list = Path(distinct_proteins_dir, "UniqueProteinsForExpressionLevels.txt")
+chroms_names_list = Path(distinct_proteins_dir, "ChromsNamesForExpressionLevels.txt")
+
+lists = [distinct_proteins_files, unique_proteins_files, chroms_names]
+lists_file_names = [distinct_proteins_list, unique_proteins_list, chroms_names_list]
+
+for _list, list_file_name in zip(lists, lists_file_names):
+    with list_file_name.open("w") as list_file_name:
+        list_file_name.write(" ".join(map(str, _list)))
+```
+
+
+```bash
+DISTINCTFILES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteinsFilesKnownSites/DistinctProteinsForExpressionLevels.txt)
+ALLROTSFILES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteinsFilesKnownSites/UniqueProteinsForExpressionLevels.txt)
+SAMPLESNAMES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteinsFilesKnownSites/ChromsNamesForExpressionLevels.txt)
+
+nohup \
+julia \
+--project=. \
+--threads 20 \
+Code/UnorderedNaNDepletion/expressionlevels.jl \
+--distinctfiles $DISTINCTFILES \
+--allprotsfiles $ALLROTSFILES \
+--samplenames $SAMPLESNAMES \
+--firstcolpos 16 \
+--fractions 0.2 0.4 0.6 0.8 1.0 \
+--outdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteinsFilesKnownSites \
+> O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/expressionlevels.regular.KnownSitesOnly.22.3.23.out &
+```
+* alu 16
+* 22.3.22
+* 17:18

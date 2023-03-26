@@ -269,7 +269,16 @@ def multisample_positions_to_reads(
         .sort_values(ascending=False)[:top_x_noisy_positions]
         .mean()
     )
-    if pooled_transcript_noise >= pooled_transcript_noise_threshold:
+    if pd.isna(pooled_transcript_noise):
+        pooled_transcript_noise = 0
+    # we require `>` rather than `>=`
+    # in order to enforce processing the positions into reads
+    # by setting `top_x_noisy_positions = 1`
+    # (or any value of `snp_noise_level` that will lead to
+    # `pooled_transcript_noise == pooled_transcript_noise_threshold`,
+    # for that matter)
+    # ic(positions_file, pooled_transcript_noise)
+    if pooled_transcript_noise > pooled_transcript_noise_threshold:
         raise ValueError(
             f"ERROR: {positions_file = } has {pooled_transcript_noise = } >= {pooled_transcript_noise_threshold = } "
             "and will not undergo fuether processing into reads, proteins, etc."

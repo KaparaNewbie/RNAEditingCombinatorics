@@ -652,6 +652,8 @@ def multisample_pileups_to_positions(
             .sort_values(ascending=False)[:top_x_noisy_positions]
             .mean()
         )
+    if pd.isna(noise_threshold):
+        noise_threshold = 0
     noise_threshold *= assurance_factor
     annotate_editing_frequency_per_position(positions_df, strand)
     annotate_edited_sites(positions_df, strand, noise_threshold, denovo_detection)

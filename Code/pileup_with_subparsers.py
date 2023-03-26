@@ -82,6 +82,7 @@ def undirected_sequencing_main(
     min_bq: int,
     out_files_sep: str,
     keep_pileup_files: bool,
+    override_existing_pileup_files: bool,
     gz_compression: bool,
     alignments_stats_table: Path,
     alignments_stats_table_sep: str,
@@ -93,6 +94,10 @@ def undirected_sequencing_main(
     interfix_start: str,
     remove_non_refbase_noisy_positions: bool,
     known_sites_only: bool,
+    pileup_dir_name: str,  # "PileupFiles"
+    positions_dir_name: str,  # "PositionsFiles"
+    reads_dir_name: str,  # "ReadsFiles"
+    proteins_dir_name: str,  # "ProteinsFiles"
     **kwargs,
 ):
     prob_regions_bed = None  # we don't deal with individual "problamitic" sites in such large scale analysis
@@ -182,7 +187,8 @@ def undirected_sequencing_main(
 
     # 3 - run mpileup
 
-    pileup_dir = Path(out_dir, "PileupFiles")
+    # pileup_dir = Path(out_dir, "PileupFiles")
+    pileup_dir = Path(out_dir, pileup_dir_name)
     pileup_dir.mkdir(exist_ok=True)
     pileup_files = [
         Path(pileup_dir, f"{sample}.{chrom}.pileup")
@@ -203,6 +209,7 @@ def undirected_sequencing_main(
                     in_bam,
                     out_pileup,
                     threads,
+                    override_existing_pileup_files,
                 )
                 for region, in_bam, out_pileup in zip(
                     pileup_formatted_regions,
@@ -234,9 +241,9 @@ def undirected_sequencing_main(
         unique_orfs_strands.append(strand)
         unique_swissprot_names.append(swissprot_name)
 
-    positions_dir_name = (
-        "PositionsFiles" if denovo_detection else "PositionsFilesKnownSites"
-    )
+    # positions_dir_name = (
+    #     "PositionsFiles" if denovo_detection else "PositionsFilesKnownSites"
+    # )
     positions_dir = Path(out_dir, positions_dir_name)
     positions_dir.mkdir(exist_ok=True)
 
@@ -288,7 +295,7 @@ def undirected_sequencing_main(
 
     # 5 - positions dfs -> reads & unique reads dfs
 
-    reads_dir_name = "ReadsFiles" if denovo_detection else "ReadsFilesKnownSites"
+    # reads_dir_name = "ReadsFiles" if denovo_detection else "ReadsFilesKnownSites"
     reads_dir = Path(out_dir, reads_dir_name)
     reads_dir.mkdir(exist_ok=True)
 
@@ -330,9 +337,9 @@ def undirected_sequencing_main(
 
     # 6 - reads & unique reads dfs -> proteins & unique proteins dfs
 
-    proteins_dir_name = (
-        "ProteinsFiles" if denovo_detection else "ProteinsFilesKnownSites"
-    )
+    # proteins_dir_name = (
+    #     "ProteinsFiles" if denovo_detection else "ProteinsFilesKnownSites"
+    # )
     proteins_dir = Path(out_dir, proteins_dir_name)
     proteins_dir.mkdir(exist_ok=True)
 
@@ -407,6 +414,7 @@ def directed_sequencing_main(
     min_bq: int,
     out_files_sep: str,
     keep_pileup_files: bool,
+    override_existing_pileup_files: bool,
     gz_compression: bool,
 ):
     """
@@ -736,6 +744,11 @@ def define_args() -> argparse.Namespace:
         action="store_true",
         help="Keep the pileup files from which the $sample.positions.csv files are parsed.",
     )
+    parser.add_argument(
+        "--override_existing_pileup_files",
+        action="store_true",
+        help="Recreate existing pileup files from previous runs.",
+    )
     parser.add_argument("--gz_compression", action="store_true")
 
     directed_sequencing_subparser = subparsers.add_parser(
@@ -888,6 +901,19 @@ def define_args() -> argparse.Namespace:
         "--known_sites_only",
         action="store_true",
         help="Allow only known sites to be considered as edited, rather than denovo ones too.",
+    )
+
+    undirected_sequencing_subparser.add_argument(
+        "--pileup_dir_name", default="PileupFiles"
+    )
+    undirected_sequencing_subparser.add_argument(
+        "--positions_dir_name", default="PositionsFiles"
+    )
+    undirected_sequencing_subparser.add_argument(
+        "--reads_dir_name", default="ReadsFiles"
+    )
+    undirected_sequencing_subparser.add_argument(
+        "--proteins_dir_name", default="ProteinsFiles"
     )
 
     # subparsers.default = "default"

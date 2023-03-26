@@ -37,7 +37,13 @@ def mpileup(
     in_bam: Path,
     out_file: Path,
     threads: int,
+    override_existing_pileup_files: bool, 
 ):
+    # only run mpileup if `out_file` doesn't exist or if it does, 
+    # but the user whishes to recreate it
+    if out_file.exists() and not override_existing_pileup_files:
+        return
+    
     max_depth = define_max_depth(
         samtools_path, in_bam, region, include_flags, exclude_flags, threads
     )
