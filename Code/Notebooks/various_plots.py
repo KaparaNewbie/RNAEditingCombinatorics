@@ -424,8 +424,12 @@ px.colors
 known_sites_file = (
     "/private7/projects/Combinatorics/D.pealeii/Annotations/D.pea.EditingSites.csv"
 )
+# positions_files = [
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.comp141882_c0_seq14.positions.csv",
+# ]
 positions_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.comp141882_c0_seq14.positions.csv",
 ]
 sep = "\t"
@@ -701,9 +705,13 @@ pacbio_data_df = pd.DataFrame(
         "Start": [170, 0],
         "End": [2999, 6294],
         "Strand": ["+", "+"],
+        # "PositionFile": [
+        #     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv",
+        #     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv",
+        # ],
         "PositionFile": [
-            "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv",
-            "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv",
+            "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
+            "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
         ],
     }
 )
@@ -833,67 +841,67 @@ illumina_data_df["PositionFile"] = [
 illumina_data_df
 
 # %%
-condition = "GRIA" 
-strand = "+" 
-positions_file = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv"
+# condition = "GRIA" 
+# strand = "+" 
+# positions_file = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv"
 
-positions_df = pd.read_csv(positions_file, sep=sep).drop(
-    ["CDS", "Phred"], axis=1, errors="ignore"
-)  # ignore error from droping these cols which only exist in Illumina data
-positions_df.insert(0, condition_col, condition)
+# positions_df = pd.read_csv(positions_file, sep=sep).drop(
+#     ["CDS", "Phred"], axis=1, errors="ignore"
+# )  # ignore error from droping these cols which only exist in Illumina data
+# positions_df.insert(0, condition_col, condition)
 
-positions_df
-
-# %%
-ref_base = "A" if strand == "+" else "T"
-
-editing_sites_df = (
-    positions_df.loc[
-        (positions_df["RefBase"] == ref_base) & (positions_df["Edited"] > 0),
-        [condition_col, "Chrom", "Position"]
-    ]
-    .sort_values(["Chrom", "Position"])
-    .reset_index(drop=True)
-    .rename(columns={"Position": "Start"})
-)
-
-editing_sites_df
+# positions_df
 
 # %%
-editing_sites_df.insert(
-    editing_sites_df.columns.get_loc("Start") + 1, 
-    "End", 
-    editing_sites_df["Start"] + 1
-)
-editing_sites_df
+# ref_base = "A" if strand == "+" else "T"
+
+# editing_sites_df = (
+#     positions_df.loc[
+#         (positions_df["RefBase"] == ref_base) & (positions_df["Edited"] > 0),
+#         [condition_col, "Chrom", "Position"]
+#     ]
+#     .sort_values(["Chrom", "Position"])
+#     .reset_index(drop=True)
+#     .rename(columns={"Position": "Start"})
+# )
+
+# editing_sites_df
 
 # %%
-editing_sites_df.insert(
-    editing_sites_df.columns.get_loc("End") + 1, 
-    "Score", 
-    "."
-)
-editing_sites_df.insert(
-    editing_sites_df.columns.get_loc("Score") + 1, 
-    "Strand", 
-    strand
-)
-editing_sites_df.insert(
-    editing_sites_df.columns.get_loc("End") + 1, 
-    "Name", 
-    (
-        editing_sites_df[condition_col]
-        + ":" 
-        + editing_sites_df["Chrom"] 
-        + ":" 
-        + editing_sites_df["Start"].astype(str) 
-        + ":"
-        + editing_sites_df["End"].astype(str) 
-        + ":"
-        + editing_sites_df["Strand"].astype(str) 
-    )
-)
-editing_sites_df
+# editing_sites_df.insert(
+#     editing_sites_df.columns.get_loc("Start") + 1, 
+#     "End", 
+#     editing_sites_df["Start"] + 1
+# )
+# editing_sites_df
+
+# %%
+# editing_sites_df.insert(
+#     editing_sites_df.columns.get_loc("End") + 1, 
+#     "Score", 
+#     "."
+# )
+# editing_sites_df.insert(
+#     editing_sites_df.columns.get_loc("Score") + 1, 
+#     "Strand", 
+#     strand
+# )
+# editing_sites_df.insert(
+#     editing_sites_df.columns.get_loc("End") + 1, 
+#     "Name", 
+#     (
+#         editing_sites_df[condition_col]
+#         + ":" 
+#         + editing_sites_df["Chrom"] 
+#         + ":" 
+#         + editing_sites_df["Start"].astype(str) 
+#         + ":"
+#         + editing_sites_df["End"].astype(str) 
+#         + ":"
+#         + editing_sites_df["Strand"].astype(str) 
+#     )
+# )
+# editing_sites_df
 
 # %% tags=[]
 fasta_dict = make_fasta_dict(transcriptome_file)
@@ -1088,6 +1096,10 @@ known_sites_file = (
     "/private7/projects/Combinatorics/D.pealeii/Annotations/D.pea.EditingSites.csv"
 )
 
+# pacbio_positions_files = [
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
+# ]
 pacbio_positions_files = [
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
@@ -1412,7 +1424,7 @@ edited_df
 fig = make_subplots(
     rows=1,
     cols=1,
-    x_title="% editing",
+    x_title="% current editing",
     y_title="% known editing",
 )
 
@@ -1472,6 +1484,7 @@ fig.add_annotation(
 
 fig.update_layout(
     title_text="Correlation between current & previously-reported editing levels",
+    legend_title_text="Editing status",
     # showlegend=False,
     template=template,
     width=600,
