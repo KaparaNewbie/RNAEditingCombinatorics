@@ -262,7 +262,7 @@ def multisample_positions_to_reads(
     top_x_noisy_positions: int,
     pooled_transcript_noise_threshold: float,
 ):
-    positions_df = pd.read_csv(positions_file, sep=sep)
+    positions_df = pd.read_csv(positions_file, sep=sep, dtype={"Reads": str})
 
     pooled_transcript_noise = (
         positions_df.loc[positions_df["Noise"] < snp_noise_level, "Noise"]
@@ -447,7 +447,7 @@ def reads_and_unique_reads(
         return
 
     try:
-        reads_df = multisample_positions_to_reads(
+        reads_df = positions_to_reads(
             positions_file, sep, strand, group_col, group, parity
         )
         unique_reads_df = reads_to_unique_reads(reads_df, group_col)
