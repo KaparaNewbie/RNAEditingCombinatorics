@@ -347,6 +347,16 @@ reads_dfs[0]
 
 
 # %%
+ambigous_positions_in_reads_df = reads_df = pd.concat([reads_df["AmbigousPositions"] for reads_df in reads_dfs], ignore_index=True)
+ambigous_positions_in_reads_df
+
+# %%
+100* ambigous_positions_in_reads_df.gt(0).sum() / len(ambigous_positions_in_reads_df)
+
+# %%
+ambigous_positions_in_reads_df.mean()
+
+# %%
 # edited_reads_dfs = [
 #     reads_df.loc[reads_df[reads_editing_col] > 0] for reads_df in reads_dfs
 # ]
@@ -3641,6 +3651,89 @@ fig.show()
 
 # %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"} tags=[]
 # ### Unique reads
+
+# %%
+unique_reads_dfs[1].iloc[:100, 8:]
+
+# %%
+top_100_unique_reads_combinatorics_df = (
+    unique_reads_dfs[1]
+    # .sort_values("%WeightedTotalExpression", ascending=False)
+    # .reset_index(drop=True)
+    .iloc[:100, 8:]
+    # .fillna(-1)
+    # # .T
+)
+top_100_unique_reads_combinatorics_df
+
+# %%
+top_100_unique_reads_combinatorics_df.columns[int(len(top_100_unique_reads_combinatorics_df))]
+
+# %%
+data = top_100_unique_reads_combinatorics_df.replace(0, 0.5).replace(-1, 0).values
+
+fig = go.Figure(
+    go.Heatmap(
+        z=data,
+        y=top_100_unique_reads_combinatorics_df.index+1,
+        colorscale=[
+            [0, "rgb(192,192,192)"], [0.3, "rgb(192,192,192)"],
+            [0.375, "black"], [0.625, "black"],
+            [0.7, "rgb(74,246,38)"], [1.0, "rgb(74,246,38)"]
+        ],
+        colorbar=dict(
+            title="Edited?",
+            # tick0=0,
+            # dtick=1,
+            tickmode="array",
+            tickvals=[0.15, 0.5, 0.85],
+            # tickvals=[1, 2, 3],
+            ticktext=["Missing", "No", "Yes"],
+            len=0.3,
+        )
+    )
+)
+
+fig.update_xaxes(
+    title="Editing sites", 
+     side="top", 
+     # ticks="",
+    # ticks="inside", 
+     # tickcolor="white",
+     showticklabels=False,
+     # rangeselector_y=1
+     # automargin=True,
+     title_standoff=0
+)
+
+# fig.add_annotation(
+#     xref="x domain",
+#     yref="y domain",
+#     showarrow=False,
+#     # The arrow head will be 25% along the x axis, starting from the left
+#     x=top_100_unique_reads_combinatorics_df.columns[int(len(top_100_unique_reads_combinatorics_df))],
+#     # The arrow head will be 40% along the y axis, starting from the bottom
+#     y=0.4,
+#     text="Editing sites",
+#     # arrowhead=2,
+# )
+
+fig.update_yaxes(
+    title="Top 100 expressed unique reads<br>in PCLO",
+    autorange="reversed",
+    tick0=1,
+    range=[1, 100]
+)
+fig.update_layout(
+    height=700,
+    width=650,
+    template=template,
+    font_size=16
+)
+
+fig.write_image("Combinatorics of top 100 expressed unique reads in PCLO - PacBio.svg", width=650, height=700)
+
+fig.show()
 
 # %%
 unique_reads_dfs[0]
@@ -7011,9 +7104,6 @@ top_100_combinatorics_df = (
 top_100_combinatorics_df
 
 # %%
-print("ho")
-
-# %%
 data = top_100_combinatorics_df.replace(0, 0.5).replace(-1, 0).values
 
 fig = go.Figure(
@@ -7301,6 +7391,162 @@ col_names = ["MinNonSyns", "MaxNonSyns"]
 estimate_names = ["Min", "Max"]
 
 for (row, col), condition, proteins_df in zip(row_col_iter, conditions, proteins_dfs):
+    
+    for i, (col_name, estimate_name) in enumerate(zip(col_names, estimate_names)):
+
+        x = proteins_df[col_name]
+
+        fig.add_trace(
+            go.Histogram(
+                x=x,
+                marker_color=subcolors_discrete_map[condition][i],
+                name=f"{condition}, {estimate_name}",
+            ),
+            row=row,
+            col=col,
+        )
+
+        min_x = min(min_x, x.min()) if min_x else x.min()
+        max_x = max(max_x, x.max())
+        # max_y = max(max_y, len(x))
+
+# add mean lines + text (and also keep track of max_y)
+
+f = fig.full_figure_for_development(warn=False)
+data_traces = {}
+for condition in conditions:
+    for estimate_name in estimate_names:
+        name = f"{condition}, {estimate_name}"
+        for data in f.data:
+            if data.name == name:
+                data_traces[name] = data
+                continue
+for (row, col), condition in zip(row_col_iter, conditions):
+    for estimate_name in estimate_names:
+        name = f"{condition}, {estimate_name}"
+        data = data_traces[name]        
+        x = data.x
+        xbins = f.data[0].xbins
+        plotbins = list(np.arange(start=xbins['start'], stop=xbins['end']+xbins['size'], step=xbins['size']))
+        counts, bins = np.histogram(list(x), bins=plotbins)
+        max_count = max(counts)
+        max_y = max(max_y, max_count)
+        x_mean = np.mean(x)
+        fig.add_trace(
+            go.Scatter(
+                x=[x_mean, x_mean, x_mean],
+                y=[0, max_count, max_count*1.1],
+                mode="lines+text",
+                line=dict(
+                    color="white",
+                    dash="dash",
+                    width=4,
+                ),
+                text=["", "", f"{x_mean:.0f}"],
+                textposition="top center",
+                textfont=dict(size=10)
+            ),
+            row=row,
+            col=col,
+        )
+
+ic(max_y)        
+
+# add legends
+        
+for (row, col), condition in zip(row_col_iter, conditions):
+    for i, (col_name, estimate_name) in enumerate(zip(col_names, estimate_names)):   
+        fig.add_trace(
+            go.Scatter(
+                x=[0.75 * max_x],
+                # y=[(0.13 * max_y) - (1_000 * i)],
+                y=[(0.7 * max_y) - (1_000 * i)],
+                mode="markers+text",
+                marker=dict(
+                    color=subcolors_discrete_map[condition][i],
+                    size=9,
+                    # opacity=0.7,
+                    symbol="square",
+                    # line=dict(width=0),
+                ),
+                text=estimate_name,
+                textposition="middle right",
+                textfont=dict(size=9)
+            ),
+            row=row,
+            col=col,
+        )
+        
+fig.update_layout(
+    template=template,
+    barmode="overlay",  # Overlay both histograms
+    title_text=title_text,
+    title_y=0.95,
+    showlegend=False,
+    height=max(200*rows, 300),
+    width=max(350*cols, 800)
+)
+        
+fig.update_traces(opacity=0.75)  # Reduce opacity to see both histograms
+fig.update_xaxes(range=[min_x * 0.9, max_x * 1.1])
+fig.update_yaxes(range=[0, max_y * 1.2])
+
+fig.show()
+
+
+# %%
+non_syns_per_read_dfs = []
+
+for proteins_df in proteins_dfs:
+    
+    proteins_df = proteins_df.loc[:, [condition_col, "MinNonSyns", "MaxNonSyns", "Reads"]]
+    proteins_df["Read"] = proteins_df["Reads"].str.split(",")
+    del proteins_df["Reads"]
+    proteins_df = proteins_df.explode("Read")
+    
+    non_syns_per_read_dfs.append(proteins_df)
+
+# %%
+non_syns_per_read_df = pd.concat(non_syns_per_read_dfs, ignore_index=True)
+non_syns_per_read_df
+
+# %%
+non_syns_per_read_df["MinNonSyns"].sum() / len(non_syns_per_read_df)
+
+# %% tags=[]
+# Distribution of min & max estimates of non-syn mutations per *read*
+
+
+cols = min(facet_col_wrap, len(conditions), 4)
+rows = ceil(len(conditions) / cols)
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
+
+x_title = "Non-syn mutations per read"
+y_title = "Reads"
+title_text = "Distribution of min & max estimates of non-syn mutations per read"
+
+fig = make_subplots(
+    rows=rows,
+    cols=cols,
+    subplot_titles=conditions,
+    shared_yaxes=True,
+    x_title=x_title,
+    y_title=y_title,
+)
+
+min_x = None
+max_x = 0
+max_y = 0
+
+col_names = ["MinNonSyns", "MaxNonSyns"]
+estimate_names = ["Min", "Max"]
+
+# for (row, col), condition, proteins_df in zip(row_col_iter, conditions, proteins_dfs):
+for (row, col), condition, proteins_df in zip(row_col_iter, conditions, non_syns_per_read_dfs):
+    
+    # proteins_df = proteins_df.loc[:, [condition_col, "MinNonSyns", "MaxNonSyns", "Reads"]]
+    # proteins_df["Reads"] = proteins_df["Reads"].str.split(",")
+    # proteins_df = proteins_df.explode("Reads")
     
     for i, (col_name, estimate_name) in enumerate(zip(col_names, estimate_names)):
 
