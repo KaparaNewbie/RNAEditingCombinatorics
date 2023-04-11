@@ -19,8 +19,7 @@ from pybedtools import BedTool
 
 from General.consts import final_words
 from General.argparse_utils import abs_path_from_str, expanded_path_from_str
-from EditingUtils.summary_utils import execute_notebook
-from Alignment.alignment_utils import filter_bam_by_read_quality
+from Alignment.alignment_utils import filter_bam_by_read_quality, sample_bam
 from Pileup.mpileup import mpileup
 from Pileup.positions import pileup_to_positions, multisample_pileups_to_positions
 from Pileup.reads import reads_and_unique_reads, multisample_reads_and_unique_reads
@@ -31,30 +30,6 @@ from Pileup.proteins import (
 from icecream import ic
 
 DataFrameOrSeries = Union[pd.DataFrame, pd.Series]
-
-
-# def summarize(
-#     *,
-#     out_dir: Path,
-#     template_transcripts_notebook: Path,
-#     executed_transcripts_notebook_base_name: str,
-#     reads_files: list[Path],
-#     transcripts_files: list[Path],
-#     condition_col: str,
-#     conditions: list[str],
-# ):
-
-#     execute_notebook(
-#         template_transcripts_notebook,
-#         out_dir,
-#         executed_transcripts_notebook_base_name,
-#         reads_files=[str(reads_file) for reads_file in reads_files],
-#         transcripts_files=[
-#             str(transcripts_file) for transcripts_file in transcripts_files
-#         ],
-#         condition_col=condition_col,
-#         conditions=conditions,
-#     )
 
 
 def undirected_sequencing_main(
@@ -98,6 +73,9 @@ def undirected_sequencing_main(
     positions_dir_name: str,  # "PositionsFiles"
     reads_dir_name: str,  # "ReadsFiles"
     proteins_dir_name: str,  # "ProteinsFiles"
+    sample_reads: bool,
+    num_sampled_reads: int,
+    seed: int,
     **kwargs,
 ):
     prob_regions_bed = None  # we don't deal with individual "problamitic" sites in such large scale analysis
@@ -185,6 +163,28 @@ def undirected_sequencing_main(
     else:
         filtered_bam_files = bam_files
 
+    # 3 - sample reads to desired number of reads
+
+    if sample_reads:
+        sampled_bams_dir = Path(out_dir, "SampledBAMs")
+        sampled_bams_dir.mkdir(exist_ok=True)
+        sampled_filtered_bam_files = [
+            Path(sampled_bams_dir, f"{bam_file.stem}.Sampled{num_sampled_reads}.bam")
+            for bam_file in filtered_bam_files
+        ]
+        with Pool(processes=processes) as pool:
+            pool.starmap(
+                func=sample_bam,
+                iterable=[
+                    (samtools_path, in_bam, out_bam, num_sampled_reads, seed, threads)
+                    for in_bam, out_bam in zip(
+                        filtered_bam_files, sampled_filtered_bam_files
+                    )
+                ],
+            )
+    else:
+        sampled_filtered_bam_files = filtered_bam_files
+
     # 3 - run mpileup
 
     # pileup_dir = Path(out_dir, "PileupFiles")
@@ -213,7 +213,8 @@ def undirected_sequencing_main(
                 )
                 for region, in_bam, out_pileup in zip(
                     pileup_formatted_regions,
-                    filtered_bam_files,
+                    # filtered_bam_files,
+                    sampled_filtered_bam_files,
                     pileup_files,
                 )
             ],
@@ -409,13 +410,16 @@ def directed_sequencing_main(
     samtools_path: Path,
     processes: int,
     threads: int,
-    # transcripts_notebook_template: Path,
     min_rq: Union[float, None],
     min_bq: int,
     out_files_sep: str,
     keep_pileup_files: bool,
     override_existing_pileup_files: bool,
     gz_compression: bool,
+    sample_reads: bool,
+    num_sampled_reads: int,
+    seed: int,
+    **kwargs,
 ):
     """
     1. get input
@@ -482,12 +486,32 @@ def directed_sequencing_main(
     else:
         filtered_bam_files = bam_files
 
-    # 3 - run mpileup
+    # 3 - sample reads to desired number of reads
+
+    if sample_reads:
+        sampled_filtered_bam_files = [
+            Path(out_dir, f"{bam_file.stem}.Sampled{num_sampled_reads}.bam")
+            for bam_file in filtered_bam_files
+        ]
+        with Pool(processes=processes) as pool:
+            pool.starmap(
+                func=sample_bam,
+                iterable=[
+                    (samtools_path, in_bam, out_bam, num_sampled_reads, seed, threads)
+                    for in_bam, out_bam in zip(
+                        filtered_bam_files, sampled_filtered_bam_files
+                    )
+                ],
+            )
+    else:
+        sampled_filtered_bam_files = filtered_bam_files
+
+    # 4 - run mpileup
 
     # pileup_files = [Path(out_dir, f"{sample}.pileup") for sample in samples]
     pileup_files = [
-        Path(out_dir, f"{filtered_bam_file.stem}.pileup")
-        for filtered_bam_file in filtered_bam_files
+        Path(out_dir, f"{bam_file.stem}.pileup")
+        for bam_file in sampled_filtered_bam_files
     ]
     pileup_formatted_regions = [
         f"{region}:{start+1}-{end}" for region, start, end in zip(regions, starts, ends)
@@ -507,10 +531,11 @@ def directed_sequencing_main(
                     in_bam,
                     out_pileup,
                     threads,
+                    override_existing_pileup_files,
                 )
                 for region, in_bam, out_pileup in zip(
                     pileup_formatted_regions,
-                    filtered_bam_files,
+                    sampled_filtered_bam_files,
                     pileup_files,
                 )
             ],
@@ -518,7 +543,7 @@ def directed_sequencing_main(
 
     compression_postfix = ".gz" if gz_compression else ""
 
-    # 4 - pileup files -> positions dfs
+    # 5 - pileup files -> positions dfs
 
     positions_files = [
         Path(out_dir, f"{pileup_file.stem}.positions.csv{compression_postfix}")
@@ -560,7 +585,7 @@ def directed_sequencing_main(
             ],
         )
 
-    # 5 - positions dfs -> reads & unique reads dfs
+    # 6 - positions dfs -> reads & unique reads dfs
 
     reads_files = [
         Path(out_dir, f"{pileup_file.stem}.reads.csv{compression_postfix}")
@@ -591,7 +616,7 @@ def directed_sequencing_main(
             ],
         )
 
-    # 6 - reads & unique reads dfs -> proteins & unique proteins dfs
+    # 7 - reads & unique reads dfs -> proteins & unique proteins dfs
 
     proteins_files = [
         Path(out_dir, f"{pileup_file.stem}.proteins.csv{compression_postfix}")
@@ -632,7 +657,6 @@ def directed_sequencing_main(
 
 
 def define_args() -> argparse.Namespace:
-
     # create parser
     # description = "TBD description"
     parser = argparse.ArgumentParser(
@@ -750,9 +774,26 @@ def define_args() -> argparse.Namespace:
         help="Recreate existing pileup files from previous runs.",
     )
     parser.add_argument("--gz_compression", action="store_true")
+    parser.add_argument(
+        "--sample_reads",
+        action="store_true",
+        help="Whether to use only a sample of reads from the (filtered) reads in the BAM file.",
+    )
+    parser.add_argument(
+        "--num_sampled_reads",
+        default=80_000,
+        type=int,
+        help="Sample `num_sampled_reads` from the (filtered) reads in the BAM file.",
+    )
+    parser.add_argument(
+        "--seed",
+        default=1892,
+        type=int,
+        help="Subsampling seed used to influence which subset of reads is kept.",
+    )
 
     directed_sequencing_subparser = subparsers.add_parser(
-        "undirected_sequencing_data",
+        "directed_sequencing_data",
         help="Original use of this program by suplying a data table",
     )
     directed_sequencing_subparser.set_defaults(func=directed_sequencing_main)
@@ -922,7 +963,6 @@ def define_args() -> argparse.Namespace:
 
 
 if __name__ == "__main__":
-
     # run
 
     # main(
