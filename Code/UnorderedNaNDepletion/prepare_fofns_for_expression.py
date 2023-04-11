@@ -23,6 +23,16 @@ parser.add_argument(
     help="A folder with files of unique proteins.",
 )
 parser.add_argument(
+    "--proteins_prefix",
+    default="",
+    help="A prefix for the protein files in `proteins_dir`. Defaults to `''`."
+)
+parser.add_argument(
+    "--proteins_postfix",
+    default="",
+    help="A postfix for the protein files in `proteins_dir`. Defaults to `''`."
+)
+parser.add_argument(
     "--distinct_proteins_dir",
     # required=True,
     type=abs_path_from_str,
@@ -42,6 +52,8 @@ parser.add_argument(
 args = parser.parse_args()
 
 proteins_dir = args.proteins_dir
+proteins_prefix = args.proteins_prefix
+proteins_postfix = args.proteins_postfix
 distinct_proteins_dir = args.distinct_proteins_dir
 distinct_proteins_postfix = args.distinct_proteins_postfix
 out_dir = args.out_dir
@@ -57,7 +69,7 @@ distinct_proteins_files = list(
 unique_proteins_files = [
     Path(
         proteins_dir,
-        f"{distinct_proteins_files.name.split('.')[0]}.unique_proteins.csv",
+        f"{proteins_prefix}{distinct_proteins_files.name.split('.')[0]}.unique_proteins.csv{proteins_postfix}",
     )
     for distinct_proteins_files in distinct_proteins_files
 ]
