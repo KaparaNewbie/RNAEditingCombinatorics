@@ -91,6 +91,65 @@ def extract_hifi(
     )
 
 
+def lima(
+    base_conda_env_dir: Path,
+    pb_conda_env_name: str,
+    in_file: Path,
+    barcoded_primers_fasta: Path,
+    out_file: Path,
+    real_out_file: Path,
+    threads: int,
+    fastqc_path: Path,
+):
+    lima_cmd = (
+        f". {Path(base_conda_env_dir, 'etc/profile.d/conda.sh')} && "
+        f"conda activate {pb_conda_env_name} && "
+        "lima "
+        f"--num-threads {threads} "
+        "--isoseq "
+        "--peek-guess "
+        "--omit-barcode-infix "  #  Omit barcode infix in file names.
+        f"{in_file} "
+        f"{barcoded_primers_fasta} "
+        f"{out_file} "
+    )
+    subprocess.run(lima_cmd, shell=True, executable="/bin/bash")
+    fastqc(
+        fastqc_path=fastqc_path,
+        seq_file=real_out_file,
+        out_dir=real_out_file.parent,
+        threads=threads,
+    )
+
+
+def isoseq_refine(
+    base_conda_env_dir: Path,
+    pb_conda_env_name: str,
+    in_file: Path,
+    barcoded_primers_fasta: Path,
+    out_file: Path,
+    threads: int,
+    fastqc_path: Path,
+):
+    refine_cmd = (
+        f". {Path(base_conda_env_dir, 'etc/profile.d/conda.sh')} && "
+        f"conda activate {pb_conda_env_name} && "
+        "isoseq3 refine "
+        f"--num-threads {threads} "
+        "--require-polya "
+        f"{in_file} "
+        f"{barcoded_primers_fasta} "
+        f"{out_file} "
+    )
+    subprocess.run(refine_cmd, shell=True, executable="/bin/bash")
+    fastqc(
+        fastqc_path=fastqc_path,
+        seq_file=out_file,
+        out_dir=out_file.parent,
+        threads=threads,
+    )
+
+
 def remove_pacbio_duplicates(
     base_conda_env_dir: Path,
     pb_conda_env_name: str,
@@ -599,6 +658,162 @@ def pacbio_preprocessed_isoseq_main(
         subprocess.run(f"rm -rf {file_to_delete}", shell=True)
 
 
+def pacbio_polished_ccs_isoseq_main(
+    *,
+    in_dir: Path,
+    postfix: str,
+    recursive: bool,
+    out_dir: Path,
+    processes: int,
+    threads: int,
+    fastqc_path: Path,
+    multiqc_path: Path,
+    base_conda_env_dir: Path,
+    pb_conda_env_name: str,
+    barcoded_primers_fasta: Path,
+    primer_pair: str,
+    pbindex_path: Path,
+    **kwargs,
+):
+    out_dir.mkdir(exist_ok=True)
+    ccs_files = find_files(in_dir, postfix, recursive)
+
+    # 1 - QC for ccs files
+
+    with Pool(processes=processes) as pool:
+        pool.starmap(
+            func=fastqc,
+            iterable=[
+                (fastqc_path, ccs_file, in_dir, threads) for ccs_file in ccs_files
+            ],
+        )
+
+    multiqc(multiqc_path, in_dir)
+
+    with Pool(processes=processes) as pool:
+        pool.starmap(
+            func=pacbio_index,
+            iterable=[
+                (
+                    base_conda_env_dir,
+                    pb_conda_env_name,
+                    pbindex_path,
+                    ccs_file,
+                )
+                for ccs_file in ccs_files
+            ],
+        )
+
+    # 2 - trim adapters
+
+    samples_names = [
+        # extract_sample_name(ccs_file, postfix.removesuffix(f".{final_postfix}"))
+        extract_sample_name(ccs_file, postfix)
+        for ccs_file in ccs_files
+    ]
+
+    demuxed_trimmed_dir = Path(out_dir, "DemultiplexedTrimmed")
+    demuxed_trimmed_dir.mkdir(exist_ok=True)
+
+    # lima creates files whose names are f"{sample_name}.fl.{barcodes_name}.bam".
+    # therefore, we use the `demuxed_trimmed_files` (which *will* be given as out files)
+    # as soft-links to the actual files created by lima.
+    demuxed_trimmed_files = [
+        Path(demuxed_trimmed_dir, f"{sample_name}.fl.bam")
+        for sample_name in samples_names
+    ]
+    real_demuxed_trimmed_files = [
+        Path(demuxed_trimmed_dir, f"{sample_name}.fl.{primer_pair}.bam")
+        for sample_name in samples_names
+    ]
+
+    with Pool(processes=processes) as pool:
+        pool.starmap(
+            func=lima,
+            iterable=[
+                (
+                    base_conda_env_dir,
+                    pb_conda_env_name,
+                    in_file,
+                    barcoded_primers_fasta,
+                    out_file,
+                    real_out_file,
+                    threads,
+                    fastqc_path,
+                )
+                for (in_file, out_file, real_out_file) in zip(
+                    ccs_files, demuxed_trimmed_files, real_demuxed_trimmed_files
+                )
+            ],
+        )
+
+    for demuxed_trimmed_file, real_demuxed_trimmed_file in zip(
+        demuxed_trimmed_files, real_demuxed_trimmed_files
+    ):
+        demuxed_trimmed_file.symlink_to(real_demuxed_trimmed_file)
+
+    # soft-link the indices created by lima the same way as the actual files
+    demuxed_trimmed_indices = [
+        Path(demuxed_trimmed_dir, f"{sample_name}.fl.bam.pbi")
+        for sample_name in samples_names
+    ]
+    real_demuxed_trimmed_indices = [
+        Path(demuxed_trimmed_dir, f"{sample_name}.fl.{primer_pair}.bam.pbi")
+        for sample_name in samples_names
+    ]
+    for demuxed_trimmed_indice, real_demuxed_trimmed_indice in zip(
+        demuxed_trimmed_indices, real_demuxed_trimmed_indices
+    ):
+        demuxed_trimmed_indice.symlink_to(real_demuxed_trimmed_indice)
+
+    multiqc(multiqc_path, demuxed_trimmed_dir)
+
+    # 3 - refine
+
+    refined_dir = Path(out_dir, "Refined")
+    refined_dir.mkdir(exist_ok=True)
+
+    refined_files = [
+        Path(refined_dir, f"{sample_name}.flnc.bam") for sample_name in samples_names
+    ]
+
+    with Pool(processes=processes) as pool:
+        pool.starmap(
+            func=isoseq_refine,
+            iterable=[
+                (
+                    base_conda_env_dir,
+                    pb_conda_env_name,
+                    in_file,
+                    barcoded_primers_fasta,
+                    out_file,
+                    threads,
+                    fastqc_path,
+                )
+                for (in_file, out_file) in zip(
+                    demuxed_trimmed_files,
+                    refined_files,
+                )
+            ],
+        )
+
+    multiqc(multiqc_path, refined_dir)
+
+    with Pool(processes=processes) as pool:
+        pool.starmap(
+            func=pacbio_index,
+            iterable=[
+                (
+                    base_conda_env_dir,
+                    pb_conda_env_name,
+                    pbindex_path,
+                    refined_file,
+                )
+                for refined_file in refined_files
+            ],
+        )
+
+
 def pacbio_main(
     *,
     in_dir: Path,
@@ -841,7 +1056,7 @@ def define_args() -> argparse.ArgumentParser:
         help="Minimum predicted accuracy in [0, 1] of PacBio's CCS.",
     )
 
-    # pacbio isoseq args
+    # pacbio preprocessed isoseq args
 
     pacbio_preprocessed_isoseq_parser = subparsers.add_parser(
         "pacbio_preprocessed_isoseq", help="Preprocessed IsoSeq reads help"
@@ -869,45 +1084,6 @@ def define_args() -> argparse.ArgumentParser:
         ),
         default="gzip -c",
     )
-    # pacbio_preprocessed_isoseq_parser.add_argument(
-    #     "--compress_cmd",
-    #     help=(
-    #         "Command to compress files, e.g., `gzip`. "
-    #         "Should match the form `$compress_cmd $in_file > $out_file`."
-    #     ),
-    #     default="gzip -c",
-    # )
-    # pacbio_preprocessed_isoseq_parser.add_argument(
-    #     "--prinseq_lite_path",
-    #     type=expanded_path_from_str,
-    #     default=Path("~/anaconda3/envs/combinatorics/bin/prinseq-lite.pl").expanduser(),
-    #     help="Prinseq-lite executable.",
-    # )
-    # pacbio_preprocessed_isoseq_parser.add_argument(
-    #     "--min_qual_mean", default=30, type=int, help="Minimum mean quality for a read."
-    # )
-    # pacbio_preprocessed_isoseq_parser.add_argument(
-    #     "--trim_to_len",
-    #     default=sys.maxsize,
-    #     type=int,
-    #     help="Trim all sequence from the 3'-end to result in sequence with this length.",
-    # )
-    # pacbio_preprocessed_isoseq_parser.add_argument(
-    #     "--min_len", default=0, type=int, help="Filter sequence shorter than min_len."
-    # )
-    # pacbio_preprocessed_isoseq_parser.add_argument(
-    #     "--trim_left",
-    #     default=0,
-    #     type=int,
-    #     help="Trim sequence at the 5'-end by trim_left positions.",
-    # )
-    # pacbio_preprocessed_isoseq_parser.add_argument(
-    #     "--trim_right",
-    #     default=0,
-    #     type=int,
-    #     help="Trim sequence at the 3'-end by trim_left positions.",
-    # )
-
     pacbio_preprocessed_isoseq_parser.add_argument(
         "--trimmomatic_path",
         type=expanded_path_from_str,
@@ -925,6 +1101,45 @@ def define_args() -> argparse.ArgumentParser:
         default=33,
         type=int,
         help="Phred offset. Either 33 (usually) or 64 (old Illumina machines).",
+    )
+
+    # pacbio preprocessed isoseq args
+
+    pacbio_polished_ccs_isoseq_parser = subparsers.add_parser(
+        "pacbio_polished_ccs_isoseq", help="Polished CCS IsoSeq reads help"
+    )
+    pacbio_polished_ccs_isoseq_parser.set_defaults(func=pacbio_polished_ccs_isoseq_main)
+    pacbio_polished_ccs_isoseq_parser.add_argument(
+        "--base_conda_env_dir",
+        default=Path("~/anaconda3").expanduser(),
+        type=expanded_path_from_str,
+    )
+    pacbio_polished_ccs_isoseq_parser.add_argument(
+        "--pb_conda_env_name",
+        default="pacbiocomb",
+        help="Contains all PacBio's software packages (seperate env due to python 2.7 requirement).",
+    )
+    pacbio_polished_ccs_isoseq_parser.add_argument(
+        "--pbindex_path",
+        type=expanded_path_from_str,
+        default=Path("~/anaconda3/envs/pacbiocomb/bin/pbindex").expanduser(),
+        help="Note it should match `--pb_conda_env`.",
+    )
+    pacbio_polished_ccs_isoseq_parser.add_argument(
+        "--postfix",
+        default=".ccs.bam",
+        help="Postfix of wanted files in `in_dir`. Should be the *full* postfix.",
+    )
+    pacbio_polished_ccs_isoseq_parser.add_argument(
+        "--barcoded_primers_fasta",
+        type=abs_path_from_str,
+        default=Path("Code/Data/ClontechSMARTer-NEBcDNA.primers.fasta").absolute(),
+        help="A fasta file with adapters to trim.",
+    )
+    pacbio_polished_ccs_isoseq_parser.add_argument(
+        "--primer_pair",
+        default="NEB_5p--NEB_Clontech_3p",
+        # help="Name of the fasta file with primers. Used to remove this infix from out files' names.", # TODO update this
     )
 
     # illumina args
