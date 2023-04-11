@@ -5,6 +5,46 @@ import subprocess
 import pysam
 
 
+def sample_bam(
+    samtools_path: Path,
+    in_bam: Path,
+    out_bam: Path,
+    num_reads: float,
+    seed: int,
+    threads: int,
+):
+    """Sample a BAM file.
+
+    Args:
+        samtools_path (Path): Path to the samtools executable.
+        in_bam (Path): Path to the input BAM file.
+        out_bam (Path): Path to the output BAM file.
+        num_reads (int): Number of reads to sample.
+        seed (int): Seed for the random number generator.
+        threads (int): Number of threads to use.
+    """
+    # calculate fraction of reads to sample by dividing the number of total number in the number of reads to sample
+    total_reads = count_reads(samtools_path, in_bam, None, None, None, threads)
+    fraction = num_reads / total_reads
+    # run samtools view with the fraction of reads to sample
+    cmd = (
+        f"{samtools_path} "
+        "view "
+        "--with-header "
+        f"--subsample {fraction} "
+        f"--subsample-seed {seed} "
+        f"--threads {threads} "
+        "--bam "
+        f"--output {out_bam} "
+        f"{in_bam} "
+    )
+    subprocess.run(cmd, shell=True)
+    # index the new bam file
+    index_cmd = f"{samtools_path} index -@ {threads} {out_bam} "
+    print(index_cmd)
+    subprocess.run(index_cmd, shell=True)
+
+
 def filter_bam_by_read_quality(
     samtools_path: Path, in_bam: Path, min_rq: float, threads: int, out_dir: Path
 ) -> Path:
