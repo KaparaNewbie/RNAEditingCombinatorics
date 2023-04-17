@@ -500,7 +500,7 @@ Code/parse_known_sites.py \
 ## O.vulgaris Iso-Seq data
 
 
-### Download data
+### Download pre-processed data
 
 https://www.science.org/doi/10.1126/sciadv.add9938#T1
 
@@ -542,6 +542,38 @@ pacbio_preprocessed_isoseq \
 
 
 
+
+
+
+### Polished CCS data
+
+https://www.science.org/doi/10.1126/sciadv.add9938#T1
+
+This is the polished version of the CCS reads from the paper which I got from the author himself.
+
+
+```bash
+mkdir -p O.vulgaris/Data/PRJNA791920/IsoSeqPolished/CCS
+
+```
+
+
+```bash
+nohup \
+python Code/prepare_data.py \
+--in_dir O.vulgaris/Data/PRJNA791920/IsoSeqPolished/CCS \
+--out_dir O.vulgaris/Data/PRJNA791920/IsoSeqPolished \
+--processes 7 \
+--threads 6 \
+pacbio_polished_ccs_isoseq \
+> O.vulgaris/Data/PRJNA791920/IsoSeqPolished/prepare_data.3.4.23.out &
+```
+* alu 13
+* 3.4.23
+* 16:45
+
+
+
 ```
 lima \
 --num-threads 20 \
@@ -552,8 +584,7 @@ O.vulgaris/Data/PRJNA791920/IsoSeq/Raw/SRR17321896.fl.fastq
 ```
 
 
-
-## O.vulgaris FLAM-seq data
+<!-- ## O.vulgaris FLAM-seq data
 
 
 ```bash
@@ -586,7 +617,7 @@ pacbio_preprocessed_isoseq \
 ```
 cd Code
 git clone https://github.com/rajewsky-lab/FLAMAnalysis
-```
+``` -->
 
 
 
@@ -786,6 +817,8 @@ illumina \
 
 ### O. vulgaris
 
+#### Preprocessed isoseq
+
 ```bash
 mkdir -p O.vulgaris/Alignment/PRJNA791920/IsoSeq
 
@@ -796,7 +829,7 @@ python Code/align.py \
 --out_dir O.vulgaris/Alignment/PRJNA791920/IsoSeq \
 --processes 7 \
 --threads 10 \
-pacbio_preprocessed_isoseq \
+whole_transcriptome_isoseq \
 --gff O.vulgaris/Annotations/gene_models.chromosomer.gff \
 > O.vulgaris/Alignment/PRJNA791920/IsoSeq/align.30.12.22.out &
 ```
@@ -804,7 +837,6 @@ pacbio_preprocessed_isoseq \
 * 30.12.22
 * 14:09
 * 44496
-
 
 
 Re-aligning using the transcriptomic data.
@@ -821,7 +853,7 @@ python Code/align.py \
 --out_dir O.vulgaris/Alignment/PRJNA791920/IsoSeq \
 --processes 7 \
 --threads 10 \
-pacbio_preprocessed_isoseq \
+pacbio_isoseq_undirected_seq \
 --known_sites_bed_file O.vulgaris/Annotations/O.vul.EditingSites.bed \
 > O.vulgaris/Alignment/PRJNA791920/IsoSeq/align.7.2.23.out &
 ```
@@ -831,6 +863,27 @@ pacbio_preprocessed_isoseq \
 * 44025
 
 
+#### Polished
+
+
+```bash
+mkdir -p O.vulgaris/Alignment/PRJNA791920/IsoSeq.Polished.Unclustered
+
+nohup \
+python Code/align.py \
+--genome O.vulgaris/Annotations/orfs_oct.fa \
+--in_dir O.vulgaris/Data/PRJNA791920/IsoSeqPolished/Refined \
+--out_dir O.vulgaris/Alignment/PRJNA791920/IsoSeq.Polished.Unclustered \
+--processes 7 \
+--threads 6 \
+whole_transcriptome_isoseq \
+--known_sites_bed_file O.vulgaris/Annotations/O.vul.EditingSites.bed \
+--postfix .flnc.bam \
+> O.vulgaris/Alignment/PRJNA791920/IsoSeq.Polished.Unclustered/align.3.4.23.out &
+```
+* alu 13
+* 3.4.22
+* 17:18
 
 
 # Mpileup & transcripts' creation
@@ -1753,162 +1806,113 @@ Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 ```
 
 
-
-
-
-## O.vul IsoSeq data
+## Illumina - 80k sampled reads per transcript
 
 ### Pileup
 
 ```bash
-mkdir -p O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq
+
+mkdir -p D.pealeii/MpileupAndTranscripts/Illumina80K
 
 nohup python Code/pileup_with_subparsers.py \
---transcriptome O.vulgaris/Annotations/orfs_oct.fa \
---known_editing_sites O.vulgaris/Annotations/O.vul.EditingSites.bed \
+--transcriptome D.pealeii/Annotations/orfs_squ.fa \
+--known_editing_sites D.pealeii/Annotations/D.pea.EditingSites.bed \
+--include_flags 3 \
 --exclude_flags 2304 \
---parity SE \
---out_dir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq \
+--top_x_noisy_positions 3 \
+--assurance_factor 1.5 \
+--min_percent_of_max_coverage 0.1 \
+--snp_noise_level 0.1 \
+--min_bq 30 \
+--parity PE \
+--out_dir D.pealeii/MpileupAndTranscripts/Illumina80K \
 --processes 10 \
 --threads 10 \
 --keep_pileup_files \
-undirected_sequencing_data \
---alignments_stats_table O.vulgaris/Alignment/PRJNA791920/IsoSeq/AggregatedByChromBySampleSummary.tsv \
---min_samples 7 \
---min_mapped_reads_per_sample 100 \
---min_known_sites 5 \
---pooled_transcript_noise_threshold 0.06 \
---main_by_chrom_dir O.vulgaris/Alignment/PRJNA791920/IsoSeq/ByChrom \
---cds_regions O.vulgaris/Annotations/orfs_oct.bed \
---samples_table O.vulgaris/Data/PRJNA791920/IsoSeq/Raw/samples.csv \
-> O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/pileup.20.3.23.out & 
+--gz_compression \
+--sample_reads \
+--num_sampled_reads 80000 \
+--seed 1892 \
+directed_sequencing_data \
+--data_table D.pealeii/Alignment/Illumina/reads.ByChrom/data_table.csv \
+> D.pealeii/MpileupAndTranscripts/Illumina80K/pileup.11.4.23.out & 
 ```
 * alu 16
-* 20.3.23
-* 11:31
-* 6200
-
-
-```bash
-nohup python Code/pileup_with_subparsers.py \
---transcriptome O.vulgaris/Annotations/orfs_oct.fa \
---known_editing_sites O.vulgaris/Annotations/O.vul.EditingSites.bed \
---exclude_flags 2304 \
---parity SE \
---out_dir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq \
---processes 10 \
---threads 10 \
---keep_pileup_files \
-undirected_sequencing_data \
---alignments_stats_table O.vulgaris/Alignment/PRJNA791920/IsoSeq/AggregatedByChromBySampleSummary.tsv \
---min_samples 7 \
---min_mapped_reads_per_sample 100 \
---min_known_sites 5 \
---pooled_transcript_noise_threshold 0.06 \
---main_by_chrom_dir O.vulgaris/Alignment/PRJNA791920/IsoSeq/ByChrom \
---cds_regions O.vulgaris/Annotations/orfs_oct.bed \
---samples_table O.vulgaris/Data/PRJNA791920/IsoSeq/Raw/samples.csv \
---known_sites_only \
---positions_dir_name PositionsFilesKnownSites \
---reads_dir_name ReadsFilesKnownSites \
---proteins_dir_name ProteinsFilesKnownSites \
-> O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/pileup.KnownSitesOnly.22.3.23.out & 
-```
-* alu 16
-* 22.3.23
-* 16:15
-
-
-```bash
-nohup python Code/pileup_with_subparsers.py \
---transcriptome O.vulgaris/Annotations/orfs_oct.fa \
---known_editing_sites O.vulgaris/Annotations/O.vul.EditingSites.bed \
---exclude_flags 2304 \
---parity SE \
---out_dir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq \
---processes 15 \
---threads 10 \
---keep_pileup_files \
---snp_noise_level 0 \
-undirected_sequencing_data \
---alignments_stats_table O.vulgaris/Alignment/PRJNA791920/IsoSeq/AggregatedByChromBySampleSummary.tsv \
---min_samples 7 \
---min_mapped_reads_per_sample 100 \
---min_known_sites 5 \
---pooled_transcript_noise_threshold 1 \
---main_by_chrom_dir O.vulgaris/Alignment/PRJNA791920/IsoSeq/ByChrom \
---cds_regions O.vulgaris/Annotations/orfs_oct.bed \
---samples_table O.vulgaris/Data/PRJNA791920/IsoSeq/Raw/samples.csv \
---known_sites_only \
---positions_dir_name "PositionsFiles.KnownSites.NoNoiseFiltration" \
---reads_dir_name "ReadsFiles.KnownSites.NoNoiseFiltration" \
---proteins_dir_name "ProteinsFiles.KnownSites.NoNoiseFiltration" \
-> O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/pileup.KnownSitesOnly.NoNoiseFiltration.26.3.23.out &
-```
-* alu 16
-* 26.3.23
-* 17:16
+* 11.4.23
+* 16:12
 
 
 ### Distinct proteins
 
-#### Regular
 
 A new tmux session:
 
 ```bash
-tmux new -s julia15
+tmux new -s julia16
+COMB
 ```
 
 Finding isoforms:
 
 ```bash
-mkdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteinsFiles
 
-INFILES=$(echo O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/*.unique_proteins.csv)
+INFILES=$(echo D.pealeii/MpileupAndTranscripts/Illumina80K/*.unique_proteins.csv.gz)
 
 echo $INFILES
 
-# julia \
-# --project=. \
-# --threads 40 --proc 6 \
-# Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
-# --infiles $INFILES \
-# --postfix_to_remove .unique_proteins.csv \
-# --idcol Protein \
-# --firstcolpos 16 \
-# --datatype Proteins \
-# --outdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteinsFiles \
-# --fracstep 0.2 \
-# --fracrepetitions 4 \
-# --algrepetitions 2 \
-# --algs Ascending Descending \
-# --run_solve_threaded \
-# 2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.regular.20.3.23.log
-
-rm -rf /private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteinsFiles/*
-
 julia \
 --project=. \
---threads 20 \
+--threads 60 --proc 10 \
 Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 --infiles $INFILES \
---postfix_to_remove .unique_proteins.csv \
+--prefix_to_remove reads.sorted.aligned.filtered. \
+--postfix_to_remove .unique_proteins.csv.gz \
 --idcol Protein \
---firstcolpos 16 \
+--firstcolpos 15 \
 --datatype Proteins \
---outdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteinsFiles \
+--outdir D.pealeii/MpileupAndTranscripts/Illumina80K \
 --fracstep 0.2 \
 --fracrepetitions 4 \
 --algrepetitions 2 \
 --algs Ascending Descending \
 --run_solve_threaded \
-2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.regular.20.3.23.log
+2>&1 | tee D.pealeii/MpileupAndTranscripts/Illumina80K/DistinctProteins.regular.11.4.23.log
 ```
-* alu 15
-* 19.3.23
-* 16:48
 
+
+```bash
+
+# todo run this after the distinct proteins are found
+python \
+Code/UnorderedNaNDepletion/prepare_fofns_for_expression.py \
+--proteins_dir D.pealeii/MpileupAndTranscripts/Illumina80K \
+--proteins_prefix "reads.sorted.aligned.filtered." \
+--proteins_postfix ".gz"
+
+# DISTINCTFILES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.KnownSites.NoNoiseFiltration/DistinctProteinsForExpressionLevels.txt)
+# ALLROTSFILES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.KnownSites.NoNoiseFiltration/UniqueProteinsForExpressionLevels.txt)
+# SAMPLESNAMES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.KnownSites.NoNoiseFiltration/ChromsNamesForExpressionLevels.txt)
+
+# nohup \
+# julia \
+# --project=. \
+# --threads 20 \
+# Code/UnorderedNaNDepletion/expressionlevels.jl \
+# --distinctfiles $DISTINCTFILES \
+# --allprotsfiles $ALLROTSFILES \
+# --samplenames $SAMPLESNAMES \
+# --firstcolpos 16 \
+# --fractions 0.2 0.4 0.6 0.8 1.0 \
+# --outdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.KnownSites.NoNoiseFiltration \
+# > O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/expressionlevels.regular.KnownSitesOnly.30.3.23.out &
+```
+<!-- * alu 13
+* 30.3.22
+* 14:41 -->
+
+
+
+## O. vulgaris
 
 
 Calculating expression levels:
@@ -1964,7 +1968,6 @@ Code/UnorderedNaNDepletion/expressionlevels.jl \
 * 20.3.22
 * 22:42
 * 36821
-
 
 
 
@@ -2059,3 +2062,178 @@ Code/UnorderedNaNDepletion/expressionlevels.jl \
 * alu 16
 * 22.3.22
 * 17:18
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```bash
+mkdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.KnownSites.NoNoiseFiltration
+
+INFILES=$(echo O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles.KnownSites.NoNoiseFiltration/*.unique_proteins.csv)
+
+echo $INFILES
+
+julia \
+--project=. \
+--threads 24 --proc 8 \
+Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .unique_proteins.csv \
+--idcol Protein \
+--firstcolpos 16 \
+--datatype Proteins \
+--outdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.KnownSites.NoNoiseFiltration \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.regular.KnownSites.NoNoiseFiltration.26.3.23.log
+
+
+```
+* alu 16
+* 22.3.23
+
+
+```bash
+
+python \
+Code/UnorderedNaNDepletion/prepare_fofns_for_expression.py \
+--proteins_dir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles.KnownSites.NoNoiseFiltration \
+--distinct_proteins_dir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.KnownSites.NoNoiseFiltration 
+
+DISTINCTFILES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.KnownSites.NoNoiseFiltration/DistinctProteinsForExpressionLevels.txt)
+ALLROTSFILES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.KnownSites.NoNoiseFiltration/UniqueProteinsForExpressionLevels.txt)
+SAMPLESNAMES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.KnownSites.NoNoiseFiltration/ChromsNamesForExpressionLevels.txt)
+
+nohup \
+julia \
+--project=. \
+--threads 20 \
+Code/UnorderedNaNDepletion/expressionlevels.jl \
+--distinctfiles $DISTINCTFILES \
+--allprotsfiles $ALLROTSFILES \
+--samplenames $SAMPLESNAMES \
+--firstcolpos 16 \
+--fractions 0.2 0.4 0.6 0.8 1.0 \
+--outdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.KnownSites.NoNoiseFiltration \
+> O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/expressionlevels.regular.KnownSitesOnly.30.3.23.out &
+```
+* alu 13
+* 30.3.22
+* 14:41
+
+
+
+## O.vul polished IsoSeq data
+
+### Pileup
+
+```bash
+mkdir -p O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered
+
+cp \
+O.vulgaris/Data/PRJNA791920/IsoSeq/Raw/samples.csv \
+O.vulgaris/Data/PRJNA791920/IsoSeqPolished
+
+nohup python Code/pileup_with_subparsers.py \
+--transcriptome O.vulgaris/Annotations/orfs_oct.fa \
+--known_editing_sites O.vulgaris/Annotations/O.vul.EditingSites.bed \
+--exclude_flags 2304 \
+--parity SE \
+--min_rq 0.998 \
+--out_dir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered \
+--processes 10 \
+--threads 5 \
+--keep_pileup_files \
+--gz_compression \
+undirected_sequencing_data \
+--alignments_stats_table O.vulgaris/Alignment/PRJNA791920/IsoSeq.Polished.Unclustered/AggregatedByChromBySampleSummary.tsv \
+--min_samples 7 \
+--min_mapped_reads_per_sample 100 \
+--min_known_sites 0 \
+--pooled_transcript_noise_threshold 0.06 \
+--main_by_chrom_dir O.vulgaris/Alignment/PRJNA791920/IsoSeq.Polished.Unclustered/ByChrom/ \
+--cds_regions O.vulgaris/Annotations/orfs_oct.bed \
+--samples_table O.vulgaris/Data/PRJNA791920/IsoSeqPolished/samples.csv \
+> O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered/pileup.3.4.23.out & 
+```
+* alu 13
+* 3.4.23
+* 18:10
+
+
+### Distinct proteins
+
+```bash
+tmux new -s julia13
+
+COMB
+
+mkdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered/DistinctProteins
+
+INFILES=$(echo O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered/ProteinsFiles/*.unique_proteins.csv.gz)
+
+echo $INFILES
+
+julia \
+--project=. \
+--threads 30 --proc 10 \
+Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .unique_proteins.csv.gz \
+--idcol Protein \
+--firstcolpos 16 \
+--datatype Proteins \
+--outdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered/DistinctProteins \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered/DistinctProteins.regular.26.3.23.log
+
+
+```
+* alu 16
+* 22.3.23
+
+
+```bash
+
+python \
+Code/UnorderedNaNDepletion/prepare_fofns_for_expression.py \
+--proteins_dir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles.KnownSites.NoNoiseFiltration \
+--distinct_proteins_dir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.KnownSites.NoNoiseFiltration 
+
+DISTINCTFILES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.KnownSites.NoNoiseFiltration/DistinctProteinsForExpressionLevels.txt)
+ALLROTSFILES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.KnownSites.NoNoiseFiltration/UniqueProteinsForExpressionLevels.txt)
+SAMPLESNAMES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.KnownSites.NoNoiseFiltration/ChromsNamesForExpressionLevels.txt)
+
+nohup \
+julia \
+--project=. \
+--threads 20 \
+Code/UnorderedNaNDepletion/expressionlevels.jl \
+--distinctfiles $DISTINCTFILES \
+--allprotsfiles $ALLROTSFILES \
+--samplenames $SAMPLESNAMES \
+--firstcolpos 16 \
+--fractions 0.2 0.4 0.6 0.8 1.0 \
+--outdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.KnownSites.NoNoiseFiltration \
+> O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/expressionlevels.regular.KnownSitesOnly.30.3.23.out &
+```
+* alu 13
+* 30.3.22
+* 14:41
