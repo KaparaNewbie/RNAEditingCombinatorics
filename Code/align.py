@@ -405,7 +405,7 @@ def illumina_main(
     delete_folder_with_files(decompressed_temp_dir)
 
 
-def pacbio_preprocessed_isoseq_main(
+def whole_transcriptome_isoseq_main(
     *,
     genome: Path,
     # gff: Path,
@@ -1114,33 +1114,33 @@ def define_args() -> argparse.Namespace:
 
     # pacbio isoseq args
 
-    pacbio_preprocessed_isoseq_parser = subparsers.add_parser(
-        "pacbio_preprocessed_isoseq", help="Preprocessed IsoSeq reads help"
+    pacbio_isoseq_undirected_seq_parser = subparsers.add_parser(
+        "whole_transcriptome_isoseq", help="Whole-transcriptome IsoSeq reads help"
     )
-    pacbio_preprocessed_isoseq_parser.set_defaults(func=pacbio_preprocessed_isoseq_main)
+    pacbio_isoseq_undirected_seq_parser.set_defaults(func=whole_transcriptome_isoseq_main)
 
-    pacbio_preprocessed_isoseq_parser.add_argument(
+    pacbio_isoseq_undirected_seq_parser.add_argument(
         "--postfix",
         default=".fastq.gz",
         help="Postfix of wanted files in `in_dir`. Should be the *full* postfix.",
     )
-    pacbio_preprocessed_isoseq_parser.add_argument(
+    pacbio_isoseq_undirected_seq_parser.add_argument(
         "--base_conda_env_dir",
         default=Path("~/anaconda3").expanduser(),
         type=expanded_path_from_str,
     )
-    pacbio_preprocessed_isoseq_parser.add_argument(
+    pacbio_isoseq_undirected_seq_parser.add_argument(
         "--pb_conda_env_name",
         default="pacbiocomb",
         help="Contains all PacBio's software packages (seperate env due to python 2.7 requirement).",
     )
-    pacbio_preprocessed_isoseq_parser.add_argument(
+    pacbio_isoseq_undirected_seq_parser.add_argument(
         "--pbmm2_path",
         type=expanded_path_from_str,
         default=Path("~/anaconda3/envs/pacbiocomb/bin/pbmm2").expanduser(),
         help="Note it should match `--pb_conda_env`.",
     )
-    pacbio_preprocessed_isoseq_parser.add_argument(
+    pacbio_isoseq_undirected_seq_parser.add_argument(
         "--best_n_alignments_per_read",
         type=int,
         default=1,
@@ -1152,7 +1152,7 @@ def define_args() -> argparse.Namespace:
     #     type=abs_path_from_str,
     #     help=("GFF3 annotation file for by-chrom separation of BAM files."),
     # )
-    pacbio_preprocessed_isoseq_parser.add_argument(
+    pacbio_isoseq_undirected_seq_parser.add_argument(
         "--known_sites_bed_file",
         required=True,
         type=abs_path_from_str,
