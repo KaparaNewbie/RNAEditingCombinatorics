@@ -41,19 +41,19 @@ import seaborn as sns
 from icecream import ic
 from matplotlib_venn import venn2, venn3
 from plotly.subplots import make_subplots
+from pybedtools import BedTool
 from sklearn import linear_model
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.metrics import mean_squared_error, r2_score
-from pybedtools import BedTool
 
 # from numpy.random import RandomState
 
 
 sys.path.append(str(Path(code_dir).absolute()))
 from Alignment.alignment_utils import count_reads, count_reads_in_unaligned_bam
+from EditingUtils.logo import make_freq_df, multiple_logos_from_fasta_files
 from EditingUtils.seq import make_fasta_dict
-from EditingUtils.logo import multiple_logos_from_fasta_files, make_freq_df
 
 # %%
 px.colors
@@ -695,7 +695,9 @@ conditions = ["PacBio", "Illumina"]
 sep = "\t"
 # notice a transcriptome is different from a genome when considering up- and downstream bases of edited adenosines in order to plot ADAR's motif
 # due to splicing, so it may be better to take the bases from the reads
-transcriptome_file = "/private7/projects/Combinatorics/D.pealeii/Annotations/orfs_squ.fa" 
+transcriptome_file = (
+    "/private7/projects/Combinatorics/D.pealeii/Annotations/orfs_squ.fa"
+)
 
 # %%
 pacbio_data_df = pd.DataFrame(
@@ -841,8 +843,8 @@ illumina_data_df["PositionFile"] = [
 illumina_data_df
 
 # %%
-# condition = "GRIA" 
-# strand = "+" 
+# condition = "GRIA"
+# strand = "+"
 # positions_file = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv"
 
 # positions_df = pd.read_csv(positions_file, sep=sep).drop(
@@ -869,36 +871,36 @@ illumina_data_df
 
 # %%
 # editing_sites_df.insert(
-#     editing_sites_df.columns.get_loc("Start") + 1, 
-#     "End", 
+#     editing_sites_df.columns.get_loc("Start") + 1,
+#     "End",
 #     editing_sites_df["Start"] + 1
 # )
 # editing_sites_df
 
 # %%
 # editing_sites_df.insert(
-#     editing_sites_df.columns.get_loc("End") + 1, 
-#     "Score", 
+#     editing_sites_df.columns.get_loc("End") + 1,
+#     "Score",
 #     "."
 # )
 # editing_sites_df.insert(
-#     editing_sites_df.columns.get_loc("Score") + 1, 
-#     "Strand", 
+#     editing_sites_df.columns.get_loc("Score") + 1,
+#     "Strand",
 #     strand
 # )
 # editing_sites_df.insert(
-#     editing_sites_df.columns.get_loc("End") + 1, 
-#     "Name", 
+#     editing_sites_df.columns.get_loc("End") + 1,
+#     "Name",
 #     (
 #         editing_sites_df[condition_col]
-#         + ":" 
-#         + editing_sites_df["Chrom"] 
-#         + ":" 
-#         + editing_sites_df["Start"].astype(str) 
 #         + ":"
-#         + editing_sites_df["End"].astype(str) 
+#         + editing_sites_df["Chrom"]
 #         + ":"
-#         + editing_sites_df["Strand"].astype(str) 
+#         + editing_sites_df["Start"].astype(str)
+#         + ":"
+#         + editing_sites_df["End"].astype(str)
+#         + ":"
+#         + editing_sites_df["Strand"].astype(str)
 #     )
 # )
 # editing_sites_df
@@ -912,7 +914,7 @@ data_dfs = [pacbio_data_df, illumina_data_df]
 merged_platforms_editing_sites_dfs = []
 
 for data_df in data_dfs:
-    
+
     platform_editing_sites_dfs = []
 
     for _, row in data_df.iterrows():  # _ is the row's index
@@ -929,43 +931,39 @@ for data_df in data_dfs:
         editing_sites_df = (
             positions_df.loc[
                 (positions_df["RefBase"] == ref_base) & (positions_df["Edited"] > 0),
-                [condition_col, "Chrom", "Position"]
+                [condition_col, "Chrom", "Position"],
             ]
             .sort_values(["Chrom", "Position"])
             .reset_index(drop=True)
             .rename(columns={"Position": "Start"})
         )
         editing_sites_df.insert(
-            editing_sites_df.columns.get_loc("Start") + 1, 
-            "End", 
-            editing_sites_df["Start"] + 1
+            editing_sites_df.columns.get_loc("Start") + 1,
+            "End",
+            editing_sites_df["Start"] + 1,
         )
         editing_sites_df.insert(
-            editing_sites_df.columns.get_loc("End") + 1, 
-            "Score", 
-            "."
+            editing_sites_df.columns.get_loc("End") + 1, "Score", "."
         )
         editing_sites_df.insert(
-            editing_sites_df.columns.get_loc("Score") + 1, 
-            "Strand", 
-            strand
+            editing_sites_df.columns.get_loc("Score") + 1, "Strand", strand
         )
         editing_sites_df.insert(
-            editing_sites_df.columns.get_loc("End") + 1, 
-            "Name", 
+            editing_sites_df.columns.get_loc("End") + 1,
+            "Name",
             (
                 editing_sites_df[condition_col]
-                + ":" 
-                + editing_sites_df["Chrom"] 
-                + ":" 
-                + editing_sites_df["Start"].astype(str) 
                 + ":"
-                + editing_sites_df["End"].astype(str) 
+                + editing_sites_df["Chrom"]
                 + ":"
-                + editing_sites_df["Strand"].astype(str) 
-            )
+                + editing_sites_df["Start"].astype(str)
+                + ":"
+                + editing_sites_df["End"].astype(str)
+                + ":"
+                + editing_sites_df["Strand"].astype(str)
+            ),
         )
-        
+
         # editing_sites_df = (
         #     positions_df.loc[
         #         (positions_df["RefBase"] == ref_base) & (positions_df["Edited"] > 0),
@@ -976,43 +974,49 @@ for data_df in data_dfs:
         #     .rename(columns={"Position": "End"})
         # )
         # editing_sites_df.insert(
-        #     editing_sites_df.columns.get_loc("Chrom") + 1, 
-        #     "Start", 
+        #     editing_sites_df.columns.get_loc("Chrom") + 1,
+        #     "Start",
         #     editing_sites_df["End"] - 1
         # )
         # editing_sites_df.insert(
-        #     editing_sites_df.columns.get_loc("End") + 1, 
-        #     "Score", 
+        #     editing_sites_df.columns.get_loc("End") + 1,
+        #     "Score",
         #     "."
         # )
         # editing_sites_df.insert(
-        #     editing_sites_df.columns.get_loc("Score") + 1, 
-        #     "Strand", 
+        #     editing_sites_df.columns.get_loc("Score") + 1,
+        #     "Strand",
         #     strand
         # )
         # editing_sites_df.insert(
-        #     editing_sites_df.columns.get_loc("End") + 1, 
-        #     "Name", 
+        #     editing_sites_df.columns.get_loc("End") + 1,
+        #     "Name",
         #     (
         #         editing_sites_df[condition_col]
-        #         + ":" 
-        #         + editing_sites_df["Chrom"] 
-        #         + ":" 
-        #         + editing_sites_df["Start"].astype(str) 
         #         + ":"
-        #         + editing_sites_df["End"].astype(str) 
+        #         + editing_sites_df["Chrom"]
         #         + ":"
-        #         + editing_sites_df["Strand"].astype(str) 
+        #         + editing_sites_df["Start"].astype(str)
+        #         + ":"
+        #         + editing_sites_df["End"].astype(str)
+        #         + ":"
+        #         + editing_sites_df["Strand"].astype(str)
         #     )
         # )
 
         platform_editing_sites_dfs.append(editing_sites_df)
-    
-    merged_platform_editing_sites_df = pd.concat(platform_editing_sites_dfs, ignore_index=True)
-    
+
+    merged_platform_editing_sites_df = pd.concat(
+        platform_editing_sites_dfs, ignore_index=True
+    )
+
     # extend start and end positions s.t. each region spans 3 bases, with the edited adenosine in the middle
-    merged_platform_editing_sites_df["Start"] = merged_platform_editing_sites_df["Start"] - 1 # upstream base of edited adenosine (or downstream for a transcript expressed from the negative strand)
-    merged_platform_editing_sites_df["End"] = merged_platform_editing_sites_df["End"] + 1 # downstream base of edited adenosine (or upstream for a transcript expressed from the negative strand)
+    merged_platform_editing_sites_df["Start"] = (
+        merged_platform_editing_sites_df["Start"] - 1
+    )  # upstream base of edited adenosine (or downstream for a transcript expressed from the negative strand)
+    merged_platform_editing_sites_df["End"] = (
+        merged_platform_editing_sites_df["End"] + 1
+    )  # downstream base of edited adenosine (or upstream for a transcript expressed from the negative strand)
 
     # don't consider editing sites located at the first/last position of a transcript (if there are such editing sites, they are negligble)
     merged_platform_editing_sites_df = merged_platform_editing_sites_df.loc[
@@ -1020,23 +1024,26 @@ for data_df in data_dfs:
     ]
     merged_platform_editing_sites_df = merged_platform_editing_sites_df.loc[
         merged_platform_editing_sites_df.apply(
-            lambda x: x["End"] <= chromosomal_lengths[x["Chrom"]], 
-            axis=1
+            lambda x: x["End"] <= chromosomal_lengths[x["Chrom"]], axis=1
         )
     ]
-    
+
     merged_platforms_editing_sites_dfs.append(merged_platform_editing_sites_df)
-    
+
 merged_platforms_editing_sites_dfs[0]
 
 # %%
 merged_platforms_editing_sites_dfs[1]
 
 # %%
-merged_editing_sites_df = pd.concat(merged_platforms_editing_sites_dfs, ignore_index=True)
+merged_editing_sites_df = pd.concat(
+    merged_platforms_editing_sites_dfs, ignore_index=True
+)
 
 # remove duplicates editing sites from transcripts present in both platforms (namely PCLO)
-merged_editing_sites_df = merged_editing_sites_df.drop_duplicates(["Chrom", "Start", "End", "Strand"], ignore_index=True)
+merged_editing_sites_df = merged_editing_sites_df.drop_duplicates(
+    ["Chrom", "Start", "End", "Strand"], ignore_index=True
+)
 
 merged_editing_sites_df
 
@@ -1046,7 +1053,8 @@ editing_sites_dfs = merged_platforms_editing_sites_dfs + [merged_editing_sites_d
 # %%
 editing_sites_bedtools = [
     (
-        BedTool().from_dataframe(editing_sites_df.iloc[:, 1:])
+        BedTool()
+        .from_dataframe(editing_sites_df.iloc[:, 1:])
         .sort()
         .sequence(fi=transcriptome_file, s=True)
     )
@@ -1054,7 +1062,9 @@ editing_sites_bedtools = [
 ]
 
 # %%
-fasta_files = [editing_sites_bedtool.seqfn for editing_sites_bedtool in editing_sites_bedtools]
+fasta_files = [
+    editing_sites_bedtool.seqfn for editing_sites_bedtool in editing_sites_bedtools
+]
 main_title = None
 sub_titles = conditions + ["All"]
 out_file = None
@@ -1062,9 +1072,9 @@ out_file = None
 # %%
 
 # %%
-from Bio import SeqIO, motifs  # biopython
-import pandas as pd  # pandas
 import matplotlib.pyplot as plt  # matplotlib
+import pandas as pd  # pandas
+from Bio import SeqIO, motifs  # biopython
 from logomaker import Logo  # logomaker
 
 # %%
@@ -1080,12 +1090,7 @@ len(seqs)
 
 # %%
 multiple_logos_from_fasta_files(
-    fasta_files,
-    main_title,
-    sub_titles,
-    out_file,
-    width=14,
-    height=4
+    fasta_files, main_title, sub_titles, out_file, width=14, height=4
 );
 
 # %% [markdown] tags=[]
@@ -1125,14 +1130,17 @@ illumina_positions_files = [
         "comp141565_c6_seq3",
         "comp141684_c0_seq1",
         "comp141532_c3_seq11",
-        "comp141574_c0_seq3"
+        "comp141574_c0_seq3",
     ]
 ]
 positions_files = pacbio_positions_files + illumina_positions_files
 
 sep = "\t"
 
-pacbio_strands = ["+", "+", ]
+pacbio_strands = [
+    "+",
+    "+",
+]
 illumina_strands = [
     "+",
     "+",
@@ -1152,7 +1160,7 @@ illumina_strands = [
     "+",
     "+",
     "+",
-    "+"
+    "+",
 ]
 strands = pacbio_strands + illumina_strands
 
@@ -1180,13 +1188,17 @@ illumina_transcripts = [
     "IQEC1_HUMAN",
     "CSKI1_MOUSE",
     "MTUS2_HUMAN",
-    "ROBO2_HUMAN"
+    "ROBO2_HUMAN",
 ]
 transcripts = pacbio_transcripts + illumina_transcripts
 
-platforms = ["PacBio"] * len(pacbio_transcripts) + ["Illumina"] * len(illumina_transcripts)
+platforms = ["PacBio"] * len(pacbio_transcripts) + ["Illumina"] * len(
+    illumina_transcripts
+)
 
-conditions = [f"{transcript}-{platform}" for transcript, platform in zip(transcripts, platforms)]
+conditions = [
+    f"{transcript}-{platform}" for transcript, platform in zip(transcripts, platforms)
+]
 
 # conditions = ["PacBio", "Illumina"]
 
@@ -1303,19 +1315,25 @@ merged_ref_base_positions_df
 # ## Current vs. known editing levels
 
 # %%
-both_df = merged_ref_base_positions_df.loc[merged_ref_base_positions_df["Edited"] & merged_ref_base_positions_df["KnownEditing"]]
+both_df = merged_ref_base_positions_df.loc[
+    merged_ref_base_positions_df["Edited"]
+    & merged_ref_base_positions_df["KnownEditing"]
+]
 
-all_df = merged_ref_base_positions_df.loc[merged_ref_base_positions_df["Edited"] | merged_ref_base_positions_df["KnownEditing"]]
+all_df = merged_ref_base_positions_df.loc[
+    merged_ref_base_positions_df["Edited"]
+    | merged_ref_base_positions_df["KnownEditing"]
+]
 all_df
 
 
 # %%
 def editing_status_color(
-    edited: bool, 
+    edited: bool,
     known_editing: bool,
     both_color="black",
     edited_color="red",
-    known_editing_color="green"
+    known_editing_color="green",
 ):
     if edited and known_editing:
         return both_color
@@ -1328,9 +1346,18 @@ def editing_status_color(
 # %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"} tags=[]
 # todo retain nan rows and turn nans to 0?
 
-both_df = merged_ref_base_positions_df.loc[merged_ref_base_positions_df["Edited"] & merged_ref_base_positions_df["KnownEditing"]]
-edited_df = merged_ref_base_positions_df.loc[merged_ref_base_positions_df["Edited"] & ~merged_ref_base_positions_df["KnownEditing"]]
-known_editing_df = merged_ref_base_positions_df.loc[~merged_ref_base_positions_df["Edited"] & merged_ref_base_positions_df["KnownEditing"]]
+both_df = merged_ref_base_positions_df.loc[
+    merged_ref_base_positions_df["Edited"]
+    & merged_ref_base_positions_df["KnownEditing"]
+]
+edited_df = merged_ref_base_positions_df.loc[
+    merged_ref_base_positions_df["Edited"]
+    & ~merged_ref_base_positions_df["KnownEditing"]
+]
+known_editing_df = merged_ref_base_positions_df.loc[
+    ~merged_ref_base_positions_df["Edited"]
+    & merged_ref_base_positions_df["KnownEditing"]
+]
 
 # all_df = merged_ref_base_positions_df.loc[merged_ref_base_positions_df["Edited"] | merged_ref_base_positions_df["KnownEditing"]]
 
@@ -1350,8 +1377,7 @@ x = all_df["%Editing"].fillna(0)
 y = all_df["%EditingKnown"].fillna(0)
 
 all_colors = all_df.apply(
-    lambda x: editing_status_color(x["Edited"], x["KnownEditing"]),
-    axis=1
+    lambda x: editing_status_color(x["Edited"], x["KnownEditing"]), axis=1
 )
 
 x_both = both_df["%Editing"].fillna(0)
@@ -1397,7 +1423,7 @@ fig.update_layout(
     showlegend=False,
     template=template,
     width=600,
-    height=500
+    height=500,
 )
 
 fig.update_xaxes(range=[0, 100])
@@ -1409,10 +1435,22 @@ fig.show()
 # %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"} tags=[]
 # todo retain nan rows and turn nans to 0?
 
-both_df = merged_ref_base_positions_df.loc[merged_ref_base_positions_df["Edited"] & merged_ref_base_positions_df["KnownEditing"]]
-edited_df = merged_ref_base_positions_df.loc[(merged_ref_base_positions_df["Edited"]) & (~merged_ref_base_positions_df["KnownEditing"])]
-known_editing_df = merged_ref_base_positions_df.loc[(~merged_ref_base_positions_df["Edited"]) & (merged_ref_base_positions_df["KnownEditing"])]
-all_df = merged_ref_base_positions_df.loc[merged_ref_base_positions_df["Edited"] | merged_ref_base_positions_df["KnownEditing"]]
+both_df = merged_ref_base_positions_df.loc[
+    merged_ref_base_positions_df["Edited"]
+    & merged_ref_base_positions_df["KnownEditing"]
+]
+edited_df = merged_ref_base_positions_df.loc[
+    (merged_ref_base_positions_df["Edited"])
+    & (~merged_ref_base_positions_df["KnownEditing"])
+]
+known_editing_df = merged_ref_base_positions_df.loc[
+    (~merged_ref_base_positions_df["Edited"])
+    & (merged_ref_base_positions_df["KnownEditing"])
+]
+all_df = merged_ref_base_positions_df.loc[
+    merged_ref_base_positions_df["Edited"]
+    | merged_ref_base_positions_df["KnownEditing"]
+]
 
 assert len(both_df) + len(edited_df) + len(known_editing_df) == len(all_df)
 
@@ -1442,11 +1480,7 @@ y_edited = edited_df["%EditingKnown"].fillna(0)
 x_known_editing = known_editing_df["%Editing"].fillna(0)
 y_known_editing = known_editing_df["%EditingKnown"].fillna(0)
 
-xs_ys = [
-    (x_both, y_both),
-    (x_edited, y_edited),
-    (x_known_editing, y_known_editing)
-]
+xs_ys = [(x_both, y_both), (x_edited, y_edited), (x_known_editing, y_known_editing)]
 names = ["Both", "Currently edited", "Known editing"]
 colors = ["black", "green", "red"]
 
@@ -1467,7 +1501,7 @@ for (x, y), name, color in zip(xs_ys, names, colors):
 x_all = all_df["%Editing"].fillna(0)
 y_all = all_df["%EditingKnown"].fillna(0)
 r, pv = scipy.stats.pearsonr(x_all, y_all)
-    
+
 fig.add_annotation(
     row=1,
     col=1,
@@ -1488,7 +1522,7 @@ fig.update_layout(
     # showlegend=False,
     template=template,
     width=600,
-    height=500
+    height=500,
 )
 
 fig.update_xaxes(range=[0, 100])
@@ -1516,16 +1550,15 @@ colors = ["black", "green", "red"]
 for name, y, color in zip(names, ys, colors):
     fig.add_trace(
         go.Box(
-            x=[name]*len(y),
+            x=[name] * len(y),
             y=y,
-            boxpoints='all',
+            boxpoints="all",
             # jitter=0.8,
             whiskerwidth=0.2,
             marker_size=2,
             line_width=1,
             # fillcolor=color,
             line_color=color,
-            
             # points="all"
             # name=name,
             # mode="markers",
@@ -1542,10 +1575,10 @@ fig.update_layout(
     showlegend=False,
     template=template,
     width=600,
-    height=500
+    height=500,
 )
 # fig.update_traces(
-#     boxpoints='all', 
+#     boxpoints='all',
 #     # jitter=0
 # )
 
@@ -1554,3 +1587,353 @@ fig.update_yaxes(range=[0, 100])
 
 fig.show()
 
+
+# %% [markdown]
+# # Isoforms in 80K coverage
+
+# %%
+condition_col = "Gene"
+sep = "\t"
+unique_proteins_first_col_pos = 14
+platforms = ["PacBio", "Illumina"]
+
+# %%
+pacbio_distinct_unique_proteins_files = [
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.DistinctUniqueProteins.03.03.2023-15:36:38.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.DistinctUniqueProteins.03.03.2023-15:53:01.csv",
+]
+
+pacbio_unique_reads_files = [
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_reads.csv.gz",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_reads.csv.gz",
+]
+pacbio_unique_proteins_files = [
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz",
+]
+
+pacbio_conditions = ["GRIA", "PCLO"]
+
+pacbio_color_sequence = px.colors.qualitative.G10
+pacbio_color_discrete_map = {
+    condition: color
+    for condition, color in zip(pacbio_conditions, pacbio_color_sequence)
+}
+
+# %%
+illumina_distinct_unique_proteins_files = [
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141881_c0_seq3.Sampled80000.DistinctUniqueProteins.11.04.2023-16:36:40.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141044_c0_seq2.Sampled80000.DistinctUniqueProteins.11.04.2023-17:21:47.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp140439_c0_seq1.Sampled80000.DistinctUniqueProteins.11.04.2023-16:34:07.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp126362_c0_seq1.Sampled80000.DistinctUniqueProteins.11.04.2023-17:27:11.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141517_c0_seq1.Sampled80000.DistinctUniqueProteins.11.04.2023-18:09:19.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141840_c0_seq2.Sampled80000.DistinctUniqueProteins.11.04.2023-16:40:11.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141640_c0_seq1.Sampled80000.DistinctUniqueProteins.11.04.2023-16:35:41.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp140987_c3_seq1.Sampled80000.DistinctUniqueProteins.11.04.2023-16:51:06.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp140910_c2_seq1.Sampled80000.DistinctUniqueProteins.11.04.2023-16:46:22.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp136058_c0_seq1.Sampled80000.DistinctUniqueProteins.11.04.2023-17:00:54.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141378_c0_seq7.Sampled80000.DistinctUniqueProteins.11.04.2023-18:02:54.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141158_c1_seq2.Sampled80000.DistinctUniqueProteins.11.04.2023-16:38:37.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp140712_c0_seq3.Sampled80000.DistinctUniqueProteins.11.04.2023-16:55:55.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141882_c0_seq14.Sampled80000.DistinctUniqueProteins.11.04.2023-17:08:14.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141880_c1_seq3.Sampled80000.DistinctUniqueProteins.11.04.2023-17:47:57.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141565_c6_seq3.Sampled80000.DistinctUniqueProteins.11.04.2023-17:55:20.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141684_c0_seq1.Sampled80000.DistinctUniqueProteins.11.04.2023-17:41:03.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141532_c3_seq11.Sampled80000.DistinctUniqueProteins.11.04.2023-17:37:06.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141574_c0_seq3.Sampled80000.DistinctUniqueProteins.11.04.2023-17:13:57.csv",
+]
+
+illumina_chroms = [
+    "comp141881_c0_seq3",
+    "comp141044_c0_seq2",
+    "comp140439_c0_seq1",
+    "comp126362_c0_seq1",
+    "comp141517_c0_seq1",
+    "comp141840_c0_seq2",
+    "comp141640_c0_seq1",
+    "comp140987_c3_seq1",
+    "comp140910_c2_seq1",
+    "comp136058_c0_seq1",
+    "comp141378_c0_seq7",
+    "comp141158_c1_seq2",
+    "comp140712_c0_seq3",
+    "comp141882_c0_seq14",
+    "comp141880_c1_seq3",
+    "comp141565_c6_seq3",
+    "comp141684_c0_seq1",
+    "comp141532_c3_seq11",
+    "comp141574_c0_seq3",
+]
+illumina_unique_reads_files = [
+    f"/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/reads.sorted.aligned.filtered.{chrom}.Sampled80000.unique_reads.csv.gz"
+    for chrom in illumina_chroms
+]
+illumina_unique_proteins_files = [
+    f"/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/reads.sorted.aligned.filtered.{chrom}.Sampled80000.unique_proteins.csv.gz"
+    for chrom in illumina_chroms
+]
+
+# illumina_conditions = [
+#     "RUSC2_MOUSE",
+#     "TRIM2_BOVIN",
+#     "CA2D3_MOUSE",
+#     "ABL_DROME",
+#     "DGLA_HUMAN",
+#     "K0513_MOUSE",
+#     "KCNAS_DROME",
+#     "ACHA4_MOUSE",
+#     "ANR17_HUMAN",
+#     "TWK7_CAEEL",
+#     "SCN1_HETBL",
+#     "CACB2_RABIT",
+#     "RIMS2_RAT",
+#     "PCLO_CHICK",
+#     "DOP1_HUMAN",
+#     "IQEC1_HUMAN",
+#     "CSKI1_MOUSE",
+#     "MTUS2_HUMAN",
+#     "ROBO2_HUMAN"
+# ]
+
+illumina_conditions = [
+    "RUSC2",
+    "TRIM2",
+    "CA2D3",
+    "ABL",
+    "DGLA",
+    "K0513",
+    "KCNAS",
+    "ACHA4",
+    "ANR17",
+    "TWK7",
+    "SCN1",
+    "CACB2",
+    "RIMS2",
+    "PCLO",
+    "DOP1",
+    "IQEC1",
+    "CSKI1",
+    "MTUS2",
+    "ROBO2",
+]
+
+illumina_color_sequence = px.colors.qualitative.Dark24
+illumina_color_discrete_map = {
+    condition: color
+    for condition, color in zip(illumina_conditions, illumina_color_sequence)
+}
+
+# %%
+platforms_distinct_proteins_files = [
+    pacbio_distinct_unique_proteins_files,
+    illumina_distinct_unique_proteins_files,
+]
+platforms_unique_reads_files = [pacbio_unique_reads_files, illumina_unique_reads_files]
+platforms_unique_proteins_files = [
+    pacbio_unique_proteins_files,
+    illumina_unique_proteins_files,
+]
+platforms_conditions = [pacbio_conditions, illumina_conditions]
+
+editable_aas_per_platform_and_condition = {}
+
+platforms_distinct_proteins_dfs = []
+
+for (
+    platform,
+    platform_distinct_proteins_files,
+    platform_unique_reads_files,
+    platform_unique_proteins_files,
+    platform_conditions,
+) in zip(
+    platforms,
+    platforms_distinct_proteins_files,
+    platforms_unique_reads_files,
+    platforms_unique_proteins_files,
+    platforms_conditions,
+):
+
+    distinct_unique_proteins_dfs = []
+    for (
+        condition,
+        distinct_unique_proteins_file,
+        unique_reads_file,
+        unique_proteins_file,
+    ) in zip(
+        platform_conditions,
+        platform_distinct_proteins_files,
+        platform_unique_reads_files,
+        platform_unique_proteins_files,
+    ):
+
+        # unique_reads_df
+        unique_reads_df = pd.read_csv(unique_reads_file, sep=sep)
+        if "Transcript" in unique_reads_df.columns:
+            unique_reads_df.rename(columns={"Transcript": "UniqueRead"}, inplace=True)
+
+        # unique proteins df --> editable AAs
+        unique_proteins_df = pd.read_csv(unique_proteins_file, sep=sep)
+        unique_proteins_df.rename(
+            columns={
+                col: col.replace("Transcripts", "UniqueReads")
+                for col in unique_proteins_df.columns[:unique_proteins_first_col_pos]
+                if "Transcripts" in col
+            },
+            inplace=True,
+        )
+        editable_aas_per_platform_and_condition[
+            (platform, condition)
+        ] = unique_proteins_df.iloc[:, unique_proteins_first_col_pos:].shape[1]
+
+        distinct_unique_proteins_df = pd.read_csv(
+            distinct_unique_proteins_file, sep=sep
+        )
+        distinct_unique_proteins_df.insert(0, condition_col, condition)
+        distinct_unique_proteins_df.insert(
+            1,
+            "NumOfReads",
+            (
+                distinct_unique_proteins_df["Fraction"]
+                * unique_reads_df["NumOfReads"].sum()
+            ).astype(int),
+        )
+        distinct_unique_proteins_df.insert(0, "Platform", platform)
+        distinct_unique_proteins_dfs.append(distinct_unique_proteins_df)
+
+    distinct_unique_proteins_df = (
+        pd.concat(distinct_unique_proteins_dfs)
+        .reset_index(drop=True)
+        .rename(
+            columns={"NumUniqueSamples": "NumOfProteins", "UniqueSamples": "Proteins"}
+        )
+    )
+    distinct_unique_proteins_df = distinct_unique_proteins_df.sort_values(
+        [
+            condition_col,
+            "Fraction",
+            "FractionRepetition",
+            "Algorithm",
+            "AlgorithmRepetition",
+        ]
+    ).reset_index(drop=True)
+    platforms_distinct_proteins_dfs.append(distinct_unique_proteins_df)
+
+distinct_proteins_df = pd.concat(platforms_distinct_proteins_dfs, ignore_index=True)
+distinct_proteins_df
+
+
+# %%
+editable_aas_per_platform_and_condition
+
+# %%
+distinct_proteins_per_editable_aas_df = distinct_proteins_df.copy()
+distinct_proteins_per_editable_aas_df = distinct_proteins_per_editable_aas_df.loc[
+    distinct_proteins_per_editable_aas_df["Algorithm"] == "Descending"
+]
+distinct_proteins_per_editable_aas_df = distinct_proteins_per_editable_aas_df.loc[
+    distinct_proteins_per_editable_aas_df["Fraction"] == 1.0
+]
+
+distinct_proteins_per_editable_aas_df["EditableAAs"] = [
+    editable_aas_per_platform_and_condition[(platform, condition)]
+    for platform, condition in zip(
+        distinct_proteins_per_editable_aas_df["Platform"],
+        distinct_proteins_per_editable_aas_df[condition_col],
+    )
+]
+
+distinct_proteins_per_editable_aas_df = (
+    distinct_proteins_per_editable_aas_df.sort_values(
+        ["NumOfProteins", "EditableAAs"], ascending=False
+    ).reset_index(drop=True)
+)
+
+distinct_proteins_per_editable_aas_df
+
+
+# %%
+platforms_color_map = {
+    platform: color_map
+    for platform, color_map in zip(
+        platforms, [pacbio_color_discrete_map, illumina_color_discrete_map]
+    )
+}
+
+# ["circle", "square-dot", "diamond", "circle", "star", "star-square", "triangle-down"]
+# symbols = ["diamond", "square"]
+# symbols = ["diamond", "circle"]
+symbols = ["star", "triangle-up"]
+platforms_symbols = {
+    platform: symbol for platform, symbol in zip(platforms, symbols)
+}
+
+
+
+
+fig = go.Figure()
+
+for platform, condition in editable_aas_per_platform_and_condition:
+
+    platform_and_condition_df = distinct_proteins_per_editable_aas_df.loc[
+        (distinct_proteins_per_editable_aas_df["Platform"] == platform)
+        & (distinct_proteins_per_editable_aas_df[condition_col] == condition)
+    ]
+
+    x = platform_and_condition_df["EditableAAs"]
+    y = platform_and_condition_df["NumOfProteins"]
+
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=y,
+            mode="markers",
+            marker=dict(
+                color=platforms_color_map[platform][condition],
+                symbol=platforms_symbols[platform],
+                size=8,
+            ),
+            legendgrouptitle_text=platform,
+            legendgroup=platform,  # this can be any string
+            name=condition,
+        )
+    )
+
+# correlate all x and y values
+x = distinct_proteins_per_editable_aas_df["EditableAAs"]
+y = distinct_proteins_per_editable_aas_df["NumOfProteins"]
+r, pv = scipy.stats.pearsonr(x, y)
+
+fig.add_annotation(
+    x=40,
+    y=25_000,
+    xref="x",
+    yref="y",
+    text=f"<b>Pearson's r</b><br>p-val = {pv:.2e}<br>ρ = {r:.2g}",
+    bgcolor="white",
+    borderpad=4,
+    font=dict(size=12),
+    opacity=0.8,
+    showarrow=False,
+)
+
+fig.update_xaxes(
+    range=[0, distinct_proteins_per_editable_aas_df["EditableAAs"].max() * 1.1]
+)
+fig.update_yaxes(
+    range=[0, distinct_proteins_per_editable_aas_df["NumOfProteins"].max() * 1.1]
+)
+
+fig.update_layout(
+    # legend_font=dict(size=8),
+    # legend_grouptitlefont=dict(size=10),
+    template=template,
+    xaxis_title="Editable amino acids",
+    yaxis_title="Distinct proteins",
+    width=700,
+    height=650,
+)
+
+fig.show()
+
+
+# %%

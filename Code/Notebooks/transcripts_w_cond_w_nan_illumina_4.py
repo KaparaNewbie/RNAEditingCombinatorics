@@ -1915,6 +1915,49 @@ fig.show()
 # ## Num of distinct unique proteins
 
 # %%
+fraction_1_gdf = (
+    distinct_unique_proteins_df
+    .loc[
+        (distinct_unique_proteins_df["Fraction"] == 1.0) &
+        (distinct_unique_proteins_df["Algorithm"] == "Descending")
+    ]
+    .groupby(condition_col)
+)
+
+means = fraction_1_gdf["NumOfProteins"].mean().reset_index().rename(columns={"NumOfProteins": "Mean"})
+stds = fraction_1_gdf["NumOfProteins"].std().reset_index().rename(columns={"NumOfProteins": "STD"})
+
+mean_distinct_proteins_df = means.merge(stds, on=condition_col)
+
+mean_distinct_proteins_df
+
+# %%
+fig = px.bar(
+    mean_distinct_proteins_df,
+    x=condition_col,
+    y="Mean",
+    error_y="STD",
+    # points="all",
+    labels={"Mean": "Distinct proteins (avg)"},
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    category_orders=category_orders,
+    template=template,
+)
+
+fig.update_yaxes(range=[0, mean_distinct_proteins_df["Mean"].max()])
+
+fig.update_layout(
+    showlegend=False, 
+    xaxis_title="",
+    width=max(70*len(conditions), 300),
+    height=400
+)
+
+fig.show()
+
+
+# %%
 distinct_proteins_per_mapped_reads_df = distinct_unique_proteins_df.copy()
 distinct_proteins_per_mapped_reads_df = distinct_proteins_per_mapped_reads_df.loc[distinct_proteins_per_mapped_reads_df["Algorithm"] == "Descending"]
 distinct_proteins_per_mapped_reads_df = distinct_proteins_per_mapped_reads_df.loc[distinct_proteins_per_mapped_reads_df["Fraction"] == 1.0]
@@ -5523,15 +5566,15 @@ def run_pcas(
 
 
 # %%
-equal_exp_tsne_input_dfs = [
-    prepare_ml_input_df(
-        max_sol_df,
-        unique_proteins_df,
-        unique_proteins_first_col_pos,
-        sorting_col="%EqualTotalExpression",
-    )
-    for max_sol_df, unique_proteins_df in zip(max_sol_dfs, unique_proteins_dfs)
-]
+# equal_exp_tsne_input_dfs = [
+#     prepare_ml_input_df(
+#         max_sol_df,
+#         unique_proteins_df,
+#         unique_proteins_first_col_pos,
+#         sorting_col="%EqualTotalExpression",
+#     )
+#     for max_sol_df, unique_proteins_df in zip(max_sol_dfs, unique_proteins_dfs)
+# ]
 # equal_exp_tsne_input_dfs[0]
 
 weighted_exp_tsne_input_dfs = [
@@ -5544,6 +5587,96 @@ weighted_exp_tsne_input_dfs = [
     for max_sol_df, unique_proteins_df in zip(max_sol_dfs, unique_proteins_dfs)
 ]
 weighted_exp_tsne_input_dfs[0]
+
+# %%
+# perplexities = [5, 30, 50, 100]
+perplexities = [5, 30, 50, 100, 150]
+n_iter = 500
+n_jobs = 40
+
+# %%
+# n_iter_500_equal_conditions_tsnes, n_iter_500_equal_conditions_Xs = run_tsnes(
+#     conditions,
+#     equal_exp_tsne_input_dfs,
+#     seed,
+#     perplexities=perplexities,
+#     n_iter=n_iter,
+#     n_jobs=n_jobs,
+# )
+n_iter_500_weighted_conditions_tsnes, n_iter_500_weighted_conditions_Xs = run_tsnes(
+    conditions,
+    weighted_exp_tsne_input_dfs,
+    seed,
+    perplexities=perplexities,
+    n_iter=n_iter,
+    n_jobs=n_jobs,
+)
+
+# %%
+help(fig.write_image)
+
+# %%
+rank_cutoff = 1000
+
+head_title = (
+    f"t-SNEs for largest solution of each {str(condition_col).lower()} under different perplexities"
+    # "<br>"
+    # f"<sub>{rank_cutoff} highest expressed proteins are colored</sub>"
+)
+row_titles = conditions
+column_titles = [f"Perplexity = {perplexity}" for perplexity in perplexities]
+
+fig = make_subplots(
+    rows=len(conditions),
+    cols=len(perplexities),
+    row_titles=row_titles,
+    column_titles=column_titles,
+    # shared_yaxes=True,
+    # shared_xaxes=True
+)
+
+marker_size = 1
+line_width = 0.5
+
+for row, (condition, X, condition_tsnes) in enumerate(
+    zip(conditions, n_iter_500_weighted_conditions_Xs, n_iter_500_weighted_conditions_tsnes), start=1
+):
+
+    # n = X.shape[0]
+    # color_options = [color_discrete_map[condition], "white"]
+    # colors = color_highest_expressed_proteins(n, rank_cutoff, color_options)
+    colors = "white"
+
+    for col, prots_perplexity_tsne in enumerate(condition_tsnes, start=1):
+
+        x, y = prots_perplexity_tsne.T
+
+        fig.add_trace(
+            # go.Scattergl(
+            go.Scatter(
+                x=x, y=y, mode="markers", marker=dict(color=colors, line_width=line_width, size=marker_size)
+            ),
+            row=row,
+            col=col,
+        )
+
+fig.update_layout(
+    # title_text=head_title,
+    # title_y=0.95,
+    template=template,
+    showlegend=False,
+    width=1500,
+    height=300*len(conditions),
+)
+
+fig.write_image("tSNE clustering - Illumina.svg", width=1500, height=300*len(conditions))
+
+fig.show()
+
+# %%
+fig.write_image("tSNE clustering - Illumina.svg", 
+                # width=1500, height=300*len(conditions)
+               )
 
 # %% tags=[]
 # X = weighted_exp_tsne_input_dfs[0].iloc[:1000, ML_INPUT_FIRST_COL_POS:].values
