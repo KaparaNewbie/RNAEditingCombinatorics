@@ -55,6 +55,43 @@ def make_freq_df(fasta_file, bases_from_each_side=BASES_FROM_EACH_SIDE):
 # Plot a figure with multiple motifs of ADAR out of the frequency dfs.
 
 
+def plot_single_logo(
+    freq_df: pd.DataFrame,
+    # title: str,
+    main_title: Union[str, None],
+    width: float = WIDTH,
+    height: float = HEIGHT,
+    # max_cols: int = MAX_COLS,
+):
+    fig, ax = plt.subplots(figsize=(width, height), gridspec_kw={"wspace": 0.5})
+
+    # fig.suptitle(main_title, fontsize="x-large")
+    # ax.set_title(main_title, pad=15)
+    ax.set_title(main_title)
+    plot = Logo(df=freq_df, ax=ax, vpad=0.02)
+
+    # style plot
+    # style plots using Logo methods
+    plot.style_spines(visible=False)
+    plot.style_spines(spines=("left", "bottom"), visible=True)
+    # style plots using matplotlib's Axes methods
+    # plot.ax.set_ylabel("Probability", labelpad=5)
+    # plot.ax.set_xlabel("Position", labelpad=5)
+
+    xticks = list(freq_df.index)
+    plot.ax.set_xticks(xticks)
+    middle_xtick = floor(len(xticks) / 2)
+    xticklabels = (
+        [str(x) for x in range(-middle_xtick, 0)]
+        + ["0"]
+        + [str(x) for x in range(1, middle_xtick + 1)]
+    )
+    plot.ax.set_xticklabels(xticklabels)
+    fig.subplots_adjust(hspace=0.4)
+
+    return fig
+
+
 def plot_multiple_logos(
     freq_dfs: list[pd.DataFrame],
     titles: list[str],
@@ -176,7 +213,12 @@ def multiple_logos_from_fasta_files(
     ]
 
     # plot the motif according to the frequency file, and save it to temp_dir
-    fig = plot_multiple_logos(freq_dfs, sub_titles, main_title, width, height, max_cols)
+    if len(freq_dfs) > 1:
+        fig = plot_multiple_logos(
+            freq_dfs, sub_titles, main_title, width, height, max_cols
+        )
+    else:
+        fig = plot_single_logo(freq_dfs[0], sub_titles[0], width, height)
     if out_file:
         fig.savefig(Path(out_file).absolute())
     return fig
