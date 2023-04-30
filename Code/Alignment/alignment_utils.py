@@ -2,7 +2,10 @@ from pathlib import Path
 from typing import Union
 import subprocess
 
+# import os
+
 import pysam
+from icecream import ic
 
 
 def sample_bam(
@@ -133,7 +136,52 @@ def count_reads(
     return reads
 
 
+def count_unique_reads(bam: Path, threads: int = 1):
+    with pysam.AlignmentFile(bam, "rb", threads=threads) as samfile:
+        unique_reads_names = {read.query_name for read in samfile}
+    return len(unique_reads_names)
+
+
+def count_unique_filtered_aligned_reads(
+    bam: Path,
+    region: Union[str, None],
+    include_flags: Union[int, str, None],
+    exclude_flags: Union[int, str, None],
+    threads: int = 1,
+):
+    """Count number of unique reads in `bam` satisfying certain conditions.
+
+    Args:
+        bam (Path): input BAM file.
+        region (Union[str, None]): if not None, count only reads mapped to `region`.
+        include_flags (Union[int, str, None]): if not None, count only reads with these flags.
+        exclude_flags (Union[int, str, None]): if not None, count only reads *without* these flags.
+        threads (int, optional): Number of `threads` to use. Defaults to 1.
+
+    Returns:
+        int: number of unique reads in `bam` satisfying certain conditions (or all reads if no conditions were specified).
+    """
+    cmd = f"samtools view --threads {threads} "
+    if include_flags:
+        cmd += f"--require-flags {include_flags} "
+    if exclude_flags:
+        cmd += f"--excl-flags {exclude_flags} "
+    cmd += f"{bam} "
+    if region:
+        cmd += f"{region}"
+    cmd += " | cut -f 1 | sort | uniq | wc -l"
+    # print(cmd)
+    reads = int(subprocess.run(cmd, shell=True, capture_output=True).stdout.decode())
+    return reads
+
+
 def count_reads_in_unaligned_bam(samtools_path: Path, in_bam: Path, threads: int):
     cmd = f"{samtools_path} view -c --threads {threads} {in_bam}"
+    reads = int(subprocess.run(cmd, shell=True, capture_output=True).stdout.decode())
+    return reads
+
+
+def count_reads_in_fastq(fatsq_path: Path, cat_cmd: str = "cat"):
+    cmd = f"echo $({cat_cmd} {fatsq_path} | wc -l) / 4 | bc"
     reads = int(subprocess.run(cmd, shell=True, capture_output=True).stdout.decode())
     return reads
