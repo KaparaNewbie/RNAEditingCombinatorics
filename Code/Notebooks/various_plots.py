@@ -1827,9 +1827,11 @@ editable_aas_per_platform_and_condition
 
 # %%
 distinct_proteins_per_editable_aas_df = distinct_proteins_df.copy()
-distinct_proteins_per_editable_aas_df = distinct_proteins_per_editable_aas_df.loc[
-    distinct_proteins_per_editable_aas_df["Algorithm"] == "Descending"
-]
+
+# distinct_proteins_per_editable_aas_df = distinct_proteins_per_editable_aas_df.loc[
+#     distinct_proteins_per_editable_aas_df["Algorithm"] == "Descending"
+# ]
+
 distinct_proteins_per_editable_aas_df = distinct_proteins_per_editable_aas_df.loc[
     distinct_proteins_per_editable_aas_df["Fraction"] == 1.0
 ]
@@ -1868,8 +1870,6 @@ platforms_symbols = {
 }
 
 
-
-
 fig = go.Figure()
 
 for platform, condition in editable_aas_per_platform_and_condition:
@@ -1881,11 +1881,14 @@ for platform, condition in editable_aas_per_platform_and_condition:
 
     x = platform_and_condition_df["EditableAAs"]
     y = platform_and_condition_df["NumOfProteins"]
+    
+    x_mean = [x.iloc[0]]
+    y_mean = [y.mean()]
 
     fig.add_trace(
         go.Scatter(
-            x=x,
-            y=y,
+            x=x_mean,
+            y=y_mean,
             mode="markers",
             marker=dict(
                 color=platforms_color_map[platform][condition],
@@ -1928,9 +1931,15 @@ fig.update_layout(
     # legend_grouptitlefont=dict(size=10),
     template=template,
     xaxis_title="Editable amino acids",
-    yaxis_title="Distinct proteins",
+    yaxis_title="Distinct proteins (avg)",
     width=700,
     height=650,
+)
+
+fig.write_image(
+    "Distinct proteins vs. editable AAs (80K) - PacBio vs. Illumina.svg",
+    width=700,
+    height=650
 )
 
 fig.show()

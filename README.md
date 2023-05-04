@@ -2214,12 +2214,13 @@ Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 
 python \
 Code/UnorderedNaNDepletion/prepare_fofns_for_expression.py \
---proteins_dir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles.KnownSites.NoNoiseFiltration \
---distinct_proteins_dir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.KnownSites.NoNoiseFiltration 
+--proteins_dir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered/ProteinsFiles \
+--proteins_postfix .gz \
+--distinct_proteins_dir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered/DistinctProteins
 
-DISTINCTFILES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.KnownSites.NoNoiseFiltration/DistinctProteinsForExpressionLevels.txt)
-ALLROTSFILES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.KnownSites.NoNoiseFiltration/UniqueProteinsForExpressionLevels.txt)
-SAMPLESNAMES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.KnownSites.NoNoiseFiltration/ChromsNamesForExpressionLevels.txt)
+DISTINCTFILES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered/DistinctProteins/DistinctProteinsForExpressionLevels.txt)
+ALLROTSFILES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered/DistinctProteins/UniqueProteinsForExpressionLevels.txt)
+SAMPLESNAMES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered/DistinctProteins/ChromsNamesForExpressionLevels.txt)
 
 nohup \
 julia \
@@ -2231,9 +2232,9 @@ Code/UnorderedNaNDepletion/expressionlevels.jl \
 --samplenames $SAMPLESNAMES \
 --firstcolpos 16 \
 --fractions 0.2 0.4 0.6 0.8 1.0 \
---outdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/DistinctProteins.KnownSites.NoNoiseFiltration \
-> O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/expressionlevels.regular.KnownSitesOnly.30.3.23.out &
+--outdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered/DistinctProteins \
+> O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered/expressionlevels.regular.27.4.23.out &
 ```
 * alu 13
-* 30.3.22
-* 14:41
+* 27.4.23
+* 14:06

@@ -474,13 +474,38 @@ main();
 # show(to)
 
 
+# chroms = [
+#     "comp133638_c0_seq1", "comp133885_c0_seq1", "comp144143_c0_seq1",
+#     "comp144194_c0_seq1", "comp144516_c0_seq1", "comp147803_c0_seq1",
+#       "comp159522_c0_seq1", "comp165907_c0_seq14", "comp175606_c2_seq5",
+#        "comp177903_c0_seq3", "comp180146_c10_seq6", "comp180146_c11_seq1",
+#        "comp181287_c10_seq4"
+# ]
 
+# infiles = [
+#     "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered/ProteinsFiles/$chrom.unique_proteins.csv.gz"
+#     for chrom in chroms
+# ]
 
+# # samplenames = [
+# #         "G3BP2_MOUSE",
+# #         "TBA_LYTPI",
+# #         "BZW1_CHICK",
+# #         "KARG_LIOJA",
+# #         "SRSF2_PANTR",
+# #         "GRP78_RAT",
+# #         "APEH_MOUSE",
+# #         "TRI45_BOVIN",
+# #         "RHO_APLCA",
+# #         "TPM_HELAS",
+# #         "TMM59_MOUSE",
+# #         "H33_XENTR",
+# #         "HNRL1_MOUSE"
+# # ]
 
-# @benchmark main()
+# samplenames = chroms
 
-
-# infile = "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/comp144504_c0_seq1.unique_proteins.csv"
+# # infile = "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/comp144504_c0_seq1.unique_proteins.csv"
 # firstcolpos = 16
 # delim = "\t"
 # idcol = "Protein"
@@ -488,12 +513,15 @@ main();
 # testfraction = 1.0
 # randseed = 1892
 
-# samplename = "comp179788_c0_seq1"
-# outdir = "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq"
+# # samplename = "comp179788_c0_seq1"
+# outdir = "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered/DistinctProteins.Addendum"
+# mkpath(outdir)
+
 # postfix_to_add = ""
+# # postfix_to_remove = ".unique_proteins.csv.gz"
 # fracstep = 0.2
 # maxfrac = 1.0
-# fracrepetitions = 5
+# fracrepetitions = 4
 # algrepetitions = 2
 # run_solve_threaded = true
 # sortresults = false
@@ -504,6 +532,14 @@ main();
 # similarityvalidator = >=
 
 
+# for (infile, samplename) in zip(infiles, samplenames)
+#     run_sample(
+#         infile, delim, samplename, idcol, firstcolpos, datatype, outdir, postfix_to_add,
+#         fracstep, maxfrac, fracrepetitions, algrepetitions, testfraction, randseed,
+#         run_solve_threaded, sortresults, algs,
+#         substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups
+#     )
+# end
 # df, firstcolpos = preparedf!(
 #     infile, delim, datatype, idcol, firstcolpos,
 #     testfraction, randseed

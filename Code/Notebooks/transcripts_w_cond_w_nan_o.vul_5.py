@@ -19,6 +19,10 @@
 # %%
 code_dir = "/private7/projects/Combinatorics/Code"
 
+# %%
+# %load_ext autoreload
+# %autoreload 2
+
 # %% papermill={"duration": 2.901153, "end_time": "2022-02-01T09:42:46.125355", "exception": false, "start_time": "2022-02-01T09:42:43.224202", "status": "completed"} tags=[]
 import sys
 from functools import reduce
@@ -27,30 +31,35 @@ from math import ceil
 from multiprocessing import Pool
 from pathlib import Path
 
-from scipy import interpolate  # todo unimport this later?
 import matplotlib.pyplot as plt
 import numpy as np
-
-# from numba import jit, njit, prange
 import pandas as pd
 import plotly.colors as pc
 import plotly.express as px
 import plotly.graph_objects as go
+
+from scipy import interpolate  # todo unimport this later?
 import scipy.stats
 import seaborn as sns
+from Bio import SeqIO, motifs  # biopython
 from icecream import ic
+from logomaker import Logo  # logomaker
 from matplotlib_venn import venn2, venn3
 from plotly.subplots import make_subplots
+from pybedtools import BedTool
 from sklearn import linear_model
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.metrics import mean_squared_error, r2_score
 
-# from numpy.random import RandomState
-
-
 sys.path.append(str(Path(code_dir).absolute()))
-from Alignment.alignment_utils import count_reads, count_reads_in_unaligned_bam
+from Alignment.alignment_utils import (
+    count_reads,
+    count_reads_in_fastq,
+    count_reads_in_unaligned_bam,
+    count_unique_filtered_aligned_reads,
+)
+from EditingUtils.logo import multiple_logos_from_fasta_files
 
 # %% papermill={"duration": 0.071769, "end_time": "2022-02-01T09:42:43.049672", "exception": false, "start_time": "2022-02-01T09:42:42.977903", "status": "completed"} tags=["parameters"]
 # condition_col = "Trnascript"
@@ -170,7 +179,7 @@ from Alignment.alignment_utils import count_reads, count_reads_in_unaligned_bam
 # seed = 1892
 
 # %%
-condition_col = "Trnascript"
+condition_col = "Transcript"
 
 orfs_bed = "/private7/projects/Combinatorics/O.vulgaris/Annotations/orfs_oct.bed"
 alignment_stats_file = "/private7/projects/Combinatorics/O.vulgaris/Alignment/PRJNA791920/IsoSeq/AggregatedByChromBySampleSummary.tsv"
@@ -180,19 +189,30 @@ alignment_stats_file = "/private7/projects/Combinatorics/O.vulgaris/Alignment/PR
 known_sites_file = (
     "/private7/projects/Combinatorics/O.vulgaris/Annotations/O.vul.EditingSites.csv"
 )
+transcriptome_file = (
+    "/private7/projects/Combinatorics/O.vulgaris/Annotations/orfs_oct.fa"
+)
 
 # min_samples = 7
 # min_mapped_reads_per_sample = 100
 # min_known_sites = 5
 
 positions_dir = Path(
-    "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/PositionsFiles/"
+    "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered/PositionsFiles"
 )
 reads_dir = Path(
-    "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ReadsFiles/"
+    "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered/ReadsFiles/"
 )
 proteins_dir = Path(
-    "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/"
+    "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered/ProteinsFiles/"
+)
+
+distinct_proteins_dir = Path(
+    "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered/DistinctProteins/"
+)
+
+neural_vs_non_neural_expression_file = Path(
+    "/private7/projects/Combinatorics/O.vulgaris/Annotations/NeuralVsNonNeuralExpression.csv"
 )
 
 # alg_repetitions = 5
@@ -204,12 +224,14 @@ unique_proteins_first_col_pos = 15
 reads_editing_col = "EditingFrequency"
 proteins_editing_col = "MinNonSyns"
 
-reads_type = "CCS"  # something like CCS / miseq / etc. # todo fix to exact pacbio read type
+reads_type = (
+    "CCS"  # something like CCS / miseq / etc. # todo fix to exact pacbio read type
+)
 
 samtools_path = "/home/alu/kobish/anaconda3/envs/combinatorics/bin/samtools"
 threads = 20
 seed = 1892
-sep="\t"
+sep = "\t"
 
 # %%
 orfs_df = pd.read_csv(
@@ -230,7 +252,7 @@ alignment_stats_df = pd.read_csv(alignment_stats_file, sep="\t")
 alignment_stats_df
 
 # %%
-positions_files = list(positions_dir.glob("*.positions.csv"))
+positions_files = list(positions_dir.glob("*.positions.csv.gz"))
 
 chroms_in_positions = [
     positions_file.name.split(".")[0] for positions_file in positions_files
@@ -246,10 +268,10 @@ positions_data_df = pd.DataFrame(
 positions_data_df
 
 # %%
-reads_files = list(reads_dir.glob("*.reads.csv"))
+reads_files = list(reads_dir.glob("*.reads.csv.gz"))
 chroms_in_reads_files = [reads_file.name.split(".")[0] for reads_file in reads_files]
 
-unique_reads_files = list(reads_dir.glob("*.unique_reads.csv"))
+unique_reads_files = list(reads_dir.glob("*.unique_reads.csv.gz"))
 chroms_in_unique_reads_files = [
     unique_reads_file.name.split(".")[0] for unique_reads_file in unique_reads_files
 ]
@@ -273,25 +295,33 @@ reads_data_df = reads_data_df.merge(unique_reads_data_df, on="Chrom", how="left"
 reads_data_df
 
 # %%
-proteins_files = list(proteins_dir.glob("*.proteins.csv"))
+len("04.04.2023-16:34:33")
+
+# %%
+proteins_files = list(proteins_dir.glob("*.proteins.csv.gz"))
 chroms_in_proteins_files = [
     proteins_file.name.split(".")[0] for proteins_file in proteins_files
 ]
 
-unique_proteins_files = list(proteins_dir.glob("*.unique_proteins.csv"))
+unique_proteins_files = list(proteins_dir.glob("*.unique_proteins.csv.gz"))
 chroms_in_unique_proteins_files = [
     unique_proteins_file.name.split(".")[0]
     for unique_proteins_file in unique_proteins_files
 ]
 
-distinct_proteins_files = list(proteins_dir.glob("*DistinctUniqueProteins.*.csv"))
+# distinct_proteins_files = list(distinct_proteins_dir.glob("*DistinctUniqueProteins.*.csv"))
+distinct_proteins_files = [
+    f
+    for f in distinct_proteins_dir.glob("*DistinctUniqueProteins.*.csv")
+    if "expression" not in f.name.lower()
+]
 chroms_in_distinct_proteins_files = [
     distinct_proteins_file.name.split(".")[0]
     for distinct_proteins_file in distinct_proteins_files
 ]
 
 expression_files = list(
-    proteins_dir.glob("*.DistinctUniqueProteins.ExpressionLevels.csv")
+    distinct_proteins_dir.glob("*.DistinctUniqueProteins.ExpressionLevels.csv")
 )
 chroms_in_expression_files = [
     expression_file.name.split(".")[0] for expression_file in expression_files
@@ -323,9 +353,15 @@ expression_data_df = pd.DataFrame(
     {"Chrom": chroms_in_expression_files, "ExpressionFile": expression_files}
 )
 
-proteins_data_df = proteins_data_df.merge(
-    unique_proteins_data_df, on="Chrom", how="left"
-).merge(distinct_proteins_data_df, on="Chrom", how="left").merge(expression_data_df, on="Chrom", how="left")
+proteins_data_df = (
+    proteins_data_df.merge(unique_proteins_data_df, on="Chrom", how="left")
+    .merge(distinct_proteins_data_df, on="Chrom", how="left")
+    .merge(expression_data_df, on="Chrom", how="left")
+)
+
+# proteins_data_df = proteins_data_df.merge(
+#     unique_proteins_data_df, on="Chrom", how="left"
+# )
 
 proteins_data_df
 
@@ -341,7 +377,13 @@ data_df
 
 # %%
 complete_data_df = data_df.loc[data_df["ExpressionFile"].notna()].reset_index(drop=True)
+complete_data_df = complete_data_df.drop_duplicates(
+    "Name", keep=False, ignore_index=True
+)
 complete_data_df
+
+# %%
+# complete_data_df.loc[complete_data_df["Name"].duplicated(keep=False)].sort_values("Name", ignore_index=True)
 
 # %%
 conditions = complete_data_df["Name"].tolist()
@@ -462,7 +504,7 @@ zerolinewidth = 4
 # %%
 # 25_000 / (750 * 1.17)
 
-# %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"} tags=[] toc-hr-collapsed=true toc-hr-collapsed=true tags=[] toc-hr-collapsed=true toc-hr-collapsed=true tags=[] toc-hr-collapsed=true
+# %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"} tags=[] toc-hr-collapsed=true toc-hr-collapsed=true tags=[] toc-hr-collapsed=true toc-hr-collapsed=true tags=[] toc-hr-collapsed=true toc-hr-collapsed=true
 # # Data
 
 # %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"} tags=[]
@@ -535,6 +577,10 @@ positions_dfs[0]
 
 
 # %%
+positions_df = pd.concat(positions_dfs, ignore_index=True)
+positions_df
+
+# %%
 editing_positions_per_sample = [len(df.loc[(df["Edited"])]) for df in positions_dfs]
 print(
     f"Average of {sum(editing_positions_per_sample)/len(positions_dfs)} editing sites per sample"
@@ -555,9 +601,9 @@ reads_dfs[0]
 
 
 # %%
-{
-    len(reads_df["Tissue"].unique()) for reads_df in reads_dfs
-}
+# {
+#     len(reads_df["Tissue"].unique()) for reads_df in reads_dfs
+# }
 
 # %%
 # edited_reads_dfs = [
@@ -591,72 +637,6 @@ unique_reads_dfs[0]
 #     for unique_reads_df in unique_reads_dfs
 # ]
 # edited_unique_reads_dfs[0]
-
-
-# %% [markdown] tags=[]
-# ### Distinct unique reads
-
-# %%
-# distinct_unique_reads_dfs = []
-# for condition, distinct_unique_reads_file, unique_reads_df in zip(
-#     conditions, distinct_unique_reads_files, unique_reads_dfs
-# ):
-#     distinct_unique_reads_df = pd.read_csv(distinct_unique_reads_file, sep=sep)
-#     distinct_unique_reads_df.insert(0, condition_col, condition)
-#     distinct_unique_reads_df.insert(
-#         1,
-#         "NumOfReads",
-#         (
-#             distinct_unique_reads_df["Fraction"] * unique_reads_df["NumOfReads"].sum()
-#         ).astype(int),
-#     )
-#     distinct_unique_reads_dfs.append(distinct_unique_reads_df)
-
-# distinct_unique_reads_df = (
-#     pd.concat(distinct_unique_reads_dfs)
-#     .reset_index(drop=True)
-#     .rename(
-#         columns={"NumUniqueSamples": "NumUniqueReads", "UniqueSamples": "UniqueReads"}
-#     )
-# )
-
-# distinct_unique_reads_df
-
-
-# %%
-# expanded_distinct_unique_reads_df = (
-#     distinct_unique_reads_df.copy()
-#     .assign(UniqueReads2=lambda x: x.UniqueReads.str.split(","))
-#     .drop("UniqueReads", axis=1)
-#     .rename(columns={"UniqueReads2": "UniqueReads"})
-#     .explode("UniqueReads")
-#     .rename(columns={"UniqueReads": "UniqueRead", "NumOfReads": "NumOfReadsInFraction"})
-#     .drop(["NumUniqueReads"], axis=1)
-#     .merge(
-#         pd.concat(
-#             [
-#                 df.loc[
-#                     :,
-#                     [
-#                         condition_col,
-#                         "UniqueRead",
-#                         "NumOfReads",
-#                         "Reads",
-#                         "EditingFrequency",
-#                         "EditedPositions",
-#                     ],
-#                 ]
-#                 for df in unique_reads_dfs
-#             ]
-#         ),
-#         on=[condition_col, "UniqueRead"],
-#     )
-#     .assign(Reads2=lambda x: x.Reads.str.split(","))
-#     .drop("Reads", axis=1)
-#     .rename(columns={"Reads2": "Reads"})
-# )
-
-# expanded_distinct_unique_reads_df
 
 
 # %% [markdown]
@@ -854,10 +834,35 @@ distinct_unique_proteins_df
 
 
 # %%
+# realizations_count_df = distinct_unique_proteins_df.loc[
+#     distinct_unique_proteins_df["Fraction"] == 1.0, condition_col
+# ].value_counts().reset_index().rename(columns={condition_col: "Count"}).rename(
+#     columns={"index": condition_col}
+# )
+# realizations_count_df
 
 # %%
-# unique_edited_proteins_dfs[0].columns[:unique_proteins_first_col_pos]
+# distinct_unique_proteins_df.loc[
+#     (distinct_unique_proteins_df["Fraction"] == 1.0) &
+#     (distinct_unique_proteins_df[condition_col].isin(realizations_count_df.loc[realizations_count_df["Count"] < 16, condition_col]))
+# ]
 
+# %%
+# complete_data_df.loc[
+#     (complete_data_df["Name"].isin(realizations_count_df.loc[realizations_count_df["Count"] < 16, condition_col]), ["Chrom", "Name"])
+# ].values
+
+# %%
+# num_of_reads_per_transcript_and_fraction_df = (
+#     distinct_unique_proteins_df.groupby([condition_col, "Fraction"])["NumOfReads"]
+#     .unique()
+#     .reset_index()
+# )
+# # num_of_reads_per_transcript_and_fraction_df = num_of_reads_per_transcript_and_fraction_df.explode("NumOfReads", ignore_index=True)
+# num_of_reads_per_transcript_and_fraction_df
+
+# %%
+# num_of_reads_per_transcript_and_fraction_df["NumOfReads"].apply(len).value_counts()
 
 # %%
 expanded_distinct_unique_proteins_df = (
@@ -914,107 +919,107 @@ distinct_unique_proteins_df2 = (
 )
 distinct_unique_proteins_df2
 
-# %% [markdown]
+# %% [markdown] tags=[] jp-MarkdownHeadingCollapsed=true
 # #### Distinct dissimilar
 
 # %%
-distinct_dissimilar_miyata_proteins_dfs = []
-for condition, distinct_dissimilar_miyata_file, unique_reads_df in zip(
-    conditions, distinct_dissimilar_miyata_proteins_files, unique_reads_dfs
-):
-    distinct_dissimilar_miyata_proteins_df = pd.read_csv(
-        distinct_dissimilar_miyata_file, sep=sep
-    )
-    distinct_dissimilar_miyata_proteins_df.insert(0, condition_col, condition)
-    distinct_dissimilar_miyata_proteins_df.insert(
-        1,
-        "NumOfReads",
-        (
-            distinct_dissimilar_miyata_proteins_df["Fraction"]
-            * unique_reads_df["NumOfReads"].sum()
-        ).astype(int),
-    )
-    distinct_dissimilar_miyata_proteins_dfs.append(
-        distinct_dissimilar_miyata_proteins_df
-    )
+# distinct_dissimilar_miyata_proteins_dfs = []
+# for condition, distinct_dissimilar_miyata_file, unique_reads_df in zip(
+#     conditions, distinct_dissimilar_miyata_proteins_files, unique_reads_dfs
+# ):
+#     distinct_dissimilar_miyata_proteins_df = pd.read_csv(
+#         distinct_dissimilar_miyata_file, sep=sep
+#     )
+#     distinct_dissimilar_miyata_proteins_df.insert(0, condition_col, condition)
+#     distinct_dissimilar_miyata_proteins_df.insert(
+#         1,
+#         "NumOfReads",
+#         (
+#             distinct_dissimilar_miyata_proteins_df["Fraction"]
+#             * unique_reads_df["NumOfReads"].sum()
+#         ).astype(int),
+#     )
+#     distinct_dissimilar_miyata_proteins_dfs.append(
+#         distinct_dissimilar_miyata_proteins_df
+#     )
 
-distinct_dissimilar_miyata_proteins_df = (
-    pd.concat(distinct_dissimilar_miyata_proteins_dfs)
-    .reset_index(drop=True)
-    .rename(columns={"NumUniqueSamples": "NumOfProteins", "UniqueSamples": "Proteins"})
-)
+# distinct_dissimilar_miyata_proteins_df = (
+#     pd.concat(distinct_dissimilar_miyata_proteins_dfs)
+#     .reset_index(drop=True)
+#     .rename(columns={"NumUniqueSamples": "NumOfProteins", "UniqueSamples": "Proteins"})
+# )
 
-distinct_dissimilar_miyata_proteins_df = (
-    distinct_dissimilar_miyata_proteins_df.sort_values(
-        [
-            condition_col,
-            "Fraction",
-            "FractionRepetition",
-            "Algorithm",
-            "AlgorithmRepetition",
-        ]
-    ).reset_index(drop=True)
-)
+# distinct_dissimilar_miyata_proteins_df = (
+#     distinct_dissimilar_miyata_proteins_df.sort_values(
+#         [
+#             condition_col,
+#             "Fraction",
+#             "FractionRepetition",
+#             "Algorithm",
+#             "AlgorithmRepetition",
+#         ]
+#     ).reset_index(drop=True)
+# )
 
-distinct_dissimilar_miyata_proteins_df
-
-# %%
-distinct_dissimilar_miyata_proteins_df.groupby(condition_col)["NumOfProteins"].max()
+# distinct_dissimilar_miyata_proteins_df
 
 # %%
-distinct_dissimilar_grantham_proteins_dfs = []
-for (
-    condition,
-    condition_distinct_dissimilar_grantham_proteins_files,
-    unique_reads_df,
-) in zip(conditions, distinct_dissimilar_grantham_proteins_files, unique_reads_dfs):
-    for cutoff_score, distinct_dissimilar_grantham_file in zip(
-        grantham_cutoff_scores, condition_distinct_dissimilar_grantham_proteins_files
-    ):
-        distinct_dissimilar_grantham_proteins_df = pd.read_csv(
-            distinct_dissimilar_grantham_file, sep=sep
-        )
-        distinct_dissimilar_grantham_proteins_df.insert(0, condition_col, condition)
-        distinct_dissimilar_grantham_proteins_df.insert(1, "CutoffScore", cutoff_score)
-        distinct_dissimilar_grantham_proteins_df.insert(
-            2,
-            "NumOfReads",
-            (
-                distinct_dissimilar_grantham_proteins_df["Fraction"]
-                * unique_reads_df["NumOfReads"].sum()
-            ).astype(int),
-        )
-        distinct_dissimilar_grantham_proteins_dfs.append(
-            distinct_dissimilar_grantham_proteins_df
-        )
-
-distinct_dissimilar_grantham_proteins_df = (
-    pd.concat(distinct_dissimilar_grantham_proteins_dfs)
-    .reset_index(drop=True)
-    .rename(columns={"NumUniqueSamples": "NumOfProteins", "UniqueSamples": "Proteins"})
-)
-
-distinct_dissimilar_grantham_proteins_df = (
-    distinct_dissimilar_grantham_proteins_df.sort_values(
-        [
-            condition_col,
-            "CutoffScore",
-            "Fraction",
-            "FractionRepetition",
-            "Algorithm",
-            "AlgorithmRepetition",
-        ]
-    ).reset_index(drop=True)
-)
-
-distinct_dissimilar_grantham_proteins_df
+# distinct_dissimilar_miyata_proteins_df.groupby(condition_col)["NumOfProteins"].max()
 
 # %%
-distinct_dissimilar_grantham_proteins_df.groupby([condition_col, "CutoffScore"])[
-    "NumOfProteins"
-].max()
+# distinct_dissimilar_grantham_proteins_dfs = []
+# for (
+#     condition,
+#     condition_distinct_dissimilar_grantham_proteins_files,
+#     unique_reads_df,
+# ) in zip(conditions, distinct_dissimilar_grantham_proteins_files, unique_reads_dfs):
+#     for cutoff_score, distinct_dissimilar_grantham_file in zip(
+#         grantham_cutoff_scores, condition_distinct_dissimilar_grantham_proteins_files
+#     ):
+#         distinct_dissimilar_grantham_proteins_df = pd.read_csv(
+#             distinct_dissimilar_grantham_file, sep=sep
+#         )
+#         distinct_dissimilar_grantham_proteins_df.insert(0, condition_col, condition)
+#         distinct_dissimilar_grantham_proteins_df.insert(1, "CutoffScore", cutoff_score)
+#         distinct_dissimilar_grantham_proteins_df.insert(
+#             2,
+#             "NumOfReads",
+#             (
+#                 distinct_dissimilar_grantham_proteins_df["Fraction"]
+#                 * unique_reads_df["NumOfReads"].sum()
+#             ).astype(int),
+#         )
+#         distinct_dissimilar_grantham_proteins_dfs.append(
+#             distinct_dissimilar_grantham_proteins_df
+#         )
 
-# %% [markdown]
+# distinct_dissimilar_grantham_proteins_df = (
+#     pd.concat(distinct_dissimilar_grantham_proteins_dfs)
+#     .reset_index(drop=True)
+#     .rename(columns={"NumUniqueSamples": "NumOfProteins", "UniqueSamples": "Proteins"})
+# )
+
+# distinct_dissimilar_grantham_proteins_df = (
+#     distinct_dissimilar_grantham_proteins_df.sort_values(
+#         [
+#             condition_col,
+#             "CutoffScore",
+#             "Fraction",
+#             "FractionRepetition",
+#             "Algorithm",
+#             "AlgorithmRepetition",
+#         ]
+#     ).reset_index(drop=True)
+# )
+
+# distinct_dissimilar_grantham_proteins_df
+
+# %%
+# distinct_dissimilar_grantham_proteins_df.groupby([condition_col, "CutoffScore"])[
+#     "NumOfProteins"
+# ].max()
+
+# %% [markdown] jp-MarkdownHeadingCollapsed=true tags=[]
 # #### Jaccards
 
 # %%
@@ -1059,32 +1064,43 @@ distinct_dissimilar_grantham_proteins_df.groupby([condition_col, "CutoffScore"])
 # ## Summary of data loss
 
 # %%
+alignment_stats_df = (
+    pd.read_csv(alignment_stats_file, sep=sep)
+    .merge(orfs_df.loc[:, ["Chrom", "Name"]])
+    .rename(columns={"Name": condition_col})
+)
+alignment_stats_df[condition_col] = alignment_stats_df[condition_col].astype(str)
+alignment_stats_df
+
+# %%
+
+# %%
 unaligned_reads_counts = [
     count_reads_in_unaligned_bam(samtools_path, bam, threads)
     for bam in unaligned_bam_files
 ]
-aligned_reads_counts = [
-    count_reads(
-        samtools_path,
-        bam,
-        f"{chrom}:{start+1}-{end}",
-        include_flags,
-        exclude_flags,
-        threads,
-    )
-    for bam, chrom, start, end in zip(aligned_bam_files, chroms, starts, ends)
-]
-filtered_aligned_reads_counts = [
-    count_reads(
-        samtools_path,
-        bam,
-        f"{chrom}:{start+1}-{end}",
-        include_flags,
-        exclude_flags,
-        threads,
-    )
-    for bam, chrom, start, end in zip(filtered_aligned_bam_files, chroms, starts, ends)
-]
+# aligned_reads_counts = [
+#     count_reads(
+#         samtools_path,
+#         bam,
+#         f"{chrom}:{start+1}-{end}",
+#         include_flags,
+#         exclude_flags,
+#         threads,
+#     )
+#     for bam, chrom, start, end in zip(aligned_bam_files, chroms, starts, ends)
+# ]
+# filtered_aligned_reads_counts = [
+#     count_reads(
+#         samtools_path,
+#         bam,
+#         f"{chrom}:{start+1}-{end}",
+#         include_flags,
+#         exclude_flags,
+#         threads,
+#     )
+#     for bam, chrom, start, end in zip(filtered_aligned_bam_files, chroms, starts, ends)
+# ]
 
 
 # %%
@@ -1220,7 +1236,7 @@ fig = px.bar(
 fig.show()
 
 
-# %% [markdown] papermill={"duration": 0.124528, "end_time": "2022-02-01T09:43:10.054394", "exception": false, "start_time": "2022-02-01T09:43:09.929866", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.124528, "end_time": "2022-02-01T09:43:10.054394", "exception": false, "start_time": "2022-02-01T09:43:09.929866", "status": "completed"} tags=[] toc-hr-collapsed=true
 # ## Positions
 
 # %% [markdown] papermill={"duration": 0.149848, "end_time": "2022-02-01T09:43:12.800733", "exception": false, "start_time": "2022-02-01T09:43:12.650885", "status": "completed"} tags=[]
@@ -1729,114 +1745,95 @@ for positions_df, condition, strand in zip(positions_dfs, conditions, strands):
 # ### Known & new editing sites
 
 # %%
-conditions_labels = {
-    condition: ["Edited", "KnownEditing", "InProbRegion"] for condition in conditions
-}
+cols = 1
+rows = 1
 
-conditions_sets = {
-    condition: [
-        set(positions_df.loc[positions_df[label], "Position"])
-        for label in conditions_labels[condition]
-    ]
-    for positions_df, condition in zip(positions_dfs, conditions)
-}
-
-[len(x) for x in conditions_sets[conditions[0]]]
-
-# %% tags=[]
-conditions_labels = {
-    condition: ["Edited", "KnownEditing", "InProbRegion"] for condition in conditions
-}
-
-conditions_sets = {
-    condition: [
-        set(positions_df.loc[positions_df[label], "Position"])
-        for label in conditions_labels[condition]
-    ]
-    for positions_df, condition in zip(positions_dfs, conditions)
-}
-
-problamatic_regions_exist = False
-
-
-cols = min(facet_col_wrap, len(conditions), 4)
-rows = ceil(len(conditions) / cols)
-
-fig, axs = plt.subplots(
-    nrows=rows,
-    ncols=cols,
+fig, ax = plt.subplots(
+    # nrows=rows,
+    # ncols=cols,
     figsize=(3.5 * cols, 2.5 * rows),
     constrained_layout=True,
     gridspec_kw=dict(hspace=0.2, wspace=0.3),
 )
 
-for condition, ax in zip(conditions, axs.flat):
-    labels = conditions_labels[condition]
-    sets = conditions_sets[condition]
-    labels[0] = f"Edited\n({len(sets[0])})"
-    labels[1] = f"Known editing\n({len(sets[1])})"
-    if len(sets[2]) == 0:
-        labels = labels[:2]
-        sets = sets[:2]
-        v_func = venn2
-    else:
-        v_func = venn3
-        problamatic_regions_exist = True
-    v_func(sets, set_labels=labels, ax=ax)
-    ax.set_title(condition, fontdict=dict(fontsize=16))
+labels = ["Edited", "KnownEditing"]
 
-# if problamatic_regions_exist:
-#     title = "Positions' membership: currently edited, known editing, and probalamtic regions"
-# else:
-#     title = "Positions' membership: currently edited & known editing"
+sets = [
+    set(
+        positions_df.loc[
+            positions_df[label], [condition_col, "Chrom", "Position"]
+        ].itertuples(index=False)
+    )
+    for label in labels
+]
 
-# fig.suptitle(title)
+labels[0] = f"Edited\n({len(sets[0])})"
+labels[1] = f"Known editing\n({len(sets[1])})"
+
+venn2(sets, set_labels=labels, ax=ax)
+ax.set_title("Pooled octopus sites", fontdict=dict(fontsize=16))
+
 plt.show()
 
+# %% [markdown]
+# ### ADAR motif
 
 # %%
-ic(38 + 65)
-ic(65 + 8);
-
-# %%
-conditions_labels = {
-    condition: ["Edited", "KnownEditing", "InProbRegion"] for condition in conditions
-}
-
-conditions_sets = {
-    condition: [
-        set(positions_df.loc[positions_df[label], "Position"])
-        for label in conditions_labels[condition]
-    ]
-    for positions_df, condition in zip(positions_dfs, conditions)
-}
-
-problamatic_regions_exist = False
-
-fig, axs = plt.subplots(
-    ncols=len(conditions), figsize=(5 * len(conditions), 2.5 * len(conditions))
+unique_positions_df = (
+    positions_df.loc[positions_df["Edited"], ["Chrom", "Position"]]
+    .drop_duplicates(["Chrom", "Position"], ignore_index=True)
+    .merge(
+        orfs_df.loc[:, ["Chrom", "Strand", "End"]].rename(columns={"End": "ChromEnd"}),
+        how="left",
+    )
+    .rename(columns={"Position": "Start"})
 )
-for condition, ax in zip(conditions, axs):
-    labels = conditions_labels[condition]
-    sets = conditions_sets[condition]
-    if len(sets[2]) == 0:
-        labels = labels[:2]
-        sets = sets[:2]
-        v_func = venn2
-    else:
-        v_func = venn3
-        problamatic_regions_exist = True
-    v_func(sets, set_labels=labels, ax=ax)
-    ax.set_title(condition)
+unique_positions_df.insert(2, "End", unique_positions_df["Start"] + 1)
+unique_positions_df.insert(3, "Name", ".")
+unique_positions_df.insert(4, "Score", ".")
 
-if problamatic_regions_exist:
-    title = "Positions' membership: currently edited, known editing, and probalamtic regions"
-else:
-    title = "Positions' membership: currently edited & known editing"
+# extend start and end positions s.t. each region spans 3 bases, with the edited adenosine in the middle
+unique_positions_df["Start"] = (
+    unique_positions_df["Start"] - 1
+)  # upstream base of edited adenosine (or downstream for a transcript expressed from the negative strand)
+unique_positions_df["End"] = (
+    unique_positions_df["End"] + 1
+)  # downstream base of edited adenosine (or upstream for a transcript expressed from the negative strand)
 
-fig.suptitle(title)
-plt.show()
+# don't consider editing sites located at the first/last position of a transcript (if there are such editing sites, they are negligble)
+unique_positions_df = unique_positions_df.loc[unique_positions_df["Start"] >= 0]
+unique_positions_df = unique_positions_df.loc[
+    unique_positions_df.apply(lambda x: x["End"] <= x["ChromEnd"], axis=1)
+]
+del unique_positions_df["ChromEnd"]
 
+unique_positions_df
+
+# %%
+editing_sites_bedtool = (
+    BedTool()
+    .from_dataframe(unique_positions_df)
+    .sort()
+    .sequence(fi=transcriptome_file, s=True)
+)
+
+
+fasta_files = [editing_sites_bedtool.seqfn]
+main_title = None
+sub_titles = ["Pooled octopus sites"]
+out_file = Path("Pooled editing sites - Octopus")
+
+# %%
+multiple_logos_from_fasta_files(
+    fasta_files,
+    main_title,
+    sub_titles,
+    out_file,
+    width=14 / 3,
+    height=4,
+);
+
+# %%
 
 # %% [markdown]
 # ### Editing vs. coverage
@@ -2094,184 +2091,227 @@ fig.show()
 
 
 # %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"} tags=[]
-# ## Num of distinct unique reads
-
-# %%
-# x_axis_name = "Reads"
-# y_axis_name = "Distinct unique reads"
-# head_title = (
-#     "Distinct unique reads vs. sequencing depth"
-#     "<br>"
-#     # f"<sub>({alg_repetitions * 2} repetitions over each fraction of data)</sub>"
-#     "<sub>(100 repetitions over each fraction of data)</sub>"
-# )
-
-# maximal_x = 0
-
-# # Initialize figure with subplots
-# fig = make_subplots(
-#     rows=1, cols=1, print_grid=False, x_title=x_axis_name, y_title=y_axis_name
-# )
-
-# # Add traces
-# for col, condition in enumerate(conditions, start=1):
-
-#     df = distinct_unique_reads_df.loc[
-#         distinct_unique_reads_df[condition_col] == condition
-#     ]
-#     x_measured = df["NumOfReads"]
-#     y_measured = df["NumUniqueReads"]
-
-#     fig.add_trace(
-#         go.Scatter(
-#             x=x_measured,
-#             y=y_measured,
-#             # mode="markers+lines",
-#             mode="markers",
-#             marker=dict(color=subcolors_discrete_map[condition][0], size=9),
-#             legendgroup=condition,  # this can be any string
-#             legendgrouptitle_text=condition,
-#             name="Measured",
-#         ),
-#     )
-
-#     grouped_df = df.groupby("Fraction")
-#     x_fraction_mean = grouped_df["NumOfReads"].mean().reset_index()
-#     y_fraction_mean = grouped_df["NumUniqueReads"].mean().reset_index()
-#     mean_fraction_df = x_fraction_mean.merge(y_fraction_mean, on="Fraction")
-
-#     fig.add_trace(
-#         go.Scatter(
-#             x=mean_fraction_df["NumOfReads"],
-#             y=mean_fraction_df["NumUniqueReads"],
-#             mode="lines",
-#             marker=dict(color=subcolors_discrete_map[condition][0], size=9),
-#             showlegend=False,
-#         ),
-#     )
-
-#     maximal_x = max(maximal_x, x_measured.max())
-
-
-# fig.update_layout(
-#     title_text=head_title,
-#     # legend_title_text=condition_col,
-#     template=template,
-#     legend_font=dict(size=8),
-#     legend_grouptitlefont=dict(size=9),
-#     legend_tracegroupgap=4,
-# )
-
-# fig.show()
-
-
-# %%
-# distinct_unique_reads_df["NumUniqueReads"].min()
-
-
-# %%
-# y_axis_name = "Distinct unique reads"
-# head_title = "Distinct unique reads vs. heuristic method"
-
-# fig = make_subplots(
-#     rows=1,
-#     cols=len(conditions),
-#     print_grid=False,
-#     y_title=y_axis_name,
-#     subplot_titles=conditions,
-#     shared_yaxes=True,
-# )
-
-# algorithms = ["Ascending", "Descending"]
-
-# for col, condition in enumerate(conditions, start=1):
-
-#     df = distinct_unique_reads_df.loc[
-#         distinct_unique_reads_df[condition_col] == condition
-#     ]
-
-#     xs = [
-#         df.loc[df["Algorithm"] == algorithm, condition_col] for algorithm in algorithms
-#     ]
-#     ys = [
-#         df.loc[df["Algorithm"] == algorithm, "NumUniqueReads"]
-#         for algorithm in algorithms
-#     ]
-
-#     fig.add_trace(
-#         go.Violin(
-#             x=xs[0],
-#             y=ys[0],
-#             legendgrouptitle_text=condition,
-#             legendgroup=condition,
-#             name="Ascending",
-#             # scalegroup="Ascending",
-#             side="negative",
-#             line_color=subcolors_discrete_map[condition][0],
-#             # points="all"
-#         ),
-#         row=1,
-#         col=col,
-#     )
-
-#     fig.add_trace(
-#         go.Violin(
-#             x=xs[1],
-#             y=ys[1],
-#             legendgroup=condition,
-#             name="Descending",
-#             # scalegroup="Descending",
-#             side="positive",
-#             line_color=subcolors_discrete_map[condition][1],
-#             # points="all"
-#         ),
-#         row=1,
-#         col=col,
-#     )
-
-# # https://stackoverflow.com/a/63221694/10249633
-# for ax in fig["layout"]:
-#     if ax[:5] == "xaxis":
-#         fig["layout"][ax]["tickmode"] = "array"
-#         fig["layout"][ax]["tickvals"] = [1]
-#         fig["layout"][ax]["ticktext"] = [""]
-
-# fig.update_layout(
-#     title_text=head_title,
-#     template=template,
-#     legend_title_text=f"{condition_col}, Algorithm",
-#     legend_font=dict(size=12),
-#     legend_grouptitlefont=dict(size=9),
-#     legend_tracegroupgap=4,
-#     # violingap=0,
-#     # violinmode='overlay'
-# )
-# # fig.update_yaxes(range=[0, compt_unique_edited_reads_df["NumUniqueReads"].max()*1.5])
-# fig.show()
-
-
-# %% tags=[]
-# fig = px.violin(
-#     compt_unique_edited_reads_df,
-#     y="NumUniqueReads",
-#     facet_col="Algorithm",
-#     facet_col_spacing=facet_col_spacing,
-#     title=(
-#         "Compatible unique reads vs. heuristic method"
-#         "<br>"
-#         # f"<sub>({repetitions} repetitions for each {condition_col.lower()} and algorithm)</sub>"
-#     ),
-#     color=condition_col,
-#     color_discrete_map=color_discrete_map,
-#     template=template,
-#     points="all",
-#     labels={"NumUniqueReads": "Compatible unique<br>edited reads"},
-# )
-# fig.show()
-
-
-# %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"} tags=[]
 # ## Num of distinct unique proteins
+
+# %%
+neural_vs_non_neural_expression_df = pd.read_csv(
+    neural_vs_non_neural_expression_file, sep="\t"
+)
+
+# the original file from Y. Shoshan's paper contained a line per editing sits,
+# but the per-transcript ("Chrom") expression levels are the same for each transcript,
+# so we remove duplicates s.t. each transcript will appear only oncee
+neural_vs_non_neural_expression_df = neural_vs_non_neural_expression_df.drop_duplicates(
+    subset="Chrom", ignore_index=True
+)
+
+# determine whether a transcript is highly expressed in neural tissues
+neural_vs_non_neural_expression_df[
+    "IsNeural"
+] = neural_vs_non_neural_expression_df.apply(
+    lambda x: "Yes" if x["NeuralExpression"] > 4 * x["NonNeuralExpression"] else "No",
+    axis=1,
+)
+neural_vs_non_neural_expression_df
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+distinct_unique_proteins_df
+
+# %%
+alignment_stats_df.drop_duplicates("Chrom")
+
+# %%
+max_distinct_proteins_df = (
+    distinct_unique_proteins_df.sort_values("Fraction", ascending=False)
+    .groupby(condition_col)
+    .apply(pd.DataFrame.nlargest, n=1, columns="NumOfProteins")
+)
+max_distinct_proteins_df = (
+    max_distinct_proteins_df.drop(condition_col, axis=1)
+    .reset_index()
+    .drop("level_1", axis=1)
+)
+
+# max_distinct_proteins_df[condition_col] = max_distinct_proteins_df[
+#     condition_col
+# ].astype(str)
+
+max_distinct_proteins_df = max_distinct_proteins_df.merge(
+    alignment_stats_df,
+    on=condition_col,
+    # how="left",
+    how="right",
+)
+
+max_distinct_proteins_df["NumOfProteins"] = max_distinct_proteins_df[
+    "NumOfProteins"
+].fillna(1)
+
+max_distinct_proteins_df["NumOfReads"] = max_distinct_proteins_df.apply(
+    lambda x: x["NumOfReads"] if not pd.isna(x["NumOfReads"]) else x["MappedReads"],
+    axis=1,
+)
+
+max_distinct_proteins_df["DistinctProteins/Reads"] = (
+    max_distinct_proteins_df["NumOfProteins"] / max_distinct_proteins_df["NumOfReads"]
+)
+
+max_distinct_proteins_df = max_distinct_proteins_df.merge(
+    neural_vs_non_neural_expression_df.loc[:, ["Chrom", "IsNeural"]],
+    on="Chrom",
+    how="left",
+)
+max_distinct_proteins_df["IsNeural"] = max_distinct_proteins_df["IsNeural"].fillna(
+    "Missing"
+)
+
+max_distinct_proteins_df
+
+# %%
+df = (
+    max_distinct_proteins_df.loc[:, ["NumOfProteins"]]
+    .sort_values("NumOfProteins")
+    .reset_index(drop=True)
+)
+
+df["CummulativeTranscripts"] = 100 * (df.index + 1) / len(df)
+df["CummulativeTranscripts"] = df["CummulativeTranscripts"][::-1].values
+# df["CummulativeTranscripts"] = 100 - df["CummulativeTranscripts"]
+# df.iat[0, 1] = 100
+# df.iat[-1, 1] = 100 / len(df)
+
+# df["CummulativeNumDistinctProteins"] = df["NumDistinctProteins"].cumsum()
+
+# df = df.drop_duplicates(subset="NumOfProteins", keep="last").reset_index(drop=True)
+df = df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
+
+df
+
+# %%
+x = df["NumOfProteins"]
+y = df["CummulativeTranscripts"]
+
+fig = go.Figure(
+    data=go.Scatter(
+        x=x,
+        y=y,
+        mode="lines+markers",
+        marker=dict(color="black", size=5),
+        line=dict(color="grey", dash="dash"),
+    )
+)
+
+fig.add_shape(
+    type="rect",
+    x0=1,
+    y0=0,
+    x1=5,
+    y1=100,
+    line=dict(
+        # color="RoyalBlue",
+        width=0,
+    ),
+    # fillcolor="LightSkyBlue",
+    fillcolor="orange",
+    opacity=0.2,
+)
+
+fig.add_shape(
+    type="rect",
+    x0=5,
+    y0=0,
+    x1=50,
+    y1=100,
+    line=dict(
+        # color="RoyalBlue",
+        width=0,
+    ),
+    # fillcolor="LightSkyBlue",
+    fillcolor="red",
+    opacity=0.2,
+)
+
+fig.add_trace(
+    go.Scatter(
+        x=[2.25, 17],
+        # y=[80, 85],
+        y=[0.3, 13],
+        text=[
+            "~5 isoforms<br>per gene<br>due to<br>alternative splicing",
+            #   "Alternative splicing:<br>an average of ~5 isoforms per gene",
+            "~50 distinct polypeptides<br>per gene",
+        ],
+        mode="text",
+    )
+)
+
+fig.update_xaxes(type="log")
+fig.update_yaxes(type="log", range=[-2.2, 2.2])
+
+fig.update_layout(
+    xaxis_title="Distinct proteins per transcript",
+    yaxis_title="% of transcripts",
+    template=template,
+    width=800,
+    height=500,
+    showlegend=False,
+)
+
+fig.write_image("Distinct proteins per transcript vs. % of transcripts - Octopus.svg", width=800, height=500)
+
+fig.show()
+
+# %%
+fig = px.scatter(
+    max_distinct_proteins_df,
+    x="MappedReads",
+    y="NumOfProteins",
+    log_x=True,
+    log_y=True,
+    # size=[0.5 for _ in range(len(max_distinct_proteins_df))],
+    color="IsNeural",
+    color_discrete_map={
+        "Yes": "red",
+        "No": "black",
+        "Missing": "rgb(192,192,192)",  # kind of terminal grey
+    },
+    opacity=0.7,
+    category_orders={"IsNeural": ["Yes", "No", "Missing"]},
+    marginal_y="box",
+    marginal_x="box",
+    # trendline="ols",
+    # trendline="lowess"
+    # trendline_options=dict(log_x=True, log_y=True),
+)
+
+fig.update_traces(marker={"size": 5})
+
+fig.update_layout(
+    xaxis_title="Mapped reads per transcript",
+    yaxis_title="Distinct proteins per transcript",
+    template=template,
+    width=700,
+    height=500,
+    legend_title_text="High neural expression",
+)
+
+fig.write_image("Distinct proteins vs. sequencing depth - Octopus.svg", width=800, height=500)
+
+fig.show()
+
+# %%
+
+# %%
+
+# %%
+
+# %%
 
 # %%
 distinct_proteins_per_mapped_reads_df = distinct_unique_proteins_df.copy()
@@ -3425,51 +3465,699 @@ fig.show()
 distinct_unique_proteins_df
 
 # %%
-asc_df = distinct_unique_proteins_df.loc[
-    distinct_unique_proteins_df["Algorithm"] == "Ascending"
-].reset_index(drop=True)
-desc_df = distinct_unique_proteins_df.loc[
-    distinct_unique_proteins_df["Algorithm"] == "Descending"
-].reset_index(drop=True)
-desc_df
+# distinct_unique_proteins_df.to_csv("O.vul.DistinctProteins.tsv", sep="\t", index=False)
 
 # %%
-desc_df.groupby([condition_col, "Fraction", "FractionRepetition"])[
+# distinct_unique_proteins_df.loc[distinct_unique_proteins_df["Fraction"] == 1.0].sort_values("NumOfProteins", ascending=False)
+
+# %%
+max_distinct_proteins_per_transcript_and_alg_df = distinct_unique_proteins_df.loc[
+    distinct_unique_proteins_df["Fraction"] == 1.0
+].copy()
+
+max_distinct_proteins_per_transcript_and_alg_df[
+    "MaxNumOfProteins"
+] = max_distinct_proteins_per_transcript_and_alg_df.groupby(
+    [condition_col, "Algorithm"]
+)[
     "NumOfProteins"
-].mean().reset_index()
-
-# %%
-desc_df["NumOfProteins"]
-
-# %%
-algs_diff_df = desc_df.loc[
-    :, [condition_col, "Fraction", "FractionRepetition", "AlgorithmRepetition"]
-]
-algs_diff_df["Desc - Asc"] = desc_df["NumOfProteins"] - asc_df["NumOfProteins"]
-algs_diff_df["Diff"] = algs_diff_df["Desc - Asc"].apply(
-    lambda x: "> 0" if x > 0 else "= 0" if x == 0 else "< 0"
+].transform(
+    max
+)
+max_distinct_proteins_per_transcript_and_alg_df["IsMaxNumOfProteins"] = (
+    max_distinct_proteins_per_transcript_and_alg_df["NumOfProteins"]
+    == max_distinct_proteins_per_transcript_and_alg_df["MaxNumOfProteins"]
 )
 
-algs_diff_df
+max_distinct_proteins_per_transcript_and_alg_df = (
+    max_distinct_proteins_per_transcript_and_alg_df.loc[
+        max_distinct_proteins_per_transcript_and_alg_df["IsMaxNumOfProteins"]
+    ]
+)
+max_distinct_proteins_per_transcript_and_alg_df = (
+    max_distinct_proteins_per_transcript_and_alg_df.drop_duplicates(
+        subset=[condition_col, "Algorithm"], ignore_index=True
+    )
+)
+
+max_distinct_proteins_per_transcript_and_alg_df
 
 # %%
-algs_diff_df.loc[algs_diff_df["Diff"] != "> 0"]
+asc_df = max_distinct_proteins_per_transcript_and_alg_df.loc[
+    max_distinct_proteins_per_transcript_and_alg_df["Algorithm"] == "Ascending"
+].reset_index(drop=True)
+desc_df = max_distinct_proteins_per_transcript_and_alg_df.loc[
+    max_distinct_proteins_per_transcript_and_alg_df["Algorithm"] != "Ascending"
+].reset_index(drop=True)
+
+ic(len(asc_df))
+ic(len(desc_df))
+
+ic(asc_df["NumOfProteins"].eq(desc_df["NumOfProteins"]).sum())  # ==
+ic(asc_df["NumOfProteins"].gt(desc_df["NumOfProteins"]).sum())  # >
+ic(asc_df["NumOfProteins"].lt(desc_df["NumOfProteins"]).sum())
+# <
 
 # %%
-# df = algs_diff_df.rename(columns={"Desc - Asc": "Desc <span>&#8722;</span>  Asc"})
+greater_asc_transcripts = asc_df.loc[
+    asc_df["NumOfProteins"].gt(desc_df["NumOfProteins"]), condition_col
+]
+greater_asc_transcripts
+
+# %%
+distinct_unique_proteins_df.loc[
+    (distinct_unique_proteins_df["Fraction"] == 1.0)
+    & (distinct_unique_proteins_df[condition_col].isin(greater_asc_transcripts))
+].groupby([condition_col, "Algorithm"])["NumOfProteins"].value_counts()
+
+# %%
+max_distinct_proteins_per_transcript_and_alg_df.loc[
+    max_distinct_proteins_per_transcript_and_alg_df[condition_col].isin(
+        greater_asc_transcripts
+    )
+]
+
+# %%
+max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df = (
+    distinct_unique_proteins_df.copy()
+)
+
+max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df[
+    "MaxNumOfProteins"
+] = max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df.groupby(
+    [condition_col, "Fraction", "Algorithm", "FractionRepetition"]
+)[
+    "NumOfProteins"
+].transform(
+    max
+)
+max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df[
+    "IsMaxNumOfProteins"
+] = (
+    max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df["NumOfProteins"]
+    == max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df[
+        "MaxNumOfProteins"
+    ]
+)
+
+max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df = (
+    max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df.loc[
+        max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df[
+            "IsMaxNumOfProteins"
+        ]
+    ]
+).reset_index(drop=True)
+# max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df["Duplicated"] = max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df.duplicated(subset=[condition_col, "Fraction", "Algorithm", "FractionRepetition"])
+max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df = (
+    max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df.drop_duplicates(
+        subset=[condition_col, "Fraction", "Algorithm", "FractionRepetition"],
+        ignore_index=True,
+    )
+)
+max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df = (
+    max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df.sort_values(
+        [condition_col, "Fraction", "FractionRepetition", "Algorithm"],
+        ignore_index=True,
+    )
+)
+
+max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df
+
+# %%
+asc_df = max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df.loc[
+    max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df["Algorithm"]
+    == "Ascending"
+].reset_index(drop=True)
+desc_df = max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df.loc[
+    max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df["Algorithm"]
+    != "Ascending"
+].reset_index(drop=True)
+
+assert len(asc_df) == len(desc_df)
+
+ic(asc_df["NumOfProteins"].eq(desc_df["NumOfProteins"]).sum())  # ==
+ic(asc_df["NumOfProteins"].gt(desc_df["NumOfProteins"]).sum())  # >
+ic(asc_df["NumOfProteins"].lt(desc_df["NumOfProteins"]).sum())
+# <
+
+# %%
+greater_asc_transcripts = asc_df.loc[
+    asc_df["NumOfProteins"].gt(desc_df["NumOfProteins"]), condition_col
+].unique()
+
+ic(len(greater_asc_transcripts))
+
+greater_asc_transcripts
+
+# %%
+df = max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df.loc[
+    max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df[
+        condition_col
+    ].isin(greater_asc_transcripts)
+]
+df = df.drop(
+    ["AlgorithmRepetition", "IsMaxNumOfProteins", "MaxNumOfProteins", "Proteins"],
+    axis=1,
+).pivot(
+    index=[condition_col, "NumOfReads", "Fraction", "FractionRepetition"],
+    columns="Algorithm",
+)
+df = df.set_axis(df.columns.get_level_values(1).values, axis=1)
+df = df.reset_index()
+df["Desc - Asc"] = df["Descending"] - df["Ascending"]
+df = df.loc[df["Desc - Asc"] < 0].reset_index(drop=True)
+df
+
+# %%
+df.loc[df["Fraction"] < 1.0]
+
+# %%
+fig = px.histogram(df, x="Desc - Asc", template=template, text_auto=True)
+
+fig.update_layout(
+    # showlegend=False,
+    # width=1500,
+    # height=300
+    width=600,
+    height=400,
+)
+
+fig.show()
+
+# %%
+fig = px.histogram(
+    df,
+    x="Desc - Asc",
+    template=template,
+    # text_auto=True,
+    facet_col="Fraction",
+    # color="Fraction",
+    category_orders={"Fraction": [0.2, 0.4, 0.6, 0.8, 1.0]},
+    # barmode="group"
+)
+
+# Reduce opacity to see both histograms
+fig.update_traces(opacity=0.75)
+
+fig.update_layout(
+    # showlegend=False,
+    width=1300,
+    # height=300
+    # width=800,
+    height=400,
+    # barmode='overlay' # Overlay both histograms
+)
+
+
+fig.show()
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+
+# %% tags=[]
+# ic(asc_df["Fraction"].eq(desc_df["Fraction"]).all())
+# ic(asc_df["FractionRepetition"].eq(desc_df["FractionRepetition"]).all())
+# ic(asc_df["NumOfReads"].eq(desc_df["NumOfReads"]).all())
+# ic(asc_df["AlgorithmRepetition"].eq(desc_df["AlgorithmRepetition"]).all());
+
+# %%
+# algs_diff_df = asc_df.rename(
+#     columns={
+#         "NumOfProteins": "NumOfProteinsAscending",
+#         "Proteins": "ProteinsAscending",
+#         "IsMaxNumOfProteins": "IsMaxNumOfProteinsAscending",
+#     }
+# )
+# del algs_diff_df["Algorithm"]
+# algs_diff_df["NumOfProteinsDescending"] = desc_df["NumOfProteins"]
+# algs_diff_df["ProteinsDescending"] = desc_df["Proteins"]
+# algs_diff_df["IsMaxNumOfProteinsDescending"] = desc_df["IsMaxNumOfProteins"]
+
+# algs_diff_df["Desc - Asc"] = (
+#     algs_diff_df["NumOfProteinsDescending"] - algs_diff_df["NumOfProteinsAscending"]
+# )
+# algs_diff_df["Diff"] = algs_diff_df["Desc - Asc"].apply(
+#     lambda x: "> 0" if x > 0 else "= 0" if x == 0 else "< 0"
+# )
+
+# # algs_diff_df["IsMaxNumOfProteins"] = algs_diff_df.apply(
+# #     lambda x: "Both"
+# #     if (x["IsMaxNumOfProteinsAscending"] and x["IsMaxNumOfProteinsDescending"])
+# #     else "Ascending"
+# #     if x["IsMaxNumOfProteinsAscending"]
+# #     else "Descending"
+# #     if x["IsMaxNumOfProteinsDescending"]
+# #     else "None",
+# #     axis=1,
+# # )
+
+# algs_diff_df["IsMaxNumOfProteins"] = algs_diff_df.apply(
+#     lambda x: "Both"
+#     if (x["IsMaxNumOfProteinsAscending"] and x["IsMaxNumOfProteinsDescending"])
+#     else "Yes"
+#     if x["IsMaxNumOfProteinsAscending"]
+#     else "Yes"
+#     if x["IsMaxNumOfProteinsDescending"]
+#     else "No",
+#     axis=1,
+# )
+
+# algs_diff_df["IsMaxNumOfProteins2"] = algs_diff_df.apply(
+#     lambda x: "Both"
+#     if (x["IsMaxNumOfProteinsAscending"] and x["IsMaxNumOfProteinsDescending"])
+#     else "Ascending"
+#     if x["IsMaxNumOfProteinsAscending"]
+#     else "Descending"
+#     if x["IsMaxNumOfProteinsDescending"]
+#     else "None",
+#     axis=1,
+# )
+
+# # algs_diff_df["IsMaxNumOfProteins"] = algs_diff_df.apply(
+# #     lambda x: True
+# #     if (x["IsMaxNumOfProteinsAscending"] or x["IsMaxNumOfProteinsDescending"])
+# #     else False,
+# #     axis=1,
+# # )
+
+# algs_diff_df
+
+# %%
+# c  # df = algs_diff_df.groupby([condition_col, "Diff"])[["IsMaxNumOfProteins"]].value_counts().reset_index().rename(columns={0: "Count"})
+# # df = df.rename(columns={"Diff": "#Desc <span>&#8722;</span> #Asc"})
+
+# fig = px.histogram(
+#     algs_diff_df.loc[algs_diff_df["Desc - Asc"]],
+#     x="Desc - Asc",
+#     # y="Diff",
+#     # color="IsMaxNumOfProteins",
+#     # opacity=0.5,
+#     # color_discrete_map=color_discrete_map,
+#     # facet_row=condition_col,
+#     # facet_row_spacing=facet_col_spacing,
+#     # facet_col="#Desc <span>&#8722;</span> #Asc",
+#     # facet_col_spacing=facet_col_spacing,
+#     # symbol="IsMaxNumOfProteins",
+#     # category_orders=category_orders,
+#     template=template,
+#     # title="Differences between coupled solutions' sizes",
+#     # shared_
+#     # log_x=True,
+#     # log_y=True,
+#     # marginal_y="box",
+#     # marginal_x="box",
+#     # text_auto=True
+# )
+
+# # https://www.toptal.com/designers/htmlarrows/math/minus-sign/
+# # fig.update_yaxes(title="Desc <span>&#8722;</span>  Asc")
+# # https://community.plotly.com/t/changing-label-of-plotly-express-facet-categories/28066/5?u=kaparanewbie
+# # fig.for_each_annotation(lambda a: a.update(text=a.text.replace("#Desc <span>&#8722;</span> #Asc=", "#Desc <span>&#8722;</span> #Asc ")))
+# # fig.for_each_annotation(lambda a: a.update(text=a.text.replace(f"{condition_col}=", "")))
+
+# # fig.update_traces(marker={"size": 4})
+
+# # fig.update_xaxes(visible=True)
+# # fig.update_xaxes(zeroline=True)
+# # fig.update_xaxes(zerolinewidth=4)
+# # fig.update_yaxes(zerolinewidth=zerolinewidth)
+
+# fig.update_layout(
+#     # showlegend=False,
+#     # width=1500,
+#     # height=300
+#     width=600,
+#     height=500,
+# )
+
+# fig.show()
+
+# %%
+# df = algs_diff_df.rename(columns={"Diff": "#Desc <span>&#8722;</span> #Asc"})
+# df = df.loc[df["Desc - Asc"] < 0]
+
+# # x = df["Desc - Asc"]
+# # y_asc = df["NumOfProteinsAscending"]
+# # y_desc = df["NumOfProteinsDescending"]
+
+# fig = px.scatter_3d(
+#     df,
+#     x="Desc - Asc",
+#     y="NumOfProteinsAscending",
+#     z="NumOfProteinsDescending",
+#     # y="Diff",
+#     color="IsMaxNumOfProteins",
+#     labels={"NumOfProteinsAscending": "Asc", "NumOfProteinsDescending": "Desc"},
+#     # opacity=0.5,
+#     # color_discrete_map=color_discrete_map,
+#     # facet_row=condition_col,
+#     # facet_row_spacing=facet_col_spacing,
+#     # facet_col="#Desc <span>&#8722;</span> #Asc",
+#     # facet_col_spacing=facet_col_spacing,
+#     # symbol="IsMaxNumOfProteins",
+#     # category_orders=category_orders,
+#     template=template,
+#     # title="Differences between coupled solutions' sizes",
+#     # shared_
+#     # log_x=True,
+#     # log_y=True,
+#     # marginal_y="box",
+#     # marginal_x="box",
+#     # text_auto=True
+# )
+
+# # https://www.toptal.com/designers/htmlarrows/math/minus-sign/
+# # fig.update_yaxes(title="Desc <span>&#8722;</span>  Asc")
+# # https://community.plotly.com/t/changing-label-of-plotly-express-facet-categories/28066/5?u=kaparanewbie
+# # fig.for_each_annotation(lambda a: a.update(text=a.text.replace("#Desc <span>&#8722;</span> #Asc=", "#Desc <span>&#8722;</span> #Asc ")))
+# # fig.for_each_annotation(lambda a: a.update(text=a.text.replace(f"{condition_col}=", "")))
+
+# # fig.update_traces(marker={"size": 4})
+
+# # fig.update_xaxes(visible=True)
+# # fig.update_xaxes(zeroline=True)
+# # fig.update_xaxes(zerolinewidth=4)
+# # fig.update_yaxes(zerolinewidth=zerolinewidth)
+
+# fig.update_layout(
+#     # showlegend=False,
+#     # width=1500,
+#     # height=300
+#     # width=800,
+#     height=600,
+# )
+
+# fig.show()
+
+# %%
+# # df = algs_diff_df.groupby([condition_col, "Diff"])[["IsMaxNumOfProteins"]].value_counts().reset_index().rename(columns={0: "Count"})
+# df = algs_diff_df.rename(columns={"Diff": "#Desc <span>&#8722;</span> #Asc"})
+# df = df.loc[df["Desc - Asc"] < 0]
+
+# # Create figure with secondary y-axis
+# fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+# x = df["Desc - Asc"]
+# y_asc = df["NumOfProteinsAscending"]
+# y_desc = df["NumOfProteinsDescending"]
+
+# # # Add traces
+# # fig.add_trace(
+# #     go.Scatter(x=x, y=y_asc, name="NumOfProteinsAscending", showlegend=False),
+# #     secondary_y=False,
+# # )
+
+# # fig.add_trace(
+# #     go.Scatter(x=x, y=y_desc, name="NumOfProteinsDescending data", marker=dict(color="white"), showlegend=False),
+# #     secondary_y=True,
+# # )
+
+# trace1 = go.Scatter(x=x, y=y_asc, name="NumOfProteinsAscending", showlegend=False)
+# trace2 = go.Scatter(x=x, y=y_asc, name="NumOfProteinsDescending data", showlegend=False)
+
+# # The first trace is referenced to the default xaxis, yaxis (ie. xaxis='x1', yaxis='y1')
+# fig.add_trace(trace1, secondary_y=False)
+
+# # The second trace is referenced to xaxis='x1'(i.e. 'x1' is common for the two traces)
+# # and yaxis='y2' (the right side yaxis)
+
+# fig.add_trace(trace2, secondary_y=True)
+
+# # Set x-axis title
+# fig.update_xaxes(title_text="#Desc <span>&#8722;</span> #Asc")
+
+# # Set y-axes titles
+# fig.update_yaxes(
+#     title_text="NumOfProteinsAscending", secondary_y=False, range=[0, y_asc.max() * 1.1]
+# )
+# fig.update_yaxes(
+#     title_text="NumOfProteinsDescending",
+#     secondary_y=True,
+#     range=[0, y_desc.max() * 1.1],
+#     showgrid=False,
+# )
+
+# # fig.update_traces(marker={"size": 4})
+
+# # fig.update_xaxes(visible=True)
+# # fig.update_xaxes(zeroline=True)
+# # fig.update_xaxes(zerolinewidth=4)
+# # fig.update_yaxes(zerolinewidth=zerolinewidth)
+
+# fig.update_layout(
+#     # showlegend=False,
+#     # width=1500,
+#     # height=300
+#     width=500,
+#     height=500,
+#     template=template,
+# )
+
+# fig.show()
+
+# %%
+# df = (
+#     algs_diff_df.groupby([condition_col, "Diff"])[["IsMaxNumOfProteins"]]
+#     .value_counts()
+#     .reset_index()
+#     .rename(columns={0: "Count"})
+# )
+# df = df.rename(columns={"Diff": "#Desc <span>&#8722;</span> #Asc"})
+
+# fig = px.histogram(
+#     df,
+#     x="#Desc <span>&#8722;</span> #Asc",
+#     # y="Diff",
+#     color="IsMaxNumOfProteins",
+#     # opacity=0.5,
+#     # color_discrete_map=color_discrete_map,
+#     # facet_row=condition_col,
+#     # facet_row_spacing=facet_col_spacing,
+#     # facet_col="#Desc <span>&#8722;</span> #Asc",
+#     facet_col_spacing=facet_col_spacing,
+#     # symbol="IsMaxNumOfProteins",
+#     # category_orders=category_orders,
+#     template=template,
+#     # title="Differences between coupled solutions' sizes",
+#     # shared_
+#     # log_x=True,
+#     # log_y=True,
+#     # marginal_y="box",
+#     # marginal_x="box",
+#     text_auto=True,
+# )
+
+# # https://www.toptal.com/designers/htmlarrows/math/minus-sign/
+# # fig.update_yaxes(title="Desc <span>&#8722;</span>  Asc")
+# # https://community.plotly.com/t/changing-label-of-plotly-express-facet-categories/28066/5?u=kaparanewbie
+# fig.for_each_annotation(
+#     lambda a: a.update(
+#         text=a.text.replace(
+#             "#Desc <span>&#8722;</span> #Asc=", "#Desc <span>&#8722;</span> #Asc "
+#         )
+#     )
+# )
+# # fig.for_each_annotation(lambda a: a.update(text=a.text.replace(f"{condition_col}=", "")))
+
+# # fig.update_traces(marker={"size": 4})
+
+# # fig.update_xaxes(visible=True)
+# # fig.update_xaxes(zeroline=True)
+# # fig.update_xaxes(zerolinewidth=4)
+# # fig.update_yaxes(zerolinewidth=zerolinewidth)
+
+# fig.update_layout(
+#     # showlegend=False,
+#     # width=1500,
+#     # height=300
+#     width=800,
+#     height=400,
+# )
+
+# fig.show()
+
+# %%
+# df = (
+#     algs_diff_df.groupby([condition_col, "Diff"])[["IsMaxNumOfProteins"]]
+#     .value_counts()
+#     .reset_index()
+#     .rename(columns={0: "Count"})
+# )
+# df = df.rename(columns={"Diff": "#Desc <span>&#8722;</span> #Asc"})
+
+# fig = px.histogram(
+#     df,
+#     x="IsMaxNumOfProteins",
+#     # y="Diff",
+#     # color="#Desc <span>&#8722;</span> #Asc",
+#     # opacity=0.5,
+#     # color_discrete_map=color_discrete_map,
+#     # facet_row=condition_col,
+#     # facet_row_spacing=facet_col_spacing,
+#     facet_col="#Desc <span>&#8722;</span> #Asc",
+#     facet_col_spacing=facet_col_spacing,
+#     # symbol="IsMaxNumOfProteins",
+#     # category_orders=category_orders,
+#     template=template,
+#     # title="Differences between coupled solutions' sizes",
+#     # shared_
+#     # log_x=True,
+#     # log_y=True,
+#     # marginal_y="box",
+#     # marginal_x="box",
+#     text_auto=True,
+# )
+
+# # https://www.toptal.com/designers/htmlarrows/math/minus-sign/
+# # fig.update_yaxes(title="Desc <span>&#8722;</span>  Asc")
+# # https://community.plotly.com/t/changing-label-of-plotly-express-facet-categories/28066/5?u=kaparanewbie
+# fig.for_each_annotation(
+#     lambda a: a.update(
+#         text=a.text.replace(
+#             "#Desc <span>&#8722;</span> #Asc=", "#Desc <span>&#8722;</span> #Asc "
+#         )
+#     )
+# )
+# # fig.for_each_annotation(lambda a: a.update(text=a.text.replace(f"{condition_col}=", "")))
+
+# # fig.update_traces(marker={"size": 4})
+
+# # fig.update_xaxes(visible=True)
+# # fig.update_xaxes(zeroline=True)
+# # fig.update_xaxes(zerolinewidth=4)
+# # fig.update_yaxes(zerolinewidth=zerolinewidth)
+
+# fig.update_layout(
+#     # showlegend=False,
+#     # width=1500,
+#     # height=300
+#     width=800,
+#     height=400,
+# )
+
+# fig.show()
+
+# %%
+# df = algs_diff_df.rename(columns={"Diff": "#Desc <span>&#8722;</span> #Asc"})
+# # df["abs(Desc - Asc) div 10"] = df["Desc - Asc"].abs().div(10).add(0.1)
+# df["abs(Desc - Asc)"] = df["Desc - Asc"].abs().add(1)
 
 # fig = px.scatter(
 #     df,
+#     x="NumOfProteinsAscending",
+#     y="NumOfProteinsDescending",
+#     color="#Desc <span>&#8722;</span> #Asc",
+#     size="abs(Desc - Asc)",
+#     # opacity=0.5,
+#     # color_discrete_map=color_discrete_map,
+#     # facet_row=condition_col,
+#     # facet_row_spacing=facet_col_spacing,
+#     facet_col="IsMaxNumOfProteins",
+#     # facet_col_spacing=facet_col_spacing,
+#     # symbol="IsMaxNumOfProteins",
+#     # category_orders=category_orders,
+#     template=template,
+#     # title="Differences between coupled solutions' sizes",
+#     # shared_
+#     log_x=True,
+#     log_y=True,
+#     marginal_y="box",
+#     marginal_x="box",
+#     # trendline="lowess"
+# )
+
+# # https://www.toptal.com/designers/htmlarrows/math/minus-sign/
+# # fig.update_yaxes(title="Desc <span>&#8722;</span>  Asc")
+# # https://community.plotly.com/t/changing-label-of-plotly-express-facet-categories/28066/5?u=kaparanewbie
+# # fig.for_each_annotation(lambda a: a.update(text=a.text.replace("Diff=", "Diff ")))
+# # fig.for_each_annotation(lambda a: a.update(text=a.text.replace(f"{condition_col}=", "")))
+
+# # fig.update_traces(marker={"size": 4})
+
+# # fig.update_xaxes(visible=True)
+# # fig.update_xaxes(zeroline=True)
+# # fig.update_xaxes(zerolinewidth=4)
+# # fig.update_yaxes(zerolinewidth=zerolinewidth)
+
+# fig.update_layout(
+#     # showlegend=False,
+#     # width=1500,
+#     # height=300
+#     width=1400,
+#     height=600,
+# )
+
+# fig.show()
+
+# %%
+# df = algs_diff_df.rename(columns={"Diff": "#Desc <span>&#8722;</span> #Asc"})
+
+# fig = px.scatter(
+#     df,
+#     x="NumOfProteinsAscending",
+#     y="NumOfProteinsDescending",
+#     color="#Desc <span>&#8722;</span> #Asc",
+#     # color_discrete_map=color_discrete_map,
+#     # facet_row=condition_col,
+#     # facet_row_spacing=facet_col_spacing,
+#     facet_col="Fraction",
+#     # facet_col_spacing=facet_col_spacing,
+#     # symbol="Diff",
+#     # category_orders=category_orders,
+#     template=template,
+#     # title="Differences between coupled solutions' sizes",
+#     # shared_
+#     log_x=True,
+#     log_y=True,
+#     marginal_y="box",
+#     marginal_x="box",
+# )
+
+# # https://www.toptal.com/designers/htmlarrows/math/minus-sign/
+# # fig.update_yaxes(title="Desc <span>&#8722;</span>  Asc")
+# # https://community.plotly.com/t/changing-label-of-plotly-express-facet-categories/28066/5?u=kaparanewbie
+# # fig.for_each_annotation(lambda a: a.update(text=a.text.replace("Diff=", "Diff ")))
+# # fig.for_each_annotation(lambda a: a.update(text=a.text.replace(f"{condition_col}=", "")))
+
+# fig.update_traces(marker={"size": 5})
+
+# # fig.update_xaxes(visible=True)
+# # fig.update_xaxes(zeroline=True)
+# # fig.update_xaxes(zerolinewidth=4)
+# fig.update_yaxes(zerolinewidth=zerolinewidth)
+
+# fig.update_layout(
+#     # showlegend=False,
+#     # width=1500,
+#     # height=300
+#     # width=550,
+#     # height=500
+# )
+
+# fig.show()
+
+# %%
+# df = algs_diff_df.rename(columns={"Desc - Asc": "#Desc <span>&#8722;</span> #Asc"})
+
+# fig = px.box(
+#     df,
 #     x="Fraction",
-#     y="Desc <span>&#8722;</span>  Asc",
-#     color=condition_col,
-#     color_discrete_map=color_discrete_map,
-#     facet_row=condition_col,
-#     facet_row_spacing=facet_col_spacing,
+#     y="#Desc <span>&#8722;</span> #Asc",
+#     # color=condition_col,
+#     # color_discrete_map=color_discrete_map,
+#     # facet_row=condition_col,
+#     # facet_row_spacing=facet_col_spacing,
 #     facet_col="Diff",
-#     facet_col_spacing=facet_col_spacing,
-#     symbol="Diff",
-#     category_orders=category_orders,
+#     # facet_col_spacing=facet_col_spacing,
+#     # symbol="Diff",
+#     # category_orders=category_orders,
 #     template=template,
 #     title="Differences between coupled solutions' sizes",
 #     # shared_
@@ -3479,7 +4167,7 @@ algs_diff_df.loc[algs_diff_df["Diff"] != "> 0"]
 # # fig.update_yaxes(title="Desc <span>&#8722;</span>  Asc")
 # # https://community.plotly.com/t/changing-label-of-plotly-express-facet-categories/28066/5?u=kaparanewbie
 # fig.for_each_annotation(lambda a: a.update(text=a.text.replace("Diff=", "Diff ")))
-# fig.for_each_annotation(lambda a: a.update(text=a.text.replace(f"{condition_col}=", "")))
+# # fig.for_each_annotation(lambda a: a.update(text=a.text.replace(f"{condition_col}=", "")))
 
 # # fig.update_xaxes(
 # #     tickmode = 'array',
@@ -3515,7 +4203,7 @@ algs_diff_df.loc[algs_diff_df["Diff"] != "> 0"]
 #     # shared_
 # )
 # # fig.update_layout(showlegend=False)
-# # https://www.toptal.com/designers/htmlarrows/math/minus-sign/
+# https://www.toptal.com/designers/htmlarrows/math/minus-sign/
 # # fig.update_yaxes(title="Desc <span>&#8722;</span>  Asc")
 # # https://community.plotly.com/t/changing-label-of-plotly-express-facet-categories/28066/5?u=kaparanewbie
 # # fig.for_each_annotation(lambda a: a.update(text=a.text.replace("Diff=", "Diff ")))
@@ -3531,185 +4219,352 @@ algs_diff_df.loc[algs_diff_df["Diff"] != "> 0"]
 # fig.show()
 
 # %%
-x_axis_name = "Fraction"
-y_axis_name = "#Desc <span>&#8722;</span> #Asc"
-head_title = "Differences between coupled solutions' sizes"
+# x_axis_name = "Fraction"
+# y_axis_name = "#Desc <span>&#8722;</span> #Asc"
+# head_title = "Differences between coupled solutions' sizes"
 
-basic_diff_names = ["Diff < 0", "Diff = 0", "Diff > 0"]
-subplot_titles = []
-first_row = True
-for condition in conditions:
-    for diff in basic_diff_names:
-        st = f"<sub>{condition}</sub>"
-        if first_row:
-            st = f"{diff}<br>" + st
-        subplot_titles.append(st)
-    first_row = False
+# basic_diff_names = ["Diff < 0", "Diff = 0", "Diff > 0"]
+# subplot_titles = []
+# first_row = True
+# for condition in conditions:
+#     for diff in basic_diff_names:
+#         st = f"<sub>{condition}</sub>"
+#         if first_row:
+#             st = f"{diff}<br>" + st
+#         subplot_titles.append(st)
+#     first_row = False
 
-fig = make_subplots(
-    rows=len(conditions),
-    cols=3,
-    y_title=y_axis_name,
-    x_title=x_axis_name,
-    # subplot_titles=["Diff < 0", "Diff = 0", "0 < Diff"],
-    subplot_titles=subplot_titles,
-    shared_yaxes=True,
-    shared_xaxes=True,
-)
+# fig = make_subplots(
+#     rows=len(conditions),
+#     cols=3,
+#     y_title=y_axis_name,
+#     x_title=x_axis_name,
+#     # subplot_titles=["Diff < 0", "Diff = 0", "0 < Diff"],
+#     subplot_titles=subplot_titles,
+#     shared_yaxes=True,
+#     shared_xaxes=True,
+# )
 
-algorithms = ["Ascending", "Descending"]
-diffs = ["< 0", "= 0", "> 0"]
-symbols = ["cross", "diamond", "circle"]
+# algorithms = ["Ascending", "Descending"]
+# diffs = ["< 0", "= 0", "> 0"]
+# symbols = ["cross", "diamond", "circle"]
 
-for col, (diff, symbol) in enumerate(zip(diffs, symbols), start=1):
-    for row, condition in enumerate(conditions, start=1):
-        df = algs_diff_df.loc[
-            (algs_diff_df["Diff"] == diff) & (algs_diff_df[condition_col] == condition)
-        ]
-        x = df["Fraction"]
-        y = df["Desc - Asc"]
-        if col == 1:
-            fig.add_trace(
-                go.Scatter(
-                    x=x,
-                    y=y,
-                    legendgrouptitle_text=condition,
-                    legendgroup=condition,
-                    name=condition,
-                    line_color=color_discrete_map[condition],
-                    mode="markers",
-                    marker={"symbol": symbol},
-                ),
-                row=row,
-                col=col,
-            )
-        else:
-            fig.add_trace(
-                go.Scatter(
-                    x=x,
-                    y=y,
-                    # legendgrouptitle_text=condition,
-                    legendgroup=condition,
-                    name=condition,
-                    line_color=color_discrete_map[condition],
-                    mode="markers",
-                    marker={"symbol": symbol},
-                ),
-                row=row,
-                col=col,
-            )
+# for col, (diff, symbol) in enumerate(zip(diffs, symbols), start=1):
+#     for row, condition in enumerate(conditions, start=1):
+#         df = algs_diff_df.loc[
+#             (algs_diff_df["Diff"] == diff) & (algs_diff_df[condition_col] == condition)
+#         ]
+#         x = df["Fraction"]
+#         y = df["Desc - Asc"]
+#         if col == 1:
+#             fig.add_trace(
+#                 go.Scatter(
+#                     x=x,
+#                     y=y,
+#                     legendgrouptitle_text=condition,
+#                     legendgroup=condition,
+#                     name=condition,
+#                     line_color=color_discrete_map[condition],
+#                     mode="markers",
+#                     marker={"symbol": symbol},
+#                 ),
+#                 row=row,
+#                 col=col,
+#             )
+#         else:
+#             fig.add_trace(
+#                 go.Scatter(
+#                     x=x,
+#                     y=y,
+#                     # legendgrouptitle_text=condition,
+#                     legendgroup=condition,
+#                     name=condition,
+#                     line_color=color_discrete_map[condition],
+#                     mode="markers",
+#                     marker={"symbol": symbol},
+#                 ),
+#                 row=row,
+#                 col=col,
+#             )
 
-fig.update_layout(
-    title_text=head_title, title_y=0.95, template=template, showlegend=False
-)
+# fig.update_layout(
+#     title_text=head_title, title_y=0.95, template=template, showlegend=False
+# )
 
-fig.update_xaxes(tick0=0, dtick=0.1, tickangle=-60, matches="x")
+# fig.update_xaxes(tick0=0, dtick=0.1, tickangle=-60, matches="x")
 
-min_y = algs_diff_df["Desc - Asc"].min()
-max_y = algs_diff_df["Desc - Asc"].max()
-abs_y_limit = max(abs(min_y), abs(max_y))
-# min_y = min_y * 1.1 if abs(abs_y_limit // min_y // 10) <= 1 else min_y - abs(abs_y_limit // min_y // 10)
-min_y = (
-    min_y * 1.1
-    if abs(abs_y_limit // min_y // 10) <= 1
-    else min_y - abs(abs_y_limit // min_y)
-)
-max_y = (
-    max_y * 1.1
-    if abs(abs_y_limit // max_y // 10) <= 1
-    else max_y + abs(abs_y_limit // max_y)
-)
+# min_y = algs_diff_df["Desc - Asc"].min()
+# max_y = algs_diff_df["Desc - Asc"].max()
+# abs_y_limit = max(abs(min_y), abs(max_y))
+# # min_y = min_y * 1.1 if abs(abs_y_limit // min_y // 10) <= 1 else min_y - abs(abs_y_limit // min_y // 10)
+# min_y = (
+#     min_y * 1.1
+#     if abs(abs_y_limit // min_y // 10) <= 1
+#     else min_y - abs(abs_y_limit // min_y)
+# )
+# max_y = (
+#     max_y * 1.1
+#     if abs(abs_y_limit // max_y // 10) <= 1
+#     else max_y + abs(abs_y_limit // max_y)
+# )
 
-fig.update_yaxes(zerolinewidth=zerolinewidth, range=[min_y, max_y])
+# fig.update_yaxes(zerolinewidth=zerolinewidth, range=[min_y, max_y])
 
-fig.show()
+# fig.show()
 
 
 # %% [markdown]
 # #### Solutions' sizes
 
 # %%
-y_axis_name = "Distinct unique proteins"
-head_title = "Distinct unique proteins vs. heuristic method"
+distinct_unique_proteins_df
 
-fig = make_subplots(
-    rows=1,
-    cols=len(conditions),
-    print_grid=False,
-    y_title=y_axis_name,
-    subplot_titles=conditions,
-    shared_yaxes=True,
+# %% jupyter={"source_hidden": true} tags=[]
+# min_max_fraction_1_distinct_prots_df = (
+#     distinct_unique_proteins_df.loc[distinct_unique_proteins_df["Fraction"] == 1.0]
+#     .groupby(condition_col)["NumOfProteins"]
+#     .agg(["min", "max"])
+#     .reset_index()
+# )
+# min_max_fraction_1_distinct_prots_df[
+#     "%SolutionsDispersion"
+# ] = min_max_fraction_1_distinct_prots_df.apply(
+#     lambda x: 100 * (x["max"] - x["min"]) / x["max"], axis=1
+# )
+# min_max_fraction_1_distinct_prots_df["HighDispersion"] = (
+#     min_max_fraction_1_distinct_prots_df["%SolutionsDispersion"] > 1
+# )
+# min_max_fraction_1_distinct_prots_df = min_max_fraction_1_distinct_prots_df.sort_values(
+#     [condition_col, "min", "max", "%SolutionsDispersion", "HighDispersion"]
+# ).reset_index(drop=True)
+# min_max_fraction_1_distinct_prots_df
+
+# %% tags=[]
+dispersion_df = distinct_unique_proteins_df.loc[
+    distinct_unique_proteins_df["Fraction"] == 1.0,
+    [condition_col, "NumOfReads", "NumOfProteins"],
+].reset_index(drop=True)
+
+gb = dispersion_df.groupby(condition_col)["NumOfProteins"]
+dispersion_df["MaxNumOfProteins"] = gb.transform(max)
+dispersion_df["MinNumOfProteins"] = gb.transform(min)
+
+dispersion_df = dispersion_df.drop("NumOfProteins", axis=1)
+dispersion_df = dispersion_df.drop_duplicates(ignore_index=True)
+
+dispersion_df["%SolutionsDispersion"] = dispersion_df.apply(
+    lambda x: 100
+    * (x["MaxNumOfProteins"] - x["MinNumOfProteins"])
+    / x["MaxNumOfProteins"],
+    axis=1,
+)
+dispersion_df["HighDispersion"] = dispersion_df["%SolutionsDispersion"] > 1
+
+dispersion_df
+
+# %%
+len(dispersion_df.loc[dispersion_df["HighDispersion"]])
+
+# %%
+fig = px.scatter(
+    dispersion_df,
+    x="MinNumOfProteins",
+    y="MaxNumOfProteins",
+    # size="%SolutionsDispersion",
+    # facet_col="HighDispersion"
+    color="HighDispersion",
+    marginal_y="box",
+    marginal_x="box",
+    # log_y=True
 )
 
-algorithms = ["Ascending", "Descending"]
-
-for col, condition in enumerate(conditions, start=1):
-
-    df = distinct_unique_proteins_df.loc[
-        distinct_unique_proteins_df[condition_col] == condition
-    ]
-
-    xs = [
-        df.loc[df["Algorithm"] == algorithm, condition_col] for algorithm in algorithms
-    ]
-    ys = [
-        df.loc[df["Algorithm"] == algorithm, "NumOfProteins"]
-        for algorithm in algorithms
-    ]
-
-    fig.add_trace(
-        go.Violin(
-            x=xs[0],
-            y=ys[0],
-            legendgrouptitle_text=condition,
-            legendgroup=condition,
-            name="Ascending",
-            # scalegroup="Ascending",
-            side="negative",
-            line_color=subcolors_discrete_map[condition][0],
-            # points="all"
-        ),
-        row=1,
-        col=col,
-    )
-
-    fig.add_trace(
-        go.Violin(
-            x=xs[1],
-            y=ys[1],
-            legendgroup=condition,
-            name="Descending",
-            # scalegroup="Descending",
-            side="positive",
-            line_color=subcolors_discrete_map[condition][1],
-            # points="all"
-        ),
-        row=1,
-        col=col,
-    )
-
-# https://stackoverflow.com/a/63221694/10249633
-for ax in fig["layout"]:
-    if ax[:5] == "xaxis":
-        fig["layout"][ax]["tickmode"] = "array"
-        fig["layout"][ax]["tickvals"] = [1]
-        fig["layout"][ax]["ticktext"] = [""]
+# fig.update_xaxes(title="% dispersion<br><sub>100 * (max - min) / max</sub>")
+# fig.update_yaxes(title="Transcripts", type="log")
 
 fig.update_layout(
-    title_text=head_title,
+    # showlegend=False,+
+    width=600,
+    height=500,
     template=template,
-    legend_title_text=f"{condition_col}, Algorithm",
-    legend_font=dict(size=12),
-    legend_grouptitlefont=dict(size=9),
-    legend_tracegroupgap=4,
-    # violingap=0,
-    # violinmode='overlay'
 )
-# fig.update_yaxes(range=[0, distinct_unique_proteins_df["NumOfProteins"].max()*1.05])
+
+# fig.write_image(
+#     "%SolutionsDispersion - Octopus.svg",
+#     width=600,
+#     height=400
+# )
+
 fig.show()
 
+# %%
+fig = px.scatter(
+    dispersion_df.loc[dispersion_df["%SolutionsDispersion"] > 0],
+    x="NumOfReads",
+    y="%SolutionsDispersion",
+    # size="%SolutionsDispersion",
+    # facet_col="HighDispersion",
+    color="HighDispersion",
+    # color="NumOfReads",
+    # marginal_y="box",
+    # marginal_x="box",
+    # log_x=True,
+    log_y=True,
+)
 
-# %% [markdown]
+# fig.update_xaxes(title="% dispersion<br><sub>100 * (max - min) / max</sub>")
+# fig.update_yaxes(title="Transcripts", type="log")
+
+fig.update_layout(
+    # showlegend=False,+
+    width=600,
+    height=500,
+    template=template,
+)
+
+# fig.write_image(
+#     "%SolutionsDispersion - Octopus.svg",
+#     width=600,
+#     height=400
+# )
+
+fig.show()
+
+# %%
+fig = px.scatter(
+    dispersion_df.loc[dispersion_df["%SolutionsDispersion"] > 0],
+    x="MinNumOfProteins",
+    y="MaxNumOfProteins",
+    # size="%SolutionsDispersion",
+    facet_col="HighDispersion",
+    # color="HighDispersion",
+    color="NumOfReads",
+    # marginal_y="box",
+    # marginal_x="box",
+    # log_y=True
+)
+
+# fig.update_xaxes(title="% dispersion<br><sub>100 * (max - min) / max</sub>")
+# fig.update_yaxes(title="Transcripts", type="log")
+
+fig.update_layout(
+    # showlegend=False,+
+    width=1200,
+    height=500,
+    template=template,
+)
+
+# fig.write_image(
+#     "%SolutionsDispersion - Octopus.svg",
+#     width=600,
+#     height=400
+# )
+
+fig.show()
+
+# %%
+fig = go.Figure(
+    go.Histogram(
+        x=dispersion_df["%SolutionsDispersion"],
+        marker_color="black",
+    )
+)
+
+fig.update_xaxes(title="% dispersion<br><sub>100 * (max - min) / max</sub>")
+fig.update_yaxes(title="Transcripts", type="log")
+
+fig.update_layout(
+    # showlegend=False,+
+    width=600,
+    height=400,
+    template=template,
+)
+
+fig.write_image("%SolutionsDispersion - Octopus.svg", width=600, height=400)
+
+fig.show()
+
+# %%
+# y_axis_name = "Distinct unique proteins"
+# head_title = "Distinct unique proteins vs. heuristic method"
+
+# fig = make_subplots(
+#     rows=1,
+#     cols=len(conditions),
+#     print_grid=False,
+#     y_title=y_axis_name,
+#     subplot_titles=conditions,
+#     shared_yaxes=True,
+# )
+
+# algorithms = ["Ascending", "Descending"]
+
+# for col, condition in enumerate(conditions, start=1):
+
+#     df = distinct_unique_proteins_df.loc[
+#         distinct_unique_proteins_df[condition_col] == condition
+#     ]
+
+#     xs = [
+#         df.loc[df["Algorithm"] == algorithm, condition_col] for algorithm in algorithms
+#     ]
+#     ys = [
+#         df.loc[df["Algorithm"] == algorithm, "NumOfProteins"]
+#         for algorithm in algorithms
+#     ]
+
+#     fig.add_trace(
+#         go.Violin(
+#             x=xs[0],
+#             y=ys[0],
+#             legendgrouptitle_text=condition,
+#             legendgroup=condition,
+#             name="Ascending",
+#             # scalegroup="Ascending",
+#             side="negative",
+#             line_color=subcolors_discrete_map[condition][0],
+#             # points="all"
+#         ),
+#         row=1,
+#         col=col,
+#     )
+
+#     fig.add_trace(
+#         go.Violin(
+#             x=xs[1],
+#             y=ys[1],
+#             legendgroup=condition,
+#             name="Descending",
+#             # scalegroup="Descending",
+#             side="positive",
+#             line_color=subcolors_discrete_map[condition][1],
+#             # points="all"
+#         ),
+#         row=1,
+#         col=col,
+#     )
+
+# # https://stackoverflow.com/a/63221694/10249633
+# for ax in fig["layout"]:
+#     if ax[:5] == "xaxis":
+#         fig["layout"][ax]["tickmode"] = "array"
+#         fig["layout"][ax]["tickvals"] = [1]
+#         fig["layout"][ax]["ticktext"] = [""]
+
+# fig.update_layout(
+#     title_text=head_title,
+#     template=template,
+#     legend_title_text=f"{condition_col}, Algorithm",
+#     legend_font=dict(size=12),
+#     legend_grouptitlefont=dict(size=9),
+#     legend_tracegroupgap=4,
+#     # violingap=0,
+#     # violinmode='overlay'
+# )
+# # fig.update_yaxes(range=[0, distinct_unique_proteins_df["NumOfProteins"].max()*1.05])
+# fig.show()
+
+
+# %% [markdown] toc-hr-collapsed=true toc-hr-collapsed=true
 # #### Jaccard (overlap of solutions)
 
 # %%
