@@ -30,6 +30,7 @@ from itertools import chain, combinations, product
 from math import ceil
 from multiprocessing import Pool
 from pathlib import Path
+from collections import defaultdict
 
 from scipy import interpolate  # todo unimport this later?
 import matplotlib.pyplot as plt
@@ -4554,7 +4555,7 @@ ax.set(xscale="log")
 # %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"} tags=[]
 # ### Distinct unique proteins
 
-# %% [markdown] toc-hr-collapsed=true tags=[] toc-hr-collapsed=true toc-hr-collapsed=true tags=[] toc-hr-collapsed=true
+# %% [markdown] toc-hr-collapsed=true tags=[] toc-hr-collapsed=true toc-hr-collapsed=true tags=[] toc-hr-collapsed=true toc-hr-collapsed=true toc-hr-collapsed=true
 # #### Jaccard - TODO - erase?
 
 # %%
@@ -5072,6 +5073,9 @@ for expression_file in expression_files:
     )
     expression_dfs.append(expression_df)
 expression_dfs[0]
+
+# %%
+expression_dfs[0]["Fraction"].unique()
 
 
 # %%
@@ -6053,17 +6057,30 @@ cols = min(facet_col_wrap, len(conditions), 3)
 rows = ceil(len(conditions) / cols)
 row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
 
-linear_spaces = [(300, 15_000), (250, 23_000)]  # (start, end) tuples for both x and y
+# (start, end) tuples for both x and y
+linear_spaces = [
+    (300, 15_000), 
+    # (250, 23_000)
+    (700, 15_000)
+]  
+
 forward_transforms = [
     (linear_to_log10, linear_to_log10),
-    (linear_to_log10, inverse),
+    # (linear_to_log10, inverse),
+    (linear_to_log10, linear_to_log10),
 ]  # (x, y) tuples
 reverse_transforms = [
     (log10_to_linear, log10_to_linear),
-    (log10_to_linear, inverse),
+    # (log10_to_linear, inverse),
+    (log10_to_linear, log10_to_linear),
 ]  # (x, y) tuples
-# formulate_equations = [formulate_log10_equation, formulate_semilog10_equation]
-fit_texts = ["    y ~ 1 / sqrt(x)", "    y ~ 1 / log(x)"]
+
+formulate_equations = [
+    formulate_log10_equation, 
+    # formulate_semilog10_equation
+    formulate_log10_equation
+]
+# fit_texts = ["    y ~ 1 / sqrt(x)", "    y ~ 1 / log(x)"]
 
 maximal_dfs = [
     expression_df.loc[expression_df["#Solution"] == maximal_solution].reset_index(
@@ -6117,7 +6134,8 @@ for (
     linear_space,
     (forward_x_transform, forward_y_transform),
     (reverse_x_transform, reverse_y_transform),
-    fit_text,
+    # fit_text,
+    formulate_equation
 ) in zip(
     row_col_iter,
     conditions,
@@ -6126,7 +6144,8 @@ for (
     linear_spaces,
     forward_transforms,
     reverse_transforms,
-    fit_texts,
+    # fit_texts,
+    formulate_equations
 ):
 
     assignment_df = maximal_df.sort_values(
@@ -6184,8 +6203,8 @@ for (
     # Make predictions using the testing set
     pred_y = regr.predict(np.array(test_x).reshape(-1, 1))
 
-    # transform these variables back to original scale so they can plotted
-    test_x = reverse_x_transform(test_x)
+    # transform these variables back to original scale so that they can plotted
+    test_x = reverse_x_transform(test_x)  # should be equivalent to `test_x = x[test_logspace]`?
     pred_y = reverse_y_transform(pred_y)
 
     fig.add_trace(
@@ -6213,6 +6232,32 @@ for (
     # text_y = 0.05
     text_x = np.log10(text_x)
     text_y = np.log10(text_y)
+    
+    coef = regr.coef_[0]
+    intercept = regr.intercept_
+    # mse = mean_squared_error(test_y, pred_y)
+    # r2 = r2_score(test_y, pred_y)
+    # if intercept >= 0:
+    #     operator = "+"
+    # else:
+    #     operator = "-"
+    #     intercept = np.abs(intercept)
+    equation = formulate_equation(coef, intercept)
+    
+    ic(condition)
+    ic(equation)
+    
+    fit_text_new = (
+        # f"<b>{assignment_method}</b>"
+        # "<br>"
+        # f"<b>y = {coef:.2f}x {operator} {intercept:.2f}</b>"
+        # f"y = {coef:.2f}x {operator} {intercept:.2f}"
+        f"{equation}"
+        # "<br>"
+        # f"MSE = {mse:.2f}"  # 0 is perfect prediction
+        # "<br>"
+        # f"R2 = {r2:.2f}"  # 1 is perfect prediction
+    )
 
     fig.add_annotation(
         row=row,
@@ -6221,9 +6266,10 @@ for (
         y=text_y,
         xref="x",
         yref="y",
-        text=fit_text,
+        # text=fit_text,
+        text=fit_text_new,
         align="center",
-        font=dict(size=12, color="grey"),
+        font=dict(size=10, color="grey"),
         showarrow=False,
     )
 
@@ -6241,7 +6287,8 @@ fig.update_yaxes(type="log")
 fig.write_image(
     f"{head_title} - PacBio.svg",
     height=max(400, 200 * rows),
-    width=max(650, 250 * cols),
+    # width=max(650, 250 * cols),
+    width=max(830, 250 * cols),
 )
 fig.show()
 # fig.show(config={'staticPlot': True, 'responsive': False})
@@ -6294,99 +6341,12 @@ def drop_uniformative_aa_cols(df):
 
 
 # %%
-unique_proteins_dfs[1]
 
 # %%
-max_sol_df = max_sol_dfs[1]
-unique_proteins_df = unique_proteins_dfs[1]
-sorting_col = "%WeightedTotalExpression"
-
-cols_to_use_from_max_sol_df = [
-    condition_col,
-    "Protein",
-    "#Solution",
-    "Algorithm",
-    "TotalEqualSupportingReads",
-    "TotalWeightedSupportingReads",
-    "Diff5+",
-]
-cols_to_use_from_unique_proteins_df = [
-    condition_col,
-    "Protein",
-] + unique_proteins_df.columns[unique_proteins_first_col_pos:].to_list()
-
-df = max_sol_df.loc[:, cols_to_use_from_max_sol_df].merge(
-    unique_proteins_df.loc[:, cols_to_use_from_unique_proteins_df],
-    how="left",
-    on=[condition_col, "Protein"],
-)
-
-df
 
 # %%
-df_a = df.iloc[:, :7]
-# df_a
 
 # %%
-aa_cols = df.columns[7:]
-
-original_aas = [col.split("(")[1][0] for col in aa_cols]
-
-df_b = df.iloc[:, 7:]
-
-# df_b = df_b.apply(
-#     lambda row: [
-#         update_cell(cell, original_aa, 0, np.nan, 1)
-#         for cell, original_aa in zip(row, original_aas)
-#     ],
-#     axis=1,
-#     result_type="broadcast",
-# )
-
-df_b
-
-# %%
-df_b_value_counts = df_b.apply(
-    lambda x: x.value_counts(normalize=True),
-    # axis=1
-)
-# df_b_value_counts = df_b_value_counts.fillna(0).T
-# df_b_value_counts = df_b_value_counts.T
-df_b_value_counts
-
-# %%
-df_b_value_counts.iloc[:5, 0].notna().sum()
-
-# %%
-df_b_value_counts.apply(
-    lambda x: x.notna().sum(),
-    # axis=1
-)
-
-# %%
-from collections import defaultdict
-
-# %%
-vc = defaultdict(dict)
-
-for col, col_vcs in df_b_value_counts.to_dict().items():
-    for aas_combination, count in col_vcs.items():
-        if count > 0:
-            vc[col][aas_combination] = count
-
-vc
-
-# %%
-df_b_value_counts.to_dict()
-
-# %%
-df_b_value_counts.to_dict()["2214:2217(Y)"]
-
-# %%
-df_b.apply(lambda x: x.value_counts(), axis=1)
-
-# %%
-df_b.iloc[:, 0]
 
 # %%
 
@@ -7149,71 +7109,133 @@ n_iter_500_weighted_conditions_tsnes, n_iter_500_weighted_conditions_Xs = run_ts
     n_jobs=n_jobs,
 )
 
-# %%
-rank_cutoff = 1000
-
-head_title = (
-    f"t-SNEs for largest solution of each {str(condition_col).lower()} under different perplexities"
-    # "<br>"
-    # f"<sub>{rank_cutoff} highest expressed proteins are colored</sub>"
-)
-row_titles = conditions
-column_titles = [f"Perplexity = {perplexity}" for perplexity in perplexities]
+# %% tags=[]
+cols = min(facet_col_wrap, len(conditions), 5)
+rows = ceil(len(conditions) / cols)
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
 
 fig = make_subplots(
-    rows=len(conditions),
-    cols=len(perplexities),
-    row_titles=row_titles,
-    column_titles=column_titles,
+    rows=rows,
+    cols=cols,
+    subplot_titles=conditions,
     # shared_yaxes=True,
-    # shared_xaxes=True
+    # x_title=x_title,
+    # y_title=y_title,
 )
+
+# min_x = None
+# max_x = 0
+# max_y = 0
 
 marker_size = 1
 line_width = 0.5
 
-for row, (condition, X, condition_tsnes) in enumerate(
-    zip(
-        conditions,
-        n_iter_500_weighted_conditions_Xs,
-        n_iter_500_weighted_conditions_tsnes,
-    ),
-    start=1,
-):
 
-    # n = X.shape[0]
-    # color_options = [color_discrete_map[condition], "white"]
-    # colors = color_highest_expressed_proteins(n, rank_cutoff, color_options)
+for (row, col), condition, X, condition_tsnes in zip(row_col_iter, conditions, n_iter_500_weighted_conditions_Xs, n_iter_500_weighted_conditions_tsnes):
+
     colors = "white"
 
-    for col, prots_perplexity_tsne in enumerate(condition_tsnes, start=1):
+    prots_perplexity_tsne = condition_tsnes[-1]  # perplexity 150
 
-        x, y = prots_perplexity_tsne.T
+    x, y = prots_perplexity_tsne.T
 
-        fig.add_trace(
-            go.Scattergl(
-                x=x,
-                y=y,
-                mode="markers",
-                marker=dict(color=colors, line_width=line_width, size=marker_size),
-            ),
-            row=row,
-            col=col,
-        )
-
+    fig.add_trace(
+        go.Scattergl(
+        # go.Scatter(
+            x=x,
+            y=y,
+            mode="markers",
+            marker=dict(color=colors, line_width=line_width, size=marker_size),
+        ),
+        row=row,
+        col=col,
+    )
+    
+    
 fig.update_layout(
-    title_text=head_title,
-    title_y=0.95,
+    # title_text=head_title,
+    # title_y=0.95,
     template=template,
     showlegend=False,
-    width=1200,
-    height=600,
+    width=600, 
+    height=350
 )
 
-fig.write_image("tSNE clustering - PacBio.svg", width=1200, height=600)
+fig.write_image("tSNE clustering - PacBio.svg", width=600, height=350)
 
 fig.show()
 
+
+# %%
+
+# %%
+# rank_cutoff = 1000
+
+# head_title = (
+#     f"t-SNEs for largest solution of each {str(condition_col).lower()} under different perplexities"
+#     # "<br>"
+#     # f"<sub>{rank_cutoff} highest expressed proteins are colored</sub>"
+# )
+# row_titles = conditions
+# column_titles = [f"Perplexity = {perplexity}" for perplexity in perplexities]
+
+# fig = make_subplots(
+#     rows=len(conditions),
+#     cols=len(perplexities),
+#     row_titles=row_titles,
+#     column_titles=column_titles,
+#     # shared_yaxes=True,
+#     # shared_xaxes=True
+# )
+
+# marker_size = 1
+# line_width = 0.5
+
+# for row, (condition, X, condition_tsnes) in enumerate(
+#     zip(
+#         conditions,
+#         n_iter_500_weighted_conditions_Xs,
+#         n_iter_500_weighted_conditions_tsnes,
+#     ),
+#     start=1,
+# ):
+
+#     # n = X.shape[0]
+#     # color_options = [color_discrete_map[condition], "white"]
+#     # colors = color_highest_expressed_proteins(n, rank_cutoff, color_options)
+#     colors = "white"
+
+#     for col, prots_perplexity_tsne in enumerate(condition_tsnes, start=1):
+
+#         x, y = prots_perplexity_tsne.T
+
+#         fig.add_trace(
+#             go.Scattergl(
+#                 x=x,
+#                 y=y,
+#                 mode="markers",
+#                 marker=dict(color=colors, line_width=line_width, size=marker_size),
+#             ),
+#             row=row,
+#             col=col,
+#         )
+
+# fig.update_layout(
+#     title_text=head_title,
+#     title_y=0.95,
+#     template=template,
+#     showlegend=False,
+#     width=1200,
+#     height=600,
+# )
+
+# fig.write_image("tSNE clustering - PacBio.svg", width=1200, height=600)
+
+# fig.show()
+
+# %%
+
+# %%
 
 # %%
 # # equal_conditions_pcas = run_pcas(conditions, equal_exp_tsne_input_dfs, seed)
@@ -7685,9 +7707,132 @@ fig.update_yaxes(
 fig.update_layout(height=700, width=650, template=template, font_size=16)
 
 fig.write_image(
-    "Combinatorics of top 100 expressed proteins in PCLO - Flash talk - PacBio.svg",
+    "Combinatorics of top 100 expressed proteins in PCLO - PacBio.svg",
     width=650,
     height=700,
+)
+
+fig.show()
+
+# %%
+unique_proteins_dfs[1]
+
+# %%
+max_sol_df = max_sol_dfs[1]
+unique_proteins_df = unique_proteins_dfs[1]
+sorting_col = "%WeightedTotalExpression"
+
+cols_to_use_from_max_sol_df = [
+    condition_col,
+    "Protein",
+    "#Solution",
+    "Algorithm",
+    "TotalEqualSupportingReads",
+    "TotalWeightedSupportingReads",
+    "Diff5+",
+]
+cols_to_use_from_unique_proteins_df = [
+    condition_col,
+    "Protein",
+] + unique_proteins_df.columns[unique_proteins_first_col_pos:].to_list()
+
+df = max_sol_df.loc[:, cols_to_use_from_max_sol_df].merge(
+    unique_proteins_df.loc[:, cols_to_use_from_unique_proteins_df],
+    how="left",
+    on=[condition_col, "Protein"],
+)
+
+# df
+
+aa_cols = df.columns[7:]
+original_aas = [col.split("(")[1][0] for col in aa_cols]
+df_b = df.iloc[:100, 7:]
+
+df_b_value_counts = df_b.apply(
+    lambda x: x.value_counts(
+        # normalize=True
+    ),
+    # axis=1
+)
+# df_b_value_counts = df_b_value_counts.fillna(0).T
+# df_b_value_counts = df_b_value_counts.T
+df_b_value_counts
+
+# %%
+
+# %%
+df_b_value_counts_2 = df_b_value_counts.reset_index().rename(columns={"index": "NewAA"}).fillna(0)
+
+df_b_value_counts_2 = df_b_value_counts_2.melt(
+    id_vars="NewAA",
+    var_name="Position",
+    value_name="Count"
+)
+
+df_b_value_counts_2["OriginalAA"] = df_b_value_counts_2["Position"].apply(lambda x: x.split("(")[1][0])
+df_b_value_counts_2["IsRecoding"] = df_b_value_counts_2.apply(
+    lambda x: x["OriginalAA"] not in set(x["NewAA"].split(",")),
+    axis=1
+)
+
+# df_b_value_counts_2 = df_b_value_counts_2.loc[
+#     (df_b_value_counts_2["Count"] > 0) &
+#     (df_b_value_counts_2["IsRecoding"])
+# ].reset_index(drop=True)
+
+df_b_value_counts_2 = df_b_value_counts_2.loc[df_b_value_counts_2["IsRecoding"]]
+
+df_b_value_counts_2
+
+# %%
+df_b_value_counts_2.loc[df_b_value_counts_2["Count"] > 0].groupby("Position").size().reset_index()[0].value_counts()
+
+# %%
+recoding_changes = df_b_value_counts_2.loc[df_b_value_counts_2["Count"] > 0, "NewAA"].unique()
+all_changes = df_b_value_counts_2["NewAA"].unique()
+
+# recoding_color_sequence = px.colors.qualitative.Alphabet
+recoding_color_sequence = px.colors.qualitative.Plotly
+recoding_color_discrete_map = {}
+i = 0
+for aa_change in all_changes:
+    if aa_change in recoding_changes:
+        color = recoding_color_sequence[i]
+        i += 1
+    else:
+        color = "white"
+    recoding_color_discrete_map[aa_change] = color
+
+fig = px.bar(
+    df_b_value_counts_2,
+    x="Position",
+    y="Count",
+    color="NewAA",
+    color_discrete_map=recoding_color_discrete_map,
+    labels={"NewAA": "Recoding<br>substitution"},
+    template=template,
+    # text_auto=True
+)
+
+# Set the "for" loop and "if" condition to hide the legend for the first and third columns.
+for trace in fig['data']:
+   # Hide legend column names not equal to 'two'
+   if(trace['name'] not in recoding_changes): 
+        trace['showlegend'] = False
+
+# fig.for_each_annotation(
+#     lambda a: a.update(text=a.text.replace(f"{condition_col}=", ""))
+# )
+fig.update_layout(
+    width=1500,
+    height=400,
+    xaxis = dict(tickfont = dict(size=7), title="Transcriptomic positions (corresponding editable AA)")
+)
+
+fig.write_image(
+    "Recoding events per top 100 expressed proteins in PCLO - PacBio.svg",
+    width=1500,
+    height=400,
 )
 
 fig.show()

@@ -5272,8 +5272,8 @@ linear_spaces = [
     (943, 5475),
     (88, 31_300),  # 3
     (103, 17_500),
-    (942, 21_007),
-    (179, 1142),
+    (98, 21_007),
+    (140, 1142),
     (83, 5553),
     (107, 4218),
     (120, 13_000),
@@ -5288,53 +5288,57 @@ linear_spaces = [
     (85, 19_337),
 ]
 
-forward_transforms = [
-    (linear_to_log10, linear_to_log10),
-    (linear_to_log10, linear_to_log10),
-    (linear_to_log10, linear_to_log10),
-    (linear_to_log10, linear_to_log10),  # 3
-    (linear_to_log10, linear_to_log10),
-    (linear_to_log10, linear_to_log10),
-    # (linear_to_log10, linear_to_log10),
-    (linear_to_log10, inverse),
-    (linear_to_log10, linear_to_log10),
-    (linear_to_log10, linear_to_log10),
-    (linear_to_log10, linear_to_log10),
-    (linear_to_log10, linear_to_log10),
-    (linear_to_log10, linear_to_log10),
-    (linear_to_log10, linear_to_log10),
-    (linear_to_log10, linear_to_log10),
-    (linear_to_log10, linear_to_log10),
-    (linear_to_log10, linear_to_log10),
-    (linear_to_log10, linear_to_log10),
-    (linear_to_log10, inverse),
-    (linear_to_log10, linear_to_log10),
-    # (linear_to_log10, inverse),
-]
+# forward_transforms = [
+#     (linear_to_log10, linear_to_log10),
+#     (linear_to_log10, linear_to_log10),
+#     (linear_to_log10, linear_to_log10),
+#     (linear_to_log10, linear_to_log10),  # 3
+#     (linear_to_log10, linear_to_log10),
+#     (linear_to_log10, linear_to_log10),
+#     # (linear_to_log10, linear_to_log10),
+#     (linear_to_log10, inverse),
+#     (linear_to_log10, linear_to_log10),
+#     (linear_to_log10, linear_to_log10),
+#     (linear_to_log10, linear_to_log10),
+#     (linear_to_log10, linear_to_log10),
+#     (linear_to_log10, linear_to_log10),
+#     (linear_to_log10, linear_to_log10),
+#     (linear_to_log10, linear_to_log10),
+#     (linear_to_log10, linear_to_log10),
+#     (linear_to_log10, linear_to_log10),
+#     (linear_to_log10, linear_to_log10),
+#     (linear_to_log10, inverse),
+#     (linear_to_log10, linear_to_log10),
+#     # (linear_to_log10, inverse),
+# ]
 
-reverse_transforms = [
-    (log10_to_linear, log10_to_linear),
-    (log10_to_linear, log10_to_linear),
-    (log10_to_linear, log10_to_linear),
-    (log10_to_linear, log10_to_linear),  # 3
-    (log10_to_linear, log10_to_linear),
-    (log10_to_linear, log10_to_linear),
-    # (log10_to_linear, log10_to_linear),
-    (log10_to_linear, inverse),
-    (log10_to_linear, log10_to_linear),
-    (log10_to_linear, log10_to_linear),
-    (log10_to_linear, log10_to_linear),
-    (log10_to_linear, log10_to_linear),  # 3
-    (log10_to_linear, log10_to_linear),
-    (log10_to_linear, log10_to_linear),
-    (log10_to_linear, log10_to_linear),
-    (log10_to_linear, log10_to_linear),
-    (log10_to_linear, log10_to_linear),
-    (log10_to_linear, log10_to_linear),
-    (log10_to_linear, inverse),
-    (log10_to_linear, log10_to_linear),
-    # (log10_to_linear, inverse),
-]
+# reverse_transforms = [
+#     (log10_to_linear, log10_to_linear),
+#     (log10_to_linear, log10_to_linear),
+#     (log10_to_linear, log10_to_linear),
+#     (log10_to_linear, log10_to_linear),  # 3
+#     (log10_to_linear, log10_to_linear),
+#     (log10_to_linear, log10_to_linear),
+#     # (log10_to_linear, log10_to_linear),
+#     (log10_to_linear, inverse),
+#     (log10_to_linear, log10_to_linear),
+#     (log10_to_linear, log10_to_linear),
+#     (log10_to_linear, log10_to_linear),
+#     (log10_to_linear, log10_to_linear),  # 3
+#     (log10_to_linear, log10_to_linear),
+#     (log10_to_linear, log10_to_linear),
+#     (log10_to_linear, log10_to_linear),
+#     (log10_to_linear, log10_to_linear),
+#     (log10_to_linear, log10_to_linear),
+#     (log10_to_linear, log10_to_linear),
+#     (log10_to_linear, inverse),
+#     (log10_to_linear, log10_to_linear),
+#     # (log10_to_linear, inverse),
+# ]
+
+forward_transforms = [(linear_to_log10, linear_to_log10)] * len(conditions)
+reverse_transforms = [(log10_to_linear, log10_to_linear)] * len(conditions)
+formulate_equations = [formulate_log10_equation] * len(conditions)
 
 fit_texts = [
     "    y ~ 1 / sqrt(x)",
@@ -5413,7 +5417,8 @@ for (
     linear_space,
     (forward_x_transform, forward_y_transform),
     (reverse_x_transform, reverse_y_transform),
-    fit_text,
+    # fit_text,
+    formulate_equation,
 ) in zip(
     row_col_iter,
     conditions,
@@ -5421,7 +5426,8 @@ for (
     linear_spaces,
     forward_transforms,
     reverse_transforms,
-    fit_texts,
+    # fit_texts,
+    formulate_equations,
 ):
 
     assignment_df = maximal_df.sort_values(
@@ -5463,7 +5469,7 @@ for (
     train_logspace = [
         int(i)
         for i in np.logspace(
-            np.log10(linear_space[0]), np.log10(linear_space[1]), num=1000
+            np.log10(linear_space[0]), np.log10(linear_space[1]), num=1000 if condition != conditions[6] else 400
         )
     ]
     # test_logspace = [
@@ -5476,7 +5482,7 @@ for (
     test_logspace = [
         int(i)
         for i in np.logspace(
-            np.log10(linear_space[0]), np.log10(linear_space[1]), num=800
+            np.log10(linear_space[0]), np.log10(linear_space[1]), num=800  if condition != conditions[6] else 200
         )
         if int(i) not in train_logspace
     ]
@@ -5524,6 +5530,34 @@ for (
     text_y = pred_y[i] + 0.03
     text_x = np.log10(text_x)
     text_y = np.log10(text_y)
+    
+    coef = regr.coef_[0]
+    intercept = regr.intercept_
+    # mse = mean_squared_error(test_y, pred_y)
+    # r2 = r2_score(test_y, pred_y)
+    # if intercept >= 0:
+    #     operator = "+"
+    # else:
+    #     operator = "-"
+    #     intercept = np.abs(intercept)
+    equation = formulate_equation(coef, intercept)
+    
+    # if condition == conditions[6]:
+    #     ic(condition)
+    #     ic(equation)
+    #     ic
+    
+    fit_text_new = (
+        # f"<b>{assignment_method}</b>"
+        # "<br>"
+        # f"<b>y = {coef:.2f}x {operator} {intercept:.2f}</b>"
+        # f"y = {coef:.2f}x {operator} {intercept:.2f}"
+        f"{equation}"
+        # "<br>"
+        # f"MSE = {mse:.2f}"  # 0 is perfect prediction
+        # "<br>"
+        # f"R2 = {r2:.2f}"  # 1 is perfect prediction
+    )
 
     fig.add_annotation(
         row=row,
@@ -5532,7 +5566,8 @@ for (
         y=text_y,
         xref="x",
         yref="y",
-        text=fit_text,
+        # text=fit_text,
+        text=fit_text_new,
         align="center",
         font=dict(size=9, color="grey"),
         showarrow=False,
@@ -5919,9 +5954,13 @@ weighted_exp_tsne_input_dfs[0]
 
 # %%
 # perplexities = [5, 30, 50, 100]
-perplexities = [5, 30, 50, 100, 150]
+# perplexities = [5, 30, 50, 100, 150]
+perplexities = [150]
 n_iter = 500
 n_jobs = 40
+
+# %%
+perplexities[-1]
 
 # %%
 # n_iter_500_equal_conditions_tsnes, n_iter_500_equal_conditions_Xs = run_tsnes(
@@ -5942,7 +5981,69 @@ n_iter_500_weighted_conditions_tsnes, n_iter_500_weighted_conditions_Xs = run_ts
 )
 
 # %%
+len(n_iter_500_weighted_conditions_tsnes)
+
+# %% jupyter={"source_hidden": true, "outputs_hidden": true} tags=[]
 help(fig.write_image)
+
+# %% tags=[]
+cols = min(facet_col_wrap, len(conditions), 5)
+rows = ceil(len(conditions) / cols)
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
+
+fig = make_subplots(
+    rows=rows,
+    cols=cols,
+    subplot_titles=conditions,
+    # shared_yaxes=True,
+    # x_title=x_title,
+    # y_title=y_title,
+)
+
+# min_x = None
+# max_x = 0
+# max_y = 0
+
+marker_size = 1
+line_width = 0.5
+
+
+for (row, col), condition, X, condition_tsnes in zip(row_col_iter, conditions, n_iter_500_weighted_conditions_Xs, n_iter_500_weighted_conditions_tsnes):
+
+    colors = "white"
+
+    prots_perplexity_tsne = condition_tsnes[-1]  # perplexity 150
+
+    x, y = prots_perplexity_tsne.T
+
+    fig.add_trace(
+        # go.Scattergl(
+        go.Scatter(
+            x=x,
+            y=y,
+            mode="markers",
+            marker=dict(color=colors, line_width=line_width, size=marker_size),
+        ),
+        row=row,
+        col=col,
+    )
+    
+    
+fig.update_layout(
+    # title_text=head_title,
+    # title_y=0.95,
+    template=template,
+    showlegend=False,
+    # width=1500,
+    # height=300 * len(conditions),
+)
+
+# fig.write_image(
+#     "tSNE clustering - Illumina.svg", width=1500, height=300 * len(conditions)
+# )
+
+# fig.show()
+
 
 # %%
 rank_cutoff = 1000
@@ -6010,7 +6111,75 @@ fig.write_image(
     "tSNE clustering - Illumina.svg", width=1500, height=300 * len(conditions)
 )
 
-fig.show()
+# fig.show()
+
+# %%
+rank_cutoff = 1000
+
+head_title = (
+    f"t-SNEs for largest solution of each {str(condition_col).lower()} under different perplexities"
+    # "<br>"
+    # f"<sub>{rank_cutoff} highest expressed proteins are colored</sub>"
+)
+row_titles = conditions
+column_titles = [f"Perplexity = {perplexity}" for perplexity in perplexities]
+
+fig = make_subplots(
+    rows=len(conditions),
+    cols=len(perplexities),
+    row_titles=row_titles,
+    column_titles=column_titles,
+    # shared_yaxes=True,
+    # shared_xaxes=True
+)
+
+marker_size = 1
+line_width = 0.5
+
+for row, (condition, X, condition_tsnes) in enumerate(
+    zip(
+        conditions,
+        n_iter_500_weighted_conditions_Xs,
+        n_iter_500_weighted_conditions_tsnes,
+    ),
+    start=1,
+):
+
+    # n = X.shape[0]
+    # color_options = [color_discrete_map[condition], "white"]
+    # colors = color_highest_expressed_proteins(n, rank_cutoff, color_options)
+    colors = "white"
+
+    for col, prots_perplexity_tsne in enumerate(condition_tsnes, start=1):
+
+        x, y = prots_perplexity_tsne.T
+
+        fig.add_trace(
+            # go.Scattergl(
+            go.Scatter(
+                x=x,
+                y=y,
+                mode="markers",
+                marker=dict(color=colors, line_width=line_width, size=marker_size),
+            ),
+            row=row,
+            col=col,
+        )
+
+fig.update_layout(
+    # title_text=head_title,
+    # title_y=0.95,
+    template=template,
+    showlegend=False,
+    width=1500,
+    height=300 * len(conditions),
+)
+
+fig.write_image(
+    "tSNE clustering - Illumina.svg", width=1500, height=300 * len(conditions)
+)
+
+# fig.show()
 
 # %%
 fig.write_image(
