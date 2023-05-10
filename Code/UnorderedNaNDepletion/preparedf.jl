@@ -35,8 +35,8 @@ function preparedf!(
     if datatype == "Reads"
         df = DataFrame(CSV.File(infile, delim=delim))
     elseif datatype == "Proteins"
-        # df1 = DataFrame(CSV.File(infile, delim=delim, select=collect(1:firstcolpos-1)))
-        df1 = DataFrame(CSV.File(infile, delim=delim, select=collect(1:firstcolpos-1), types=Dict("Protein" => String)))
+        # note: "Protein" is actually the ID of a *unique* protein!!!
+        df1 = DataFrame(CSV.File(infile, delim=delim, select=collect(1:firstcolpos-1), types=Dict("Protein" => String)))  
         df1[!, "Protein"] = InlineString.(df1[!, :Protein])
         # make sure columns of AAs containing only Ts aren't parsed as boolean columns
         df2 = DataFrame(CSV.File(infile, delim=delim, drop=collect(1:firstcolpos-1), types=String))
@@ -64,8 +64,15 @@ function preparedf!(
         df = hcat(select(df, idcol), df[:, firstcolpos:end])
         firstcolpos = 2
     elseif datatype == "Proteins"
-        df = hcat(select(df, idcol), toAAset.(df[:, firstcolpos:end]))
-        firstcolpos = 2
+        
+        # df = hcat(select(df, idcol), toAAset.(df[:, firstcolpos:end]))
+        # firstcolpos = 2
+        
+        # include also the name of every read supporting a unique protein
+        rename!(df, "Reads" => "Read")
+        df = hcat(select(df, idcol, "Read"), toAAset.(df[:, firstcolpos:end]))
+        firstcolpos = 3
+
     else
         throw("datatype must be either `Reads` or `Proteins`")
     end

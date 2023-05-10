@@ -505,82 +505,80 @@ main();
 
 # samplenames = chroms
 
-# # infile = "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/comp144504_c0_seq1.unique_proteins.csv"
-# firstcolpos = 16
+# infile = "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
+# firstcolpos = 15
 # delim = "\t"
 # idcol = "Protein"
 # datatype = "Proteins"
 # testfraction = 1.0
 # randseed = 1892
 
-# # samplename = "comp179788_c0_seq1"
-# outdir = "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered/DistinctProteins.Addendum"
-# mkpath(outdir)
+# # # samplename = "comp179788_c0_seq1"
+# # outdir = "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered/DistinctProteins.Addendum"
+# # mkpath(outdir)
 
-# postfix_to_add = ""
-# # postfix_to_remove = ".unique_proteins.csv.gz"
-# fracstep = 0.2
-# maxfrac = 1.0
-# fracrepetitions = 4
-# algrepetitions = 2
-# run_solve_threaded = true
-# sortresults = false
-# algs = ["Ascending", "Descending"]
-# substitutionmatrix = nothing
-# aagroups = nothing
-# similarityscorecutoff = 0
-# similarityvalidator = >=
-
-
-# for (infile, samplename) in zip(infiles, samplenames)
-#     run_sample(
-#         infile, delim, samplename, idcol, firstcolpos, datatype, outdir, postfix_to_add,
-#         fracstep, maxfrac, fracrepetitions, algrepetitions, testfraction, randseed,
-#         run_solve_threaded, sortresults, algs,
-#         substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups
-#     )
-# end
-# df, firstcolpos = preparedf!(
-#     infile, delim, datatype, idcol, firstcolpos,
-#     testfraction, randseed
-# )
-
-# G = indistinguishable_rows(df, idcol; firstcolpos)
+# # postfix_to_add = ""
+# # # postfix_to_remove = ".unique_proteins.csv.gz"
+# # fracstep = 0.2
+# # maxfrac = 1.0
+# # fracrepetitions = 4
+# # algrepetitions = 2
+# # run_solve_threaded = true
+# # sortresults = false
+# # algs = ["Ascending", "Descending"]
+# # substitutionmatrix = nothing
+# # aagroups = nothing
+# # similarityscorecutoff = 0
+# # similarityvalidator = >=
 
 
-# ArrG = @DArray [G for _ ∈ 1:1]  # move G across processes on a distributed array in order to save memory
+# # for (infile, samplename) in zip(infiles, samplenames)
+# #     run_sample(
+# #         infile, delim, samplename, idcol, firstcolpos, datatype, outdir, postfix_to_add,
+# #         fracstep, maxfrac, fracrepetitions, algrepetitions, testfraction, randseed,
+# #         run_solve_threaded, sortresults, algs,
+# #         substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups
+# #     )
+# # end
+# # df, firstcolpos = preparedf!(
+# #     infile, delim, datatype, idcol, firstcolpos,
+# #     testfraction, randseed
+# # )
 
-# # having built G, we only need to keep the reads and unique reads/proteins they support
-# select!(df, idcol)
+# # G = indistinguishable_rows(df, idcol; firstcolpos)
 
 
-# run_sample(
-#     infile, delim, samplename, idcol, firstcolpos, datatype, outdir, postfix_to_add,
-#     fracstep, maxfrac, fracrepetitions, algrepetitions, testfraction, randseed,
-#     run_solve_threaded, sortresults, algs,
-#     substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups
-# )
+# # ArrG = @DArray [G for _ ∈ 1:1]  # move G across processes on a distributed array in order to save memory
+
+# # # having built G, we only need to keep the reads and unique reads/proteins they support
+# # select!(df, idcol)
 
 
+# # run_sample(
+# #     infile, delim, samplename, idcol, firstcolpos, datatype, outdir, postfix_to_add,
+# #     fracstep, maxfrac, fracrepetitions, algrepetitions, testfraction, randseed,
+# #     run_solve_threaded, sortresults, algs,
+# #     substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups
+# # )
 
 
 
 
-# infile = "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
+
+
+# infile = "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
 # firstcolpos = 15
-
 # delim = "\t"
 # # postfix_to_remove = ".aligned.sorted.MinRQ998.unique_proteins.csv"
 # # prefix_to_remove = ""
 # # postfix_to_add = ".GRANTHAM1974-100"
 # idcol = "Protein"
-
 # datatype = "Proteins"
 # # outdir = "D.pealeii/MpileupAndTranscripts/RQ998.2"
-# # fracstep = 0.5
-# # maxfrac = 1.0
-# # fracrepetitions = 5
-# # algrepetitions = 2
+# fracstep = 0.2
+# maxfrac = 1.0
+# fracrepetitions = 4
+# algrepetitions = 2
 # testfraction = 1.0
 # randseed = 1892
 # # run_solve_threaded = false
@@ -588,7 +586,6 @@ main();
 # # algs = ["Ascending", "Descending"]
 # # gcp = false
 # # shutdowngcp = false
-
 
 
 # df, firstcolpos = preparedf!(

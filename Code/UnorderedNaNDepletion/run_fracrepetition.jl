@@ -35,7 +35,9 @@ function run_fracrepetition(
     # nsamplerows = convert(Int, round(fraction * nrows))
 
     # sampleG = @timeit to "get_graph_sample" get_graph_sample(G, fraction, nsamplerows, df, idcol)
-    sampleG = get_graph_sample(G, fraction, nsamplerows, df, idcol)
+    # sampleG = get_graph_sample(G, fraction, nsamplerows, df, idcol)
+    # while
+    sampleG, availablereads = get_graph_sample_and_available_reads(G, fraction, nsamplerows, df, idcol)
 
     # sampleG = try
     #     @timeit to "get_graph_sample" get_graph_sample(G, fraction, nsamplerows, df, idcol)
@@ -55,6 +57,8 @@ function run_fracrepetition(
         sortresults,
         algs,
     )
+
+    results[!, "AvailableReads"] .= join(availablereads, ",")
 
     # results = try
     #     @timeit to "solve" solve(
