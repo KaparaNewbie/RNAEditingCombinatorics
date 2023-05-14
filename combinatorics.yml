@@ -33,7 +33,7 @@ dependencies:
   - nodejs
   - htslib
   - python-kaleido
-  # - salmon = 1.4.0
+  - salmon
   - samtools >= 1.9
   # - bcftools = 1.14
   - openpyxl
