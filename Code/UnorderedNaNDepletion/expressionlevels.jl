@@ -13,6 +13,7 @@ using BioAlignments # for SubstitutionMatrix
 
 include(joinpath(@__DIR__, "consts.jl")) # for `AA_groups` (polar/non-polar/positive/negative)
 include(joinpath(@__DIR__, "issimilar.jl")) # for issimilar
+include(joinpath(@__DIR__, "timeformatters.jl")) 
 
 
 
@@ -267,13 +268,13 @@ end
 
 function additional_assignments(distinctdf, allprotsdf, firstcolpos, Δ, solutions)
     results = map(solutions) do solution
-        one_solution_additional_assignment(distinctdf, allprotsdf, firstcolpos, Δ, solution)
+        # one_solution_additional_assignment(distinctdf, allprotsdf, firstcolpos, Δ, solution)
+        one_solution_additional_assignment_considering_available_reads(distinctdf, allprotsdf, firstcolpos, Δ, solution)
     end
     return results
 end
 
 
-# distinctfile = distinctfiles[58]
 
 function prepare_distinctdf(
     distinctfile, delim, innerdelim, truestrings, falsestrings,
@@ -283,12 +284,16 @@ function prepare_distinctdf(
     # distinctdf[!, "UniqueSamples"] = InlineString.(distinctdf[!, "UniqueSamples"])
 
     transform!(distinctdf, :UniqueSamples => (x -> split.(x, innerdelim)) => :UniqueSamples)
+    if "AvailableReads" ∈ names(distinctdf)
+        transform!(distinctdf, :AvailableReads => (x -> split.(x, innerdelim)) => :AvailableReads)
+    end
     distinctdf[!, "Index"] = collect(1:size(distinctdf, 1))
     return distinctdf
 end
 
 
 toAAset(x, innerdelim) = Set(map(aa -> convert(AminoAcid, only(aa)), split(x, innerdelim)))
+
 
 
 function prepare_allprotsdf!(allprotsfile, delim, innerdelim, truestrings, falsestrings, firstcolpos)
@@ -311,6 +316,8 @@ function prepare_allprotsdf!(allprotsfile, delim, innerdelim, truestrings, false
     firstcolpos += 1
     insertcols!(allprotsdf, firstcolpos, :AdditionalWeightedSupportingReads => 0.0)
     firstcolpos += 1
+
+    transform!(allprotsdf, :Reads => (x -> split.(x, innerdelim)) => :Reads)
 
     return allprotsdf, firstcolpos
 end
@@ -379,6 +386,75 @@ function one_solution_additional_assignment(distinctdf, allprotsdf, firstcolpos,
 
 end
 
+
+
+function one_solution_additional_assignment_considering_available_reads(distinctdf, allprotsdf, firstcolpos, Δ, solution)
+
+    # solution = 7
+    
+    solutionrow = distinctdf[solution, :]
+
+    baseallprotsdf = allprotsdf[:, begin:firstcolpos-1]
+
+    if "AvailableReads" ∈ names(solutionrow) && solutionrow["Fraction"] < 1.0
+        availablereads = solutionrow["AvailableReads"]
+        allreadsperprotein = baseallprotsdf[!, "Reads"]
+        availablereadsperprotein = [
+            [read for read ∈ reads if read ∈ availablereads]
+            for reads ∈ allreadsperprotein
+        ]
+        baseallprotsdf[!, "Reads"] .= availablereadsperprotein
+        baseallprotsdf[!, "NumOfReads"] .= length.(availablereadsperprotein)
+        baseallprotsdf = filter("NumOfReads" => x -> x > 0, baseallprotsdf)
+    end
+
+    prots_in_solution = solutionrow["UniqueSamples"]
+
+    chosendf = filter("Protein" => x -> x ∈ prots_in_solution, baseallprotsdf)
+    unchosendf = filter("Protein" => x -> x ∉ prots_in_solution, baseallprotsdf)
+
+    insertcols!(chosendf, 3, "#Solution" => solutionrow["Index"])
+    insertcols!(chosendf, 4, "Fraction" => solutionrow["Fraction"])
+    insertcols!(chosendf, 5, "FractionRepetition" => solutionrow["FractionRepetition"])
+    insertcols!(chosendf, 6, "Algorithm" => solutionrow["Algorithm"])
+    insertcols!(chosendf, 7, "AlgorithmRepetition" => solutionrow["AlgorithmRepetition"])
+
+    chosenindices = chosendf[!, "Index"] # indices of chosen proteins in the complete Δ matrix
+
+    for unchosenprot ∈ eachrow(unchosendf)  # a row of unchosen protein relative to the chosen proteins in the solution
+
+        # unchosenprot = unchosendf[1, :]  # an example row of unchosen protein
+
+        unchosenprot_index = unchosenprot["Index"] # the row number of the unchosen protein in the distances matrix Δ
+
+        unchosenprot_distances = Δ[unchosenprot_index, chosenindices] # the distances between the unchosen protein `unchosenprot` to all chosen proteins
+
+        unchosenprot_distances_argmins = allargmins(unchosenprot_distances) # indices of minimum distances
+
+        minchosendf = chosendf[unchosenprot_distances_argmins, :] # chosen proteins with minimum distance to the unchosen protein `unchosenprot`
+
+        unchosenreads = unchosenprot["NumOfReads"] # the number of reads `unchosenprot` divides between the chosen proteins that are closest to it
+
+        equal_addition = unchosenreads / size(minchosendf, 1)
+        weighted_addition = unchosenreads .* minchosendf[!, "NumOfReads"] ./ sum(minchosendf[!, "NumOfReads"])
+
+        # sum(chosendf[unchosenprot_distances_argmins, "AdditionalEqualSupportingReads"])
+        # sum(chosendf[unchosenprot_distances_argmins, "AdditionalWeightedSupportingReads"])
+
+        chosendf[unchosenprot_distances_argmins, "AdditionalEqualSupportingReads"] .+= equal_addition
+        chosendf[unchosenprot_distances_argmins, "AdditionalWeightedSupportingReads"] .+= weighted_addition
+
+        # sum(chosendf[unchosenprot_distances_argmins, "AdditionalEqualSupportingReads"])
+        # sum(chosendf[unchosenprot_distances_argmins, "AdditionalWeightedSupportingReads"])
+
+    end
+
+    chosendf[!, "TotalEqualSupportingReads"] .= chosendf[!, "NumOfReads"] .+ chosendf[!, "AdditionalEqualSupportingReads"]
+    chosendf[!, "TotalWeightedSupportingReads"] .= chosendf[!, "NumOfReads"] .+ chosendf[!, "AdditionalWeightedSupportingReads"]
+
+    return chosendf
+
+end
 
 
 """
@@ -488,6 +564,8 @@ function main(
     similarityvalidator::Function,
     aagroups::Union{Dict{AminoAcid,String},Nothing}
 )
+    @info "$(loggingtime())\tmain" distinctfiles allprotsfiles samplenames postfix_to_add firstcolpos delim innerdelim truestrings falsestrings fractions maxmainthreads outdir algs onlymaxdistinct gcp shutdowngcp substitutionmatrix similarityscorecutoff similarityvalidator aagroups
+
     # run each sample using the `run_sample` function
     for (distinctfile, allprotsfile, samplename) ∈ zip(distinctfiles, allprotsfiles, samplenames)
         run_sample(
@@ -549,6 +627,59 @@ if abspath(PROGRAM_FILE) == @__FILE__
     CLI_main()
 end
 
+
+
+
+# distinctfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.DistinctUniqueProteins.Fraction0_1.11.05.2023-17:03:49.csv"
+# delim = "\t"
+# innerdelim = ","
+# truestrings = ["TRUE", "True", "true"]
+# falsestrings = ["FALSE", "False", "false"]
+# allprotsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
+# firstcolpos = 15
+# fractions = [0.1]
+# algs = ["Ascending", "Descending"]
+# onlymaxdistinct = false
+# maxmainthreads = 30
+
+# distinctdf = prepare_distinctdf(
+#     distinctfile, delim, innerdelim, truestrings, falsestrings
+# )
+
+# allprotsdf, firstcolpos = prepare_allprotsdf!(
+#     allprotsfile, delim, innerdelim, truestrings, falsestrings, firstcolpos
+# )
+
+# # the possible amino acids each protein has in each position
+# M = Matrix(allprotsdf[:, firstcolpos:end])
+
+# # the distances between any two proteins according to `M`
+# Δ = distances(M)
+
+
+# # considering only desired solutions (rows' indices)
+# # solutions = distinctdf[:, "Index"]
+# solutions = choosesolutions(distinctdf, fractions, algs, onlymaxdistinct)
+
+# allsubsolutions = collect(Iterators.partition(solutions, maxmainthreads))
+# results = tcollect(
+#     additional_assignments(distinctdf, allprotsdf, firstcolpos, Δ, subsolutions)
+#     for subsolutions ∈ allsubsolutions
+# )
+# finalresults = vcat(Iterators.flatten(results)...)
+
+
+# sol12df = subset(finalresults, "#Solution" => x -> x .== 12)
+
+# sol12df[!, [:Protein, :Index]]
+
+# sum(sol12df[!, "TotalWeightedSupportingReads"])
+# sum(sol12df[!, "TotalEqualSupportingReads"])
+
+# for sol ∈ unique(finalresults[:, "#Solution"])
+#     soldf = subset(finalresults, "#Solution" => x -> x .== sol)
+#     println(sol, " ", sum(soldf[!, "TotalWeightedSupportingReads"]))
+# end
 
 
 

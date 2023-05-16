@@ -30,6 +30,7 @@ function get_graph_sample_and_available_reads(G::Dict, fraction::Float64, nsampl
         sampleG, availablereads = get_graph_sample_and_available_reads(G, nsamplerows, df, idcol)
     else  # fraction == 1.0, so there's no need to create a sub-graph
         sampleG = G
+        # print(df)
         availablereads = df[samplerows, "Read"]
     end
     return sampleG, availablereads
@@ -42,6 +43,7 @@ function get_graph_sample_and_available_reads(G::Dict, nsamplerows::Int64, df::D
     # get their corresponding unique ids
     sampleids = ThreadsX.unique(df[samplerows, idcol])
     # also get all corresponding avaiable reads' names
+    # print(df)
     availablereads = df[samplerows, "Read"]
     # assemble sub neighborhood lists of uncompatible unique sampled rows by using the pre-computed complete graph
     sampleG = subgraph(G, sampleids)

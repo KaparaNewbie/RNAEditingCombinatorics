@@ -20,6 +20,8 @@ function run_fracrepetition(
     @info "$(loggingtime())\trun_fracrepetition" fraction nsamplerows fracrepetition algrepetitions run_solve_threaded sortresults algs myid()
     # assemble sub neighborhood lists of indistinguishable sampled rows by using the pre-computed complete graph
 
+    # print(df)
+
     # G = @timeit to "`G`" ArrG[1]  # retrive G which is the single element in the distributed array ArrG
     G = ArrG[1]  # retrive G which is the single element in the distributed array ArrG
 
