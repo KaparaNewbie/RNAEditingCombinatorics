@@ -13,7 +13,7 @@ using BioAlignments # for SubstitutionMatrix
 
 include(joinpath(@__DIR__, "consts.jl")) # for `AA_groups` (polar/non-polar/positive/negative)
 include(joinpath(@__DIR__, "issimilar.jl")) # for issimilar
-include(joinpath(@__DIR__, "timeformatters.jl")) 
+include(joinpath(@__DIR__, "timeformatters.jl"))
 
 
 
@@ -227,16 +227,20 @@ function run_sample(
     end
 
     # considering only desired solutions (rows' indices)
-    # solutions = distinctdf[:, "Index"]
     solutions = choosesolutions(distinctdf, fractions, algs, onlymaxdistinct)
 
+    # allsubsolutions = collect(Iterators.partition(solutions, maxmainthreads))
 
-    allsubsolutions = collect(Iterators.partition(solutions, maxmainthreads))
+    minmainthreads = minimum([Int(Threads.nthreads() / 5), Int(length(solutions) / 4)])
+    allsubsolutions = collect(Iterators.partition(solutions, minmainthreads))
+
     results = tcollect(
         additional_assignments(distinctdf, allprotsdf, firstcolpos, Δ, subsolutions)
         for subsolutions ∈ allsubsolutions
     )
-    finalresults = vcat(Iterators.flatten(results)...)
+    # finalresults = vcat(Iterators.flatten(results)...)
+    # finalresults = vcat(skipmissing(Iterators.flatten(results)...))
+    finalresults = vcat((skipmissing(Iterators.flatten(results))...))
 
     # save the results
     outfile = joinpath(abspath(outdir), "$samplename.DistinctUniqueProteins.ExpressionLevels$postfix_to_add.csv")
@@ -266,10 +270,16 @@ function choosesolutions(distinctdf, fractions, algs, onlymaxdistinct)
 end
 
 
+
+
 function additional_assignments(distinctdf, allprotsdf, firstcolpos, Δ, solutions)
     results = map(solutions) do solution
-        # one_solution_additional_assignment(distinctdf, allprotsdf, firstcolpos, Δ, solution)
-        one_solution_additional_assignment_considering_available_reads(distinctdf, allprotsdf, firstcolpos, Δ, solution)
+        try
+            one_solution_additional_assignment_considering_available_reads(distinctdf, allprotsdf, firstcolpos, Δ, solution)
+        catch e
+            @warn "Error in additional_assignments:" e solution
+            missing
+        end
     end
     return results
 end
@@ -295,7 +305,7 @@ end
 toAAset(x, innerdelim) = Set(map(aa -> convert(AminoAcid, only(aa)), split(x, innerdelim)))
 
 
-
+# firstcolpos = 15
 function prepare_allprotsdf!(allprotsfile, delim, innerdelim, truestrings, falsestrings, firstcolpos)
     # allprotsfile = allprotsfiles[1]
 
@@ -310,6 +320,18 @@ function prepare_allprotsdf!(allprotsfile, delim, innerdelim, truestrings, false
 
     allprotsdf = hcat(df1, df2)
 
+    transform!(allprotsdf, :Reads => (x -> split.(x, innerdelim)) => :Reads)
+
+    # typeof(allprotsdf[!, :Reads][1][1])
+    # vec{SubString{String}}()
+    # eltype
+    # vec{typeof(allprotsdf[!, :Reads][1])}()
+
+    # readtype = typeof(allprotsdf[!, :Reads][1][1])
+    # Vector{readtype}(undef, 0)
+    # Matrix{readtype}(undef, size(allprotsdf, 1), 0)
+    # [Vector{readtype}(undef, 0) for _ ∈ 1:size(allprotsdf, 1)]
+
     insertcols!(allprotsdf, firstcolpos, :Index => 1:size(allprotsdf, 1))
     firstcolpos += 1
     insertcols!(allprotsdf, firstcolpos, :AdditionalEqualSupportingReads => 0.0)
@@ -317,7 +339,48 @@ function prepare_allprotsdf!(allprotsfile, delim, innerdelim, truestrings, false
     insertcols!(allprotsdf, firstcolpos, :AdditionalWeightedSupportingReads => 0.0)
     firstcolpos += 1
 
-    transform!(allprotsdf, :Reads => (x -> split.(x, innerdelim)) => :Reads)
+    # typeof(allprotsdf[!, :Reads][1])
+    # eltype(allprotsdf[!, :Reads]) == typeof(allprotsdf[!, :Reads][1])
+    # typeof(allprotsdf[!, :Reads][1][1])
+    # readtype = typeof(allprotsdf[!, :Reads][1][1])
+    # insertcols!(allprotsdf, firstcolpos, :AdditionalEqualSupportingReadsIDs => [Vector{readtype}(undef, 0) for _ ∈ 1:size(allprotsdf, 1)])
+    # firstcolpos += 1
+    # insertcols!(allprotsdf, firstcolpos, :AdditionalWeightedSupportingReadsIDs => [Vector{readtype}(undef, 0) for _ ∈ 1:size(allprotsdf, 1)])
+    # firstcolpos += 1
+
+    # readsvectype = eltype(allprotsdf[!, :Reads])
+    # # insertcols!(allprotsdf, firstcolpos, :AdditionalEqualSupportingReadsIDs => [Vector{readsvectype}(undef, 0) for _ ∈ 1:size(allprotsdf, 1)])
+    # # firstcolpos += 1
+    # # insertcols!(allprotsdf, firstcolpos, :AdditionalWeightedSupportingReadsIDs => [Vector{readsvectype}(undef, 0) for _ ∈ 1:size(allprotsdf, 1)])
+    # # firstcolpos += 1
+    # insertcols!(allprotsdf, firstcolpos, :AdditionalSupportingReadsIDs => [Vector{readsvectype}(undef, 0) for _ ∈ 1:size(allprotsdf, 1)])
+    # firstcolpos += 1
+    # proteinseltype = eltype(allprotsdf[!, :Protein])
+    # insertcols!(allprotsdf, firstcolpos, :AdditionalSupportingProteinsIDs => [Vector{proteinseltype}(undef, 0) for _ ∈ 1:size(allprotsdf, 1)])
+    # firstcolpos += 1
+
+
+    # insertcols!(allprotsdf, firstcolpos, :AdditionalSupportingReadsIDs => [Vector(undef, 0) for _ ∈ 1:size(allprotsdf, 1)])
+    # firstcolpos += 1
+    # insertcols!(allprotsdf, firstcolpos, :AdditionalSupportingProteinsIDs => [Vector(undef, 0) for _ ∈ 1:size(allprotsdf, 1)])
+    # firstcolpos += 1
+
+    # insertcols!(allprotsdf, firstcolpos, :AdditionalSupportingReadsIDs => [[] for _ ∈ 1:size(allprotsdf, 1)])
+    # firstcolpos += 1
+    # insertcols!(allprotsdf, firstcolpos, :AdditionalSupportingProteinsIDs => [[] for _ ∈ 1:size(allprotsdf, 1)])
+    # firstcolpos += 1
+
+    insertcols!(
+        allprotsdf,
+        firstcolpos,
+        :AdditionalSupportingReadsIDs => [[] for _ ∈ 1:size(allprotsdf, 1)],
+        :AdditionalSupportingProteinsIDs => [[] for _ ∈ 1:size(allprotsdf, 1)]
+    )
+    firstcolpos += 2
+
+    # allprotsdf[:, firstcolpos-6:firstcolpos]
+
+    # transform!(allprotsdf, :Reads => (x -> split.(x, innerdelim)) => :Reads)
 
     return allprotsdf, firstcolpos
 end
@@ -330,81 +393,96 @@ end
 # describe(unchosendf[!, ["NumOfReads", "AdditionalEqualSupportingReads", "AdditionalWeightedSupportingReads", "TotalEqualSupportingRead", "TotalWeightedSupportingRead"]])
 # sum.(eachcol(unchosendf[!, ["NumOfReads", "AdditionalEqualSupportingReads", "AdditionalWeightedSupportingReads", "TotalEqualSupportingRead", "TotalWeightedSupportingRead"]]))
 
-function one_solution_additional_assignment(distinctdf, allprotsdf, firstcolpos, Δ, solution)
+# function one_solution_additional_assignment(distinctdf, allprotsdf, firstcolpos, Δ, solution)
 
-    solutionrow = distinctdf[solution, :]
+#     solutionrow = distinctdf[solution, :]
 
-    prots_in_solution = solutionrow["UniqueSamples"]
+#     prots_in_solution = solutionrow["UniqueSamples"]
 
-    allprotsdf = allprotsdf[:, begin:firstcolpos-1]
+#     allprotsdf = allprotsdf[:, begin:firstcolpos-1]
 
-    # sum(allprotsdf[:, "NumOfReads"])
+#     # sum(allprotsdf[:, "NumOfReads"])
 
-    chosendf = filter("Protein" => x -> x ∈ prots_in_solution, allprotsdf)
-    unchosendf = filter("Protein" => x -> x ∉ prots_in_solution, allprotsdf)
+#     chosendf = filter("Protein" => x -> x ∈ prots_in_solution, allprotsdf)
+#     unchosendf = filter("Protein" => x -> x ∉ prots_in_solution, allprotsdf)
 
-    insertcols!(chosendf, 3, "#Solution" => solutionrow["Index"])
-    insertcols!(chosendf, 4, "Fraction" => solutionrow["Fraction"])
-    insertcols!(chosendf, 5, "FractionRepetition" => solutionrow["FractionRepetition"])
-    insertcols!(chosendf, 6, "Algorithm" => solutionrow["Algorithm"])
-    insertcols!(chosendf, 7, "AlgorithmRepetition" => solutionrow["AlgorithmRepetition"])
+#     insertcols!(chosendf, 3, "#Solution" => solutionrow["Index"])
+#     insertcols!(chosendf, 4, "Fraction" => solutionrow["Fraction"])
+#     insertcols!(chosendf, 5, "FractionRepetition" => solutionrow["FractionRepetition"])
+#     insertcols!(chosendf, 6, "Algorithm" => solutionrow["Algorithm"])
+#     insertcols!(chosendf, 7, "AlgorithmRepetition" => solutionrow["AlgorithmRepetition"])
 
-    chosenindices = chosendf[!, "Index"] # indices of chosen proteins in the complete Δ matrix
+#     chosenindices = chosendf[!, "Index"] # indices of chosen proteins in the complete Δ matrix
 
-    for unchosenprot ∈ eachrow(unchosendf)  # a row of unchosen protein relative to the chosen proteins in the solution
+#     for unchosenprot ∈ eachrow(unchosendf)  # a row of unchosen protein relative to the chosen proteins in the solution
 
-        # unchosenprot = unchosendf[1000, :]  # an example row of unchosen protein
+#         # unchosenprot = unchosendf[1000, :]  # an example row of unchosen protein
 
-        unchosenprot_index = unchosenprot["Index"] # the row number of the unchosen protein in the distances matrix Δ
+#         unchosenprot_index = unchosenprot["Index"] # the row number of the unchosen protein in the distances matrix Δ
 
-        unchosenprot_distances = Δ[unchosenprot_index, chosenindices] # the distances between the unchosen protein `unchosenprot` to all chosen proteins
+#         unchosenprot_distances = Δ[unchosenprot_index, chosenindices] # the distances between the unchosen protein `unchosenprot` to all chosen proteins
 
-        unchosenprot_distances_argmins = allargmins(unchosenprot_distances) # indices of minimum distances
+#         unchosenprot_distances_argmins = allargmins(unchosenprot_distances) # indices of minimum distances
 
-        minchosendf = chosendf[unchosenprot_distances_argmins, :] # chosen proteins with minimum distance to the unchosen protein `unchosenprot`
+#         minchosendf = chosendf[unchosenprot_distances_argmins, :] # chosen proteins with minimum distance to the unchosen protein `unchosenprot`
 
-        unchosenreads = unchosenprot["NumOfReads"] # the number of reads `unchosenprot` divides between the chosen proteins that are closest to it
+#         unchosenreads = unchosenprot["NumOfReads"] # the number of reads `unchosenprot` divides between the chosen proteins that are closest to it
 
-        equal_addition = unchosenreads / size(minchosendf, 1)
-        weighted_addition = unchosenreads .* minchosendf[!, "NumOfReads"] ./ sum(minchosendf[!, "NumOfReads"])
+#         equal_addition = unchosenreads / size(minchosendf, 1)
+#         weighted_addition = unchosenreads .* minchosendf[!, "NumOfReads"] ./ sum(minchosendf[!, "NumOfReads"])
 
-        # sum(chosendf[unchosenprot_distances_argmins, "AdditionalEqualSupportingReads"])
-        # sum(chosendf[unchosenprot_distances_argmins, "AdditionalWeightedSupportingReads"])
+#         # sum(chosendf[unchosenprot_distances_argmins, "AdditionalEqualSupportingReads"])
+#         # sum(chosendf[unchosenprot_distances_argmins, "AdditionalWeightedSupportingReads"])
 
-        chosendf[unchosenprot_distances_argmins, "AdditionalEqualSupportingReads"] .+= equal_addition
-        chosendf[unchosenprot_distances_argmins, "AdditionalWeightedSupportingReads"] .+= weighted_addition
+#         chosendf[unchosenprot_distances_argmins, "AdditionalEqualSupportingReads"] .+= equal_addition
+#         chosendf[unchosenprot_distances_argmins, "AdditionalWeightedSupportingReads"] .+= weighted_addition
 
-        # sum(chosendf[unchosenprot_distances_argmins, "AdditionalEqualSupportingReads"])
-        # sum(chosendf[unchosenprot_distances_argmins, "AdditionalWeightedSupportingReads"])
+#         # sum(chosendf[unchosenprot_distances_argmins, "AdditionalEqualSupportingReads"])
+#         # sum(chosendf[unchosenprot_distances_argmins, "AdditionalWeightedSupportingReads"])
 
-    end
+#     end
 
-    chosendf[!, "TotalEqualSupportingReads"] .= chosendf[!, "NumOfReads"] .+ chosendf[!, "AdditionalEqualSupportingReads"]
-    chosendf[!, "TotalWeightedSupportingReads"] .= chosendf[!, "NumOfReads"] .+ chosendf[!, "AdditionalWeightedSupportingReads"]
+#     chosendf[!, "TotalEqualSupportingReads"] .= chosendf[!, "NumOfReads"] .+ chosendf[!, "AdditionalEqualSupportingReads"]
+#     chosendf[!, "TotalWeightedSupportingReads"] .= chosendf[!, "NumOfReads"] .+ chosendf[!, "AdditionalWeightedSupportingReads"]
 
-    return chosendf
+#     return chosendf
 
-end
+# end
+# 
 
+
+
+# firstcolpos = 15
+# allprotsdf, firstcolpos = prepare_allprotsdf!(
+#     allprotsfile, delim, innerdelim, truestrings, falsestrings, firstcolpos
+# )
+# allprotsdf[:, firstcolpos-4:firstcolpos-1]
+# @assert all(length.(allprotsdf[!, "AdditionalSupportingReadsIDs"]) .== [0 for _ ∈ 1:size(allprotsdf, 1)])
+# @assert all(length.(allprotsdf[!, "AdditionalSupportingProteinsIDs"]) .== [0 for _ ∈ 1:size(allprotsdf, 1)])
+
+# one_solution_additional_assignment_considering_available_reads(distinctdf, allprotsdf, firstcolpos, Δ, 7)
+# one_solution_additional_assignment_considering_available_reads(distinctdf, allprotsdf, firstcolpos, Δ, 10)
 
 
 function one_solution_additional_assignment_considering_available_reads(distinctdf, allprotsdf, firstcolpos, Δ, solution)
 
-    # solution = 7
-    
+    # solution = 7 # todo comment out
+    # solution = 10 # todo comment out
+
     solutionrow = distinctdf[solution, :]
 
-    baseallprotsdf = allprotsdf[:, begin:firstcolpos-1]
+    baseallprotsdf = deepcopy(allprotsdf[:, begin:firstcolpos-1])
 
-    if "AvailableReads" ∈ names(solutionrow) && solutionrow["Fraction"] < 1.0
+    # if "AvailableReads" ∈ names(solutionrow) && solutionrow["Fraction"] < 1.0
+    if "AvailableReads" ∈ names(solutionrow)
         availablereads = solutionrow["AvailableReads"]
         allreadsperprotein = baseallprotsdf[!, "Reads"]
         availablereadsperprotein = [
             [read for read ∈ reads if read ∈ availablereads]
             for reads ∈ allreadsperprotein
         ]
-        baseallprotsdf[!, "Reads"] .= availablereadsperprotein
-        baseallprotsdf[!, "NumOfReads"] .= length.(availablereadsperprotein)
+        baseallprotsdf[:, "Reads"] .= availablereadsperprotein
+        baseallprotsdf[:, "NumOfReads"] .= length.(availablereadsperprotein)
         baseallprotsdf = filter("NumOfReads" => x -> x > 0, baseallprotsdf)
     end
 
@@ -413,17 +491,22 @@ function one_solution_additional_assignment_considering_available_reads(distinct
     chosendf = filter("Protein" => x -> x ∈ prots_in_solution, baseallprotsdf)
     unchosendf = filter("Protein" => x -> x ∉ prots_in_solution, baseallprotsdf)
 
-    insertcols!(chosendf, 3, "#Solution" => solutionrow["Index"])
-    insertcols!(chosendf, 4, "Fraction" => solutionrow["Fraction"])
-    insertcols!(chosendf, 5, "FractionRepetition" => solutionrow["FractionRepetition"])
-    insertcols!(chosendf, 6, "Algorithm" => solutionrow["Algorithm"])
-    insertcols!(chosendf, 7, "AlgorithmRepetition" => solutionrow["AlgorithmRepetition"])
+    insertcols!(
+        chosendf,
+        3,
+        "#Solution" => solutionrow["Index"],
+        "Fraction" => solutionrow["Fraction"],
+        "FractionRepetition" => solutionrow["FractionRepetition"],
+        "Algorithm" => solutionrow["Algorithm"],
+        "AlgorithmRepetition" => solutionrow["AlgorithmRepetition"],
+    )
 
-    chosenindices = chosendf[!, "Index"] # indices of chosen proteins in the complete Δ matrix
+    chosenindices = chosendf[:, "Index"] # indices of chosen proteins in the complete Δ matrix
 
     for unchosenprot ∈ eachrow(unchosendf)  # a row of unchosen protein relative to the chosen proteins in the solution
 
-        # unchosenprot = unchosendf[1, :]  # an example row of unchosen protein
+        # unchosenprot = unchosendf[1, :]  # TODO comment out: an example row of unchosen protein
+        # unchosenprot = unchosendf[2, :]  
 
         unchosenprot_index = unchosenprot["Index"] # the row number of the unchosen protein in the distances matrix Δ
 
@@ -436,21 +519,81 @@ function one_solution_additional_assignment_considering_available_reads(distinct
         unchosenreads = unchosenprot["NumOfReads"] # the number of reads `unchosenprot` divides between the chosen proteins that are closest to it
 
         equal_addition = unchosenreads / size(minchosendf, 1)
-        weighted_addition = unchosenreads .* minchosendf[!, "NumOfReads"] ./ sum(minchosendf[!, "NumOfReads"])
-
-        # sum(chosendf[unchosenprot_distances_argmins, "AdditionalEqualSupportingReads"])
-        # sum(chosendf[unchosenprot_distances_argmins, "AdditionalWeightedSupportingReads"])
+        weighted_addition = unchosenreads .* minchosendf[:, "NumOfReads"] ./ sum(minchosendf[:, "NumOfReads"])
 
         chosendf[unchosenprot_distances_argmins, "AdditionalEqualSupportingReads"] .+= equal_addition
         chosendf[unchosenprot_distances_argmins, "AdditionalWeightedSupportingReads"] .+= weighted_addition
 
-        # sum(chosendf[unchosenprot_distances_argmins, "AdditionalEqualSupportingReads"])
-        # sum(chosendf[unchosenprot_distances_argmins, "AdditionalWeightedSupportingReads"])
+        newsupportingreads = unchosenprot["Reads"]
+        newsupportingprotein = unchosenprot["Protein"]
+
+        if !isassigned(newsupportingreads)
+            println("solution: ", solution)
+            println("newsupportingreads: ", newsupportingreads)
+            println("newsupportingprotein: ", newsupportingprotein)
+            # throw(ErrorException("newsupportingreads or newsupportingprotein is not assigned"))
+            break
+        end
+
+
+        for existingsupportingreads ∈ chosendf[unchosenprot_distances_argmins, "AdditionalSupportingReadsIDs"]
+            push!(existingsupportingreads, newsupportingreads)
+        end
+
+        @assert all(length.(allprotsdf[!, "AdditionalSupportingReadsIDs"]) .== [0 for _ ∈ 1:size(allprotsdf, 1)]) """Solution: $solution, Protein: $(unchosenprot["Protein"])"""
+        @assert all(length.(allprotsdf[!, "AdditionalSupportingProteinsIDs"]) .== [0 for _ ∈ 1:size(allprotsdf, 1)]) """Solution: $solution, Protein: $(unchosenprot["Protein"])"""
+
+
+        for existingsupportingproteins ∈ chosendf[unchosenprot_distances_argmins, "AdditionalSupportingProteinsIDs"]
+            push!(existingsupportingproteins, newsupportingprotein)
+        end
+
+        @assert all(length.(allprotsdf[!, "AdditionalSupportingReadsIDs"]) .== [0 for _ ∈ 1:size(allprotsdf, 1)]) """Solution: $solution, Protein: $(unchosenprot["Protein"])"""
+        @assert all(length.(allprotsdf[!, "AdditionalSupportingProteinsIDs"]) .== [0 for _ ∈ 1:size(allprotsdf, 1)]) """Solution: $solution, Protein: $(unchosenprot["Protein"])"""
 
     end
 
-    chosendf[!, "TotalEqualSupportingReads"] .= chosendf[!, "NumOfReads"] .+ chosendf[!, "AdditionalEqualSupportingReads"]
-    chosendf[!, "TotalWeightedSupportingReads"] .= chosendf[!, "NumOfReads"] .+ chosendf[!, "AdditionalWeightedSupportingReads"]
+    # chosendf[!, "TotalEqualSupportingReads"] .= chosendf[!, "NumOfReads"] .+ chosendf[!, "AdditionalEqualSupportingReads"]
+    # chosendf[!, "TotalWeightedSupportingReads"] .= chosendf[!, "NumOfReads"] .+ chosendf[!, "AdditionalWeightedSupportingReads"]
+    # chosendf[!, "AdditionalSupportingProteins"] .= length.(chosendf[!, "AdditionalSupportingProteinsIDs"])
+
+    chosendf[:, "TotalEqualSupportingReads"] .= chosendf[:, "NumOfReads"] .+ chosendf[:, "AdditionalEqualSupportingReads"]
+    chosendf[:, "TotalWeightedSupportingReads"] .= chosendf[:, "NumOfReads"] .+ chosendf[:, "AdditionalWeightedSupportingReads"]
+    chosendf[:, "AdditionalSupportingProteins"] .= length.(chosendf[:, "AdditionalSupportingProteinsIDs"])
+
+    # @assert all(length.(allprotsdf[!, "AdditionalSupportingReadsIDs"]) .== [0 for _ ∈ 1:size(allprotsdf, 1)])
+    # @assert all(length.(allprotsdf[!, "AdditionalSupportingProteinsIDs"]) .== [0 for _ ∈ 1:size(allprotsdf, 1)])
+
+    sort!(chosendf, "AdditionalSupportingProteins")
+
+    # chosendf[:, 23:end]
+
+    transform!(chosendf, :AdditionalSupportingProteinsIDs => ByRow(x -> join(x, ",")) => :AdditionalSupportingProteinsIDs)
+    transform!(chosendf, :AdditionalSupportingReadsIDs => ByRow(x -> join(join.(x, ","), ";")) => :AdditionalSupportingReadsIDs) # todo uncomment after ensuring no undef values snaeak in
+
+
+    @assert all(length.(allprotsdf[!, "AdditionalSupportingReadsIDs"]) .== [0 for _ ∈ 1:size(allprotsdf, 1)]) """Solution: $solution"""
+    @assert all(length.(allprotsdf[!, "AdditionalSupportingProteinsIDs"]) .== [0 for _ ∈ 1:size(allprotsdf, 1)]) """Solution: $solution"""
+
+    # chosendf[:, "AdditionalSupportingProteinsIDs"]
+    # # typeof.(chosendf[:, "AdditionalSupportingProteinsIDs"])
+    # # isassigned.(chosendf[:, "AdditionalSupportingProteinsIDs"])
+    # # chosendf[!, !][map(!, isassigned.(chosendf[!, "AdditionalSupportingProteinsIDs"]))]
+    # # 
+    # chosendf[:, "AdditionalSupportingReadsIDs"]
+
+    # badchosendf = filter("AdditionalSupportingProteinsIDs" => x -> !isassigned(x), chosendf)
+    # badchosendf[:, 23:end]
+    # transform!(badchosendf, :AdditionalSupportingProteinsIDs => ByRow(x -> join(x, ",")) => :AdditionalSupportingProteinsIDs)
+    # transform!(badchosendf, :AdditionalSupportingReadsIDs => ByRow(x -> join(join.(x, ","), ";")) => :AdditionalSupportingReadsIDs) # todo uncomment after ensuring no undef values snaeak in
+    # badchosendf[:, 23:end]
+
+    # goodchosendf = filter("AdditionalSupportingProteinsIDs" => x -> isassigned(x), chosendf)
+    # goodchosendf[:, 23:end]
+    # transform!(goodchosendf, :AdditionalSupportingProteinsIDs => ByRow(x -> join(x, ",")) => :AdditionalSupportingProteinsIDs)
+    # goodchosendf[:, 23:end]
+    # transform!(goodchosendf, :AdditionalSupportingReadsIDs => ByRow(x -> join(join.(x, ","), ";")) => :AdditionalSupportingReadsIDs) # todo uncomment after ensuring no undef values snaeak in
+    # goodchosendf[:, 23:end]
 
     return chosendf
 
@@ -640,7 +783,7 @@ end
 # fractions = [0.1]
 # algs = ["Ascending", "Descending"]
 # onlymaxdistinct = false
-# maxmainthreads = 30
+# maxmainthreads = 20
 
 # distinctdf = prepare_distinctdf(
 #     distinctfile, delim, innerdelim, truestrings, falsestrings
@@ -656,33 +799,34 @@ end
 # # the distances between any two proteins according to `M`
 # Δ = distances(M)
 
-
 # # considering only desired solutions (rows' indices)
-# # solutions = distinctdf[:, "Index"]
 # solutions = choosesolutions(distinctdf, fractions, algs, onlymaxdistinct)
 
-# allsubsolutions = collect(Iterators.partition(solutions, maxmainthreads))
+# # allsubsolutions = collect(Iterators.partition(solutions, maxmainthreads))
+
+# minmainthreads = minimum([Int(Threads.nthreads() / 5), Int(length(solutions) / 4)])
+# allsubsolutions = collect(Iterators.partition(solutions, minmainthreads))
+
+# allprotsdf[:, firstcolpos-4:firstcolpos-1]
+# @assert all(length.(allprotsdf[!, "AdditionalSupportingReadsIDs"]) .== [0 for _ ∈ 1:size(allprotsdf, 1)])
+# @assert all(length.(allprotsdf[!, "AdditionalSupportingProteinsIDs"]) .== [0 for _ ∈ 1:size(allprotsdf, 1)])
+
+# # results_1_4 = additional_assignments(distinctdf, allprotsdf, firstcolpos, Δ, allsubsolutions[1])
+
+# # results = [
+# #     additional_assignments(distinctdf, allprotsdf, firstcolpos, Δ, subsolutions)
+# #     for subsolutions ∈ allsubsolutions
+# # ]
+
+
 # results = tcollect(
 #     additional_assignments(distinctdf, allprotsdf, firstcolpos, Δ, subsolutions)
 #     for subsolutions ∈ allsubsolutions
 # )
-# finalresults = vcat(Iterators.flatten(results)...)
+# # finalresults = vcat(Iterators.flatten(results)...)
+# finalresults = vcat((skipmissing(Iterators.flatten(results))...))
 
-
-# sol12df = subset(finalresults, "#Solution" => x -> x .== 12)
-
-# sol12df[!, [:Protein, :Index]]
-
-# sum(sol12df[!, "TotalWeightedSupportingReads"])
-# sum(sol12df[!, "TotalEqualSupportingReads"])
-
-# for sol ∈ unique(finalresults[:, "#Solution"])
-#     soldf = subset(finalresults, "#Solution" => x -> x .== sol)
-#     println(sol, " ", sum(soldf[!, "TotalWeightedSupportingReads"]))
-# end
-
-
-
+# unique(finalresults[!, "#Solution"])
 
 
 # distinctfiles = split(readchomp(`cat "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/DistinctProteinsForExpressionLevels.txt"`))

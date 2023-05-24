@@ -25,13 +25,13 @@ end
 
 
 function get_graph_sample_and_available_reads(G::Dict, fraction::Float64, nsamplerows::Int64, df::DataFrame, idcol::String)
-    @info "$(loggingtime())\tget_graph_sample" fraction myid()
+    @info "$(loggingtime())\tget_graph_sample_and_available_reads" fraction myid()
     if fraction < 1.0
         sampleG, availablereads = get_graph_sample_and_available_reads(G, nsamplerows, df, idcol)
     else  # fraction == 1.0, so there's no need to create a sub-graph
         sampleG = G
         # print(df)
-        availablereads = df[samplerows, "Read"]
+        availablereads = df[:, "Read"]
     end
     return sampleG, availablereads
 end
