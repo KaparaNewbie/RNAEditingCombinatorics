@@ -3,6 +3,8 @@
 TODO add a brief explanation about the project.
 
 
+![](octopus_with_tentacles_made_from_dna_strands_mixing_test_tubes_in_the_lab.png)
+
 
 # Setup
 
@@ -618,6 +620,51 @@ pacbio_preprocessed_isoseq \
 cd Code
 git clone https://github.com/rajewsky-lab/FLAMAnalysis
 ``` -->
+
+
+## O.bim annotations
+
+```bash
+mkdir O.bim/Annotations
+cd O.bim/Annotations
+wget https://www.tau.ac.il/~elieis/squid/orfs_bim.fa
+samtools faidx orfs_bim.fa
+
+cd - # back to the main directory of the project
+
+
+```
+
+
+
+## Preparing O.bim short reads' data
+
+```bash
+nohup \
+python Code/prepare_data.py \
+--in_dir O.bim/Data/PRJNA285380/Raw/ \
+--out_dir O.bim/Data/PRJNA285380 \
+illumina \
+--min_qual_mean 30 \
+> O.bim/Data/PRJNA285380/prepare_data.16.5.23.out &
+```
+* alu 13
+* 15.5.22
+
+## O.bim expression quantification -> O.bim neural transcripts -> orthofinder orthologs -> O.vul neural transcripts
+
+```bash
+nohup \
+python Code/neural_transcripts.py \
+--obim_trinity_file O.bim/Annotations/orfs_bim.fa \
+--ovul_trinity_file O.vulgaris/Annotations/orfs_oct.fa \
+--obim_salmon_out_dir O.bim/Expression \
+--obim_in_fastq_dir O.bim/Data/PRJNA285380/TrimmedWoDup \
+--orthofinder_out_dir O.vulgaris/Annotations/OrthoFinderAgainstObim \
+--ovul_neural_transcripts_file O.vulgaris/Annotations/NeuralVsNonNeuralExpression.BySalmonAndOrthoFinder.tsv \
+> O.vulgaris/Annotations/neural_transcripts.18.5.23.out &
+```
+
 
 
 
@@ -1590,18 +1637,146 @@ SAMPLESNAMES="GRIA PCLO"
 nohup \
 julia \
 --project=. \
---threads 40 \
+--threads 30 \
 Code/UnorderedNaNDepletion/expressionlevels.jl \
 --distinctfiles $DISTINCTFILES \
 --allprotsfiles $ALLROTSFILES \
 --samplenames $SAMPLESNAMES \
 --outdir D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3 \
-> D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/expressionlevels.regular.8.3.23.out &
+> D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/expressionlevels.regular.8.5.23.out &
 ```
 * alu 13
-* 8.3.22
-* 13:15
-* 37076
+* 8.5.22
+
+Distinct proteins, regular, with availble supporting reads:
+
+```bash
+INFILES=$(echo D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/*.unique_proteins.csv.gz)
+echo $INFILES
+
+julia \
+--project=. \
+--threads 40 --proc 8 \
+Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+--postfix_to_add .Regular.AvailableReads \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3 \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/DistinctProteins.Regular.AvailableReads.22.5.23.log
+```
+
+Calculating expression levels for fraction 1, with aggregated supporting reads and proteins:
+
+```bash
+DISTINCTFILES="D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.DistinctUniqueProteins.Regular.AvailableReads.22.05.2023-11:08:27.csv \
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.DistinctUniqueProteins.Regular.AvailableReads.22.05.2023-11:26:31.csv"
+ALLROTSFILES="D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
+SAMPLESNAMES="GRIA PCLO"
+
+nohup \
+julia \
+--project=. \
+--threads 50 \
+Code/UnorderedNaNDepletion/expressionlevels.jl \
+--distinctfiles $DISTINCTFILES \
+--allprotsfiles $ALLROTSFILES \
+--samplenames $SAMPLESNAMES \
+--postfix_to_add .Regular.SupportingReadsAndProteins \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3 \
+> D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/expressionlevels.Regular.SupportingReadsAndProteins.24.5.23.out &
+```
+* alu 13
+* 24.5.22
+
+
+Regular, fraction 0.1 only:
+
+```bash
+INFILES=$(echo D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/*.unique_proteins.csv.gz)
+echo $INFILES
+
+julia \
+--project=. \
+--threads 40 --proc 6 \
+Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+--postfix_to_add .Fraction0_1 \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3 \
+--maxfrac 0.1 \
+--fracstep 0.1 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/DistinctProteins.regular.Fraction0_1.11.5.23.log
+```
+* alu 13
+* 11.5.23
+
+
+Calculating expression levels for fraction 0.1 only:
+
+
+```bash
+DISTINCTFILES="D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.DistinctUniqueProteins.Fraction0_1.11.05.2023-17:03:49.csv \
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.DistinctUniqueProteins.Fraction0_1.11.05.2023-17:11:00.csv"
+ALLROTSFILES="D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
+SAMPLESNAMES="GRIA PCLO"
+
+nohup \
+julia \
+--project=. \
+--threads 40 \
+Code/UnorderedNaNDepletion/expressionlevels.jl \
+--distinctfiles $DISTINCTFILES \
+--allprotsfiles $ALLROTSFILES \
+--samplenames $SAMPLESNAMES \
+--postfix_to_add .Fraction0_1 \
+--fractions 0.1 \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3 \
+> D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/expressionlevels.regular.fraction01.14.5.23.out &
+```
+
+
+Calculating expression levels for fraction 0.1 only, with aggregated supporting reads and proteins:
+
+
+```bash
+DISTINCTFILES="D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.DistinctUniqueProteins.Fraction0_1.11.05.2023-17:03:49.csv \
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.DistinctUniqueProteins.Fraction0_1.11.05.2023-17:11:00.csv"
+ALLROTSFILES="D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
+SAMPLESNAMES="GRIA PCLO"
+
+nohup \
+julia \
+--project=. \
+--threads 30 \
+Code/UnorderedNaNDepletion/expressionlevels.jl \
+--distinctfiles $DISTINCTFILES \
+--allprotsfiles $ALLROTSFILES \
+--samplenames $SAMPLESNAMES \
+--postfix_to_add .Fraction0_1.SupportingReadsAndProteins \
+--fractions 0.1 \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3 \
+> D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/expressionlevels.regular.fraction01.SupportingReadsAndProteins.24.5.23.out &
+```
+* alu 16
+* 24.5.23
 
 
 #### AA_groups_Miyata1979
@@ -1687,6 +1862,7 @@ Finding isoforms:
 ```bash
 INFILES=$(echo D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/*.unique_proteins.csv.gz)
 echo $INFILES
+```
 
 > 100
 
