@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.14.4
+#       jupytext_version: 1.14.5
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -228,14 +228,14 @@ len(chroms)
 # %%
 len(positions_files)
 
-# %% [markdown] papermill={"duration": 0.029907, "end_time": "2022-02-01T09:42:43.198426", "exception": false, "start_time": "2022-02-01T09:42:43.168519", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.029907, "end_time": "2022-02-01T09:42:43.198426", "exception": false, "start_time": "2022-02-01T09:42:43.168519", "status": "completed"}
 # # Imports
 
 # %%
 # %load_ext autoreload
 # %autoreload 2
 
-# %% papermill={"duration": 2.901153, "end_time": "2022-02-01T09:42:46.125355", "exception": false, "start_time": "2022-02-01T09:42:43.224202", "status": "completed"} tags=[]
+# %% papermill={"duration": 2.901153, "end_time": "2022-02-01T09:42:46.125355", "exception": false, "start_time": "2022-02-01T09:42:43.224202", "status": "completed"}
 import sys
 from functools import reduce
 from itertools import chain, combinations, product
@@ -275,7 +275,7 @@ from Alignment.alignment_utils import (
 )
 
 
-# %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"}
 # # Ploting utils
 
 # %%
@@ -316,7 +316,7 @@ def two_subcolors_from_hex(hex_color, d_r=4, d_g=20, d_b=22, scale_1=1, scale_2=
 # %%
 ic(conditions);
 
-# %% papermill={"duration": 0.054755, "end_time": "2022-02-01T09:42:46.304499", "exception": false, "start_time": "2022-02-01T09:42:46.249744", "status": "completed"} tags=[]
+# %% papermill={"duration": 0.054755, "end_time": "2022-02-01T09:42:46.304499", "exception": false, "start_time": "2022-02-01T09:42:46.249744", "status": "completed"}
 # plotly consts
 # color_sequence = px.colors.qualitative.Pastel
 # color_sequence = px.colors.qualitative.D3
@@ -365,10 +365,10 @@ def n_repetitions_colormap(subcolors_discrete_map, condition, n_repetitions):
 # %%
 n_repetitions_colormap(subcolors_discrete_map, conditions[0], 10)
 
-# %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"} tags=[] toc-hr-collapsed=true toc-hr-collapsed=true tags=[]
+# %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"}
 # # Data
 
-# %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"}
 # ## Known sites
 
 # %%
@@ -395,10 +395,10 @@ known_sites_df["Position"] = known_sites_df["Position"] - 1
 known_sites_df
 
 
-# %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"}
 # ## Positions
 
-# %% tags=[]
+# %%
 positions_dfs = [
     pd.read_csv(position_file, sep=sep) for position_file in positions_files
 ]
@@ -415,16 +415,16 @@ print(
     f"Average of {sum(editing_positions_per_sample)/len(positions_dfs)} editing sites per sample"
 )
 
-# %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"}
 # ## Reads
 
-# %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"}
 # ### All
 
 # %% [markdown]
 # That is, all filtered reads.
 
-# %% papermill={"duration": 1.204258, "end_time": "2022-02-01T09:42:47.668206", "exception": false, "start_time": "2022-02-01T09:42:46.463948", "status": "completed"} tags=[]
+# %% papermill={"duration": 1.204258, "end_time": "2022-02-01T09:42:47.668206", "exception": false, "start_time": "2022-02-01T09:42:46.463948", "status": "completed"}
 reads_dfs = [pd.read_csv(reads_file, sep=sep) for reads_file in reads_files]
 reads_dfs[0]
 
@@ -448,13 +448,13 @@ ambigous_positions_in_reads_df.mean()
 # edited_reads_dfs[0]
 
 
-# %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"}
 # ### Unique
 
 # %% [markdown]
 # All unique reads
 
-# %% papermill={"duration": 0.126539, "end_time": "2022-02-01T09:42:47.923363", "exception": false, "start_time": "2022-02-01T09:42:47.796824", "status": "completed"} tags=[]
+# %% papermill={"duration": 0.126539, "end_time": "2022-02-01T09:42:47.923363", "exception": false, "start_time": "2022-02-01T09:42:47.796824", "status": "completed"}
 unique_reads_dfs = [
     pd.read_csv(unique_reads_file, sep=sep) for unique_reads_file in unique_reads_files
 ]
@@ -478,7 +478,7 @@ unique_reads_dfs[1]
 # edited_unique_reads_dfs[0]
 
 
-# %% [markdown] tags=[]
+# %% [markdown]
 # ### Distinct unique reads
 
 # %%
@@ -755,7 +755,7 @@ distinct_unique_proteins_df2
 #     proteins_jaccard_dfs.append(df)
 # proteins_jaccard_dfs[0]
 
-# %% tags=[]
+# %%
 # todo uncomment
 
 # annotated_proteins_jaccard_dfs = []
@@ -903,7 +903,7 @@ data_loss_df = pd.DataFrame(
 data_loss_df
 
 
-# %% tags=[]
+# %%
 total_unaligned_reads = count_reads_in_fastq(
     total_unaligned_reads_fasta, cat_cmd="zcat"
 )
@@ -930,10 +930,10 @@ ic(
     - total_aligned_filtered_reads_within_targeted_transcripts
 )
 
-# %% [markdown] papermill={"duration": 0.045853, "end_time": "2022-02-01T09:42:48.953594", "exception": false, "start_time": "2022-02-01T09:42:48.907741", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.045853, "end_time": "2022-02-01T09:42:48.953594", "exception": false, "start_time": "2022-02-01T09:42:48.907741", "status": "completed"}
 # # Results
 
-# %% [markdown] papermill={"duration": 0.149848, "end_time": "2022-02-01T09:43:12.800733", "exception": false, "start_time": "2022-02-01T09:43:12.650885", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.149848, "end_time": "2022-02-01T09:43:12.800733", "exception": false, "start_time": "2022-02-01T09:43:12.650885", "status": "completed"}
 # ## Data loss
 
 # %%
@@ -1214,10 +1214,10 @@ fig.show()
 # fig.show()
 
 
-# %% [markdown] papermill={"duration": 0.124528, "end_time": "2022-02-01T09:43:10.054394", "exception": false, "start_time": "2022-02-01T09:43:09.929866", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.124528, "end_time": "2022-02-01T09:43:10.054394", "exception": false, "start_time": "2022-02-01T09:43:09.929866", "status": "completed"}
 # ## Positions
 
-# %% [markdown] papermill={"duration": 0.149848, "end_time": "2022-02-01T09:43:12.800733", "exception": false, "start_time": "2022-02-01T09:43:12.650885", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.149848, "end_time": "2022-02-01T09:43:12.800733", "exception": false, "start_time": "2022-02-01T09:43:12.650885", "status": "completed"}
 # ### Correlation matrix
 
 # %%
@@ -1264,9 +1264,12 @@ for condition, corr, mask in zip(conditions, corrs, masks):
         # vmin=vmin, vmax=vmax,
     )
 
-    plt.title(
-        f"Pearson correlation coefficient between editing sites in {condition} reads"
-    )
+    title = f"Pearson correlation coefficient between editing sites in {condition} reads"
+    
+    plt.title(title)
+    
+    if condition == "PCLO_CHICK":
+        fig.savefig(f"{title}.svg", dpi=300);
 
     # break
 
@@ -1279,7 +1282,7 @@ df = reads_w_nan_dfs[0].iloc[:, reads_first_col_pos:]
 df.head()
 
 
-# %% tags=[]
+# %%
 def calc_normalized_mi(df, pos_1, pos_2):
 
     two_positions = [pos_1, pos_2]
@@ -1453,9 +1456,11 @@ sns.heatmap(
     # vmin=vmin, vmax=vmax,
 )
 
-plt.title(
-    f"Normalized mutual information between editing sites in {conditions[pclo_index]}"
-);
+title = f"Normalized mutual information between editing sites in {conditions[pclo_index]}"
+
+plt.title(title);
+
+fig.savefig(f"{title}.svg", dpi=300);
 
 # %%
 fig = px.histogram(
@@ -1673,7 +1678,7 @@ fig.show()
 # %% [markdown]
 # ### Noise in positions
 
-# %% tags=[]
+# %%
 noise_dfs = []
 for positions_df, condition, strand in zip(positions_dfs, conditions, strands):
     ref_base = "A" if strand == "+" else "T"
@@ -1694,9 +1699,18 @@ fig = px.violin(
     category_orders=category_orders,
     template=template,
     title="Noise levels",
+    labels={"Gene": "Transcript"}
 )
-fig.update_layout(showlegend=False)
+
 fig.update_yaxes(title="% noise", tickmode="linear", tick0=0, dtick=2)
+fig.update_layout(showlegend=False, width=1200, height=350)
+
+fig.write_image(
+    "Per chrom noise levels - Illumina.svg",
+    width=1200,
+    height=350,
+)
+
 fig.show()
 
 
@@ -1764,6 +1778,8 @@ if (num_of_axes_to_delete := cols * rows - len(conditions)) > 0:
     for col_to_delete in cols_to_delete:
         fig.delaxes(axs[rows - 1][col_to_delete])
 
+plt.savefig("Known vs new editing sites - Illumina.svg", format="svg", dpi=300)
+        
 plt.show()
 
 
@@ -1880,7 +1896,7 @@ for condition in conditions:
 # %% [markdown]
 # ### Current vs. known editing levels
 
-# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"} tags=[]
+# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"}
 # todo retain nan rows and turn nans to 0?
 
 # cols = len(conditions)
@@ -2033,7 +2049,7 @@ fig.for_each_annotation(lambda a: a.update(text=a.text.replace(f"{condition_col}
 fig.show()
 
 
-# %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"}
 # ## Num of distinct unique proteins
 
 # %%
@@ -2699,7 +2715,7 @@ dfs2[0]
 df3 = pd.concat(dfs2)
 df3
 
-# %% tags=[]
+# %%
 cols = min(facet_col_wrap, len(conditions), 5)
 rows = ceil(len(conditions) / cols)
 row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
@@ -2765,7 +2781,7 @@ fig.update_yaxes(range=[0, max_y * 1.1])
 fig.show()
 
 
-# %% [markdown] tags=[]
+# %% [markdown]
 # ### Comparing algorithms
 
 # %% [markdown]
@@ -2921,7 +2937,7 @@ df["Desc - Asc"] = df["Descending"] - df["Ascending"]
 df = df.loc[df["Desc - Asc"] < 0].reset_index(drop=True)
 df
 
-# %% tags=[]
+# %%
 # fig = px.histogram(
 #     df,
 #     x="Desc - Asc",
@@ -3365,7 +3381,7 @@ fig.show()
 #     proteins_jaccard_dfs.append(jaccard_df)
 # proteins_jaccard_dfs[0]
 
-# %% tags=[]
+# %%
 # annotated_proteins_jaccard_dfs = []
 
 # for condition, proteins_jaccard_df in zip(conditions, proteins_jaccard_dfs):
@@ -3469,7 +3485,7 @@ fig.show()
 # %% [markdown]
 # ##### Distribution
 
-# %% tags=[]
+# %%
 # todo uncomment
 
 # melted_proteins_jaccard_dfs = []
@@ -3493,7 +3509,7 @@ fig.show()
 
 # melted_proteins_jaccard_dfs[0]
 
-# %% tags=[]
+# %%
 # TODO - rerun this heavy cell after the notebook finished its running
 
 # cols = len(conditions)
@@ -3551,7 +3567,7 @@ fig.show()
 # # fig.show()
 # fig.show(config={'staticPlot': True, 'responsive': False})
 
-# %% tags=[]
+# %%
 # TODO - rerun this heavy cell after the notebook finished its running
 
 # fractions = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
@@ -3635,10 +3651,10 @@ fig.show()
 
 # %%
 
-# %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"}
 # ## Supporting reads' coverage
 
-# %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"}
 # ### Unique reads
 
 # %%
@@ -3681,7 +3697,7 @@ unique_reads_dfs[0]
 #     cummulative_supporting_reads_dfs.append(df)
 # cummulative_supporting_reads_dfs[0]
 
-# %% tags=[]
+# %%
 # df = cummulative_supporting_reads_dfs[0]
 # df
 
@@ -3699,7 +3715,7 @@ unique_reads_dfs[0]
 # )
 # ax.set(xscale="log")
 
-# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"} tags=[]
+# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"}
 # # cummulative_supporting_reads_dfs = []
 # # for unique_reads_df in unique_reads_dfs:
 # #     df = unique_reads_df.loc[:, ["UniqueRead", "NumOfReads"]].sort_values("NumOfReads", ascending=False).reset_index(drop=True)
@@ -3766,7 +3782,7 @@ unique_reads_dfs[0]
 # # fig.show(config={'staticPlot': True, 'responsive': False})
 
 
-# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"} tags=[]
+# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"}
 # # cummulative_supporting_reads_dfs = []
 # # for unique_reads_df in unique_reads_dfs:
 # #     df = unique_reads_df.loc[:, ["UniqueRead", "NumOfReads"]].sort_values("NumOfReads", ascending=False).reset_index(drop=True)
@@ -3823,7 +3839,7 @@ unique_reads_dfs[0]
 # fig.show(config={'staticPlot': True, 'responsive': False})
 
 
-# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"} tags=[]
+# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"}
 # # cummulative_supporting_reads_dfs = []
 # # for unique_reads_df in unique_reads_dfs:
 # #     df = unique_reads_df.loc[:, ["UniqueRead", "NumOfReads"]].sort_values("NumOfReads", ascending=False).reset_index(drop=True)
@@ -3886,7 +3902,7 @@ unique_reads_dfs[0]
 
 # %%
 
-# %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"}
 # ### Unique proteins
 
 # %%
@@ -3897,7 +3913,7 @@ unique_reads_dfs[0]
 # max(df["NumOfReads"].max() for df in unique_proteins_dfs)
 
 
-# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"} tags=[]
+# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"}
 # cols = len(conditions)
 
 # x_title = "Reads"
@@ -3942,10 +3958,10 @@ unique_reads_dfs[0]
 # fig.show()
 
 
-# %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"}
 # ### Distinct unique proteins
 
-# %% [markdown] toc-hr-collapsed=true toc-hr-collapsed=true toc-hr-collapsed=true tags=[] toc-hr-collapsed=true toc-hr-collapsed=true toc-hr-collapsed=true toc-hr-collapsed=true toc-hr-collapsed=true tags=[] toc-hr-collapsed=true toc-hr-collapsed=true toc-hr-collapsed=true tags=[] toc-hr-collapsed=true jp-MarkdownHeadingCollapsed=true tags=[] toc-hr-collapsed=true
+# %% [markdown] toc-hr-collapsed=true jp-MarkdownHeadingCollapsed=true
 # #### Jaccard - TODO - erase?
 
 # %%
@@ -4091,7 +4107,7 @@ unique_reads_dfs[0]
 
 # %%
 
-# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"} tags=[]
+# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"}
 # cols = len(conditions)
 
 # fig = make_subplots(
@@ -4195,7 +4211,7 @@ unique_reads_dfs[0]
 #         jaccard_df = calc_jaccard_df(df.loc[df["Algorithm"] == alg], "Reads")
 #         fraction_1_alg_condition_jaccard_dfs[(condition, alg)] = jaccard_df
 
-# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"} tags=[]
+# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"}
 # cols = len(conditions)
 # rows = 2
 
@@ -4663,7 +4679,7 @@ percentile_dfs[0]
 # gb = expression_dfs[0].groupby("#Solution")
 # gb.agg({"Diff5+": ['size', 'sum']})
 
-# %% tags=[]
+# %%
 # sol926_exp_df = expression_dfs[0].loc[expression_dfs[0]["#Solution"] == "926"]
 # sol926_exp_df
 
@@ -4738,7 +4754,7 @@ percentile_dfs[0]
 # %%
 # percentile_dfs[0]
 
-# %% tags=[]
+# %%
 # x_axis_name = "Distinct unique protein rank"
 # y_axis_name = "Cummulative relative<br>expression (%)"
 # head_title = "Cummulative expression vs. distinct unique proteins"
@@ -4848,7 +4864,7 @@ percentile_dfs[0]
 # # )
 # fig.show()
 
-# %% tags=[]
+# %%
 x_axis_name = "Distinct protein rank"
 y_axis_name = "Cummulative relative<br>expression (%)"
 head_title = "Weighted cummulative expression vs. distinct protein rank"
@@ -4957,7 +4973,7 @@ fig.write_image(
 
 fig.show()
 
-# %% tags=[]
+# %%
 # cols = min(facet_col_wrap, len(conditions), 4)
 # rows = ceil(len(conditions) / cols)
 # row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
@@ -5261,7 +5277,7 @@ facet_row_spacing, facet_col_spacing
 # %%
 conditions
 
-# %% tags=[]
+# %%
 cols = min(facet_col_wrap, len(conditions), 5)
 rows = ceil(len(conditions) / cols)
 row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
@@ -5983,10 +5999,10 @@ n_iter_500_weighted_conditions_tsnes, n_iter_500_weighted_conditions_Xs = run_ts
 # %%
 len(n_iter_500_weighted_conditions_tsnes)
 
-# %% jupyter={"source_hidden": true, "outputs_hidden": true} tags=[]
+# %% jupyter={"source_hidden": true}
 help(fig.write_image)
 
-# %% tags=[]
+# %%
 cols = min(facet_col_wrap, len(conditions), 5)
 rows = ceil(len(conditions) / cols)
 row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
@@ -6017,8 +6033,8 @@ for (row, col), condition, X, condition_tsnes in zip(row_col_iter, conditions, n
     x, y = prots_perplexity_tsne.T
 
     fig.add_trace(
-        # go.Scattergl(
-        go.Scatter(
+        go.Scattergl(
+        # go.Scatter(
             x=x,
             y=y,
             mode="markers",
@@ -6034,160 +6050,160 @@ fig.update_layout(
     # title_y=0.95,
     template=template,
     showlegend=False,
-    # width=1500,
-    # height=300 * len(conditions),
+    width=200*cols,
+    height=200*rows,
 )
+
+fig.write_image(
+    "tSNE clustering - Illumina.svg", width=200*cols, height=200*rows
+)
+
+fig.show()
+
+
+# %%
+# rank_cutoff = 1000
+
+# head_title = (
+#     f"t-SNEs for largest solution of each {str(condition_col).lower()} under different perplexities"
+#     # "<br>"
+#     # f"<sub>{rank_cutoff} highest expressed proteins are colored</sub>"
+# )
+# row_titles = conditions
+# column_titles = [f"Perplexity = {perplexity}" for perplexity in perplexities]
+
+# fig = make_subplots(
+#     rows=len(conditions),
+#     cols=len(perplexities),
+#     row_titles=row_titles,
+#     column_titles=column_titles,
+#     # shared_yaxes=True,
+#     # shared_xaxes=True
+# )
+
+# marker_size = 1
+# line_width = 0.5
+
+# for row, (condition, X, condition_tsnes) in enumerate(
+#     zip(
+#         conditions,
+#         n_iter_500_weighted_conditions_Xs,
+#         n_iter_500_weighted_conditions_tsnes,
+#     ),
+#     start=1,
+# ):
+
+#     # n = X.shape[0]
+#     # color_options = [color_discrete_map[condition], "white"]
+#     # colors = color_highest_expressed_proteins(n, rank_cutoff, color_options)
+#     colors = "white"
+
+#     for col, prots_perplexity_tsne in enumerate(condition_tsnes, start=1):
+
+#         x, y = prots_perplexity_tsne.T
+
+#         fig.add_trace(
+#             # go.Scattergl(
+#             go.Scatter(
+#                 x=x,
+#                 y=y,
+#                 mode="markers",
+#                 marker=dict(color=colors, line_width=line_width, size=marker_size),
+#             ),
+#             row=row,
+#             col=col,
+#         )
+
+# fig.update_layout(
+#     # title_text=head_title,
+#     # title_y=0.95,
+#     template=template,
+#     showlegend=False,
+#     width=1500,
+#     height=300 * len(conditions),
+# )
 
 # fig.write_image(
 #     "tSNE clustering - Illumina.svg", width=1500, height=300 * len(conditions)
 # )
 
-# fig.show()
-
-
-# %%
-rank_cutoff = 1000
-
-head_title = (
-    f"t-SNEs for largest solution of each {str(condition_col).lower()} under different perplexities"
-    # "<br>"
-    # f"<sub>{rank_cutoff} highest expressed proteins are colored</sub>"
-)
-row_titles = conditions
-column_titles = [f"Perplexity = {perplexity}" for perplexity in perplexities]
-
-fig = make_subplots(
-    rows=len(conditions),
-    cols=len(perplexities),
-    row_titles=row_titles,
-    column_titles=column_titles,
-    # shared_yaxes=True,
-    # shared_xaxes=True
-)
-
-marker_size = 1
-line_width = 0.5
-
-for row, (condition, X, condition_tsnes) in enumerate(
-    zip(
-        conditions,
-        n_iter_500_weighted_conditions_Xs,
-        n_iter_500_weighted_conditions_tsnes,
-    ),
-    start=1,
-):
-
-    # n = X.shape[0]
-    # color_options = [color_discrete_map[condition], "white"]
-    # colors = color_highest_expressed_proteins(n, rank_cutoff, color_options)
-    colors = "white"
-
-    for col, prots_perplexity_tsne in enumerate(condition_tsnes, start=1):
-
-        x, y = prots_perplexity_tsne.T
-
-        fig.add_trace(
-            # go.Scattergl(
-            go.Scatter(
-                x=x,
-                y=y,
-                mode="markers",
-                marker=dict(color=colors, line_width=line_width, size=marker_size),
-            ),
-            row=row,
-            col=col,
-        )
-
-fig.update_layout(
-    # title_text=head_title,
-    # title_y=0.95,
-    template=template,
-    showlegend=False,
-    width=1500,
-    height=300 * len(conditions),
-)
-
-fig.write_image(
-    "tSNE clustering - Illumina.svg", width=1500, height=300 * len(conditions)
-)
-
-# fig.show()
+# # fig.show()
 
 # %%
-rank_cutoff = 1000
+# rank_cutoff = 1000
 
-head_title = (
-    f"t-SNEs for largest solution of each {str(condition_col).lower()} under different perplexities"
-    # "<br>"
-    # f"<sub>{rank_cutoff} highest expressed proteins are colored</sub>"
-)
-row_titles = conditions
-column_titles = [f"Perplexity = {perplexity}" for perplexity in perplexities]
+# head_title = (
+#     f"t-SNEs for largest solution of each {str(condition_col).lower()} under different perplexities"
+#     # "<br>"
+#     # f"<sub>{rank_cutoff} highest expressed proteins are colored</sub>"
+# )
+# row_titles = conditions
+# column_titles = [f"Perplexity = {perplexity}" for perplexity in perplexities]
 
-fig = make_subplots(
-    rows=len(conditions),
-    cols=len(perplexities),
-    row_titles=row_titles,
-    column_titles=column_titles,
-    # shared_yaxes=True,
-    # shared_xaxes=True
-)
+# fig = make_subplots(
+#     rows=len(conditions),
+#     cols=len(perplexities),
+#     row_titles=row_titles,
+#     column_titles=column_titles,
+#     # shared_yaxes=True,
+#     # shared_xaxes=True
+# )
 
-marker_size = 1
-line_width = 0.5
+# marker_size = 1
+# line_width = 0.5
 
-for row, (condition, X, condition_tsnes) in enumerate(
-    zip(
-        conditions,
-        n_iter_500_weighted_conditions_Xs,
-        n_iter_500_weighted_conditions_tsnes,
-    ),
-    start=1,
-):
+# for row, (condition, X, condition_tsnes) in enumerate(
+#     zip(
+#         conditions,
+#         n_iter_500_weighted_conditions_Xs,
+#         n_iter_500_weighted_conditions_tsnes,
+#     ),
+#     start=1,
+# ):
 
-    # n = X.shape[0]
-    # color_options = [color_discrete_map[condition], "white"]
-    # colors = color_highest_expressed_proteins(n, rank_cutoff, color_options)
-    colors = "white"
+#     # n = X.shape[0]
+#     # color_options = [color_discrete_map[condition], "white"]
+#     # colors = color_highest_expressed_proteins(n, rank_cutoff, color_options)
+#     colors = "white"
 
-    for col, prots_perplexity_tsne in enumerate(condition_tsnes, start=1):
+#     for col, prots_perplexity_tsne in enumerate(condition_tsnes, start=1):
 
-        x, y = prots_perplexity_tsne.T
+#         x, y = prots_perplexity_tsne.T
 
-        fig.add_trace(
-            # go.Scattergl(
-            go.Scatter(
-                x=x,
-                y=y,
-                mode="markers",
-                marker=dict(color=colors, line_width=line_width, size=marker_size),
-            ),
-            row=row,
-            col=col,
-        )
+#         fig.add_trace(
+#             # go.Scattergl(
+#             go.Scatter(
+#                 x=x,
+#                 y=y,
+#                 mode="markers",
+#                 marker=dict(color=colors, line_width=line_width, size=marker_size),
+#             ),
+#             row=row,
+#             col=col,
+#         )
 
-fig.update_layout(
-    # title_text=head_title,
-    # title_y=0.95,
-    template=template,
-    showlegend=False,
-    width=1500,
-    height=300 * len(conditions),
-)
+# fig.update_layout(
+#     # title_text=head_title,
+#     # title_y=0.95,
+#     template=template,
+#     showlegend=False,
+#     width=1500,
+#     height=300 * len(conditions),
+# )
 
-fig.write_image(
-    "tSNE clustering - Illumina.svg", width=1500, height=300 * len(conditions)
-)
+# fig.write_image(
+#     "tSNE clustering - Illumina.svg", width=1500, height=300 * len(conditions)
+# )
 
-# fig.show()
+# # fig.show()
 
 # %%
-fig.write_image(
-    "tSNE clustering - Illumina.svg",
-    # width=1500, height=300*len(conditions)
-)
+# fig.write_image(
+#     "tSNE clustering - Illumina.svg",
+#     # width=1500, height=300*len(conditions)
+# )
 
-# %% tags=[]
+# %%
 # X = weighted_exp_tsne_input_dfs[0].iloc[:1000, ML_INPUT_FIRST_COL_POS:].values
 
 # # tsne_df = tsne_dfs[0]
@@ -6265,7 +6281,7 @@ n_jobs = 60
 #     n_jobs=n_jobs,
 # )
 
-# %% tags=[]
+# %%
 # TODO: uncomment
 
 
@@ -6330,7 +6346,7 @@ n_jobs = 60
 
 #     fig.show()
 
-# %% tags=[]
+# %%
 # TODO: uncomment
 
 
@@ -6406,7 +6422,7 @@ n_jobs = 60
 # equal_conditions_pcas = run_pcas(conditions, equal_exp_tsne_input_dfs, seed)
 # weighted_conditions_pcas = run_pcas(conditions, weighted_exp_tsne_input_dfs, seed)
 
-# %% tags=[]
+# %%
 # TODO: uncomment
 
 
@@ -6494,7 +6510,7 @@ n_jobs = 60
 #     top_expressed_proteins=top_expressed_proteins,
 # )
 
-# %% tags=[]
+# %%
 # TODO: uncomment
 
 
@@ -6579,7 +6595,7 @@ n_jobs = 60
 #     top_expressed_proteins=top_expressed_proteins,
 # )
 
-# %% tags=[]
+# %%
 # TODO: uncomment
 
 
@@ -6836,13 +6852,13 @@ fig.write_image(
 
 fig.show()
 
-# %% [markdown] tags=[] toc-hr-collapsed=true toc-hr-collapsed=true
+# %% [markdown] toc-hr-collapsed=true
 # ## Editing in reads
 
 # %% [markdown]
 # ### Edited sites
 
-# %% [markdown] papermill={"duration": 0.115362, "end_time": "2022-02-01T09:42:53.418861", "exception": false, "start_time": "2022-02-01T09:42:53.303499", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.115362, "end_time": "2022-02-01T09:42:53.418861", "exception": false, "start_time": "2022-02-01T09:42:53.303499", "status": "completed"}
 # #### All reads
 
 # %%
@@ -6880,7 +6896,7 @@ fig.update_layout(showlegend=False, yaxis_title="Reads")
 fig.show()
 
 
-# %% [markdown] papermill={"duration": 0.115362, "end_time": "2022-02-01T09:42:53.418861", "exception": false, "start_time": "2022-02-01T09:42:53.303499", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.115362, "end_time": "2022-02-01T09:42:53.418861", "exception": false, "start_time": "2022-02-01T09:42:53.303499", "status": "completed"}
 # #### Distinct unique reads
 
 # %%
@@ -6939,7 +6955,7 @@ fig.show()
 # %% [markdown]
 # ### % editing
 
-# %% [markdown] papermill={"duration": 0.115362, "end_time": "2022-02-01T09:42:53.418861", "exception": false, "start_time": "2022-02-01T09:42:53.303499", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.115362, "end_time": "2022-02-01T09:42:53.418861", "exception": false, "start_time": "2022-02-01T09:42:53.303499", "status": "completed"}
 # #### All reads
 
 # %%
@@ -6986,7 +7002,7 @@ fig.update_layout(showlegend=False, yaxis_title="Reads")
 fig.show()
 
 
-# %% [markdown] papermill={"duration": 0.115362, "end_time": "2022-02-01T09:42:53.418861", "exception": false, "start_time": "2022-02-01T09:42:53.303499", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.115362, "end_time": "2022-02-01T09:42:53.418861", "exception": false, "start_time": "2022-02-01T09:42:53.303499", "status": "completed"}
 # #### Distinct unique edited reads
 
 # %%
@@ -7051,7 +7067,7 @@ fig.show()
 # %% [markdown]
 # ## Distribution of non-syns
 
-# %% tags=[]
+# %%
 cols = min(facet_col_wrap, len(conditions), 5)
 rows = ceil(len(conditions) / cols)
 row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
@@ -7137,7 +7153,7 @@ fig.update_yaxes(range=[0, max_y * 0.2])
 fig.show()
 
 
-# %% tags=[]
+# %%
 cols = min(facet_col_wrap, len(conditions), 5)
 rows = ceil(len(conditions) / cols)
 row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
@@ -7293,7 +7309,7 @@ non_syns_per_read_df
 # %%
 non_syns_per_read_df["MinNonSyns"].sum() / len(non_syns_per_read_df)
 
-# %% tags=[]
+# %%
 # Distribution of min & max estimates of non-syn substitutions per *read*
 
 

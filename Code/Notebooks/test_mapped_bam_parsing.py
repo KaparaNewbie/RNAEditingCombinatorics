@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.14.0
+#       jupytext_version: 1.14.5
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -19,10 +19,7 @@ mapped_bams = [
     "/private7/projects/Combinatorics/D.pealeii/Alignment/BestN1/PCLO-CNS-RESUB.C0x1291.aligned.sorted.bam",
 ]
 condition_col = "Gene"
-conditions = [
-    "GRIA", 
-    "PCLO"
-]
+conditions = ["GRIA", "PCLO"]
 
 # %%
 # from pathlib import Path
@@ -106,12 +103,7 @@ df
 
 # %%
 # reads w/o any deletion event
-(
-    df
-    .loc[df["Deletions"] == 0]
-    .groupby(condition_col)
-    .size()
-)
+(df.loc[df["Deletions"] == 0].groupby(condition_col).size())
 
 # %%
 fig = px.histogram(
@@ -124,7 +116,7 @@ fig = px.histogram(
     marginal="histogram",
     # opacity=0.75,
     # barmode="group",
-    labels={"ReadLen": "CCS read length"},
+    labels={"ReadLen": "CCS read length", "Gene": "Transcript"},
     title="CCS read length",
     color=condition_col,
     color_discrete_map=color_discrete_map,
@@ -136,11 +128,19 @@ fig = px.histogram(
 for axis in fig.layout:
     if type(fig.layout[axis]) == go.layout.YAxis:
         fig.layout[axis].title.text = ""
-fig.update_layout(showlegend=False, yaxis_title="Accumulated <br>% of reads")
+fig.update_layout(
+    showlegend=False, yaxis_title="Accumulated <br>% of reads", width=600, height=350
+)
+
+fig.write_image(
+    "Accumulated % of reads length - PacBio.svg",
+    width=600,
+    height=350,
+)
 
 fig.show()
 
-# %% tags=[]
+# %%
 fig = px.histogram(
     df,
     x="ReadQuality",
@@ -235,7 +235,7 @@ fig = px.histogram(
     barmode="overlay",
     marginal="box",
     histfunc="avg",
-    labels={"Deletions": "deletion events", "ReadQuality": "Read quality"},
+    labels={"Deletions": "deletion events", "ReadQuality": "Read quality", "Gene": "Transcript"},
     title="Occurrence of deletion events (regardless of their length) vs. read quality",
     color=condition_col,
     color_discrete_map=color_discrete_map,
@@ -249,7 +249,17 @@ fig = px.histogram(
 for axis in fig.layout:
     if type(fig.layout[axis]) == go.layout.YAxis:
         fig.layout[axis].title.text = ""
-fig.update_layout(yaxis_title="Deletion events (avg)")
+fig.update_layout(
+    yaxis_title="Deletion events (avg)",
+    width=600,
+    height=350,
+)
+
+fig.write_image(
+    "Avg deletion events vs read quality - PacBio.svg",
+    width=600,
+    height=350,
+)
 
 fig.show()
 
@@ -260,8 +270,8 @@ fig.show()
 # %%
 n = 20
 
-sites = list(range(1, n+1))
-isoforms = [2 ** x for x in sites]
+sites = list(range(1, n + 1))
+isoforms = [2**x for x in sites]
 
 df = pd.DataFrame({"Editing sites": sites, "Max possible isoforms": isoforms})
 df[">=15"] = df["Editing sites"] >= 15
@@ -279,7 +289,7 @@ fig = px.scatter(
 )
 fig.update_traces(
     marker=dict(size=8),
-    selector=dict(mode='markers'),
+    selector=dict(mode="markers"),
 )
 fig.update_layout(showlegend=False)
 fig.show()

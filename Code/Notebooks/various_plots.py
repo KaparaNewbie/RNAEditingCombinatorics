@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.14.4
+#       jupytext_version: 1.14.5
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -19,7 +19,7 @@
 # %%
 code_dir = "/private7/projects/Combinatorics/Code"
 
-# %% papermill={"duration": 2.901153, "end_time": "2022-02-01T09:42:46.125355", "exception": false, "start_time": "2022-02-01T09:42:43.224202", "status": "completed"} tags=[]
+# %% papermill={"duration": 2.901153, "end_time": "2022-02-01T09:42:46.125355", "exception": false, "start_time": "2022-02-01T09:42:43.224202", "status": "completed"}
 import sys
 from functools import reduce
 from itertools import chain, combinations, product
@@ -360,7 +360,7 @@ px.colors
 # code_dir = "/private7/projects/Combinatorics/Code"
 # seed = 1892
 
-# %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"}
 # # Ploting utils
 
 # %%
@@ -370,7 +370,7 @@ facet_col_wrap = 6
 facet_row_spacing = facet_col_spacing * 6
 zerolinewidth = 4
 
-# %% papermill={"duration": 0.054755, "end_time": "2022-02-01T09:42:46.304499", "exception": false, "start_time": "2022-02-01T09:42:46.249744", "status": "completed"} tags=[]
+# %% papermill={"duration": 0.054755, "end_time": "2022-02-01T09:42:46.304499", "exception": false, "start_time": "2022-02-01T09:42:46.249744", "status": "completed"}
 # # plotly consts
 # # color_sequence = px.colors.qualitative.Pastel
 # # color_sequence = px.colors.qualitative.D3
@@ -412,7 +412,7 @@ zerolinewidth = 4
 # %%
 # n_repetitions_colormap(subcolors_discrete_map, "GRIA", 10)
 
-# %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"}
 # # Editing levels in PCLO
 
 # %%
@@ -446,7 +446,7 @@ colors = [
 start = 0
 end = 6294
 
-# %% tags=[]
+# %%
 known_sites_df = pd.read_csv(known_sites_file)
 
 new_known_sites_cols = [
@@ -487,7 +487,7 @@ for positions_file, condition in zip(positions_files, conditions):
     positions_dfs.append(positions_df)
 positions_dfs[0]
 
-# %% tags=[]
+# %%
 ref_base_positions_dfs = []
 
 for positions_df, strand in zip(positions_dfs, strands):
@@ -656,7 +656,13 @@ fig.update_xaxes(
 
 fig.update_yaxes(range=[0, 100], tick0=0, dtick=20)
 
-fig.update_layout(template=template, height=600)
+fig.update_layout(template=template, height=600, width=1100)
+
+fig.write_image(
+    "Comparison of editing levels across platforms and studies in squid’s PCLO.svg",
+    width=1100,
+    height=600
+)
 
 fig.show()
 
@@ -905,7 +911,7 @@ illumina_data_df
 # )
 # editing_sites_df
 
-# %% tags=[]
+# %%
 fasta_dict = make_fasta_dict(transcriptome_file)
 chromosomal_lengths = {chrom: len(seq) for chrom, seq in fasta_dict.items()}
 
@@ -1067,7 +1073,9 @@ fasta_files = [
 ]
 main_title = None
 sub_titles = conditions + ["All"]
-out_file = None
+
+# %%
+out_file = "ADAR motif of all currently-edited sites - Squid.svg"
 
 # %%
 
@@ -1090,10 +1098,10 @@ len(seqs)
 
 # %%
 multiple_logos_from_fasta_files(
-    fasta_files, main_title, sub_titles, out_file, width=14, height=4
+    fasta_files, main_title, sub_titles, out_file, width=14, height=4, dpi=300
 );
 
-# %% [markdown] tags=[]
+# %% [markdown]
 # # Pooled editing levels comparisons
 
 # %%
@@ -1212,7 +1220,7 @@ conditions = [
 # start = 0
 # end = 6294
 
-# %% tags=[]
+# %%
 positions_dfs = [
     pd.read_csv(position_file, sep=sep) for position_file in positions_files
 ]
@@ -1343,7 +1351,7 @@ def editing_status_color(
         return known_editing_color
 
 
-# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"} tags=[]
+# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"}
 # todo retain nan rows and turn nans to 0?
 
 both_df = merged_ref_base_positions_df.loc[
@@ -1432,7 +1440,7 @@ fig.update_yaxes(range=[0, 100])
 fig.show()
 
 
-# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"} tags=[]
+# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"}
 # todo retain nan rows and turn nans to 0?
 
 both_df = merged_ref_base_positions_df.loc[
@@ -1458,7 +1466,7 @@ assert len(both_df) + len(edited_df) + len(known_editing_df) == len(all_df)
 # %%
 edited_df
 
-# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"} tags=[]
+# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"}
 fig = make_subplots(
     rows=1,
     cols=1,
@@ -1528,10 +1536,16 @@ fig.update_layout(
 fig.update_xaxes(range=[0, 100])
 fig.update_yaxes(range=[0, 100])
 
+fig.write_image(
+    "Correlation between current vs previously-reported editing levels - Squid.svg",
+    width=600,
+    height=500,
+)
+
 fig.show()
 
 
-# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"} tags=[]
+# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"}
 fig = make_subplots(
     rows=1,
     cols=1,
@@ -1585,6 +1599,12 @@ fig.update_layout(
 # fig.update_xaxes(range=[0, 100])
 fig.update_yaxes(range=[0, 100])
 
+fig.write_image(
+    "Distribution of pooled editing levels according to their editing status in current vs. previous study - Squid.svg",
+    width=600,
+    height=500,
+)
+
 fig.show()
 
 
@@ -1598,11 +1618,14 @@ unique_proteins_first_col_pos = 14
 platforms = ["PacBio", "Illumina"]
 
 # %%
+# pacbio_distinct_unique_proteins_files = [
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.DistinctUniqueProteins.03.03.2023-15:36:38.csv",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.DistinctUniqueProteins.03.03.2023-15:53:01.csv",
+# ]
 pacbio_distinct_unique_proteins_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.DistinctUniqueProteins.03.03.2023-15:36:38.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.DistinctUniqueProteins.03.03.2023-15:53:01.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.DistinctUniqueProteins.Regular.AvailableReads.22.05.2023-11:08:27.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.DistinctUniqueProteins.Regular.AvailableReads.22.05.2023-11:26:31.csv",
 ]
-
 pacbio_unique_reads_files = [
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_reads.csv.gz",
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_reads.csv.gz",
@@ -1788,6 +1811,8 @@ for (
         distinct_unique_proteins_df = pd.read_csv(
             distinct_unique_proteins_file, sep=sep
         )
+        if platform == "PacBio":
+            distinct_unique_proteins_df = distinct_unique_proteins_df.drop("AvailableReads", axis=1)
         distinct_unique_proteins_df.insert(0, condition_col, condition)
         distinct_unique_proteins_df.insert(
             1,

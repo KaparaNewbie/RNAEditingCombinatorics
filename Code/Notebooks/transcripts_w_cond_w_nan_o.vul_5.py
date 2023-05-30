@@ -6,14 +6,14 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.14.4
+#       jupytext_version: 1.14.5
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
 #     name: python3
 # ---
 
-# %% [markdown] papermill={"duration": 0.029907, "end_time": "2022-02-01T09:42:43.198426", "exception": false, "start_time": "2022-02-01T09:42:43.168519", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.029907, "end_time": "2022-02-01T09:42:43.198426", "exception": false, "start_time": "2022-02-01T09:42:43.168519", "status": "completed"}
 # # Imports
 
 # %%
@@ -23,7 +23,7 @@ code_dir = "/private7/projects/Combinatorics/Code"
 # %load_ext autoreload
 # %autoreload 2
 
-# %% papermill={"duration": 2.901153, "end_time": "2022-02-01T09:42:46.125355", "exception": false, "start_time": "2022-02-01T09:42:43.224202", "status": "completed"} tags=[]
+# %% papermill={"duration": 2.901153, "end_time": "2022-02-01T09:42:46.125355", "exception": false, "start_time": "2022-02-01T09:42:43.224202", "status": "completed"}
 import sys
 from functools import reduce
 from itertools import chain, combinations, product
@@ -401,7 +401,7 @@ distinct_unique_proteins_files = complete_data_df["DistinctProteinsFile"].tolist
 expression_files = complete_data_df["ExpressionFile"].tolist()
 
 
-# %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"}
 # # Ploting utils
 
 # %%
@@ -439,7 +439,7 @@ def two_subcolors_from_hex(hex_color, d_r=4, d_g=20, d_b=22, scale_1=1, scale_2=
     return subcolor_1, subcolor_2
 
 
-# %% papermill={"duration": 0.054755, "end_time": "2022-02-01T09:42:46.304499", "exception": false, "start_time": "2022-02-01T09:42:46.249744", "status": "completed"} tags=[]
+# %% papermill={"duration": 0.054755, "end_time": "2022-02-01T09:42:46.304499", "exception": false, "start_time": "2022-02-01T09:42:46.249744", "status": "completed"}
 # # plotly consts
 # # color_sequence = px.colors.qualitative.Pastel
 # # color_sequence = px.colors.qualitative.D3
@@ -504,10 +504,10 @@ zerolinewidth = 4
 # %%
 # 25_000 / (750 * 1.17)
 
-# %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"} tags=[] toc-hr-collapsed=true toc-hr-collapsed=true tags=[] toc-hr-collapsed=true toc-hr-collapsed=true tags=[] toc-hr-collapsed=true toc-hr-collapsed=true
+# %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"}
 # # Data
 
-# %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"}
 # ## Known sites
 
 # %%
@@ -564,10 +564,10 @@ fig = px.histogram(
 # fig['layout']['xaxis']['autorange'] = "reversed" # reverse the x-axis
 fig.show()
 
-# %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"}
 # ## Positions
 
-# %% tags=[]
+# %%
 positions_dfs = [
     pd.read_csv(position_file, sep=sep) for position_file in positions_files
 ]
@@ -586,16 +586,16 @@ print(
     f"Average of {sum(editing_positions_per_sample)/len(positions_dfs)} editing sites per sample"
 )
 
-# %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"}
 # ## Reads
 
-# %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"}
 # ### All
 
 # %% [markdown]
 # That is, all filtered reads.
 
-# %% papermill={"duration": 1.204258, "end_time": "2022-02-01T09:42:47.668206", "exception": false, "start_time": "2022-02-01T09:42:46.463948", "status": "completed"} tags=[]
+# %% papermill={"duration": 1.204258, "end_time": "2022-02-01T09:42:47.668206", "exception": false, "start_time": "2022-02-01T09:42:46.463948", "status": "completed"}
 reads_dfs = [pd.read_csv(reads_file, sep=sep) for reads_file in reads_files]
 reads_dfs[0]
 
@@ -612,13 +612,13 @@ reads_dfs[0]
 # edited_reads_dfs[0]
 
 
-# %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"}
 # ### Unique
 
 # %% [markdown]
 # All unique reads
 
-# %% papermill={"duration": 0.126539, "end_time": "2022-02-01T09:42:47.923363", "exception": false, "start_time": "2022-02-01T09:42:47.796824", "status": "completed"} tags=[]
+# %% papermill={"duration": 0.126539, "end_time": "2022-02-01T09:42:47.923363", "exception": false, "start_time": "2022-02-01T09:42:47.796824", "status": "completed"}
 unique_reads_dfs = [
     pd.read_csv(unique_reads_file, sep=sep) for unique_reads_file in unique_reads_files
 ]
@@ -919,7 +919,7 @@ distinct_unique_proteins_df2 = (
 )
 distinct_unique_proteins_df2
 
-# %% [markdown] tags=[] jp-MarkdownHeadingCollapsed=true
+# %% [markdown] jp-MarkdownHeadingCollapsed=true
 # #### Distinct dissimilar
 
 # %%
@@ -1019,7 +1019,7 @@ distinct_unique_proteins_df2
 #     "NumOfProteins"
 # ].max()
 
-# %% [markdown] jp-MarkdownHeadingCollapsed=true tags=[]
+# %% [markdown] jp-MarkdownHeadingCollapsed=true
 # #### Jaccards
 
 # %%
@@ -1029,7 +1029,7 @@ distinct_unique_proteins_df2
 #     proteins_jaccard_dfs.append(df)
 # proteins_jaccard_dfs[0]
 
-# %% tags=[]
+# %%
 # annotated_proteins_jaccard_dfs = []
 
 # for condition, proteins_jaccard_df in zip(conditions, proteins_jaccard_dfs):
@@ -1157,10 +1157,10 @@ data_loss_df = pd.DataFrame(
 data_loss_df
 
 
-# %% [markdown] papermill={"duration": 0.045853, "end_time": "2022-02-01T09:42:48.953594", "exception": false, "start_time": "2022-02-01T09:42:48.907741", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.045853, "end_time": "2022-02-01T09:42:48.953594", "exception": false, "start_time": "2022-02-01T09:42:48.907741", "status": "completed"}
 # # Results
 
-# %% [markdown] papermill={"duration": 0.149848, "end_time": "2022-02-01T09:43:12.800733", "exception": false, "start_time": "2022-02-01T09:43:12.650885", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.149848, "end_time": "2022-02-01T09:43:12.800733", "exception": false, "start_time": "2022-02-01T09:43:12.650885", "status": "completed"}
 # ## Data loss
 
 # %%
@@ -1236,10 +1236,10 @@ fig = px.bar(
 fig.show()
 
 
-# %% [markdown] papermill={"duration": 0.124528, "end_time": "2022-02-01T09:43:10.054394", "exception": false, "start_time": "2022-02-01T09:43:09.929866", "status": "completed"} tags=[] toc-hr-collapsed=true
+# %% [markdown] papermill={"duration": 0.124528, "end_time": "2022-02-01T09:43:10.054394", "exception": false, "start_time": "2022-02-01T09:43:09.929866", "status": "completed"}
 # ## Positions
 
-# %% [markdown] papermill={"duration": 0.149848, "end_time": "2022-02-01T09:43:12.800733", "exception": false, "start_time": "2022-02-01T09:43:12.650885", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.149848, "end_time": "2022-02-01T09:43:12.800733", "exception": false, "start_time": "2022-02-01T09:43:12.650885", "status": "completed"}
 # ### Correlation matrix
 
 # %%
@@ -1247,7 +1247,7 @@ reads_w_nan_dfs = [reads_df.replace({-1: np.NaN}) for reads_df in reads_dfs]
 reads_w_nan_dfs[0]
 
 
-# %% tags=[]
+# %%
 # Compute the correlation matrix
 corrs = [
     reads_w_nan_df.iloc[:, reads_first_col_pos:].corr()
@@ -1296,7 +1296,7 @@ df = reads_w_nan_dfs[0].iloc[:, reads_first_col_pos:]
 df.head()
 
 
-# %% tags=[]
+# %%
 def calc_normalized_mi(df, pos_1, pos_2):
 
     two_positions = [pos_1, pos_2]
@@ -1688,7 +1688,7 @@ fig.show()
 # %% [markdown]
 # ### Noise in positions
 
-# %% tags=[]
+# %%
 noise_dfs = []
 for positions_df, condition, strand in zip(positions_dfs, conditions, strands):
     ref_base = "A" if strand == "+" else "T"
@@ -1773,6 +1773,8 @@ labels[1] = f"Known editing\n({len(sets[1])})"
 venn2(sets, set_labels=labels, ax=ax)
 ax.set_title("Pooled octopus sites", fontdict=dict(fontsize=16))
 
+plt.savefig("Known vs new editing sites - Octopus.svg", format="svg", dpi=300)
+
 plt.show()
 
 # %% [markdown]
@@ -1821,7 +1823,9 @@ editing_sites_bedtool = (
 fasta_files = [editing_sites_bedtool.seqfn]
 main_title = None
 sub_titles = ["Pooled octopus sites"]
-out_file = Path("Pooled editing sites - Octopus")
+
+# %%
+out_file = Path("ADAR motif of pooled editing sites - Octopus.svg")
 
 # %%
 multiple_logos_from_fasta_files(
@@ -1908,7 +1912,7 @@ melt_merged_ref_base_positions_df = merged_ref_base_positions_df.melt(
 melt_merged_ref_base_positions_df
 
 
-# %% tags=[]
+# %%
 for condition in conditions:
     df = melt_merged_ref_base_positions_df.loc[
         melt_merged_ref_base_positions_df[condition_col] == condition
@@ -1948,7 +1952,7 @@ for condition in conditions:
 # %% [markdown]
 # ### Current vs. known editing levels
 
-# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"} tags=[]
+# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"}
 # todo retain nan rows and turn nans to 0?
 
 cols = len(conditions)
@@ -2090,41 +2094,70 @@ fig.update_layout(showlegend=False, yaxis_title="Positions")
 fig.show()
 
 
-# %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"}
 # ## Num of distinct unique proteins
 
 # %%
-neural_vs_non_neural_expression_df = pd.read_csv(
+old_neural_vs_non_neural_expression_df = pd.read_csv(
     neural_vs_non_neural_expression_file, sep="\t"
 )
 
-# the original file from Y. Shoshan's paper contained a line per editing sits,
+# the original file from Y. Shoshan's paper contained a line per editing site,
 # but the per-transcript ("Chrom") expression levels are the same for each transcript,
 # so we remove duplicates s.t. each transcript will appear only oncee
-neural_vs_non_neural_expression_df = neural_vs_non_neural_expression_df.drop_duplicates(
-    subset="Chrom", ignore_index=True
+old_neural_vs_non_neural_expression_df = (
+    old_neural_vs_non_neural_expression_df.drop_duplicates(
+        subset="Chrom", ignore_index=True
+    )
 )
 
 # determine whether a transcript is highly expressed in neural tissues
-neural_vs_non_neural_expression_df[
+old_neural_vs_non_neural_expression_df[
     "IsNeural"
-] = neural_vs_non_neural_expression_df.apply(
+] = old_neural_vs_non_neural_expression_df.apply(
     lambda x: "Yes" if x["NeuralExpression"] > 4 * x["NonNeuralExpression"] else "No",
     axis=1,
 )
+old_neural_vs_non_neural_expression_df
+
+# %%
+old_neural_vs_non_neural_expression_df["IsNeural"].value_counts()
+
+# %%
+neural_vs_non_neural_expression_df = pd.read_csv(
+    "/private7/projects/Combinatorics/O.vulgaris/Annotations/NeuralVsNonNeuralExpression.BySalmonAndOrthoFinder.tsv",
+    sep="\t",
+)
+
+# # the original file from Y. Shoshan's paper contained a line per editing site,
+# # but the per-transcript ("Chrom") expression levels are the same for each transcript,
+# # so we remove duplicates s.t. each transcript will appear only oncee
+# neural_vs_non_neural_expression_df = neural_vs_non_neural_expression_df.drop_duplicates(
+#     subset="Chrom", ignore_index=True
+# )
+
+# # determine whether a transcript is highly expressed in neural tissues
+# neural_vs_non_neural_expression_df[
+#     "IsNeural"
+# ] = neural_vs_non_neural_expression_df.apply(
+#     lambda x: "Yes" if x["NeuralExpression"] > 4 * x["NonNeuralExpression"] else "No",
+#     axis=1,
+# )
 neural_vs_non_neural_expression_df
 
 # %%
+fig = px.histogram(
+    neural_vs_non_neural_expression_df,
+    x="NeuralObimOrthologs/ObimOrthologs",
+    log_y=True,
+)
+fig.update_layout(width=600, height=400, template=template)
+fig.show()
 
 # %%
-
-# %%
-
-# %%
-distinct_unique_proteins_df
-
-# %%
-alignment_stats_df.drop_duplicates("Chrom")
+fig = px.histogram(neural_vs_non_neural_expression_df, x="IsNeural", log_y=True)
+fig.update_layout(width=600, height=400, template=template)
+fig.show()
 
 # %%
 max_distinct_proteins_df = (
@@ -2162,11 +2195,19 @@ max_distinct_proteins_df["DistinctProteins/Reads"] = (
     max_distinct_proteins_df["NumOfProteins"] / max_distinct_proteins_df["NumOfReads"]
 )
 
+# max_distinct_proteins_df = max_distinct_proteins_df.merge(
+#     old_neural_vs_non_neural_expression_df.loc[:, ["Chrom", "IsNeural"]],
+#     on="Chrom",
+#     how="left",
+# )
 max_distinct_proteins_df = max_distinct_proteins_df.merge(
-    neural_vs_non_neural_expression_df.loc[:, ["Chrom", "IsNeural"]],
+    neural_vs_non_neural_expression_df.loc[:, ["OvulChrom", "IsNeural"]].rename(
+        columns={"OvulChrom": "Chrom"}
+    ),
     on="Chrom",
     how="left",
 )
+
 max_distinct_proteins_df["IsNeural"] = max_distinct_proteins_df["IsNeural"].fillna(
     "Missing"
 )
@@ -2174,37 +2215,176 @@ max_distinct_proteins_df["IsNeural"] = max_distinct_proteins_df["IsNeural"].fill
 max_distinct_proteins_df
 
 # %%
+max_distinct_proteins_df["IsNeural"].value_counts()
+
+# %%
+max_distinct_proteins_df["NumOfProteins"].sort_values(ascending=False).head(8)
+
+# %%
+fig = px.histogram(max_distinct_proteins_df, x="IsNeural", log_y=True)
+fig.update_layout(width=600, height=400, template=template)
+fig.show()
+
+# %%
+# df = (
+#     max_distinct_proteins_df.loc[:, ["NumOfProteins"]]
+#     .sort_values("NumOfProteins")
+#     .reset_index(drop=True)
+# )
+# df["CummulativeTranscripts"] = 100 * (df.index + 1) / len(df)
+# df["CummulativeTranscripts"] = df["CummulativeTranscripts"][::-1].values
+# df = df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
+# # df
+
+# # neural_conditions = ["Yes", "No", "Missing"]
+# # neural_dfs = []
+# # for neural_condition in neural_conditions:
+# #     neural_df =  (
+# #         max_distinct_proteins_df.loc[max_distinct_proteins_df["IsNeural"] == neural_condition, ["NumOfProteins"]]
+# #         .sort_values("NumOfProteins")
+# #         .reset_index(drop=True)
+# #     )
+# #     neural_df["CummulativeTranscripts"] = 100 * (neural_df.index + 1) / len(neural_df)
+# #     neural_df["CummulativeTranscripts"] = neural_df["CummulativeTranscripts"][::-1].values
+# #     neural_df = df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
+# #     neural_dfs.append(neural_df)
+
+
+# x = df["NumOfProteins"]
+# y = df["CummulativeTranscripts"]
+
+# fig = go.Figure(
+#     data=go.Scatter(
+#         x=x,
+#         y=y,
+#         mode="lines+markers",
+#         marker=dict(color="black", size=5),
+#         line=dict(color="grey", dash="dash"),
+#     )
+# )
+
+# fig.add_shape(
+#     type="rect",
+#     x0=1,
+#     y0=0,
+#     x1=5,
+#     y1=100,
+#     line=dict(
+#         # color="RoyalBlue",
+#         width=0,
+#     ),
+#     # fillcolor="LightSkyBlue",
+#     fillcolor="orange",
+#     opacity=0.2,
+# )
+
+# fig.add_shape(
+#     type="rect",
+#     x0=5,
+#     y0=0,
+#     x1=50,
+#     y1=100,
+#     line=dict(
+#         # color="RoyalBlue",
+#         width=0,
+#     ),
+#     # fillcolor="LightSkyBlue",
+#     fillcolor="red",
+#     opacity=0.2,
+# )
+
+# fig.add_trace(
+#     go.Scatter(
+#         x=[2.25, 17],
+#         # y=[80, 85],
+#         y=[0.3, 13],
+#         text=[
+#             "~5 isoforms<br>per gene<br>due to<br>alternative splicing",
+#             #   "Alternative splicing:<br>an average of ~5 isoforms per gene",
+#             "~50 distinct polypeptides<br>per gene",
+#         ],
+#         mode="text",
+#     )
+# )
+
+# fig.update_xaxes(type="log")
+# fig.update_yaxes(type="log", range=[-2.2, 2.2])
+
+# fig.update_layout(
+#     xaxis_title="Distinct proteins per transcript",
+#     yaxis_title="% of transcripts",
+#     template=template,
+#     width=800,
+#     height=500,
+#     showlegend=False,
+# )
+
+# fig.write_image(
+#     "Distinct proteins per transcript vs. % of transcripts - Octopus.svg",
+#     width=800,
+#     height=500,
+# )
+
+# fig.show()
+
+# %%
 df = (
     max_distinct_proteins_df.loc[:, ["NumOfProteins"]]
     .sort_values("NumOfProteins")
     .reset_index(drop=True)
 )
-
 df["CummulativeTranscripts"] = 100 * (df.index + 1) / len(df)
 df["CummulativeTranscripts"] = df["CummulativeTranscripts"][::-1].values
-# df["CummulativeTranscripts"] = 100 - df["CummulativeTranscripts"]
-# df.iat[0, 1] = 100
-# df.iat[-1, 1] = 100 / len(df)
-
-# df["CummulativeNumDistinctProteins"] = df["NumDistinctProteins"].cumsum()
-
-# df = df.drop_duplicates(subset="NumOfProteins", keep="last").reset_index(drop=True)
 df = df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
+# df
 
-df
+neural_conditions = ["Yes", "No", "Missing"]
+neural_trace_names = ["Neural", "Non-neural", "Missing"]
+neural_color_discrete_map = {
+    "Yes": "red",
+    "No": "rgb(0,170,255)", # kind of azure
+    "Missing": "rgb(192,192,192)",  # kind of terminal grey
+}
+neural_dfs = []
+for neural_condition in neural_conditions:
+    neural_df =  (
+        max_distinct_proteins_df.loc[max_distinct_proteins_df["IsNeural"] == neural_condition, ["NumOfProteins"]]
+        .sort_values("NumOfProteins")
+        .reset_index(drop=True)
+    )
+    neural_df["CummulativeTranscripts"] = 100 * (neural_df.index + 1) / len(neural_df)
+    neural_df["CummulativeTranscripts"] = neural_df["CummulativeTranscripts"][::-1].values
+    neural_df = neural_df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
+    neural_dfs.append(neural_df)
 
-# %%
+fig = make_subplots(
+    # rows=1,
+    # cols=2,
+    rows=2,
+    cols=1,
+    x_title="Distinct proteins per transcript",
+    y_title="% of transcripts",
+    shared_yaxes=True,
+    shared_xaxes=True,
+    # vertical_spacing=facet_row_spacing / 2.5,
+    # horizontal_spacing=facet_col_spacing * 1.5,
+    vertical_spacing=0.05,
+    # horizontal_spacing=0.025,
+)
+
 x = df["NumOfProteins"]
 y = df["CummulativeTranscripts"]
 
-fig = go.Figure(
-    data=go.Scatter(
+fig.add_trace(
+    go.Scatter(
         x=x,
         y=y,
         mode="lines+markers",
         marker=dict(color="black", size=5),
         line=dict(color="grey", dash="dash"),
-    )
+        name="All"
+    ),
+    row=1, col=1
 )
 
 fig.add_shape(
@@ -2220,6 +2400,7 @@ fig.add_shape(
     # fillcolor="LightSkyBlue",
     fillcolor="orange",
     opacity=0.2,
+    row=1, col=1
 )
 
 fig.add_shape(
@@ -2235,6 +2416,7 @@ fig.add_shape(
     # fillcolor="LightSkyBlue",
     fillcolor="red",
     opacity=0.2,
+    row=1, col=1
 )
 
 fig.add_trace(
@@ -2248,64 +2430,383 @@ fig.add_trace(
             "~50 distinct polypeptides<br>per gene",
         ],
         mode="text",
+        showlegend=False
+    ),
+    row=1, col=1
+)
+
+for neural_condition, neural_trace_name, neural_df in zip(neural_conditions, neural_trace_names, neural_dfs):
+    x = neural_df["NumOfProteins"]
+    y = neural_df["CummulativeTranscripts"]
+    color = neural_color_discrete_map[neural_condition]
+
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=y,
+            mode="lines+markers",
+            marker=dict(color=color, size=5),
+            line=dict(color=color, dash="dash", width=0.5),
+            name=neural_trace_name,
+        ),
+        # row=1, col=2
+        row=2, col=1
+    )
+    
+    
+fig.update_xaxes(type="log")
+fig.update_yaxes(type="log", range=[-2.2, 2.2])
+
+fig.update_layout(
+    # xaxis_title="Distinct proteins per transcript",
+    # yaxis_title="% of transcripts",
+    template=template,
+    # width=1400,
+    # height=500,
+    width=700,
+    height=800,
+    # showlegend=False,
+)
+
+fig.write_image(
+    "Distinct proteins per transcript vs. % of transcripts - Octopus.svg",
+    # width=800,
+    # height=500,
+    width=700,
+    height=800,
+)
+
+fig.show()
+
+# %%
+# fig = px.scatter(
+#     max_distinct_proteins_df,
+#     x="MappedReads",
+#     y="NumOfProteins",
+#     log_x=True,
+#     log_y=True,
+#     # size=[0.5 for _ in range(len(max_distinct_proteins_df))],
+#     color="IsNeural",
+#     color_discrete_map={
+#         "Yes": "red",
+#         # "No": "black",
+#         "No": "rgb(0,170,255)",
+#         # "Maybe": "green",
+#         "Maybe": "rgb(74,246,38)",
+#         "Missing": "rgb(192,192,192)",  # kind of terminal grey
+#     },
+#     opacity=0.7,
+#     category_orders={"IsNeural": ["Yes", "No", "Maybe", "Missing"]},
+#     marginal_y="box",
+#     marginal_x="box",
+#     # trendline="ols",
+#     # trendline="lowess"
+#     # trendline_options=dict(log_x=True, log_y=True),
+# )
+
+# fig.update_traces(marker={"size": 4})
+
+# fig.update_layout(
+#     xaxis_title="Mapped reads per transcript",
+#     yaxis_title="Distinct proteins per transcript",
+#     template=template,
+#     width=700,
+#     height=500,
+#     legend_title_text="High neural expression",
+# )
+
+# fig.write_image(
+#     "Distinct proteins vs. sequencing depth - Octopus.svg", width=800, height=500
+# )
+
+# fig.show()
+
+# %%
+
+# %%
+x = max_distinct_proteins_df.loc[
+    max_distinct_proteins_df["IsNeural"] == "Yes", "NumOfProteins"
+]
+y = max_distinct_proteins_df.loc[
+    max_distinct_proteins_df["IsNeural"] != "Yes", "NumOfProteins"
+]
+scipy.stats.mannwhitneyu(x, y)
+
+# %%
+x = max_distinct_proteins_df.loc[
+    max_distinct_proteins_df["IsNeural"] == "Yes", "NumOfProteins"
+]
+y = max_distinct_proteins_df.loc[
+    max_distinct_proteins_df["IsNeural"] == "No", "NumOfProteins"
+]
+scipy.stats.mannwhitneyu(x, y)
+
+# %%
+x = max_distinct_proteins_df.loc[
+    (max_distinct_proteins_df["IsNeural"] == "Yes")
+    & (max_distinct_proteins_df["NumOfProteins"] > 1),
+    "NumOfProteins",
+]
+y = max_distinct_proteins_df.loc[
+    (max_distinct_proteins_df["IsNeural"] == "No")
+    & (max_distinct_proteins_df["NumOfProteins"] > 1),
+    "NumOfProteins",
+]
+scipy.stats.mannwhitneyu(x, y)
+
+# %%
+x = max_distinct_proteins_df.loc[
+    (max_distinct_proteins_df["IsNeural"] == "Yes")
+    & (max_distinct_proteins_df["NumOfProteins"] >= 5),
+    "NumOfProteins",
+]
+y = max_distinct_proteins_df.loc[
+    (max_distinct_proteins_df["IsNeural"] == "No")
+    & (max_distinct_proteins_df["NumOfProteins"] >= 5),
+    "NumOfProteins",
+]
+scipy.stats.mannwhitneyu(x, y)
+
+# %%
+# max_distinct_proteins_df.loc[max_distinct_proteins_df["IsNeural"]!="Missing", [condition_col, "NumOfProteins", "IsNeural"]].to_csv("O.vul.MaxDistinctProteins.tsv", sep="\t", index=False)
+
+# %%
+max_distinct_proteins_df.loc[
+    max_distinct_proteins_df["IsNeural"] != "Missing",
+    [condition_col, "NumOfProteins", "IsNeural"],
+].sort_values("NumOfProteins", ascending=False, ignore_index=True)
+
+# %%
+x = (
+    max_distinct_proteins_df.loc[
+        max_distinct_proteins_df["IsNeural"] == "Yes", "NumOfProteins"
+    ]
+    .sort_values()
+    .reset_index(drop=True)
+    .to_frame()
+)
+x = x.merge(
+    x["NumOfProteins"]
+    .value_counts(normalize=True)
+    .reset_index()
+    .rename(columns={"NumOfProteins": "FractionOfTranscripts"})
+    .rename(columns={"index": "NumOfProteins"}),
+    how="left",
+)
+x = x.drop_duplicates(["NumOfProteins", "FractionOfTranscripts"], ignore_index=True)
+x["%OfTranscripts"] = x["FractionOfTranscripts"] * 100
+x["%CummulativeTranscripts"] = x["%OfTranscripts"].cumsum()
+x
+
+# %%
+x["NumOfProteins"].value_counts(normalize=True).reset_index().rename(columns={"NumOfProteins": "FractionOfTranscripts"}).rename(columns={"index": "NumOfProteins"})
+
+# %%
+y = (
+    max_distinct_proteins_df.loc[
+        max_distinct_proteins_df["IsNeural"] == "No", "NumOfProteins"
+    ]
+    .sort_values()
+    .reset_index(drop=True)
+    .to_frame()
+)
+y = y.merge(
+    y["NumOfProteins"]
+    .value_counts(normalize=True)
+    .reset_index()
+    .rename(columns={"NumOfProteins": "FractionOfTranscripts"})
+    .rename(columns={"index": "NumOfProteins"}),
+    how="left",
+)
+y = y.drop_duplicates(["NumOfProteins", "FractionOfTranscripts"], ignore_index=True)
+y["%OfTranscripts"] = y["FractionOfTranscripts"] * 100
+y["%CummulativeTranscripts"] = y["%OfTranscripts"].cumsum()
+y
+
+# %%
+fig = go.Figure()
+
+fig.add_trace(
+    go.Scatter(
+        x=x["NumOfProteins"],
+        y=x["%CummulativeTranscripts"],
+        mode="lines+markers",
+        marker=dict(color="red", size=5),
+        line=dict(color="red", dash="dash", width=0.5),
+        name="Neural",
+    )
+)
+
+fig.add_trace(
+    go.Scatter(
+        x=y["NumOfProteins"],
+        y=y["%CummulativeTranscripts"],
+        mode="lines+markers",
+        marker=dict(color="rgb(0,170,255)", size=5),
+        line=dict(color="rgb(0,170,255)", dash="dash", width=0.5),
+        name="Non-neural",
     )
 )
 
 fig.update_xaxes(type="log")
-fig.update_yaxes(type="log", range=[-2.2, 2.2])
 
 fig.update_layout(
     xaxis_title="Distinct proteins per transcript",
     yaxis_title="% of transcripts",
     template=template,
-    width=800,
-    height=500,
-    showlegend=False,
-)
-
-fig.write_image("Distinct proteins per transcript vs. % of transcripts - Octopus.svg", width=800, height=500)
-
-fig.show()
-
-# %%
-fig = px.scatter(
-    max_distinct_proteins_df,
-    x="MappedReads",
-    y="NumOfProteins",
-    log_x=True,
-    log_y=True,
-    # size=[0.5 for _ in range(len(max_distinct_proteins_df))],
-    color="IsNeural",
-    color_discrete_map={
-        "Yes": "red",
-        "No": "black",
-        "Missing": "rgb(192,192,192)",  # kind of terminal grey
-    },
-    opacity=0.7,
-    category_orders={"IsNeural": ["Yes", "No", "Missing"]},
-    marginal_y="box",
-    marginal_x="box",
-    # trendline="ols",
-    # trendline="lowess"
-    # trendline_options=dict(log_x=True, log_y=True),
-)
-
-fig.update_traces(marker={"size": 5})
-
-fig.update_layout(
-    xaxis_title="Mapped reads per transcript",
-    yaxis_title="Distinct proteins per transcript",
-    template=template,
     width=700,
     height=500,
-    legend_title_text="High neural expression",
+    # showlegend=False,
 )
 
-fig.write_image("Distinct proteins vs. sequencing depth - Octopus.svg", width=800, height=500)
+# fig.write_image(
+#     "Distinct proteins per transcript vs. % of transcripts - Octopus.svg",
+#     width=800,
+#     height=500,
+# )
 
 fig.show()
 
 # %%
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+# fig = px.scatter(
+#     max_distinct_proteins_df,
+#     x="MappedReads",
+#     y="NumOfProteins",
+#     log_x=True,
+#     log_y=True,
+#     # size=[0.5 for _ in range(len(max_distinct_proteins_df))],
+#     color="IsNeural",
+#     color_discrete_map={
+#         "Yes": "red",
+#         "No": "black",
+#         "Maybe": "green",
+#         "Missing": "rgb(192,192,192)",  # kind of terminal grey
+#     },
+#     opacity=0.7,
+#     category_orders={"IsNeural": ["Yes", "No", "Maybe", "Missing"]},
+#     facet_col="IsNeural",
+#     facet_col_wrap=2,
+#     labels={
+#         "MappedReads": "Mapped reads<br>per transcript",
+#         "NumOfProteins": "Distinct proteins<br>per transcript",
+#     },
+# )
+
+# fig.update_traces(marker={"size": 5})
+
+# fig.update_layout(
+#     # xaxis_title="Mapped reads per transcript",
+#     # yaxis_title="Distinct proteins per transcript",
+#     template=template,
+#     width=700,
+#     height=500,
+#     # legend_title_text="High neural expression",
+#     showlegend=False,
+# )
+
+# # fig.write_image(
+# #     "Distinct proteins vs. sequencing depth - Octopus.svg", width=800, height=500
+# # )
+
+# fig.show()
+
+# %%
+# cols = 2
+# rows = 2
+# row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))
+
+# is_neural_options = ["Yes", "No", "Maybe", "Missing"]
+# is_neural_color_discrete_map = {
+#     "Yes": "red",
+#     "No": "black",
+#     # "Maybe": "green",
+#     "Maybe": "rgb(74,246,38)",
+#     "Missing": "rgb(192,192,192)",  # kind of terminal grey
+# }
+# subplot_titles = [
+#     f"Neural transcripts = {is_neural}" for is_neural in is_neural_options
+# ]
+
+# x_axis_name = "Mapped reads per transcript"
+# y_axis_name = "Distinct proteins per transcript"
+
+# data_marker_size = 5
+# # data_opacity = 0.7
+
+# fig = make_subplots(
+#     rows=rows,
+#     cols=cols,
+#     y_title=y_axis_name,
+#     x_title=x_axis_name,
+#     subplot_titles=subplot_titles,
+#     shared_yaxes=True,
+#     shared_xaxes=True,
+#     vertical_spacing=facet_row_spacing / 2.5,
+#     horizontal_spacing=facet_col_spacing * 1.5,
+#     # vertical_spacing=0.05,
+#     # horizontal_spacing=0.025,
+# )
+
+# for ((row, col), is_neural_option,) in zip(
+#     row_col_iter,
+#     is_neural_options,
+# ):
+#     _max_distinct_proteins_df = max_distinct_proteins_df.loc[
+#         max_distinct_proteins_df["IsNeural"] == is_neural_option
+#     ]
+#     x = _max_distinct_proteins_df["MappedReads"]
+#     y = _max_distinct_proteins_df["NumOfProteins"]
+
+#     fig.add_trace(
+#         go.Scattergl(
+#             x=x,
+#             y=y,
+#             mode="markers",
+#             marker_color=is_neural_color_discrete_map[is_neural_option],
+#             marker_size=data_marker_size,
+#             # marker=dict(
+#             #     opacity=data_opacity,
+#             #     # line=dict(width=0),
+#             # ),
+#         ),
+#         row=row,
+#         col=col,
+#     )
+
+# fig.update_layout(
+#     # title_text=head_title,
+#     # title_y=0.95,
+#     template=template,
+#     showlegend=False,
+#     # legend_itemsizing="constant",
+#     height=550,
+#     width=700,
+# )
+
+# max_x = max_distinct_proteins_df["MappedReads"].max()
+# max_y = max_distinct_proteins_df["NumOfProteins"].max()
+
+# # fig.update_xaxes(type="log", range=[0, np.log(max_x) / np.log(10)], nticks=7)
+# # fig.update_yaxes(type="log", range=[0, np.log(max_y) / np.log(10)], nticks=5)
+# fig.update_xaxes(type="log", range=[0, 0.25 + np.log(max_x) / np.log(10)], nticks=6)
+# fig.update_yaxes(type="log", range=[0, 0.25 + np.log(max_y) / np.log(10)])
+
+
+# fig.update_annotations(font=dict(size=12))
+# # fig.write_image(
+# #     "Distinct proteins vs. sequencing depth - Octopus.svg", width=800, height=500
+# # )
+
+# fig.show()
+
 
 # %%
 
@@ -3364,7 +3865,7 @@ df3.loc[df3["#SolutionIncluded"] > 0].groupby(condition_col).size()
 # %%
 df3.loc[df3["#SolutionIncluded"] == 100].groupby(condition_col).size()
 
-# %% tags=[]
+# %%
 cols = min(facet_col_wrap, len(conditions), 5)
 rows = ceil(len(conditions) / cols)
 row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
@@ -3681,7 +4182,7 @@ fig.show()
 
 # %%
 
-# %% tags=[]
+# %%
 # ic(asc_df["Fraction"].eq(desc_df["Fraction"]).all())
 # ic(asc_df["FractionRepetition"].eq(desc_df["FractionRepetition"]).all())
 # ic(asc_df["NumOfReads"].eq(desc_df["NumOfReads"]).all())
@@ -4319,7 +4820,7 @@ fig.show()
 # %%
 distinct_unique_proteins_df
 
-# %% jupyter={"source_hidden": true} tags=[]
+# %% jupyter={"source_hidden": true}
 # min_max_fraction_1_distinct_prots_df = (
 #     distinct_unique_proteins_df.loc[distinct_unique_proteins_df["Fraction"] == 1.0]
 #     .groupby(condition_col)["NumOfProteins"]
@@ -4339,7 +4840,7 @@ distinct_unique_proteins_df
 # ).reset_index(drop=True)
 # min_max_fraction_1_distinct_prots_df
 
-# %% tags=[]
+# %%
 dispersion_df = distinct_unique_proteins_df.loc[
     distinct_unique_proteins_df["Fraction"] == 1.0,
     [condition_col, "NumOfReads", "NumOfProteins"],
@@ -4564,7 +5065,7 @@ fig.show()
 # fig.show()
 
 
-# %% [markdown] toc-hr-collapsed=true toc-hr-collapsed=true
+# %% [markdown] toc-hr-collapsed=true
 # #### Jaccard (overlap of solutions)
 
 # %%
@@ -4576,7 +5077,7 @@ fig.show()
 #     proteins_jaccard_dfs.append(jaccard_df)
 # proteins_jaccard_dfs[0]
 
-# %% tags=[]
+# %%
 # annotated_proteins_jaccard_dfs = []
 
 # for condition, proteins_jaccard_df in zip(conditions, proteins_jaccard_dfs):
@@ -4664,7 +5165,7 @@ fig.show()
 # %% [markdown]
 # ##### Distribution
 
-# %% tags=[]
+# %%
 # melted_proteins_jaccard_dfs = []
 
 # for annotated_proteins_jaccard_df in annotated_proteins_jaccard_dfs:
@@ -4686,7 +5187,7 @@ fig.show()
 
 # melted_proteins_jaccard_dfs[0]
 
-# %% tags=[]
+# %%
 # TODO - rerun this heavy cell after the notebook finished its running
 
 # cols = len(conditions)
@@ -4744,7 +5245,7 @@ fig.show()
 # # fig.show()
 # fig.show(config={'staticPlot': True, 'responsive': False})
 
-# %% tags=[]
+# %%
 # TODO - rerun this heavy cell after the notebook finished its running
 
 # fractions = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
@@ -4828,10 +5329,10 @@ fig.show()
 
 # %%
 
-# %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"}
 # ## Supporting reads' coverage
 
-# %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"}
 # ### Unique reads
 
 # %%
@@ -4874,7 +5375,7 @@ for unique_reads_df in unique_reads_dfs:
     cummulative_supporting_reads_dfs.append(df)
 cummulative_supporting_reads_dfs[0]
 
-# %% tags=[]
+# %%
 df = cummulative_supporting_reads_dfs[0]
 df
 
@@ -4892,7 +5393,7 @@ ax = sns.barplot(
 )
 ax.set(xscale="log")
 
-# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"} tags=[]
+# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"}
 # # cummulative_supporting_reads_dfs = []
 # # for unique_reads_df in unique_reads_dfs:
 # #     df = unique_reads_df.loc[:, ["UniqueRead", "NumOfReads"]].sort_values("NumOfReads", ascending=False).reset_index(drop=True)
@@ -4959,7 +5460,7 @@ ax.set(xscale="log")
 # # fig.show(config={'staticPlot': True, 'responsive': False})
 
 
-# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"} tags=[]
+# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"}
 # # cummulative_supporting_reads_dfs = []
 # # for unique_reads_df in unique_reads_dfs:
 # #     df = unique_reads_df.loc[:, ["UniqueRead", "NumOfReads"]].sort_values("NumOfReads", ascending=False).reset_index(drop=True)
@@ -5016,7 +5517,7 @@ ax.set(xscale="log")
 # fig.show(config={'staticPlot': True, 'responsive': False})
 
 
-# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"} tags=[]
+# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"}
 # # cummulative_supporting_reads_dfs = []
 # # for unique_reads_df in unique_reads_dfs:
 # #     df = unique_reads_df.loc[:, ["UniqueRead", "NumOfReads"]].sort_values("NumOfReads", ascending=False).reset_index(drop=True)
@@ -5079,10 +5580,10 @@ ax.set(xscale="log")
 
 # %%
 
-# %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"}
 # ### Distinct unique reads
 
-# %% tags=[]
+# %%
 # expanded_distinct_unique_reads_df
 
 
@@ -5211,7 +5712,7 @@ ax.set(xscale="log")
 # fig.show()
 
 
-# %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"}
 # ### Unique proteins
 
 # %%
@@ -5222,7 +5723,7 @@ unique_proteins_dfs[0].head()
 max(df["NumOfReads"].max() for df in unique_proteins_dfs)
 
 
-# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"} tags=[]
+# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"}
 cols = len(conditions)
 
 x_title = "Reads"
@@ -5267,10 +5768,10 @@ fig.update_yaxes(type="log")
 fig.show()
 
 
-# %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"}
 # ### Distinct unique proteins
 
-# %% [markdown] toc-hr-collapsed=true tags=[] toc-hr-collapsed=true toc-hr-collapsed=true tags=[]
+# %% [markdown] toc-hr-collapsed=true
 # #### Jaccard - TODO - erase?
 
 # %%
@@ -5416,7 +5917,7 @@ fig.show()
 
 # %%
 
-# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"} tags=[]
+# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"}
 # cols = len(conditions)
 
 # fig = make_subplots(
@@ -5520,7 +6021,7 @@ fig.show()
 #         jaccard_df = calc_jaccard_df(df.loc[df["Algorithm"] == alg], "Reads")
 #         fraction_1_alg_condition_jaccard_dfs[(condition, alg)] = jaccard_df
 
-# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"} tags=[]
+# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"}
 # cols = len(conditions)
 # rows = 2
 
@@ -6064,7 +6565,7 @@ all_conditions_sample_solutions[0]
 gb = expression_dfs[0].groupby("#Solution")
 gb.agg({"Diff5+": ["size", "sum"]})
 
-# %% tags=[]
+# %%
 # sol926_exp_df = expression_dfs[0].loc[expression_dfs[0]["#Solution"] == "926"]
 # sol926_exp_df
 
@@ -6380,7 +6881,7 @@ gb.agg({"Diff5+": ["size", "sum"]})
 # # )
 # fig.show()
 
-# %% tags=[]
+# %%
 x_axis_name = "Distinct unique protein rank"
 y_axis_name = "Cummulative relative<br>expression (%)"
 head_title = f"Weighted cummulative expression vs. distinct protein rank"
@@ -6511,7 +7012,7 @@ def formulate_semilog10_equation(coef, intercept):
         intercept = np.abs(intercept)
     return f"y = 1 / ({coef:.2f}*log(x) {operator} {intercept:.2f})"
 
-# %% tags=[]
+# %%
 # cols = min(facet_col_wrap, len(conditions), 3)
 # rows = ceil(len(conditions) / cols)
 # row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
@@ -6758,7 +7259,7 @@ def formulate_semilog10_equation(coef, intercept):
 # # fig.show(config={'staticPlot': True, 'responsive': False})
 
 
-# %% tags=[]
+# %%
 assignment_method = "Weighted"
 y_col_name = "TotalWeightedSupportingReads"
 
@@ -7143,7 +7644,7 @@ weighted_exp_tsne_input_dfs = [
 weighted_exp_tsne_input_dfs[0]
 
 
-# %% tags=[]
+# %%
 def color_highest_expressed_proteins(n, rank_cutoff, color_options=["red", "black"]):
     colors = []
     for rank in range(1, n + 1):
@@ -7155,7 +7656,7 @@ def color_highest_expressed_proteins(n, rank_cutoff, color_options=["red", "blac
     return colors
 
 
-# %% tags=[] jupyter={"source_hidden": true}
+# %% jupyter={"source_hidden": true}
 # X = weighted_exp_tsne_input_dfs[0].iloc[:1000, ML_INPUT_FIRST_COL_POS:].values
 
 # # tsne_df = tsne_dfs[0]
@@ -7988,7 +8489,7 @@ top_1000_weighted_conditions_pcas = run_pcas(
     top_expressed_proteins=top_expressed_proteins,
 )
 
-# %% tags=[]
+# %%
 rank_cutoff = 100
 
 for conditions_pcas, sorting_method in zip(
@@ -8302,13 +8803,13 @@ fig.write_image(
 
 fig.show()
 
-# %% [markdown] tags=[] toc-hr-collapsed=true
+# %% [markdown] toc-hr-collapsed=true
 # ## Editing in reads
 
 # %% [markdown]
 # ### Edited sites
 
-# %% [markdown] papermill={"duration": 0.115362, "end_time": "2022-02-01T09:42:53.418861", "exception": false, "start_time": "2022-02-01T09:42:53.303499", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.115362, "end_time": "2022-02-01T09:42:53.418861", "exception": false, "start_time": "2022-02-01T09:42:53.303499", "status": "completed"}
 # #### All reads
 
 # %%
@@ -8346,7 +8847,7 @@ fig.update_layout(showlegend=False, yaxis_title="Reads")
 fig.show()
 
 
-# %% [markdown] papermill={"duration": 0.115362, "end_time": "2022-02-01T09:42:53.418861", "exception": false, "start_time": "2022-02-01T09:42:53.303499", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.115362, "end_time": "2022-02-01T09:42:53.418861", "exception": false, "start_time": "2022-02-01T09:42:53.303499", "status": "completed"}
 # #### Distinct unique reads
 
 # %%
@@ -8403,7 +8904,7 @@ fig.show()
 # %% [markdown]
 # ### % editing
 
-# %% [markdown] papermill={"duration": 0.115362, "end_time": "2022-02-01T09:42:53.418861", "exception": false, "start_time": "2022-02-01T09:42:53.303499", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.115362, "end_time": "2022-02-01T09:42:53.418861", "exception": false, "start_time": "2022-02-01T09:42:53.303499", "status": "completed"}
 # #### All reads
 
 # %%
@@ -8450,7 +8951,7 @@ fig.update_layout(showlegend=False, yaxis_title="Reads")
 fig.show()
 
 
-# %% [markdown] papermill={"duration": 0.115362, "end_time": "2022-02-01T09:42:53.418861", "exception": false, "start_time": "2022-02-01T09:42:53.303499", "status": "completed"} tags=[]
+# %% [markdown] papermill={"duration": 0.115362, "end_time": "2022-02-01T09:42:53.418861", "exception": false, "start_time": "2022-02-01T09:42:53.303499", "status": "completed"}
 # #### Distinct unique edited reads
 
 # %%
@@ -8511,7 +9012,7 @@ fig.show()
 # %% [markdown]
 # ## Distribution of non-syns
 
-# %% tags=[]
+# %%
 cols = min(facet_col_wrap, len(conditions), 4)
 rows = ceil(len(conditions) / cols)
 row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
