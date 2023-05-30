@@ -16,6 +16,7 @@ WIDTH = 9.6
 HEIGHT = 5
 MAX_COLS = 4
 BASES_FROM_EACH_SIDE = 1
+DPI = 300
 
 
 def make_freq_df(fasta_file, bases_from_each_side=BASES_FROM_EACH_SIDE):
@@ -168,6 +169,7 @@ def multiple_logos_from_fasta_dir(
     width: float = WIDTH,
     height: float = HEIGHT,
     max_cols: int = MAX_COLS,
+    dpi: int = DPI,
 ):
     """
     Create multiple logos out of fasta files in `fasta_dir` and plot them together, side by side.
@@ -187,7 +189,7 @@ def multiple_logos_from_fasta_dir(
         freq_dfs, samples_names, main_title, width, height, max_cols
     )
     if out_file:
-        fig.savefig(Path(out_file).absolute())
+        fig.savefig(Path(out_file).absolute(), dpi=dpi)
     return fig
 
 
@@ -200,6 +202,7 @@ def multiple_logos_from_fasta_files(
     width: float = WIDTH,
     height: float = HEIGHT,
     max_cols: int = MAX_COLS,
+    dpi: int = DPI,
 ):
     """
     Create multiple logos out of fasta files in `fasta_dir` and plot them together, side by side.
@@ -220,7 +223,7 @@ def multiple_logos_from_fasta_files(
     else:
         fig = plot_single_logo(freq_dfs[0], sub_titles[0], width, height)
     if out_file:
-        fig.savefig(Path(out_file).absolute())
+        fig.savefig(Path(out_file).absolute(), dpi=dpi)
     return fig
 
 
@@ -238,6 +241,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--bases_from_each_side", type=int, default=BASES_FROM_EACH_SIDE
     )
+    parser.add_argument("--dpi", type=int, default=DPI)
+
     # parse args
     args = parser.parse_args()
     # run script with parsed args
@@ -250,4 +255,5 @@ if __name__ == "__main__":
         args.width,
         args.height,
         args.max_cols,
+        args.dpi,
     )
