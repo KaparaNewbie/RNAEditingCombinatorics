@@ -411,6 +411,10 @@ positions_dfs[0]
 editing_positions_per_sample = [
     len(df.loc[(df["Edited"]) & (df["CDS"])]) for df in positions_dfs
 ]
+for x in editing_positions_per_sample:
+    print(x)
+
+# %%
 print(
     f"Average of {sum(editing_positions_per_sample)/len(positions_dfs)} editing sites per sample"
 )
@@ -428,6 +432,11 @@ print(
 reads_dfs = [pd.read_csv(reads_file, sep=sep) for reads_file in reads_files]
 reads_dfs[0]
 
+
+# %%
+for reads_df in reads_dfs:
+    mean_edited_positions = reads_df["EditedPositions"].mean()
+    print(mean_edited_positions)
 
 # %%
 ambigous_positions_in_reads_df = reads_df = pd.concat(
@@ -593,6 +602,11 @@ for unique_proteins_df in unique_proteins_dfs:
     )
 unique_proteins_dfs[0]
 
+
+# %%
+for unique_proteins_df in unique_proteins_dfs:
+    mean_edited_aas = unique_proteins_df["MinNonSyns"].mean()
+    print(mean_edited_aas)
 
 # %%
 unique_proteins_dfs[-1].head()
@@ -826,6 +840,9 @@ with Pool(processes=5) as pool:
         ],
     )
 
+
+# %%
+conditions
 
 # %%
 aligned_reads_counts

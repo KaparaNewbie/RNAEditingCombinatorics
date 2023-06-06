@@ -376,7 +376,13 @@ positions_dfs[0]
 
 
 # %%
-editing_positions_per_sample = [len(df.loc[(df["Edited"])]) for df in positions_dfs]
+editing_positions_per_sample = [
+    len(df.loc[(df["Edited"]) & (df["CDS"])]) for df in positions_dfs
+]
+for x in editing_positions_per_sample:
+    print(x)
+
+# %%
 print(
     f"Average of {sum(editing_positions_per_sample)/len(positions_dfs)} editing sites per sample"
 )
@@ -394,6 +400,14 @@ print(
 reads_dfs = [pd.read_csv(reads_file, sep=sep) for reads_file in reads_files]
 reads_dfs[0]
 
+
+# %%
+reads_dfs[0]["EditedPositions"].mean()
+
+# %%
+for reads_df in reads_dfs:
+    mean_edited_positions = reads_df["EditedPositions"].mean()
+    print(mean_edited_positions)
 
 # %%
 ambigous_positions_in_reads_df = reads_df = pd.concat(
@@ -488,6 +502,11 @@ for unique_proteins_df in unique_proteins_dfs:
     )
 unique_proteins_dfs[0]
 
+
+# %%
+for unique_proteins_df in unique_proteins_dfs:
+    mean_edited_aas = unique_proteins_df["MinNonSyns"].mean()
+    print(mean_edited_aas)
 
 # %%
 unique_proteins_dfs[0]
@@ -6523,7 +6542,7 @@ for assignment_df in fraction01_assignment_dfs:
 
 fraction01_assignment_dfs[0]
 
-# %% jupyter={"source_hidden": true}
+# %%
 x_axis_name = "Distinct protein rank"
 y_axis_name = "Cummulative relative<br>expression (%)"
 head_title = "Cummulative expression vs. distinct unique proteins"
@@ -6552,11 +6571,14 @@ for (row, col), assignment_df, fraction01_assignment_df, condition in zip(
 ):
     # legend_x = [percentile_df["RequiredProteins"].max() * 5 / 6]
     # legend_ys = [[25], [20]]
+    legend_x = [10]
+    legend_ys = [[75], [65]]
 
-    for color, df, percentile_fraction in zip(
+    for color, df, percentile_fraction, legend_y in zip(
         subcolors_discrete_map[condition],
         [fraction01_assignment_df, assignment_df],
         percentile_fractions,
+        legend_ys
     ):
         # df = df.loc[df["AssignmentMethod"] == assignment_method]
 
@@ -6601,25 +6623,25 @@ for (row, col), assignment_df, fraction01_assignment_df, condition in zip(
 #             col=col,
 #         )
 
-#         fig.add_trace(
-#             go.Scatter(
-#                 x=legend_x,
-#                 y=legend_y,
-#                 mode="markers+text",
-#                 marker=dict(
-#                     color=color,
-#                     size=7,
-#                     opacity=0.5,
-#                     symbol=symbol,
-#                     # line=dict(width=0),
-#                 ),
-#                 text=f" Fraction = {percentile_fraction}",
-#                 textposition="middle right",
-#                 textfont=dict(size=8)
-#             ),
-#             row=row,
-#             col=col,
-#         )
+        fig.add_trace(
+            go.Scatter(
+                x=legend_x,
+                y=legend_y,
+                mode="markers+text",
+                marker=dict(
+                    color=color,
+                    size=7,
+                    opacity=0.7,
+                    # symbol=symbol,
+                    # line=dict(width=0),
+                ),
+                text=f"  Fraction = {percentile_fraction}",
+                textposition="middle right",
+                textfont=dict(size=9)
+            ),
+            row=row,
+            col=col,
+        )
 
 fig.update_xaxes(
     # tick0 = -1,
@@ -6636,134 +6658,137 @@ fig.update_layout(
     height=400,
     width=900,
 )
-# fig.write_image(
-#     f"{head_title} - PacBio.svg",
-#     height=max(300, 200 * rows),
-#     width=max(600, 250 * cols),
-# )
-fig.show()
 
-# %% jupyter={"source_hidden": true}
-x_axis_name = "Distinct protein rank"
-y_axis_name = "Cummulative relative<br>expression (%)"
-head_title = "Cummulative expression vs. distinct unique proteins"
-
-cols = min(facet_col_wrap, len(conditions), 4)
-rows = ceil(len(conditions) / cols)
-row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
-
-assignment_method = "Weighted"
-percentile_fractions = [0.1, 1.0]
-symbols = ["circle", "triangle-up"]
-
-fig = make_subplots(
-    rows=rows,
-    cols=cols,
-    subplot_titles=conditions,
-    shared_xaxes=True,
-    shared_yaxes=True,
-    x_title=x_axis_name,
-    y_title=y_axis_name,
-    vertical_spacing=facet_row_spacing / 2.5,
-    horizontal_spacing=facet_col_spacing * 1.5,
-)
-
-for (row, col), percentile_df, fraction01_percentile_df, condition in zip(
-    row_col_iter, percentile_dfs, fraction01_percentile_dfs, conditions
-):
-    legend_x = [percentile_df["RequiredProteins"].max() * 5 / 6]
-    legend_ys = [[25], [20]]
-
-    for color, symbol, legend_y, df, percentile_fraction in zip(
-        subcolors_discrete_map[condition],
-        symbols,
-        legend_ys,
-        [fraction01_percentile_df, percentile_df],
-        percentile_fractions,
-    ):
-        df = df.loc[df["AssignmentMethod"] == assignment_method]
-
-        x = df["RequiredProteins"]
-        y = df["Percentile"]
-
-        x_mean = df.groupby("Percentile")["RequiredProteins"].apply(np.mean)
-        y_unique = x_mean.index
-
-        fig.add_trace(
-            go.Scatter(
-                x=x,
-                y=y,
-                mode="markers",
-                marker=dict(
-                    color=color,
-                    size=7,
-                    opacity=0.7,
-                    symbol=symbol,
-                    # line=dict(width=0),
-                ),
-            ),
-            row=row,
-            col=col,
-        )
-
-        fig.add_trace(
-            go.Scatter(
-                x=x_mean,
-                y=y_unique,
-                mode="lines+markers",
-                marker=dict(
-                    color=color,
-                    size=7,
-                    opacity=0.7,
-                    symbol=symbol,
-                    # line=dict(width=0),
-                ),
-            ),
-            row=row,
-            col=col,
-        )
-
-        fig.add_trace(
-            go.Scatter(
-                x=legend_x,
-                y=legend_y,
-                mode="markers+text",
-                marker=dict(
-                    color=color,
-                    size=7,
-                    opacity=0.5,
-                    symbol=symbol,
-                    # line=dict(width=0),
-                ),
-                text=f" Fraction = {percentile_fraction}",
-                textposition="middle right",
-                textfont=dict(size=8),
-            ),
-            row=row,
-            col=col,
-        )
-
-# fig.update_xaxes(
-#     # tick0 = -1,
-#     # dtick = 5_000,
-#     matches='x',
-#     type="log",
-#     nticks=6
-# )
-
-fig.update_layout(
-    # title=head_title,
-    showlegend=False,
-    template=template,
+fig.write_image(
+    f"Cummulative expression vs. distinct protein rank: fractions 0.1 and 1 - PacBio.svg",
     height=400,
     width=900,
 )
-# fig.write_image(
-#     f"{head_title} - PacBio.svg",
-#     height=max(300, 200 * rows),
-#     width=max(600, 250 * cols),
-# )
+
 fig.show()
+
+# %% jupyter={"source_hidden": true}
+# x_axis_name = "Distinct protein rank"
+# y_axis_name = "Cummulative relative<br>expression (%)"
+# head_title = "Cummulative expression vs. distinct unique proteins"
+
+# cols = min(facet_col_wrap, len(conditions), 4)
+# rows = ceil(len(conditions) / cols)
+# row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
+
+# assignment_method = "Weighted"
+# percentile_fractions = [0.1, 1.0]
+# symbols = ["circle", "triangle-up"]
+
+# fig = make_subplots(
+#     rows=rows,
+#     cols=cols,
+#     subplot_titles=conditions,
+#     shared_xaxes=True,
+#     shared_yaxes=True,
+#     x_title=x_axis_name,
+#     y_title=y_axis_name,
+#     vertical_spacing=facet_row_spacing / 2.5,
+#     horizontal_spacing=facet_col_spacing * 1.5,
+# )
+
+# for (row, col), percentile_df, fraction01_percentile_df, condition in zip(
+#     row_col_iter, percentile_dfs, fraction01_percentile_dfs, conditions
+# ):
+#     legend_x = [percentile_df["RequiredProteins"].max() * 5 / 6]
+#     legend_ys = [[25], [20]]
+
+#     for color, symbol, legend_y, df, percentile_fraction in zip(
+#         subcolors_discrete_map[condition],
+#         symbols,
+#         legend_ys,
+#         [fraction01_percentile_df, percentile_df],
+#         percentile_fractions,
+#     ):
+#         df = df.loc[df["AssignmentMethod"] == assignment_method]
+
+#         x = df["RequiredProteins"]
+#         y = df["Percentile"]
+
+#         x_mean = df.groupby("Percentile")["RequiredProteins"].apply(np.mean)
+#         y_unique = x_mean.index
+
+#         fig.add_trace(
+#             go.Scatter(
+#                 x=x,
+#                 y=y,
+#                 mode="markers",
+#                 marker=dict(
+#                     color=color,
+#                     size=7,
+#                     opacity=0.7,
+#                     symbol=symbol,
+#                     # line=dict(width=0),
+#                 ),
+#             ),
+#             row=row,
+#             col=col,
+#         )
+
+#         fig.add_trace(
+#             go.Scatter(
+#                 x=x_mean,
+#                 y=y_unique,
+#                 mode="lines+markers",
+#                 marker=dict(
+#                     color=color,
+#                     size=7,
+#                     opacity=0.7,
+#                     symbol=symbol,
+#                     # line=dict(width=0),
+#                 ),
+#             ),
+#             row=row,
+#             col=col,
+#         )
+
+#         fig.add_trace(
+#             go.Scatter(
+#                 x=legend_x,
+#                 y=legend_y,
+#                 mode="markers+text",
+#                 marker=dict(
+#                     color=color,
+#                     size=7,
+#                     opacity=0.5,
+#                     symbol=symbol,
+#                     # line=dict(width=0),
+#                 ),
+#                 text=f" Fraction = {percentile_fraction}",
+#                 textposition="middle right",
+#                 textfont=dict(size=8),
+#             ),
+#             row=row,
+#             col=col,
+#         )
+
+# # fig.update_xaxes(
+# #     # tick0 = -1,
+# #     # dtick = 5_000,
+# #     matches='x',
+# #     type="log",
+# #     nticks=6
+# # )
+
+# fig.update_layout(
+#     # title=head_title,
+#     showlegend=False,
+#     template=template,
+#     height=400,
+#     width=900,
+# )
+# # fig.write_image(
+# #     f"{head_title} - PacBio.svg",
+# #     height=max(300, 200 * rows),
+# #     width=max(600, 250 * cols),
+# # )
+
+# fig.show()
 
 # %%
 fraction01_assignment_dfs[0]
@@ -6955,129 +6980,15 @@ for col, condition in zip(range(cols), conditions):
     fig.add_annotation(
         row=1,
         col=col + 1,
-        x=0.5,
-        # y=3.5,
-        y=0.35,
-        xref="x",
-        yref="y",
-        text=f"{frac_1_matches} / {possible_frac_1_matches} = {100 * frac_1_matches / possible_frac_1_matches:.2f}%<br>of possible matches<br>relative to fraction 0.1",
-        align="center",
-        font=dict(size=8, color="black"),
-        showarrow=False,
-        # bgcolor="#ff7f0e",
-        bgcolor="white",
-    )
-
-    fig.add_annotation(
-        row=1,
-        col=col + 1,
+        # x=0.5,
+        # y=0.35,
         x=1.5,
-        # y=0.5,
         y=0.05,
         xref="x",
         yref="y",
-        text=f"{frac_01_matches} / {possible_frac_01_matches} = {100 * frac_01_matches / possible_frac_01_matches:.2f}%<br>of possible matches<br>relative to fraction 1",
-        align="center",
-        # font=dict(size=10, color="grey"),
-        font=dict(size=8, color="grey"),
-        showarrow=False,
-        # bgcolor="#ff7f0e",
-        bgcolor="white",
-    )
-
-fig.update_layout(
-    # title=head_title,
-    showlegend=False,
-    template=template,
-    height=430,
-    width=700,
-)
-
-# fig.write_image(
-#     f"{head_title} - PacBio.svg",
-#     height=max(300, 200 * rows),
-#     width=max(600, 250 * cols),
-# )
-
-fig.show()
-
-# %% jupyter={"source_hidden": true}
-x_axis_name = "Relative expression (%): fraction 0.1"
-y_axis_name = "Relative expression (%): fraction 1"
-
-cols = len(conditions)
-rows = 1
-
-relative_assignment_dfs = [
-    frac_1_merged_to_frac_01_assignment_dfs,
-    frac_01_merged_to_frac_1_assignment_dfs,
-]
-
-fig = make_subplots(
-    rows=rows,
-    cols=cols,
-    # column_titles=["Fraction 1 relative to 0.1", "Fraction 0.1 relative to 1"],
-    # row_titles=conditions,
-    subplot_titles=conditions,
-    shared_xaxes=True,
-    shared_yaxes=True,
-    x_title=x_axis_name,
-    y_title=y_axis_name,
-    # vertical_spacing=facet_row_spacing / 2.5,
-    # horizontal_spacing=facet_col_spacing * 1.5,
-)
-
-for col, condition in zip(range(cols), conditions):
-
-    frac_1_relative_to_frac_01_df = relative_assignment_dfs[0][col]
-    frac_01_relative_to_frac_1_df = relative_assignment_dfs[1][col]
-
-    frac_1_relative_to_frac_01_x = frac_1_relative_to_frac_01_df[
-        "%RelativeExpression0.1"
-    ]
-    frac_1_relative_to_frac_01_y = frac_1_relative_to_frac_01_df[
-        "%RelativeExpression1.0"
-    ]
-
-    frac_01_relative_to_frac_1_x = frac_01_relative_to_frac_1_df[
-        "%RelativeExpression0.1"
-    ]
-    frac_01_relative_to_frac_1_y = frac_01_relative_to_frac_1_df[
-        "%RelativeExpression1.0"
-    ]
-
-    fig.add_trace(
-        go.Scattergl(
-            x=frac_1_relative_to_frac_01_x,
-            y=frac_1_relative_to_frac_01_y,
-            mode="markers",
-            marker=dict(
-                color=color_discrete_map[condition],
-                size=3,
-                # opacity=0.7,
-                # symbol=symbol,
-            ),
-        ),
-        row=1,
-        col=col + 1,
-    )
-
-    frac_1_matches = frac_1_relative_to_frac_01_y.notna().sum()
-    possible_frac_1_matches = len(frac_1_relative_to_frac_01_y)
-
-    frac_01_matches = frac_01_relative_to_frac_1_x.notna().sum()
-    possible_frac_01_matches = len(frac_01_relative_to_frac_1_x)
-
-    # ic(col, row, condition, possible_matches, matches)
-
-    fig.add_annotation(
-        row=1,
-        col=col + 1,
-        x=0.5,
-        y=3.5,
-        xref="x",
-        yref="y",
-        text=f"{frac_1_matches} / {possible_frac_1_matches} = {100 * frac_1_matches / possible_frac_1_matches:.2f}%<br>of possible matches<br>relative to fraction 0.1",
+        # text=f"{frac_1_matches} / {possible_frac_1_matches} = {100 * frac_1_matches / possible_frac_1_matches:.2f}%<br>of possible matches<br>relative to fraction 0.1",
+        # text=f"{frac_1_matches} / {possible_frac_1_matches} = {100 * frac_1_matches / possible_frac_1_matches:.2f}%<br>of possible matches<br>relative to fraction 1",
+        text=f"{frac_1_matches} / {possible_frac_1_matches} = {100 * frac_1_matches / possible_frac_1_matches:.2f}%<br>of possible matches<br>to fraction 1 proteins",
         align="center",
         font=dict(size=8, color="black"),
         showarrow=False,
@@ -7088,14 +6999,18 @@ for col, condition in zip(range(cols), conditions):
     fig.add_annotation(
         row=1,
         col=col + 1,
-        x=1.5,
-        y=0.5,
+        # x=1.5,
+        # y=0.05,
+        x=0.5,
+        y=0.35,
         xref="x",
         yref="y",
-        text=f"{frac_01_matches} / {possible_frac_01_matches} = {100 * frac_01_matches / possible_frac_01_matches:.2f}%<br>of possible matches<br>relative to fraction 1",
+        # text=f"{frac_01_matches} / {possible_frac_01_matches} = {100 * frac_01_matches / possible_frac_01_matches:.2f}%<br>of possible matches<br>relative to fraction 1",
+        # text=f"{frac_01_matches} / {possible_frac_01_matches} = {100 * frac_01_matches / possible_frac_01_matches:.2f}%<br>of possible matches<br>relative to fraction 0.1",
+        text=f"{frac_01_matches} / {possible_frac_01_matches} = {100 * frac_01_matches / possible_frac_01_matches:.2f}%<br>of possible matches<br>to fraction 0.1 proteins",
         align="center",
         # font=dict(size=10, color="grey"),
-        font=dict(size=8, color="grey"),
+        font=dict(size=9, color="black"),
         showarrow=False,
         # bgcolor="#ff7f0e",
         bgcolor="white",
@@ -7105,115 +7020,111 @@ fig.update_layout(
     # title=head_title,
     showlegend=False,
     template=template,
-    height=430,
-    width=700,
+    # height=430,
+    # width=700,
+    height=400,
+    width=800,
 )
 
-# fig.write_image(
-#     f"{head_title} - PacBio.svg",
-#     height=max(300, 200 * rows),
-#     width=max(600, 250 * cols),
-# )
+fig.write_image(
+    "Fraction 0.1 expression vs. fraction 1 expression - PacBio.svg",
+    height=400,
+    width=800,
+)
 
 fig.show()
 
 # %%
+
+# %% jupyter={"source_hidden": true}
 # frac_1_merged_to_frac_01_assignment_dfs[0]
 
-# %%
-frac_1_merged_to_frac_01_assignment_dfs[0].loc[:, ["#Protein0.1", "#Protein1.0"]]
+# %% jupyter={"source_hidden": true}
+# frac_1_merged_to_frac_01_assignment_dfs[0].loc[:, ["#Protein0.1", "#Protein1.0"]]
 
-# %%
-frac_01_merged_to_frac_1_assignment_dfs[0].loc[:, ["#Protein0.1", "#Protein1.0"]]
+# %% jupyter={"source_hidden": true}
+# frac_01_merged_to_frac_1_assignment_dfs[0].loc[:, ["#Protein0.1", "#Protein1.0"]]
 
-# %%
-top_10_gria_assignment_df = (
-    frac_1_merged_to_frac_01_assignment_dfs[0].dropna().iloc[:10]
-)
-# top_10_gria_assignment_df = frac_1_merged_to_frac_01_assignment_dfs[0].dropna().copy()
+# %% jupyter={"source_hidden": true}
+# top_10_gria_assignment_df = (
+#     frac_1_merged_to_frac_01_assignment_dfs[0].dropna().iloc[:10]
+# )
+# # top_10_gria_assignment_df = frac_1_merged_to_frac_01_assignment_dfs[0].dropna().copy()
+
+# # top_10_gria_assignment_df
+
+# top_10_gria_assignment_df[
+#     "MutualAdditionalSupportingProteinsIDs"
+# ] = top_10_gria_assignment_df.apply(
+#     lambda x: list(
+#         set(x["AdditionalSupportingProteinsIDs0.1"])
+#         & set(x["AdditionalSupportingProteinsIDs1.0"])
+#     ),
+#     axis=1,
+# )
+# top_10_gria_assignment_df["%MutualAdditionalSupportingProteinsIDs0.1"] = (
+#     100
+#     * top_10_gria_assignment_df["MutualAdditionalSupportingProteinsIDs"].apply(len)
+#     / top_10_gria_assignment_df["AdditionalSupportingProteinsIDs0.1"].apply(len)
+# )
+# top_10_gria_assignment_df["%MutualAdditionalSupportingProteinsIDs1.0"] = (
+#     100
+#     * top_10_gria_assignment_df["MutualAdditionalSupportingProteinsIDs"].apply(len)
+#     / top_10_gria_assignment_df["AdditionalSupportingProteinsIDs1.0"].apply(len)
+# )
+
+# import itertools
+
+# top_10_gria_assignment_df[
+#     "MutualAdditionalSupportingReadsIDs"
+# ] = top_10_gria_assignment_df.apply(
+#     lambda x: list(
+#         set(itertools.chain.from_iterable(x["AdditionalSupportingReadsIDs0.1"]))
+#         & set(itertools.chain.from_iterable(x["AdditionalSupportingReadsIDs1.0"]))
+#     ),
+#     axis=1,
+# )
+
+# top_10_gria_assignment_df["%MutualAdditionalSupportinReadsIDs0.1"] = (
+#     100
+#     * top_10_gria_assignment_df["MutualAdditionalSupportingReadsIDs"].apply(len)
+#     / top_10_gria_assignment_df["AdditionalSupportingReadsIDs0.1"].apply(
+#         lambda x: len(list(itertools.chain.from_iterable(x)))
+#     )
+# )
+# top_10_gria_assignment_df["%MutualAdditionalSupportingReadsIDs1.0"] = (
+#     100
+#     * top_10_gria_assignment_df["MutualAdditionalSupportingReadsIDs"].apply(len)
+#     / top_10_gria_assignment_df["AdditionalSupportingReadsIDs1.0"].apply(
+#         lambda x: len(list(itertools.chain.from_iterable(x)))
+#     )
+# )
 
 # top_10_gria_assignment_df
 
-top_10_gria_assignment_df[
-    "MutualAdditionalSupportingProteinsIDs"
-] = top_10_gria_assignment_df.apply(
-    lambda x: list(
-        set(x["AdditionalSupportingProteinsIDs0.1"])
-        & set(x["AdditionalSupportingProteinsIDs1.0"])
-    ),
-    axis=1,
-)
-top_10_gria_assignment_df["%MutualAdditionalSupportingProteinsIDs0.1"] = (
-    100
-    * top_10_gria_assignment_df["MutualAdditionalSupportingProteinsIDs"].apply(len)
-    / top_10_gria_assignment_df["AdditionalSupportingProteinsIDs0.1"].apply(len)
-)
-top_10_gria_assignment_df["%MutualAdditionalSupportingProteinsIDs1.0"] = (
-    100
-    * top_10_gria_assignment_df["MutualAdditionalSupportingProteinsIDs"].apply(len)
-    / top_10_gria_assignment_df["AdditionalSupportingProteinsIDs1.0"].apply(len)
-)
+# %% jupyter={"source_hidden": true}
+# fig = px.scatter(
+#     top_10_gria_assignment_df,
+#     x="%MutualAdditionalSupportinReadsIDs0.1",
+#     y="%MutualAdditionalSupportingReadsIDs1.0",
+#     marginal_y="box",
+#     marginal_x="box",
+# )
+# fig.update_traces(marker={"size": 5})
+# fig.update_layout(width=600, height=600, template=template)
+# fig.show()
 
-import itertools
-
-top_10_gria_assignment_df[
-    "MutualAdditionalSupportingReadsIDs"
-] = top_10_gria_assignment_df.apply(
-    lambda x: list(
-        set(itertools.chain.from_iterable(x["AdditionalSupportingReadsIDs0.1"]))
-        & set(itertools.chain.from_iterable(x["AdditionalSupportingReadsIDs1.0"]))
-    ),
-    axis=1,
-)
-
-top_10_gria_assignment_df["%MutualAdditionalSupportinReadsIDs0.1"] = (
-    100
-    * top_10_gria_assignment_df["MutualAdditionalSupportingReadsIDs"].apply(len)
-    / top_10_gria_assignment_df["AdditionalSupportingReadsIDs0.1"].apply(
-        lambda x: len(list(itertools.chain.from_iterable(x)))
-    )
-)
-top_10_gria_assignment_df["%MutualAdditionalSupportingReadsIDs1.0"] = (
-    100
-    * top_10_gria_assignment_df["MutualAdditionalSupportingReadsIDs"].apply(len)
-    / top_10_gria_assignment_df["AdditionalSupportingReadsIDs1.0"].apply(
-        lambda x: len(list(itertools.chain.from_iterable(x)))
-    )
-)
-
-top_10_gria_assignment_df
-
-# %%
-fig = px.scatter(
-    top_10_gria_assignment_df,
-    x="%MutualAdditionalSupportinReadsIDs0.1",
-    y="%MutualAdditionalSupportingReadsIDs1.0",
-    marginal_y="box",
-    marginal_x="box",
-)
-fig.update_traces(marker={"size": 5})
-fig.update_layout(width=600, height=600, template=template)
-fig.show()
-
-# %%
-fig = px.scatter(
-    top_10_gria_assignment_df,
-    x="%MutualAdditionalSupportingProteinsIDs0.1",
-    y="%MutualAdditionalSupportingProteinsIDs1.0",
-    marginal_y="box",
-    marginal_x="box",
-)
-fig.update_traces(marker={"size": 5})
-fig.update_layout(width=600, height=600, template=template)
-fig.show()
-
-# %%
-
-# %%
-
-# %%
-
-# %%
+# %% jupyter={"source_hidden": true}
+# fig = px.scatter(
+#     top_10_gria_assignment_df,
+#     x="%MutualAdditionalSupportingProteinsIDs0.1",
+#     y="%MutualAdditionalSupportingProteinsIDs1.0",
+#     marginal_y="box",
+#     marginal_x="box",
+# )
+# fig.update_traces(marker={"size": 5})
+# fig.update_layout(width=600, height=600, template=template)
+# fig.show()
 
 # %%
 x_axis_name = "Distinct protein rank: fraction 0.1"
@@ -7333,459 +7244,459 @@ fig.show()
 # %%
 
 # %% jupyter={"source_hidden": true}
-assignment_method = "Weighted"
-y_col_name = "TotalWeightedSupportingReads"
+# assignment_method = "Weighted"
+# y_col_name = "TotalWeightedSupportingReads"
 
-cols = min(facet_col_wrap, len(conditions), 3)
-rows = ceil(len(conditions) / cols)
-row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
+# cols = min(facet_col_wrap, len(conditions), 3)
+# rows = ceil(len(conditions) / cols)
+# row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
 
 
-subplot_titles = conditions
-x_axis_name = "Distinct protein rank"
-y_axis_name = "Relative expression (%)"
-# head_title = f"Relative expression of proteins considering a largest solution in each {str(condition_col).lower()}"
-head_title = "Relative expression vs. distinct protein rank"
+# subplot_titles = conditions
+# x_axis_name = "Distinct protein rank"
+# y_axis_name = "Relative expression (%)"
+# # head_title = f"Relative expression of proteins considering a largest solution in each {str(condition_col).lower()}"
+# head_title = "Relative expression vs. distinct protein rank"
 
-data_marker_size = 2.5
-data_opacity = 0.2
-regression_line_width = 6
+# data_marker_size = 2.5
+# data_opacity = 0.2
+# regression_line_width = 6
 
-data_scatter_type = go.Scattergl
-fit_scatter_type = go.Scatter
+# data_scatter_type = go.Scattergl
+# fit_scatter_type = go.Scatter
 
-fig = make_subplots(
-    rows=rows,
-    cols=cols,
-    y_title=y_axis_name,
-    x_title=x_axis_name,
-    subplot_titles=subplot_titles,
-    shared_yaxes=True,
-    # shared_xaxes=True,
-    # # vertical_spacing=facet_row_spacing / 2.5,
-    # horizontal_spacing=facet_col_spacing * 1.5,
-    vertical_spacing=0.05,
-    horizontal_spacing=0.025,
-)
+# fig = make_subplots(
+#     rows=rows,
+#     cols=cols,
+#     y_title=y_axis_name,
+#     x_title=x_axis_name,
+#     subplot_titles=subplot_titles,
+#     shared_yaxes=True,
+#     # shared_xaxes=True,
+#     # # vertical_spacing=facet_row_spacing / 2.5,
+#     # horizontal_spacing=facet_col_spacing * 1.5,
+#     vertical_spacing=0.05,
+#     horizontal_spacing=0.025,
+# )
 
-for (
-    (row, col),
-    condition,
-    maximal_df,
-    maximal_solution,
-    linear_space,
-    (forward_x_transform, forward_y_transform),
-    (reverse_x_transform, reverse_y_transform),
-    # fit_text,
-    formulate_equation,
-) in zip(
-    row_col_iter,
-    conditions,
-    fraction01_assignment_dfs,
-    maximal_fraction01_solutions,
-    linear_spaces,
-    forward_transforms,
-    reverse_transforms,
-    # fit_texts,
-    formulate_equations,
-):
+# for (
+#     (row, col),
+#     condition,
+#     maximal_df,
+#     maximal_solution,
+#     linear_space,
+#     (forward_x_transform, forward_y_transform),
+#     (reverse_x_transform, reverse_y_transform),
+#     # fit_text,
+#     formulate_equation,
+# ) in zip(
+#     row_col_iter,
+#     conditions,
+#     fraction01_assignment_dfs,
+#     maximal_fraction01_solutions,
+#     linear_spaces,
+#     forward_transforms,
+#     reverse_transforms,
+#     # fit_texts,
+#     formulate_equations,
+# ):
 
-    assignment_df = maximal_df.sort_values(
-        "TotalWeightedSupportingReads", ascending=False
-    ).reset_index(drop=True)
-    assignment_df["#Protein"] = list(range(1, len(assignment_df) + 1))
-    assignment_df["AssignmentMethod"] = assignment_method
+#     assignment_df = maximal_df.sort_values(
+#         "TotalWeightedSupportingReads", ascending=False
+#     ).reset_index(drop=True)
+#     assignment_df["#Protein"] = list(range(1, len(assignment_df) + 1))
+#     assignment_df["AssignmentMethod"] = assignment_method
 
-    x = assignment_df["#Protein"]
-    y = 100 * assignment_df[y_col_name] / assignment_df[y_col_name].sum()
-
-    fig.add_trace(
-        data_scatter_type(
-            x=x,
-            y=y,
-            # legendgrouptitle_text=condition,
-            # legendgroup=condition,
-            # name=assignment_method,
-            mode="markers",
-            marker_color=color_discrete_map[condition],
-            marker_size=data_marker_size,
-            marker=dict(
-                opacity=data_opacity,
-                line=dict(width=0),
-            ),
-        ),
-        row=row,
-        col=col,
-    )
-
-#     train_logspace = [
-#         int(i)
-#         for i in np.logspace(
-#             np.log10(linear_space[0]), np.log10(linear_space[1]), num=1000
-#         )
-#     ]
-#     test_logspace = [
-#         int(i)
-#         for i in np.logspace(
-#             np.log10(linear_space[0] + 20), np.log10(linear_space[1] - 20), num=1000
-#         )
-#         if int(i) not in train_logspace
-#     ]
-
-#     train_x = forward_x_transform(x[train_logspace])
-#     train_y = forward_y_transform(y[train_logspace])
-
-#     test_x = forward_x_transform(x[test_logspace])
-#     test_y = forward_y_transform(y[test_logspace])
-
-#     # Create linear regression object
-#     regr = linear_model.LinearRegression(n_jobs=threads)
-#     # Train the model using the training sets
-#     regr.fit(np.array(train_x).reshape(-1, 1), train_y)
-#     # Make predictions using the testing set
-#     pred_y = regr.predict(np.array(test_x).reshape(-1, 1))
-
-#     # transform these variables back to original scale so that they can plotted
-#     test_x = reverse_x_transform(test_x)  # should be equivalent to `test_x = x[test_logspace]`?
-#     pred_y = reverse_y_transform(pred_y)
+#     x = assignment_df["#Protein"]
+#     y = 100 * assignment_df[y_col_name] / assignment_df[y_col_name].sum()
 
 #     fig.add_trace(
-#         fit_scatter_type(
-#             x=test_x,
-#             y=pred_y,
-#             mode="lines",
-#             marker_color="grey",
-#             line=dict(
-#                 dash="dash",
-#                 width=regression_line_width,
-#             ),
+#         data_scatter_type(
+#             x=x,
+#             y=y,
+#             # legendgrouptitle_text=condition,
 #             # legendgroup=condition,
-#             # name=f"{assignment_method} - fitted",
-#             showlegend=False,
+#             # name=assignment_method,
+#             mode="markers",
+#             marker_color=color_discrete_map[condition],
+#             marker_size=data_marker_size,
+#             marker=dict(
+#                 opacity=data_opacity,
+#                 line=dict(width=0),
+#             ),
 #         ),
-#         row=1,
-#         col=col,
-#     )
-
-#     i = int(len(test_x) / 10)
-#     text_x = test_x.iloc[i] + 2000
-#     text_y = pred_y[i] + 0.03
-#     # text_x = 1000
-#     # text_y = 0.05
-#     text_x = np.log10(text_x)
-#     text_y = np.log10(text_y)
-
-#     coef = regr.coef_[0]
-#     intercept = regr.intercept_
-#     # mse = mean_squared_error(test_y, pred_y)
-#     # r2 = r2_score(test_y, pred_y)
-#     # if intercept >= 0:
-#     #     operator = "+"
-#     # else:
-#     #     operator = "-"
-#     #     intercept = np.abs(intercept)
-#     equation = formulate_equation(coef, intercept)
-
-#     ic(condition)
-#     ic(equation)
-
-#     fit_text_new = (
-#         # f"<b>{assignment_method}</b>"
-#         # "<br>"
-#         # f"<b>y = {coef:.2f}x {operator} {intercept:.2f}</b>"
-#         # f"y = {coef:.2f}x {operator} {intercept:.2f}"
-#         f"{equation}"
-#         # "<br>"
-#         # f"MSE = {mse:.2f}"  # 0 is perfect prediction
-#         # "<br>"
-#         # f"R2 = {r2:.2f}"  # 1 is perfect prediction
-#     )
-
-#     fig.add_annotation(
 #         row=row,
 #         col=col,
-#         x=text_x,
-#         y=text_y,
-#         xref="x",
-#         yref="y",
-#         # text=fit_text,
-#         text=fit_text_new,
-#         align="center",
-#         font=dict(size=10, color="grey"),
-#         showarrow=False,
 #     )
 
-fig.update_layout(
-    # title_text=head_title,
-    # title_y=0.95,
-    template=template,
-    showlegend=False,
-    # legend_itemsizing="constant",
-    height=max(400, 200 * rows),
-    width=max(900, 250 * cols),
-)
-fig.update_xaxes(type="log", nticks=6)
-fig.update_yaxes(type="log")
-fig.write_image(
-    f"{head_title} - PacBio.svg",
-    height=max(400, 200 * rows),
-    # width=max(650, 250 * cols),
-    width=max(830, 250 * cols),
-)
-fig.show()
-# fig.show(config={'staticPlot': True, 'responsive': False})
+# #     train_logspace = [
+# #         int(i)
+# #         for i in np.logspace(
+# #             np.log10(linear_space[0]), np.log10(linear_space[1]), num=1000
+# #         )
+# #     ]
+# #     test_logspace = [
+# #         int(i)
+# #         for i in np.logspace(
+# #             np.log10(linear_space[0] + 20), np.log10(linear_space[1] - 20), num=1000
+# #         )
+# #         if int(i) not in train_logspace
+# #     ]
+
+# #     train_x = forward_x_transform(x[train_logspace])
+# #     train_y = forward_y_transform(y[train_logspace])
+
+# #     test_x = forward_x_transform(x[test_logspace])
+# #     test_y = forward_y_transform(y[test_logspace])
+
+# #     # Create linear regression object
+# #     regr = linear_model.LinearRegression(n_jobs=threads)
+# #     # Train the model using the training sets
+# #     regr.fit(np.array(train_x).reshape(-1, 1), train_y)
+# #     # Make predictions using the testing set
+# #     pred_y = regr.predict(np.array(test_x).reshape(-1, 1))
+
+# #     # transform these variables back to original scale so that they can plotted
+# #     test_x = reverse_x_transform(test_x)  # should be equivalent to `test_x = x[test_logspace]`?
+# #     pred_y = reverse_y_transform(pred_y)
+
+# #     fig.add_trace(
+# #         fit_scatter_type(
+# #             x=test_x,
+# #             y=pred_y,
+# #             mode="lines",
+# #             marker_color="grey",
+# #             line=dict(
+# #                 dash="dash",
+# #                 width=regression_line_width,
+# #             ),
+# #             # legendgroup=condition,
+# #             # name=f"{assignment_method} - fitted",
+# #             showlegend=False,
+# #         ),
+# #         row=1,
+# #         col=col,
+# #     )
+
+# #     i = int(len(test_x) / 10)
+# #     text_x = test_x.iloc[i] + 2000
+# #     text_y = pred_y[i] + 0.03
+# #     # text_x = 1000
+# #     # text_y = 0.05
+# #     text_x = np.log10(text_x)
+# #     text_y = np.log10(text_y)
+
+# #     coef = regr.coef_[0]
+# #     intercept = regr.intercept_
+# #     # mse = mean_squared_error(test_y, pred_y)
+# #     # r2 = r2_score(test_y, pred_y)
+# #     # if intercept >= 0:
+# #     #     operator = "+"
+# #     # else:
+# #     #     operator = "-"
+# #     #     intercept = np.abs(intercept)
+# #     equation = formulate_equation(coef, intercept)
+
+# #     ic(condition)
+# #     ic(equation)
+
+# #     fit_text_new = (
+# #         # f"<b>{assignment_method}</b>"
+# #         # "<br>"
+# #         # f"<b>y = {coef:.2f}x {operator} {intercept:.2f}</b>"
+# #         # f"y = {coef:.2f}x {operator} {intercept:.2f}"
+# #         f"{equation}"
+# #         # "<br>"
+# #         # f"MSE = {mse:.2f}"  # 0 is perfect prediction
+# #         # "<br>"
+# #         # f"R2 = {r2:.2f}"  # 1 is perfect prediction
+# #     )
+
+# #     fig.add_annotation(
+# #         row=row,
+# #         col=col,
+# #         x=text_x,
+# #         y=text_y,
+# #         xref="x",
+# #         yref="y",
+# #         # text=fit_text,
+# #         text=fit_text_new,
+# #         align="center",
+# #         font=dict(size=10, color="grey"),
+# #         showarrow=False,
+# #     )
+
+# fig.update_layout(
+#     # title_text=head_title,
+#     # title_y=0.95,
+#     template=template,
+#     showlegend=False,
+#     # legend_itemsizing="constant",
+#     height=max(400, 200 * rows),
+#     width=max(900, 250 * cols),
+# )
+# fig.update_xaxes(type="log", nticks=6)
+# fig.update_yaxes(type="log")
+# fig.write_image(
+#     f"{head_title} - PacBio.svg",
+#     height=max(400, 200 * rows),
+#     # width=max(650, 250 * cols),
+#     width=max(830, 250 * cols),
+# )
+# fig.show()
+# # fig.show(config={'staticPlot': True, 'responsive': False})
 
 
 # %% jupyter={"source_hidden": true}
-assignment_method = "Weighted"
-y_col_name = "TotalWeightedSupportingReads"
+# assignment_method = "Weighted"
+# y_col_name = "TotalWeightedSupportingReads"
 
-cols = min(facet_col_wrap, len(conditions), 3)
-rows = ceil(len(conditions) / cols)
-row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
+# cols = min(facet_col_wrap, len(conditions), 3)
+# rows = ceil(len(conditions) / cols)
+# row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
 
-# (start, end) tuples for both x and y
-linear_spaces = [
-    (300, 15_000),
-    # (250, 23_000)
-    (700, 15_000),
-]
+# # (start, end) tuples for both x and y
+# linear_spaces = [
+#     (300, 15_000),
+#     # (250, 23_000)
+#     (700, 15_000),
+# ]
 
-forward_transforms = [
-    (linear_to_log10, linear_to_log10),
-    # (linear_to_log10, inverse),
-    (linear_to_log10, linear_to_log10),
-]  # (x, y) tuples
-reverse_transforms = [
-    (log10_to_linear, log10_to_linear),
-    # (log10_to_linear, inverse),
-    (log10_to_linear, log10_to_linear),
-]  # (x, y) tuples
+# forward_transforms = [
+#     (linear_to_log10, linear_to_log10),
+#     # (linear_to_log10, inverse),
+#     (linear_to_log10, linear_to_log10),
+# ]  # (x, y) tuples
+# reverse_transforms = [
+#     (log10_to_linear, log10_to_linear),
+#     # (log10_to_linear, inverse),
+#     (log10_to_linear, log10_to_linear),
+# ]  # (x, y) tuples
 
-formulate_equations = [
-    formulate_log10_equation,
-    # formulate_semilog10_equation
-    formulate_log10_equation,
-]
-# fit_texts = ["    y ~ 1 / sqrt(x)", "    y ~ 1 / log(x)"]
+# formulate_equations = [
+#     formulate_log10_equation,
+#     # formulate_semilog10_equation
+#     formulate_log10_equation,
+# ]
+# # fit_texts = ["    y ~ 1 / sqrt(x)", "    y ~ 1 / log(x)"]
 
-# fraction01_expression_dfs
-# maximal_fraction01_solutions
+# # fraction01_expression_dfs
+# # maximal_fraction01_solutions
 
-maximal_fraction01_dfs = [
-    fraction01_expression_df.loc[
-        fraction01_expression_df["#Solution"] == maximal_fraction01_solution
-    ].reset_index(drop=True)
-    for fraction01_expression_df, maximal_fraction01_solution in zip(
-        fraction01_expression_dfs, maximal_fraction01_solutions
-    )
-]
+# maximal_fraction01_dfs = [
+#     fraction01_expression_df.loc[
+#         fraction01_expression_df["#Solution"] == maximal_fraction01_solution
+#     ].reset_index(drop=True)
+#     for fraction01_expression_df, maximal_fraction01_solution in zip(
+#         fraction01_expression_dfs, maximal_fraction01_solutions
+#     )
+# ]
 
-fraction01_assignment_dfs = [
-    (
-        fraction01_maximal_df.sort_values(
-            "TotalWeightedSupportingReads", ascending=False
-        )
-        .reset_index(drop=True)
-        .assign(ProteinRank=list(range(1, len(fraction01_maximal_df) + 1)))
-        .rename(columns={"ProteinRank": "#Protein"})
-    )
-    for fraction01_maximal_df in maximal_fraction01_dfs
-]
-
-subplot_titles = conditions
-x_axis_name = "Distinct protein rank"
-y_axis_name = "Relative expression (%)"
-# head_title = f"Relative expression of proteins considering a largest solution in each {str(condition_col).lower()}"
-head_title = "Relative expression vs. distinct protein rank"
-
-data_marker_size = 2.5
-data_opacity = 0.2
-regression_line_width = 6
-
-data_scatter_type = go.Scattergl
-fit_scatter_type = go.Scatter
-
-fig = make_subplots(
-    rows=rows,
-    cols=cols,
-    y_title=y_axis_name,
-    x_title=x_axis_name,
-    subplot_titles=subplot_titles,
-    shared_yaxes=True,
-    # shared_xaxes=True,
-    # # vertical_spacing=facet_row_spacing / 2.5,
-    # horizontal_spacing=facet_col_spacing * 1.5,
-    vertical_spacing=0.05,
-    horizontal_spacing=0.025,
-)
-
-for (
-    (row, col),
-    condition,
-    maximal_df,
-    maximal_solution,
-    linear_space,
-    (forward_x_transform, forward_y_transform),
-    (reverse_x_transform, reverse_y_transform),
-    # fit_text,
-    formulate_equation,
-) in zip(
-    row_col_iter,
-    conditions,
-    fraction01_assignment_dfs,
-    maximal_fraction01_solutions,
-    linear_spaces,
-    forward_transforms,
-    reverse_transforms,
-    # fit_texts,
-    formulate_equations,
-):
-
-    assignment_df = maximal_df.sort_values(
-        "TotalWeightedSupportingReads", ascending=False
-    ).reset_index(drop=True)
-    assignment_df["#Protein"] = list(range(1, len(assignment_df) + 1))
-    assignment_df["AssignmentMethod"] = assignment_method
-
-    x = assignment_df["#Protein"]
-    y = 100 * assignment_df[y_col_name] / assignment_df[y_col_name].sum()
-
-    fig.add_trace(
-        data_scatter_type(
-            x=x,
-            y=y,
-            # legendgrouptitle_text=condition,
-            # legendgroup=condition,
-            # name=assignment_method,
-            mode="markers",
-            marker_color=color_discrete_map[condition],
-            marker_size=data_marker_size,
-            marker=dict(
-                opacity=data_opacity,
-                line=dict(width=0),
-            ),
-        ),
-        row=row,
-        col=col,
-    )
-
-#     train_logspace = [
-#         int(i)
-#         for i in np.logspace(
-#             np.log10(linear_space[0]), np.log10(linear_space[1]), num=1000
+# fraction01_assignment_dfs = [
+#     (
+#         fraction01_maximal_df.sort_values(
+#             "TotalWeightedSupportingReads", ascending=False
 #         )
-#     ]
-#     test_logspace = [
-#         int(i)
-#         for i in np.logspace(
-#             np.log10(linear_space[0] + 20), np.log10(linear_space[1] - 20), num=1000
-#         )
-#         if int(i) not in train_logspace
-#     ]
+#         .reset_index(drop=True)
+#         .assign(ProteinRank=list(range(1, len(fraction01_maximal_df) + 1)))
+#         .rename(columns={"ProteinRank": "#Protein"})
+#     )
+#     for fraction01_maximal_df in maximal_fraction01_dfs
+# ]
 
-#     train_x = forward_x_transform(x[train_logspace])
-#     train_y = forward_y_transform(y[train_logspace])
+# subplot_titles = conditions
+# x_axis_name = "Distinct protein rank"
+# y_axis_name = "Relative expression (%)"
+# # head_title = f"Relative expression of proteins considering a largest solution in each {str(condition_col).lower()}"
+# head_title = "Relative expression vs. distinct protein rank"
 
-#     test_x = forward_x_transform(x[test_logspace])
-#     test_y = forward_y_transform(y[test_logspace])
+# data_marker_size = 2.5
+# data_opacity = 0.2
+# regression_line_width = 6
 
-#     # Create linear regression object
-#     regr = linear_model.LinearRegression(n_jobs=threads)
-#     # Train the model using the training sets
-#     regr.fit(np.array(train_x).reshape(-1, 1), train_y)
-#     # Make predictions using the testing set
-#     pred_y = regr.predict(np.array(test_x).reshape(-1, 1))
+# data_scatter_type = go.Scattergl
+# fit_scatter_type = go.Scatter
 
-#     # transform these variables back to original scale so that they can plotted
-#     test_x = reverse_x_transform(test_x)  # should be equivalent to `test_x = x[test_logspace]`?
-#     pred_y = reverse_y_transform(pred_y)
+# fig = make_subplots(
+#     rows=rows,
+#     cols=cols,
+#     y_title=y_axis_name,
+#     x_title=x_axis_name,
+#     subplot_titles=subplot_titles,
+#     shared_yaxes=True,
+#     # shared_xaxes=True,
+#     # # vertical_spacing=facet_row_spacing / 2.5,
+#     # horizontal_spacing=facet_col_spacing * 1.5,
+#     vertical_spacing=0.05,
+#     horizontal_spacing=0.025,
+# )
+
+# for (
+#     (row, col),
+#     condition,
+#     maximal_df,
+#     maximal_solution,
+#     linear_space,
+#     (forward_x_transform, forward_y_transform),
+#     (reverse_x_transform, reverse_y_transform),
+#     # fit_text,
+#     formulate_equation,
+# ) in zip(
+#     row_col_iter,
+#     conditions,
+#     fraction01_assignment_dfs,
+#     maximal_fraction01_solutions,
+#     linear_spaces,
+#     forward_transforms,
+#     reverse_transforms,
+#     # fit_texts,
+#     formulate_equations,
+# ):
+
+#     assignment_df = maximal_df.sort_values(
+#         "TotalWeightedSupportingReads", ascending=False
+#     ).reset_index(drop=True)
+#     assignment_df["#Protein"] = list(range(1, len(assignment_df) + 1))
+#     assignment_df["AssignmentMethod"] = assignment_method
+
+#     x = assignment_df["#Protein"]
+#     y = 100 * assignment_df[y_col_name] / assignment_df[y_col_name].sum()
 
 #     fig.add_trace(
-#         fit_scatter_type(
-#             x=test_x,
-#             y=pred_y,
-#             mode="lines",
-#             marker_color="grey",
-#             line=dict(
-#                 dash="dash",
-#                 width=regression_line_width,
-#             ),
+#         data_scatter_type(
+#             x=x,
+#             y=y,
+#             # legendgrouptitle_text=condition,
 #             # legendgroup=condition,
-#             # name=f"{assignment_method} - fitted",
-#             showlegend=False,
+#             # name=assignment_method,
+#             mode="markers",
+#             marker_color=color_discrete_map[condition],
+#             marker_size=data_marker_size,
+#             marker=dict(
+#                 opacity=data_opacity,
+#                 line=dict(width=0),
+#             ),
 #         ),
-#         row=1,
-#         col=col,
-#     )
-
-#     i = int(len(test_x) / 10)
-#     text_x = test_x.iloc[i] + 2000
-#     text_y = pred_y[i] + 0.03
-#     # text_x = 1000
-#     # text_y = 0.05
-#     text_x = np.log10(text_x)
-#     text_y = np.log10(text_y)
-
-#     coef = regr.coef_[0]
-#     intercept = regr.intercept_
-#     # mse = mean_squared_error(test_y, pred_y)
-#     # r2 = r2_score(test_y, pred_y)
-#     # if intercept >= 0:
-#     #     operator = "+"
-#     # else:
-#     #     operator = "-"
-#     #     intercept = np.abs(intercept)
-#     equation = formulate_equation(coef, intercept)
-
-#     ic(condition)
-#     ic(equation)
-
-#     fit_text_new = (
-#         # f"<b>{assignment_method}</b>"
-#         # "<br>"
-#         # f"<b>y = {coef:.2f}x {operator} {intercept:.2f}</b>"
-#         # f"y = {coef:.2f}x {operator} {intercept:.2f}"
-#         f"{equation}"
-#         # "<br>"
-#         # f"MSE = {mse:.2f}"  # 0 is perfect prediction
-#         # "<br>"
-#         # f"R2 = {r2:.2f}"  # 1 is perfect prediction
-#     )
-
-#     fig.add_annotation(
 #         row=row,
 #         col=col,
-#         x=text_x,
-#         y=text_y,
-#         xref="x",
-#         yref="y",
-#         # text=fit_text,
-#         text=fit_text_new,
-#         align="center",
-#         font=dict(size=10, color="grey"),
-#         showarrow=False,
 #     )
 
-fig.update_layout(
-    # title_text=head_title,
-    # title_y=0.95,
-    template=template,
-    showlegend=False,
-    # legend_itemsizing="constant",
-    height=max(400, 200 * rows),
-    width=max(900, 250 * cols),
-)
-fig.update_xaxes(type="log", nticks=6)
-fig.update_yaxes(type="log")
-fig.write_image(
-    f"{head_title} - PacBio.svg",
-    height=max(400, 200 * rows),
-    # width=max(650, 250 * cols),
-    width=max(830, 250 * cols),
-)
-fig.show()
-# fig.show(config={'staticPlot': True, 'responsive': False})
+# #     train_logspace = [
+# #         int(i)
+# #         for i in np.logspace(
+# #             np.log10(linear_space[0]), np.log10(linear_space[1]), num=1000
+# #         )
+# #     ]
+# #     test_logspace = [
+# #         int(i)
+# #         for i in np.logspace(
+# #             np.log10(linear_space[0] + 20), np.log10(linear_space[1] - 20), num=1000
+# #         )
+# #         if int(i) not in train_logspace
+# #     ]
+
+# #     train_x = forward_x_transform(x[train_logspace])
+# #     train_y = forward_y_transform(y[train_logspace])
+
+# #     test_x = forward_x_transform(x[test_logspace])
+# #     test_y = forward_y_transform(y[test_logspace])
+
+# #     # Create linear regression object
+# #     regr = linear_model.LinearRegression(n_jobs=threads)
+# #     # Train the model using the training sets
+# #     regr.fit(np.array(train_x).reshape(-1, 1), train_y)
+# #     # Make predictions using the testing set
+# #     pred_y = regr.predict(np.array(test_x).reshape(-1, 1))
+
+# #     # transform these variables back to original scale so that they can plotted
+# #     test_x = reverse_x_transform(test_x)  # should be equivalent to `test_x = x[test_logspace]`?
+# #     pred_y = reverse_y_transform(pred_y)
+
+# #     fig.add_trace(
+# #         fit_scatter_type(
+# #             x=test_x,
+# #             y=pred_y,
+# #             mode="lines",
+# #             marker_color="grey",
+# #             line=dict(
+# #                 dash="dash",
+# #                 width=regression_line_width,
+# #             ),
+# #             # legendgroup=condition,
+# #             # name=f"{assignment_method} - fitted",
+# #             showlegend=False,
+# #         ),
+# #         row=1,
+# #         col=col,
+# #     )
+
+# #     i = int(len(test_x) / 10)
+# #     text_x = test_x.iloc[i] + 2000
+# #     text_y = pred_y[i] + 0.03
+# #     # text_x = 1000
+# #     # text_y = 0.05
+# #     text_x = np.log10(text_x)
+# #     text_y = np.log10(text_y)
+
+# #     coef = regr.coef_[0]
+# #     intercept = regr.intercept_
+# #     # mse = mean_squared_error(test_y, pred_y)
+# #     # r2 = r2_score(test_y, pred_y)
+# #     # if intercept >= 0:
+# #     #     operator = "+"
+# #     # else:
+# #     #     operator = "-"
+# #     #     intercept = np.abs(intercept)
+# #     equation = formulate_equation(coef, intercept)
+
+# #     ic(condition)
+# #     ic(equation)
+
+# #     fit_text_new = (
+# #         # f"<b>{assignment_method}</b>"
+# #         # "<br>"
+# #         # f"<b>y = {coef:.2f}x {operator} {intercept:.2f}</b>"
+# #         # f"y = {coef:.2f}x {operator} {intercept:.2f}"
+# #         f"{equation}"
+# #         # "<br>"
+# #         # f"MSE = {mse:.2f}"  # 0 is perfect prediction
+# #         # "<br>"
+# #         # f"R2 = {r2:.2f}"  # 1 is perfect prediction
+# #     )
+
+# #     fig.add_annotation(
+# #         row=row,
+# #         col=col,
+# #         x=text_x,
+# #         y=text_y,
+# #         xref="x",
+# #         yref="y",
+# #         # text=fit_text,
+# #         text=fit_text_new,
+# #         align="center",
+# #         font=dict(size=10, color="grey"),
+# #         showarrow=False,
+# #     )
+
+# fig.update_layout(
+#     # title_text=head_title,
+#     # title_y=0.95,
+#     template=template,
+#     showlegend=False,
+#     # legend_itemsizing="constant",
+#     height=max(400, 200 * rows),
+#     width=max(900, 250 * cols),
+# )
+# fig.update_xaxes(type="log", nticks=6)
+# fig.update_yaxes(type="log")
+# fig.write_image(
+#     f"{head_title} - PacBio.svg",
+#     height=max(400, 200 * rows),
+#     # width=max(650, 250 * cols),
+#     width=max(830, 250 * cols),
+# )
+# fig.show()
+# # fig.show(config={'staticPlot': True, 'responsive': False})
 
 
 # %%
