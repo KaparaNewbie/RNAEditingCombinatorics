@@ -577,10 +577,12 @@ fig = make_subplots(
     rows=2,
     cols=1,
     shared_xaxes=True,
-    subplot_titles=["Known positions", "New positions"],
+    # subplot_titles=["Known positions", "New positions"],
+    row_titles=["Known<br>positions", "New<br>positions"],
     x_title="Position",
-    y_title="% editing",
-    vertical_spacing=0.15,
+    y_title="% editing in squid's PCLO",
+    # vertical_spacing=0.15,
+    vertical_spacing=0.13,
 )
 
 symbols = ["circle", "square"]
@@ -656,41 +658,55 @@ fig.update_xaxes(
 
 fig.update_yaxes(range=[0, 100], tick0=0, dtick=20)
 
-fig.update_layout(template=template, height=600, width=1100)
+width = 1100
+height = 600
+
+fig.update_layout(
+    template=template, 
+    width=width,
+    height=height, 
+    legend=dict(
+        orientation="h",
+        yanchor="bottom",
+        y=1.02,
+        xanchor="right",
+        x=0.9
+    )
+)
 
 fig.write_image(
     "Comparison of editing levels across platforms and studies in squid’s PCLO.svg",
-    width=1100,
-    height=600
+    width=width,
+    height=height
 )
 
 fig.show()
 
-# %%
-fig = go.Figure()
+# %% jupyter={"source_hidden": true}
+# fig = go.Figure()
 
-x = merged_ref_base_positions_df["Position"]
+# x = merged_ref_base_positions_df["Position"]
 
-# for color, editing_percent_col, col_suffix in zip(colors, editing_percent_cols, col_suffixes):
-for color, editing_percent_col, col_suffix in zip(
-    px.colors.qualitative.Pastel[:3], editing_percent_cols, col_suffixes
-):
+# # for color, editing_percent_col, col_suffix in zip(colors, editing_percent_cols, col_suffixes):
+# for color, editing_percent_col, col_suffix in zip(
+#     px.colors.qualitative.Pastel[:3], editing_percent_cols, col_suffixes
+# ):
 
-    y = merged_ref_base_positions_df[editing_percent_col]
+#     y = merged_ref_base_positions_df[editing_percent_col]
 
-    fig.add_trace(
-        go.Scatter(
-            x=x,
-            y=y,
-            mode="lines+markers",
-            marker=dict(color=color, opacity=0.5, size=6),
-            name=col_suffix,
-        )
-    )
+#     fig.add_trace(
+#         go.Scatter(
+#             x=x,
+#             y=y,
+#             mode="lines+markers",
+#             marker=dict(color=color, opacity=0.5, size=6),
+#             name=col_suffix,
+#         )
+#     )
 
-fig.update_layout(template=template, height=600)
+# fig.update_layout(template=template, height=600)
 
-fig.show()
+# fig.show()
 
 # %% [markdown]
 # # ADAR motif
@@ -848,7 +864,7 @@ illumina_data_df["PositionFile"] = [
 
 illumina_data_df
 
-# %%
+# %% jupyter={"source_hidden": true}
 # condition = "GRIA"
 # strand = "+"
 # positions_file = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv"
@@ -860,7 +876,7 @@ illumina_data_df
 
 # positions_df
 
-# %%
+# %% jupyter={"source_hidden": true}
 # ref_base = "A" if strand == "+" else "T"
 
 # editing_sites_df = (
@@ -875,7 +891,7 @@ illumina_data_df
 
 # editing_sites_df
 
-# %%
+# %% jupyter={"source_hidden": true}
 # editing_sites_df.insert(
 #     editing_sites_df.columns.get_loc("Start") + 1,
 #     "End",
@@ -883,7 +899,7 @@ illumina_data_df
 # )
 # editing_sites_df
 
-# %%
+# %% jupyter={"source_hidden": true}
 # editing_sites_df.insert(
 #     editing_sites_df.columns.get_loc("End") + 1,
 #     "Score",
@@ -1038,8 +1054,8 @@ for data_df in data_dfs:
 
 merged_platforms_editing_sites_dfs[0]
 
-# %%
-merged_platforms_editing_sites_dfs[1]
+# %% jupyter={"source_hidden": true}
+# merged_platforms_editing_sites_dfs[1]
 
 # %%
 merged_editing_sites_df = pd.concat(
@@ -1097,8 +1113,9 @@ len(seqs)
 # %%
 
 # %%
+_sub_titles = [f"Squid's {sub_title}" for sub_title in sub_titles]
 multiple_logos_from_fasta_files(
-    fasta_files, main_title, sub_titles, out_file, width=14, height=4, dpi=300
+    fasta_files, main_title, _sub_titles, out_file, width=14, height=4, dpi=300
 );
 
 # %% [markdown]
@@ -1350,94 +1367,94 @@ def editing_status_color(
     else:
         return known_editing_color
 
-
 # %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"}
-# todo retain nan rows and turn nans to 0?
+# # todo retain nan rows and turn nans to 0?
 
-both_df = merged_ref_base_positions_df.loc[
-    merged_ref_base_positions_df["Edited"]
-    & merged_ref_base_positions_df["KnownEditing"]
-]
-edited_df = merged_ref_base_positions_df.loc[
-    merged_ref_base_positions_df["Edited"]
-    & ~merged_ref_base_positions_df["KnownEditing"]
-]
-known_editing_df = merged_ref_base_positions_df.loc[
-    ~merged_ref_base_positions_df["Edited"]
-    & merged_ref_base_positions_df["KnownEditing"]
-]
+# both_df = merged_ref_base_positions_df.loc[
+#     merged_ref_base_positions_df["Edited"]
+#     & merged_ref_base_positions_df["KnownEditing"]
+# ]
+# edited_df = merged_ref_base_positions_df.loc[
+#     merged_ref_base_positions_df["Edited"]
+#     & ~merged_ref_base_positions_df["KnownEditing"]
+# ]
+# known_editing_df = merged_ref_base_positions_df.loc[
+#     ~merged_ref_base_positions_df["Edited"]
+#     & merged_ref_base_positions_df["KnownEditing"]
+# ]
 
-# all_df = merged_ref_base_positions_df.loc[merged_ref_base_positions_df["Edited"] | merged_ref_base_positions_df["KnownEditing"]]
+# # all_df = merged_ref_base_positions_df.loc[merged_ref_base_positions_df["Edited"] | merged_ref_base_positions_df["KnownEditing"]]
 
-fig = make_subplots(
-    rows=1,
-    cols=1,
-    # subplot_titles=conditions,
-    # shared_yaxes=True,
-    # shared_xaxes=True,
-    x_title="% editing",
-    y_title="% known editing",
-)
+# fig = make_subplots(
+#     rows=1,
+#     cols=1,
+#     # subplot_titles=conditions,
+#     # shared_yaxes=True,
+#     # shared_xaxes=True,
+#     x_title="% editing",
+#     y_title="% known editing",
+# )
 
-# df = merged_ref_base_positions_df.copy()
-# df = merged_ref_base_positions_df.loc[merged_ref_base_positions_df["Edited"] & merged_ref_base_positions_df["KnownEditing"]]
-x = all_df["%Editing"].fillna(0)
-y = all_df["%EditingKnown"].fillna(0)
+# # df = merged_ref_base_positions_df.copy()
+# # df = merged_ref_base_positions_df.loc[merged_ref_base_positions_df["Edited"] & merged_ref_base_positions_df["KnownEditing"]]
+# x = all_df["%Editing"].fillna(0)
+# y = all_df["%EditingKnown"].fillna(0)
 
-all_colors = all_df.apply(
-    lambda x: editing_status_color(x["Edited"], x["KnownEditing"]), axis=1
-)
+# all_colors = all_df.apply(
+#     lambda x: editing_status_color(x["Edited"], x["KnownEditing"]), axis=1
+# )
 
-x_both = both_df["%Editing"].fillna(0)
-y_both = both_df["%EditingKnown"].fillna(0)
-r, pv = scipy.stats.pearsonr(x_both, y_both)
+# x_both = both_df["%Editing"].fillna(0)
+# y_both = both_df["%EditingKnown"].fillna(0)
+# r, pv = scipy.stats.pearsonr(x_both, y_both)
 
-fig.add_trace(
-    go.Scatter(
-        x=x,
-        y=y,
-        # name=condition,
-        mode="markers",
-        # marker_color="black",
-        marker_color=all_colors,
-        # marker_line_color=colors,
-        # marker_line=dict(
-        #     color=colors
-        # ),
-        # marker_color="white",
-        marker_size=6,
-        # marker_symbol="circle-open"
-    ),
-    row=1,
-    col=1,
-)
+# fig.add_trace(
+#     go.Scatter(
+#         x=x,
+#         y=y,
+#         # name=condition,
+#         mode="markers",
+#         # marker_color="black",
+#         marker_color=all_colors,
+#         # marker_line_color=colors,
+#         # marker_line=dict(
+#         #     color=colors
+#         # ),
+#         # marker_color="white",
+#         marker_size=6,
+#         # marker_symbol="circle-open"
+#     ),
+#     row=1,
+#     col=1,
+# )
 
-fig.add_annotation(
-    row=1,
-    col=1,
-    x=20,
-    y=85,
-    xref="x",
-    yref="y",
-    text=f"<b>Pearson's r</b><br>p-val = {pv:.2e}<br>ρ = {r:.2g}",
-    bgcolor="white",
-    borderpad=4,
-    opacity=0.7,
-    showarrow=False,
-)
+# fig.add_annotation(
+#     row=1,
+#     col=1,
+#     x=20,
+#     y=90,
+#     xref="x",
+#     yref="y",
+#     text=f"<b>Pearson's r</b><br>p-val = {pv:.2e}<br>ρ = {r:.2g}",
+#     bgcolor="white",
+#     borderpad=4,
+#     # opacity=0.7,
+#     showarrow=False,
+# )
 
-fig.update_layout(
-    title_text="Correlation between current & previously-reported editing levels",
-    showlegend=False,
-    template=template,
-    width=600,
-    height=500,
-)
+# fig.update_layout(
+#     # title_text="Correlation between current & previously-reported editing levels",
+#     title_text="Correlation between current & previously-reported editing levels",
+#     showlegend=False,
+#     template=template,
+#     width=600,
+#     height=500,
+# )
 
-fig.update_xaxes(range=[0, 100])
-fig.update_yaxes(range=[0, 100])
+# fig.update_xaxes(range=[0, 100])
+# fig.update_yaxes(range=[0, 100])
 
-fig.show()
+# fig.show()
 
 
 # %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"}
@@ -1514,18 +1531,21 @@ fig.add_annotation(
     row=1,
     col=1,
     x=20,
-    y=85,
+    # y=85,
+    y=90,
     xref="x",
     yref="y",
     text=f"<b>Pearson's r</b><br>p-val = {pv:.2e}<br>ρ = {r:.2g}",
     bgcolor="white",
     borderpad=4,
-    opacity=0.7,
+    # opacity=0.7,
     showarrow=False,
 )
 
 fig.update_layout(
-    title_text="Correlation between current & previously-reported editing levels",
+    # title_text="Correlation between current & previously-reported editing levels",
+    title_text="Pooled editing levels in squid",
+    title_x=0.15,
     legend_title_text="Editing status",
     # showlegend=False,
     template=template,
@@ -1586,6 +1606,8 @@ for name, y, color in zip(names, ys, colors):
 
 fig.update_layout(
     # title_text="Correlation between current & previously-reported editing levels",
+    title_text="Pooled editing levels in squid",
+    title_x=0.15,
     showlegend=False,
     template=template,
     width=600,
@@ -1879,6 +1901,132 @@ distinct_proteins_per_editable_aas_df
 
 
 # %%
+(
+    distinct_proteins_per_editable_aas_df
+    .sort_values(["Platform", "Gene", "NumOfProteins"], ascending=False)
+    .drop_duplicates(["Platform", "Gene", "NumOfProteins"], ignore_index=True)
+)
+
+# %% jupyter={"source_hidden": true}
+# platforms_color_map = {
+#     platform: color_map
+#     for platform, color_map in zip(
+#         platforms, [pacbio_color_discrete_map, illumina_color_discrete_map]
+#     )
+# }
+
+# # ["circle", "square-dot", "diamond", "circle", "star", "star-square", "triangle-down"]
+# # symbols = ["diamond", "square"]
+# # symbols = ["diamond", "circle"]
+# symbols = ["star", "triangle-up"]
+# platforms_symbols = {
+#     platform: symbol for platform, symbol in zip(platforms, symbols)
+# }
+
+
+# fig = go.Figure()
+
+# for platform, condition in editable_aas_per_platform_and_condition:
+
+#     platform_and_condition_df = distinct_proteins_per_editable_aas_df.loc[
+#         (distinct_proteins_per_editable_aas_df["Platform"] == platform)
+#         & (distinct_proteins_per_editable_aas_df[condition_col] == condition)
+#     ]
+
+#     x = platform_and_condition_df["EditableAAs"]
+#     y = platform_and_condition_df["NumOfProteins"]
+    
+#     x_mean = [x.iloc[0]]
+#     y_mean = [y.mean()]
+
+#     fig.add_trace(
+#         go.Scatter(
+#             x=x_mean,
+#             y=y_mean,
+#             mode="markers",
+#             marker=dict(
+#                 color=platforms_color_map[platform][condition],
+#                 symbol=platforms_symbols[platform],
+#                 size=8,
+#             ),
+#             legendgrouptitle_text=platform,
+#             legendgroup=platform,  # this can be any string
+#             name=condition,
+#         )
+#     )
+
+# # correlate all x and y values
+# x = distinct_proteins_per_editable_aas_df["EditableAAs"]
+# y = distinct_proteins_per_editable_aas_df["NumOfProteins"]
+# r, pv = scipy.stats.pearsonr(x, y)
+
+# fig.add_annotation(
+#     x=40,
+#     y=25_000,
+#     xref="x",
+#     yref="y",
+#     text=f"<b>Pearson's r</b><br>p-val = {pv:.2e}<br>ρ = {r:.2g}",
+#     bgcolor="white",
+#     borderpad=4,
+#     font=dict(size=12),
+#     opacity=0.8,
+#     showarrow=False,
+# )
+
+# fig.update_xaxes(
+#     range=[0, distinct_proteins_per_editable_aas_df["EditableAAs"].max() * 1.1]
+# )
+# fig.update_yaxes(
+#     range=[0, distinct_proteins_per_editable_aas_df["NumOfProteins"].max() * 1.1]
+# )
+
+# fig.update_layout(
+#     # legend_font=dict(size=8),
+#     # legend_grouptitlefont=dict(size=10),
+#     template=template,
+#     xaxis_title="Editable amino acids",
+#     yaxis_title="Distinct proteins (avg)",
+#     width=700,
+#     height=650,
+# )
+
+# fig.write_image(
+#     "Distinct proteins vs. editable AAs (80K) - PacBio vs. Illumina.svg",
+#     width=700,
+#     height=650
+# )
+
+# fig.show()
+
+
+# %%
+platform = "PacBio"
+condition = "PCLO"
+platform_and_condition_df = distinct_proteins_per_editable_aas_df.loc[
+    (distinct_proteins_per_editable_aas_df["Platform"] == platform)
+    & (distinct_proteins_per_editable_aas_df[condition_col] == condition)
+]
+platform_and_condition_df
+
+# %%
+x = platform_and_condition_df["EditableAAs"]
+y = platform_and_condition_df["NumOfProteins"]
+
+# %%
+y.max()
+
+# %%
+y.argmax()
+
+# %%
+y_max = [y.max()]
+x_corresponding_y_max = [x.iloc[y.argmax()]]
+
+# %%
+x_mean = [x.iloc[0]]
+y_mean = [y.mean()]
+
+# %%
 platforms_color_map = {
     platform: color_map
     for platform, color_map in zip(
@@ -1902,18 +2050,21 @@ for platform, condition in editable_aas_per_platform_and_condition:
     platform_and_condition_df = distinct_proteins_per_editable_aas_df.loc[
         (distinct_proteins_per_editable_aas_df["Platform"] == platform)
         & (distinct_proteins_per_editable_aas_df[condition_col] == condition)
-    ]
+    ].sort_values("NumOfProteins", ascending=False)
 
     x = platform_and_condition_df["EditableAAs"]
     y = platform_and_condition_df["NumOfProteins"]
     
     x_mean = [x.iloc[0]]
     y_mean = [y.mean()]
+    
+    y_max = [y.max()]
+    x_corresponding_y_max = [x.iloc[y.argmax()]]
 
     fig.add_trace(
         go.Scatter(
-            x=x_mean,
-            y=y_mean,
+            x=x_corresponding_y_max,
+            y=y_max,
             mode="markers",
             marker=dict(
                 color=platforms_color_map[platform][condition],
@@ -1954,9 +2105,11 @@ fig.update_yaxes(
 fig.update_layout(
     # legend_font=dict(size=8),
     # legend_grouptitlefont=dict(size=10),
+    title="Squid",
+    title_x=0.15,
     template=template,
     xaxis_title="Editable amino acids",
-    yaxis_title="Distinct proteins (avg)",
+    yaxis_title="Distinct proteins",
     width=700,
     height=650,
 )

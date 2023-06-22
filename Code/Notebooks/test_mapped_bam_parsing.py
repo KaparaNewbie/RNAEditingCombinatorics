@@ -117,7 +117,7 @@ fig = px.histogram(
     # opacity=0.75,
     # barmode="group",
     labels={"ReadLen": "CCS read length", "Gene": "Transcript"},
-    title="CCS read length",
+    title="Squid's PacBio",
     color=condition_col,
     color_discrete_map=color_discrete_map,
     category_orders=category_orders,
@@ -129,7 +129,7 @@ for axis in fig.layout:
     if type(fig.layout[axis]) == go.layout.YAxis:
         fig.layout[axis].title.text = ""
 fig.update_layout(
-    showlegend=False, yaxis_title="Accumulated <br>% of reads", width=600, height=350
+    showlegend=False, yaxis_title="Accumulated <br>% of reads", width=600, height=350, title_x=0.13,
 )
 
 fig.write_image(
@@ -236,7 +236,8 @@ fig = px.histogram(
     marginal="box",
     histfunc="avg",
     labels={"Deletions": "deletion events", "ReadQuality": "Read quality", "Gene": "Transcript"},
-    title="Occurrence of deletion events (regardless of their length) vs. read quality",
+    # title="Occurrence of deletion events (regardless of their length) vs. read quality",
+    title="Squid's PacBio",
     color=condition_col,
     color_discrete_map=color_discrete_map,
     category_orders=category_orders,
@@ -250,6 +251,7 @@ for axis in fig.layout:
     if type(fig.layout[axis]) == go.layout.YAxis:
         fig.layout[axis].title.text = ""
 fig.update_layout(
+    title_x=0.17,
     yaxis_title="Deletion events (avg)",
     width=600,
     height=350,
