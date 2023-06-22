@@ -63,6 +63,7 @@ def undirected_sequencing_main(
     alignments_stats_table_sep: str,
     min_samples: int,
     min_mapped_reads_per_sample: float,
+    total_mapped_reads: int,
     min_known_sites: int,
     main_by_chrom_dir: Path,
     postfix: str,
@@ -100,10 +101,18 @@ def undirected_sequencing_main(
     alignments_stats_df = pd.read_csv(
         alignments_stats_table, sep=alignments_stats_table_sep
     )
+
+    # alignments_stats_df = alignments_stats_df.loc[
+    #     (alignments_stats_df["Samples"] >= min_samples)
+    #     & (alignments_stats_df["MappedReadsPerSample"] >= min_mapped_reads_per_sample)
+    #     & (alignments_stats_df["KnownSites"] >= min_known_sites)
+    # ]
+
     alignments_stats_df = alignments_stats_df.loc[
         (alignments_stats_df["Samples"] >= min_samples)
         & (alignments_stats_df["MappedReadsPerSample"] >= min_mapped_reads_per_sample)
         & (alignments_stats_df["KnownSites"] >= min_known_sites)
+        & (alignments_stats_df["MappedReads"] >= total_mapped_reads)
     ]
 
     alignments_stats_df = alignments_stats_df.merge(cds_df, how="left")
@@ -884,6 +893,12 @@ def define_args() -> argparse.Namespace:
         default=100,
         help="Use only chroms with whose mean coverage is at least that.",
         type=float,
+    )
+    undirected_sequencing_subparser.add_argument(
+        "--total_mapped_reads",
+        default=0,
+        help="Use only chroms with with total (pooled) coverage of at least that.",
+        type=int,
     )
     undirected_sequencing_subparser.add_argument(
         "--min_known_sites",

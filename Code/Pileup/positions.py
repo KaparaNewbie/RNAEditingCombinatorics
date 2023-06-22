@@ -26,7 +26,6 @@ def replace_reads_names(
     mapping_out_file=None,
     out_files_sep="\t",
 ):
-
     # replace
     old_unique_reads = set(
         chain.from_iterable(positions_df[reads_col].str.split(reads_sep))
@@ -533,6 +532,8 @@ def multisample_pileups_to_positions(
 
     # filter out zero-coverage positions (probably due to deletions) - they are irrelevent, and also disturb `replace_reads_names` later
     positions_df = positions_df.loc[positions_df["TotalCoverage"] > 0]
+    if len(positions_df) == 0:
+        return
 
     # del positions_df["Phred"]
 
