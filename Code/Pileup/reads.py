@@ -92,7 +92,6 @@ def add_pacbio_se_reads_in_positions(edited_positions_df, strand, group):
 
 
 def add_illumina_pe_reads_in_positions(edited_positions_df, strand, group):
-
     unique_reads = set(chain.from_iterable(edited_positions_df["Reads"].str.split(",")))
     positions_per_read = {read: [] for read in unique_reads}
 
@@ -100,7 +99,6 @@ def add_illumina_pe_reads_in_positions(edited_positions_df, strand, group):
 
     alt_base = "G" if strand == "+" else "C"
     for x, position_row in enumerate(edited_positions_df.itertuples(), start=1):
-
         # deal with reads that were mapped to this pos
         mapped_bases = position_row.MappedBases
         mapped_reads = position_row.Reads.split(",")
@@ -111,7 +109,6 @@ def add_illumina_pe_reads_in_positions(edited_positions_df, strand, group):
         for phred_score, mapped_base, mapped_read in zip(
             phred_scores, mapped_bases, mapped_reads
         ):
-
             if mapped_base == alt_base:
                 pos_edited_in_read = 1  # A2G/T2C editing
             elif mapped_base == ".":
@@ -174,7 +171,6 @@ def add_pacbio_se_multisample_reads_in_positions(edited_positions_df, strand, gr
         for mapped_base, mapped_read, mapped_sample in zip(
             mapped_bases, mapped_reads, mapped_samples
         ):
-
             sample_per_read[mapped_read] = mapped_sample
 
             # 1 = A2G/T2C editing, 0 = match
@@ -214,7 +210,6 @@ def positions_to_reads(
     group,
     parity: str,
 ):
-
     positions_df = pd.read_csv(positions_file, sep=sep)
 
     # retain only edited & reliable positions within coding regions
@@ -244,6 +239,9 @@ def positions_to_reads(
         }
     )
     reads_df.insert(0, group_col, group)
+    # note: the editing frequency can't be calculate based on edited, unedited and ambigous positions,
+    # as these positions do not include all adenosines in the read - only those that are edited, unedited or ambigous,
+    # within positions that at least one read is edited in.
     annotate_edited_positions(reads_df, 2)
     annotate_unedited_positions(reads_df, 3)
     annotate_ambigous_positions(reads_df, 4)
@@ -313,6 +311,9 @@ def multisample_positions_to_reads(
     )
     reads_df.insert(0, group_col, group)
     reads_df.insert(1, "Sample", [sample_per_read[read] for read in reads_df["Read"]])
+    # note: the editing frequency can't be calculate based on edited, unedited and ambigous positions,
+    # as these positions do not include all adenosines in the read - only those that are edited, unedited or ambigous,
+    # within positions that at least one read is edited in.
     annotate_edited_positions(reads_df, 3)
     annotate_unedited_positions(reads_df, 4)
     annotate_ambigous_positions(reads_df, 5)
@@ -442,7 +443,6 @@ def reads_and_unique_reads(
     unique_reads_out_file: Union[Path, str, None] = None,
     sep: str = "\t",
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-
     if not Path(positions_file).exists():
         return
 
@@ -478,7 +478,6 @@ def multisample_reads_and_unique_reads(
     unique_reads_out_file: Union[Path, str, None] = None,
     sep: str = "\t",
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-
     if not Path(positions_file).exists():
         return
 
@@ -504,5 +503,7 @@ def multisample_reads_and_unique_reads(
             unique_reads_df.to_csv(
                 unique_reads_out_file, sep=sep, index=False, na_rep=np.NaN
             )
-    except ValueError as e:  # will be raised if pooled_transcript_noise_threshold is met
+    except (
+        ValueError
+    ) as e:  # will be raised if pooled_transcript_noise_threshold is met
         print(e)
