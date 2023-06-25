@@ -91,7 +91,9 @@ neural_vs_non_neural_expression_file = Path(
     "/private7/projects/Combinatorics/O.vulgaris/Annotations/NeuralVsNonNeuralExpression.csv"
 )
 
-samples_and_tissues_file = Path("/private7/projects/Combinatorics/O.vulgaris/Data/PRJNA791920/IsoSeqPolished/samples.csv")
+samples_and_tissues_file = Path(
+    "/private7/projects/Combinatorics/O.vulgaris/Data/PRJNA791920/IsoSeqPolished/samples.csv"
+)
 
 reads_first_col_pos = 7
 unique_reads_first_col_pos = 9
@@ -474,6 +476,10 @@ positions_df = pd.concat(positions_dfs, ignore_index=True)
 positions_df
 
 # %%
+
+# %%
+
+# %%
 editing_positions_per_sample = [len(df.loc[(df["Edited"])]) for df in positions_dfs]
 print(
     f"Average of {sum(editing_positions_per_sample)/len(positions_dfs)} editing sites per sample"
@@ -487,21 +493,6 @@ print(
 
 # %% [markdown]
 # That is, all filtered reads.
-
-# %%
-edited_positions_df = positions_dfs[0].loc[
-    positions_dfs[0]["CDS"] & positions_dfs[0]["Edited"] & ~positions_dfs[0]["InProbRegion"]
-]
-edited_positions_df
-
-# %%
-set(edited_positions_df.at[254, "Samples"].split(","))
-
-# %%
-all_refbase_positions_df = positions_dfs[0].loc[positions_dfs[0]["RefBase"] == "A"]
-all_refbase_positions_df
-
-# %%
 
 # %% papermill={"duration": 1.204258, "end_time": "2022-02-01T09:42:47.668206", "exception": false, "start_time": "2022-02-01T09:42:46.463948", "status": "completed"}
 reads_dfs = [pd.read_csv(reads_file, sep=sep) for reads_file in reads_files]
@@ -523,10 +514,6 @@ reads_dfs[0]
 # %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"}
 # ### Unique
 
-# %%
-df = positions_dfs[0].loc[positions_dfs[0]["RefBase"] == "A"]
-df
-
 # %% papermill={"duration": 0.126539, "end_time": "2022-02-01T09:42:47.923363", "exception": false, "start_time": "2022-02-01T09:42:47.796824", "status": "completed"}
 unique_reads_dfs = [
     pd.read_csv(unique_reads_file, sep=sep) for unique_reads_file in unique_reads_files
@@ -541,39 +528,40 @@ unique_reads_dfs[0].columns
 
 # %%
 expanded_unique_reads_dfs = []
-for unique_reads_df in unique_reads_df:
+for unique_reads_df in unique_reads_dfs:
     unique_reads_df = unique_reads_df.copy()
     unique_reads_df["Samples"] = unique_reads_df["Samples"].str.split(",")
-    expanded_unique_proteins_df = unique_proteins_df.explode("Samples").reset_index(drop=True)
+    expanded_unique_reads_df = unique_reads_df.explode("Samples").reset_index(drop=True)
     # after exploding the df by samples, it may be that some reads/unique reads only appear in certain samples,
     # so in order to get that information, one would have to merge the `expanded_unique_proteins_df`
     # with a corresponding `expanded_reads_df`/`expanded_unique_reads_df`
-    expanded_unique_proteins_df = expanded_unique_proteins_df.drop(
-        [
-            "Reads",
-            "NumOfReads",
-            "UniqueReads",
-            "NumOfUniqueReads",
-            "EditingFrequency",
-            "EditedPositions",
-            "UneditedPositions",
-            "AmbigousPositions",
-        ],
-        axis=1,
-    )
-    expanded_unique_proteins_df = expanded_unique_proteins_df.rename(
-        columns={"Samples": "Sample"}
-    )
-    expanded_unique_proteins_dfs.append(expanded_unique_proteins_df)
-    # break
+    # expanded_unique_reads_df = expanded_unique_reads_df.drop(
+    #     [
+    #         "Reads",
+    #         "NumOfReads",
+    #         "UniqueReads",
+    #         "NumOfUniqueReads",
+    #         "EditingFrequency",
+    #         "EditedPositions",
+    #         "UneditedPositions",
+    #         "AmbigousPositions",
+    #     ],
+    #     axis=1,
+    # )
+    # expanded_unique_reads_df = expanded_unique_reads_df.rename(
+    #     columns={"Samples": "Sample"}
+    # )
+    expanded_unique_reads_dfs.append(expanded_unique_reads_df)
+    break
 
-expanded_unique_proteins_dfs[0]
+expanded_unique_reads_dfs[0]
 
 # expanded_unique_proteins_df = pd.concat(expanded_unique_proteins_dfs, ignore_index=True)
 # del expanded_unique_proteins_dfs
 # expanded_unique_proteins_df
 
 # %%
+expanded_unique_reads_dfs[0].columns
 
 # %% [markdown]
 # ## Proteins
@@ -616,7 +604,9 @@ expanded_unique_proteins_dfs = []
 for unique_proteins_df in unique_proteins_dfs:
     unique_proteins_df = unique_proteins_df.copy()
     unique_proteins_df["Samples"] = unique_proteins_df["Samples"].str.split(",")
-    expanded_unique_proteins_df = unique_proteins_df.explode("Samples").reset_index(drop=True)
+    expanded_unique_proteins_df = unique_proteins_df.explode("Samples").reset_index(
+        drop=True
+    )
     # after exploding the df by samples, it may be that some reads/unique reads only appear in certain samples,
     # so in order to get that information, one would have to merge the `expanded_unique_proteins_df`
     # with a corresponding `expanded_reads_df`/`expanded_unique_reads_df`
@@ -901,526 +891,438 @@ data_loss_df
 # ## Data loss
 
 # %%
-long_data_loss_df = pd.melt(
-    data_loss_df.reset_index().rename(columns={"index": condition_col}),
-    id_vars=[condition_col],
-    var_name="Stage",
-    value_name="Count",
-)
-long_data_loss_df = long_data_loss_df.sort_values(
-    by=[condition_col, "Count"], ascending=False
-).reset_index(drop=True)
+# long_data_loss_df = pd.melt(
+#     data_loss_df.reset_index().rename(columns={"index": condition_col}),
+#     id_vars=[condition_col],
+#     var_name="Stage",
+#     value_name="Count",
+# )
+# long_data_loss_df = long_data_loss_df.sort_values(
+#     by=[condition_col, "Count"], ascending=False
+# ).reset_index(drop=True)
 
-max_count_per_condition = long_data_loss_df.groupby(condition_col)["Count"].max()
-
-
-def percent_count_relative_to_first_stage(condition, count):
-    max_count = max_count_per_condition[condition]
-    percent = 100 * count / max_count
-    # percent = round(percent, 1)
-    if int(percent) == percent:
-        percent = f"{percent:.0f}%"
-    else:
-        percent = f"{percent:.1f}%"
-    return percent
+# max_count_per_condition = long_data_loss_df.groupby(condition_col)["Count"].max()
 
 
-long_data_loss_df["%InitialCount"] = long_data_loss_df.apply(
-    lambda x: percent_count_relative_to_first_stage(x[condition_col], x["Count"]),
-    axis=1,
-)
+# def percent_count_relative_to_first_stage(condition, count):
+#     max_count = max_count_per_condition[condition]
+#     percent = 100 * count / max_count
+#     # percent = round(percent, 1)
+#     if int(percent) == percent:
+#         percent = f"{percent:.0f}%"
+#     else:
+#         percent = f"{percent:.1f}%"
+#     return percent
 
-long_data_loss_df["Stage"] = long_data_loss_df["Stage"].apply(
-    lambda x: x.replace(" (", "<br>(") if "(" in x else x
-)
 
-long_data_loss_df
+# long_data_loss_df["%InitialCount"] = long_data_loss_df.apply(
+#     lambda x: percent_count_relative_to_first_stage(x[condition_col], x["Count"]),
+#     axis=1,
+# )
+
+# long_data_loss_df["Stage"] = long_data_loss_df["Stage"].apply(
+#     lambda x: x.replace(" (", "<br>(") if "(" in x else x
+# )
+
+# long_data_loss_df
 
 
 # %%
-fig = px.bar(
-    long_data_loss_df.loc[
-        long_data_loss_df["Stage"] != "Distinct unique reads<br>(mean)"
-    ].sort_values("Count"),
-    y="Stage",
-    x="Count",
-    text="%InitialCount",
-    title="Data loss through the different processing stages",
-    labels={"Count": "", "Stage": ""},
-    color=condition_col,
-    color_discrete_map=color_discrete_map,
-    category_orders=horizontal_category_orders,
-    template=template,
-    barmode="group",
-    orientation="h",
-    width=800,
-    height=550,
-)
-
-# line_x = long_data_loss_df["Count"].max() * 1.1
-# line_y0 = "Aligned reads<br>(within ORF)"
-# line_y1 = "Compatible unique edited reads<br>(mean)"
-# fig.add_shape(
-#     type="line",
-#     x0=line_x,
-#     x1=line_x,
-#     y0=line_y0,
-#     y1=line_y1,
-#     line=dict(color="black", width=13),
-#     opacity=0.5
+# fig = px.bar(
+#     long_data_loss_df.loc[
+#         long_data_loss_df["Stage"] != "Distinct unique reads<br>(mean)"
+#     ].sort_values("Count"),
+#     y="Stage",
+#     x="Count",
+#     text="%InitialCount",
+#     title="Data loss through the different processing stages",
+#     labels={"Count": "", "Stage": ""},
+#     color=condition_col,
+#     color_discrete_map=color_discrete_map,
+#     category_orders=horizontal_category_orders,
+#     template=template,
+#     barmode="group",
+#     orientation="h",
+#     width=800,
+#     height=550,
 # )
 
-fig.show()
+# # line_x = long_data_loss_df["Count"].max() * 1.1
+# # line_y0 = "Aligned reads<br>(within ORF)"
+# # line_y1 = "Compatible unique edited reads<br>(mean)"
+# # fig.add_shape(
+# #     type="line",
+# #     x0=line_x,
+# #     x1=line_x,
+# #     y0=line_y0,
+# #     y1=line_y1,
+# #     line=dict(color="black", width=13),
+# #     opacity=0.5
+# # )
+
+# fig.show()
 
 
-# %% [markdown] papermill={"duration": 0.124528, "end_time": "2022-02-01T09:43:10.054394", "exception": false, "start_time": "2022-02-01T09:43:09.929866", "status": "completed"} toc-hr-collapsed=true
+# %% [markdown] papermill={"duration": 0.124528, "end_time": "2022-02-01T09:43:10.054394", "exception": false, "start_time": "2022-02-01T09:43:09.929866", "status": "completed"}
 # ## Positions
 
 # %% [markdown] papermill={"duration": 0.149848, "end_time": "2022-02-01T09:43:12.800733", "exception": false, "start_time": "2022-02-01T09:43:12.650885", "status": "completed"}
-# ### Correlation matrix
+# ### Coverage - per-transcript per-sample
 
 # %%
-reads_w_nan_dfs = [reads_df.replace({-1: np.NaN}) for reads_df in reads_dfs]
-reads_w_nan_dfs[0]
-
-
-# %%
-# Compute the correlation matrix
-corrs = [
-    reads_w_nan_df.iloc[:, reads_first_col_pos:].corr()
-    for reads_w_nan_df in reads_w_nan_dfs
-]
-
-vmin = min(corr.min().min() for corr in corrs)
-vmax = max(corr.max().max() for corr in corrs)
-
-# Generate a mask for the upper triangle
-masks = [np.triu(np.ones_like(corr, dtype=bool)) for corr in corrs]
-
-# Generate a custom diverging colormap
-cmap = sns.diverging_palette(230, 20, as_cmap=True)
+positions_dfs[0]
 
 
 # %%
-for condition, corr, mask in zip(conditions, corrs, masks):
-
-    fig, ax = plt.subplots(figsize=(11, 9))
-
-    # Draw the heatmap with the mask and correct aspect ratio
-    sns.heatmap(
-        corr,
-        mask=mask,
-        cmap=cmap,
-        square=True,
-        linewidths=0.5,
-        xticklabels=False,
-        yticklabels=False,
-        center=0,
-        cbar_kws={"shrink": 0.5},
-        # vmin=vmin, vmax=vmax,
-    )
-
-    plt.title(
-        f"Pearson correlation coefficient between editing sites in {condition} reads"
-    )
-
-
-# %% [markdown]
-# ### Mutual information
-
-# %%
-df = reads_w_nan_dfs[0].iloc[:, reads_first_col_pos:]
-df.head()
-
-
-# %%
-def calc_normalized_mi(df, pos_1, pos_2):
-
-    two_positions = [pos_1, pos_2]
-    complete_rows = df.loc[:, two_positions].notna().all(axis=1)
-    df_1_2 = df.loc[complete_rows, two_positions].reset_index(drop=True)
-
-    val_counts = df_1_2.apply(lambda x: x.value_counts())
-    val_freqs = val_counts.apply(lambda x: x / x.sum())
-
-    p_1_a = val_freqs.loc[0.0, pos_1]
-    p_1_g = val_freqs.loc[1.0, pos_1]
-    p_2_a = val_freqs.loc[0.0, pos_2]
-    p_2_g = val_freqs.loc[1.0, pos_2]
-
-    df_1_2 = df_1_2.astype(int).astype(str)
-    mutual_val_counts = pd.Series(df_1_2[pos_1] + df_1_2[pos_2]).value_counts()
-    mutual_val_counts_sum = mutual_val_counts.sum()
-
-    def get_count_or_zero(val):
-        try:
-            return mutual_val_counts.loc[val]
-        except:
-            return 0.0
-
-    p_aa = get_count_or_zero("00") / mutual_val_counts_sum
-    p_ag = get_count_or_zero("01") / mutual_val_counts_sum
-    p_ga = get_count_or_zero("10") / mutual_val_counts_sum
-    p_gg = get_count_or_zero("11") / mutual_val_counts_sum
-
-    # ic(p_aa, p_ag_ga, p_gg);
-
-    def calc_partial_mi(common_prob, prob_1, prob_2):
-        if common_prob / (prob_1 * prob_2) != 0:
-            return common_prob * np.log(common_prob / (prob_1 * prob_2))
-        return 0.0
-
-    mi_aa = calc_partial_mi(p_aa, p_1_a, p_2_a)
-    mi_ag = calc_partial_mi(p_ag, p_1_a, p_2_g)
-    mi_ga = calc_partial_mi(p_ga, p_1_g, p_2_a)
-    mi_gg = calc_partial_mi(p_gg, p_1_g, p_2_g)
-
-    mi = mi_aa + mi_ag + mi_ga + mi_gg
-
-    h_1 = -p_1_a * np.log(p_1_a) - p_1_g * np.log(p_1_g)
-    h_2 = -p_2_a * np.log(p_2_a) - p_2_g * np.log(p_2_g)
-
-    mi_normalized = mi / min(h_1, h_2)
-
-    return mi_normalized
-
-
-# %%
-mi_dfs = []
-
-for df, condition in zip(reads_w_nan_dfs, conditions):
-    df = df.iloc[:, reads_first_col_pos:]
-
-    positions_couples = list(combinations(df.columns, 2))
-
-    with Pool(processes=min(threads, 10)) as pool:
-        mis = pool.starmap(
-            func=calc_normalized_mi,
-            iterable=[(df, pos_1, pos_2) for pos_1, pos_2 in positions_couples],
+def calc_per_transcript_per_sample_coverage(positions_df, 
+                                            samples_and_tissues_df
+                                            # samples
+                                           ):
+    expanded_positions_df = (
+        positions_df.loc[~positions_df["InProbRegion"]]
+        .reset_index(drop=True)
+        .drop(
+            [
+                "Phred",
+                "MappedBases",
+                "Noise",
+                "EditingFrequency",
+                "A",
+                "T",
+                "C",
+                "G",
+                "TotalCoverage",
+            ],
+            axis=1,
         )
-
-    mi_df = pd.DataFrame(
-        {
-            "Pos1": [positions[0] for positions in positions_couples],
-            "Pos2": [positions[1] for positions in positions_couples],
-            "NormalizedMutualInformation": mis,
-        }
-    )
-    mi_df["Pos1"] = mi_df["Pos1"].astype(int)
-    mi_df["Pos2"] = mi_df["Pos2"].astype(int)
-    mi_df["Distance"] = np.abs(mi_df["Pos2"] - mi_df["Pos1"])
-    mi_df[condition_col] = condition
-
-    mi_dfs.append(mi_df)
-
-
-merged_mi_df = pd.concat(mi_dfs)
-merged_mi_df
-
-
-# %%
-def get_symmetric_mi_df(mi_df, positions):
-
-    mi_df = mi_df.set_index(["Pos1", "Pos2"])
-
-    # positions_couples = list(combinations(positions, 2))
-    # positions_couples_set = set(positions_couples)
-    positions_couples_set = set(list(combinations(positions, 2)))
-
-    complementary_positions_couples = [
-        (int(pos_1), int(pos_2))
-        for pos_1 in positions
-        for pos_2 in positions
-        if (pos_1, pos_2) not in positions_couples_set
-    ]
-
-    complementary_mis = []
-
-    for pos_1, pos_2 in complementary_positions_couples:
-        if pos_1 == pos_2:
-            # altought, technically, the mutual information of a position with itself is 1, is shouldn't be ploted on a heatmap
-            mi_normalized = np.nan
-        else:
-            # get the already-computed mutual information, which appear in reverse order of positions in mi_df
-            mi_normalized = mi_df.at[(pos_2, pos_1), "NormalizedMutualInformation"]
-        complementary_mis.append(mi_normalized)
-
-    complematary_mis_df = pd.DataFrame(
-        data={"NormalizedMutualInformation": complementary_mis},
-        index=pd.MultiIndex.from_tuples(
-            complementary_positions_couples, names=["Pos1", "Pos2"]
-        ),
     )
 
-    complete_mi_df = pd.concat(
-        [mi_df.loc[:, ["NormalizedMutualInformation"]], complematary_mis_df]
-    ).reset_index()
+    expanded_positions_df["Samples"] = expanded_positions_df["Samples"].str.split(",")
+    expanded_positions_df["Reads"] = expanded_positions_df["Reads"].str.split(",")
 
-    symmetric_mi_df = complete_mi_df.pivot(index="Pos1", columns="Pos2")
-    symmetric_mi_df = symmetric_mi_df.rename_axis("", axis=0)
-    symmetric_mi_df = symmetric_mi_df.set_axis(
-        symmetric_mi_df.columns.droplevel(), axis=1
-    ).rename_axis("", axis=1)
+    # now is the time the df is really expanded
+    expanded_positions_df = expanded_positions_df.explode(["Samples", "Reads"])
+    expanded_positions_df = expanded_positions_df.rename(
+        columns={"Samples": "Sample", "Reads": "Read"}
+    )
 
-    return symmetric_mi_df
+    per_sample_per_transcript_coverage_df = (
+        expanded_positions_df.groupby(["Chrom", "Transcript", "Sample"])["Read"]
+        .apply(lambda x: x.unique().size)
+        .reset_index()
+        .rename(columns={"Read": "NumOfReads"})
+        .merge(samples_and_tissues_df, how="left")
+    )
+    
+    return per_sample_per_transcript_coverage_df
 
 
 # %%
-symmetric_pclo_mi_df = get_symmetric_mi_df(
-    mi_df=mi_dfs[1], positions=reads_w_nan_dfs[1].iloc[:, reads_first_col_pos:].columns
-)
+# expanded_positions_df = (
+#     positions_dfs[0]
+#     .loc[~positions_dfs[0]["InProbRegion"]]
+#     .reset_index(drop=True)
+#     .drop(
+#         [
+#             "Phred",
+#             "MappedBases",
+#             "Noise",
+#             "EditingFrequency",
+#             "A",
+#             "T",
+#             "C",
+#             "G",
+#             "TotalCoverage",
+#         ],
+#         axis=1,
+#     )
+# )
 
-symmetric_pclo_mi_df
+# expanded_positions_df["Samples"] = expanded_positions_df["Samples"].str.split(",")
+# expanded_positions_df["Reads"] = expanded_positions_df["Reads"].str.split(",")
+
+# # now is the time the df is really expanded
+# expanded_positions_df = expanded_positions_df.explode(["Samples", "Reads"])
+# expanded_positions_df = expanded_positions_df.rename(
+#     columns={"Samples": "Sample", "Reads": "Read"}
+# )
+
+# expanded_positions_df
 
 # %%
-sns.set_theme(style="white")
+# per_sample_coverage = expanded_positions_df.groupby("Sample")["Read"].apply(lambda x: x.unique().size)
+# per_sample_coverage
 
-# Generate a mask for the upper triangle
-mask = np.triu(np.ones_like(symmetric_pclo_mi_df, dtype=bool))
+# complete_per_sample_coverage = []
+# for sample in samples:
+#     if sample in per_sample_coverage:
+#         coverage = per_sample_coverage[sample]
+#     else:
+#         coverage = 0
+#     complete_per_sample_coverage.append(coverage)
 
-# Generate a custom diverging colormap
-# cmap = sns.diverging_palette(230, 20, as_cmap=True)
-cmap = sns.color_palette("YlOrBr", as_cmap=True)
-# cmap = sns.light_palette("seagreen", as_cmap=True)
+# per_sample_per_transcript_coverage_df = pd.DataFrame({"Sample": samples, "Reads": complete_per_sample_coverage})
+# # per_sample_per_transcript_coverage_df.insert(0, )
+# per_sample_per_transcript_coverage_df
 
-# vmin = symmetric_pclo_mi_df.min().min()
-# vmax = symmetric_pclo_mi_df.max().max()
+# %%
+# per_sample_per_transcript_coverage_df = (
+#     expanded_positions_df.groupby(["Chrom", "Transcript", "Sample"])["Read"]
+#     .apply(lambda x: x.unique().size)
+#     .reset_index()
+#     .rename(columns={"Read": "NumOfReads"})
+# )
+# per_sample_per_transcript_coverage_df
 
-fig, ax = plt.subplots(figsize=(12, 12))
+# %%
+calc_per_transcript_per_sample_coverage(positions_dfs[0])
 
-# Draw the heatmap with the mask and correct aspect ratio
-sns.heatmap(
-    symmetric_pclo_mi_df,
-    mask=mask,
-    cmap=cmap,
-    square=True,
-    linewidths=0.5,
-    xticklabels=False,
-    yticklabels=False,
-    center=0.5,
-    cbar_kws={"shrink": 0.5},
-    # vmin=0, vmax=1
-    # vmin=vmin, vmax=vmax,
-)
+# %%
+# per_transcript_per_sample_coverage_dfs = [
+#     calc_per_transcript_per_sample_coverage(positions_df)
+#     for positions_df in positions_dfs
+# ]
 
-plt.title(f"Normalized mutual information between editing sites in {conditions[1]}");
+with Pool(processes=10) as pool:
+    per_transcript_per_sample_coverage_dfs = pool.starmap(
+        func=calc_per_transcript_per_sample_coverage, 
+        iterable=[(positions_df, samples_and_tissues_df) for positions_df in positions_dfs]
+    )
+per_transcript_per_sample_coverage_dfs[0]
+
+# %%
+merged_per_transcript_per_sample_coverage_df = pd.concat(per_transcript_per_sample_coverage_dfs).reset_index()
+# merged_per_transcript_per_sample_coverage_df = merged_per_transcript_per_sample_coverage_df.merge(samples_and_tissues_df, how="left")
+merged_per_transcript_per_sample_coverage_df
 
 # %%
 fig = px.histogram(
-    merged_mi_df,
-    x="NormalizedMutualInformation",
-    color=condition_col,
-    color_discrete_map=color_discrete_map,
-    category_orders=category_orders,
-    template=template,
-    title="Mutual information between each two editing positions",
-    log_y=True,
-)
-# fig.for_each_annotation(
-#     lambda a: a.update(text=a.text.replace(f"{condition_col}=", ""))
-# )
-fig.update_layout(
-    barmode="overlay",
-    #     # showlegend=False,
-)
-fig.update_traces(opacity=0.7)
-fig.show()
-
-# %%
-fig = px.histogram(
-    merged_mi_df,
-    x="NormalizedMutualInformation",
-    y="Distance",
-    histfunc="avg",
-    # marginal="rug", # or box, violin, rug
-    marginal="box",  # or box, violin, rug
-    color=condition_col,
-    color_discrete_map=color_discrete_map,
-    category_orders=category_orders,
-    template=template,
-    title="Mutual information between each two editing positions",
-    # log_y=True
-    # log_x=True
-)
-# fig.for_each_annotation(
-#     lambda a: a.update(text=a.text.replace(f"{condition_col}=", ""))
-# )
-fig.update_layout(
-    barmode="overlay",
-    width=1000,
-    height=450
-    #     # showlegend=False,
-)
-fig.update_traces(opacity=0.7)
-fig.show()
-
-# %%
-fig = px.scatter(
-    merged_mi_df,
-    x="Distance",
-    y="NormalizedMutualInformation",
-    # color_discrete_sequence=[color_discrete_map[conditions[0]]],
-    color=condition_col,
-    color_discrete_map=color_discrete_map,
-    # facet_col=condition_col,
-    # facet_col_spacing=facet_col_spacing,
-    category_orders=category_orders,
-    template=template,
-    title="Mutual information between each two editing positions",
-    log_y=True,
-    log_x=True,
-)
-# fig.for_each_annotation(
-#     lambda a: a.update(text=a.text.replace(f"{condition_col}=", ""))
-# )
-# fig.update_layout(showlegend=False)
-fig.update_traces(
-    # opacity=0.7
-    marker=dict(opacity=0.7, size=4)
-)
-fig.show()
-
-# %% [markdown]
-# ### Correlation between positions to sites edited in reads
-
-# %%
-reads_w_nan_dfs[0]
-
-# %%
-edited_positions_per_read_serieses = [
-    reads_w_nan_df.loc[:, "EditedPositions"] for reads_w_nan_df in reads_w_nan_dfs
-]
-edited_positions_per_read_serieses[0]
-
-# %%
-editing_in_reads_dfs = [
-    reads_w_nan_df.iloc[:, reads_first_col_pos:] for reads_w_nan_df in reads_w_nan_dfs
-]
-editing_in_reads_dfs[0]
-
-# %%
-positions_to_edited_sites_in_reads_correleations = []
-for editing_in_reads, edited_positions_per_read in zip(
-    editing_in_reads_dfs, edited_positions_per_read_serieses
-):
-    s = [
-        editing_in_reads.iloc[:, x].corr(edited_positions_per_read)
-        for x in range(editing_in_reads.shape[1])
-    ]
-    s = pd.Series(s, index=editing_in_reads.columns)
-    positions_to_edited_sites_in_reads_correleations.append(s)
-positions_to_edited_sites_in_reads_correleations[0]
-
-# %%
-_conditions = []
-_conditions_corrs = []
-_positions = []
-
-for condition, condition_corrs in zip(
-    conditions, positions_to_edited_sites_in_reads_correleations
-):
-    _conditions.extend([condition] * len(condition_corrs))
-    _conditions_corrs.extend(condition_corrs)
-    _positions.extend(condition_corrs.index)
-
-positions_to_edited_sites_in_reads_correleations_df = pd.DataFrame(
-    {
-        condition_col: _conditions,
-        "Position": _positions,
-        "Pearson": _conditions_corrs,
-    }
-)
-
-positions_to_edited_sites_in_reads_correleations_df
-
-# %%
-for condition in conditions:
-    df = positions_to_edited_sites_in_reads_correleations_df.loc[
-        positions_to_edited_sites_in_reads_correleations_df[condition_col] == condition
-    ]
-    fig = px.bar(
-        df,
-        x="Position",
-        y="Pearson",
-        # facet_col=condition_col,
-        # facet_col_spacing=facet_col_spacing,
-        color=condition_col,
-        color_discrete_map=color_discrete_map,
-        category_orders=category_orders,
-        template=template,
-        title="Pearson correlation between editing sites to number of sites edited in each read",
-    )
-    # fig.update_layout(showlegend=False)
-    fig.show()
-
-# %%
-fig = px.histogram(
-    positions_to_edited_sites_in_reads_correleations_df,
-    x="Pearson",
-    color=condition_col,
-    color_discrete_map=color_discrete_map,
-    facet_col=condition_col,
+    merged_per_transcript_per_sample_coverage_df,
+    x="NumOfReads",
+    color="Tissue",
+    color_discrete_map=tissues_color_discrete_map,
+    facet_col="Tissue",
+    facet_col_wrap=3,
     facet_col_spacing=facet_col_spacing,
-    category_orders=category_orders,
-    template=template,
-    title="Pearson correlation between editing sites to number of sites edited in each read",
-)
-fig.for_each_annotation(
-    lambda a: a.update(text=a.text.replace(f"{condition_col}=", ""))
-)
-fig.update_layout(showlegend=False)
-fig.show()
-
-# %%
-_df = positions_to_edited_sites_in_reads_correleations_df
-
-cols = min(facet_col_wrap, len(conditions))
-rows = ceil(len(conditions) / cols)
-row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
-
-fig = make_subplots(
-    rows=rows,
-    # cols=cols,
-    cols=1,
-    # subplot_titles=conditions,
-    shared_yaxes=True,
-    y_title="Pearson",
+    facet_row_spacing=facet_row_spacing*0.5,
+    log_y=True,
 )
 
-for condition, (row, col) in zip(conditions, row_col_iter):
+width = 900
+height = 600
+# width = 800
+# height = 300
 
-    fig.add_trace(
-        go.Violin(
-            x=_df.loc[_df[condition_col] == condition, condition_col],
-            y=_df.loc[_df[condition_col] == condition, "Pearson"],
-            line_color=color_discrete_map[condition],
-            fillcolor="white",
-            box_visible=True,
-            meanline_visible=True,
-            points="all",
-            # pointpos=0,
-            # jitter=0.05
-        ),
-        row=row,
-        # col=col
-        col=1,
-    )
+# # Overlay both histograms
+# fig.update_layout(barmode='overlay')
+# # Reduce opacity to see both histograms
+# fig.update_traces(opacity=0.5)
 
 fig.update_layout(
     template=template,
     showlegend=False,
-    title_text="Pearson correlation between editing sites to number of sites edited in each read",
-    height=250 * rows,
+    width=width,
+    height=height
 )
-fig.update_yaxes(zerolinewidth=zerolinewidth, tickmode="linear", tick0=0, dtick=0.2)
+fig.show()
+
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+
+# %% [markdown] papermill={"duration": 0.149848, "end_time": "2022-02-01T09:43:12.800733", "exception": false, "start_time": "2022-02-01T09:43:12.650885", "status": "completed"}
+# ### Editing index - per transcript
+
+# %%
+def editing_index_per_transcript(positions_df, strand):
+    ref_base = "A" if strand == "+" else "T"
+    alt_base = "G" if strand == "+" else "C"
+    all_refbase_positions_df = positions_df.loc[
+        (positions_df["RefBase"] == ref_base) & (~positions_df["InProbRegion"])
+    ]
+    num_of_all_editable_adenosines = all_refbase_positions_df["TotalCoverage"].sum()
+    num_of_edited_adenosines = all_refbase_positions_df[alt_base].sum()
+    editing_index = 100 * num_of_edited_adenosines / num_of_all_editable_adenosines
+    return editing_index
+
+
+# %%
+per_transcript_editing_indices = [
+    editing_index_per_transcript(positions_df, strand)
+    for positions_df, strand in zip(positions_dfs, strands)
+]
+per_transcript_editing_indices[0]
+
+# %%
+per_transcript_editing_index_df = pd.DataFrame(
+    {"Chrom": chroms, "EditingIndex": per_transcript_editing_indices}
+)
+per_transcript_editing_index_df
+
+# %%
+fig = px.histogram(
+    per_transcript_editing_index_df,
+    x="EditingIndex",
+    # y="TotalCoverage",
+    # color="EditingStatus",
+    # log_y=True
+    color_discrete_sequence=["black"],
+    labels={"EditingIndex": "% editing"},
+)
+fig.update_layout(
+    #  xaxis_title="Editing frequency",
+    # title="Octopus",
+    title="Pooled octopus data",
+    title_x=0.15,
+    yaxis_title="Transcripts",
+    template=template,
+    width=800 * 0.7,
+    height=800 * 0.5,
+    #  showlegend=False
+)
+
+# fig.write_image(
+#     "Mean per chrom noise levels - Octopus.svg",
+#     # width=800,
+#     # height=500,
+#     width=width*0.7,
+#     height=width*0.5,
+# )
 
 fig.show()
 
-# %%
+
+# %% [markdown] papermill={"duration": 0.149848, "end_time": "2022-02-01T09:43:12.800733", "exception": false, "start_time": "2022-02-01T09:43:12.650885", "status": "completed"}
+# ### Editing index - per sample
 
 # %%
+def calc_per_transcript_per_sample_a_and_g_counts(positions_df, strand, samples):
+
+    ref_base = "A" if strand == "+" else "T"
+    alt_base = "G" if strand == "+" else "C"
+
+    expanded_all_refbase_positions_df = (
+        positions_df.loc[
+            (positions_df["RefBase"] == ref_base) & (~positions_df["InProbRegion"])
+        ]
+        .reset_index(drop=True)
+        .drop(
+            [
+                "Phred",
+                "Reads",
+                "Noise",
+                "EditingFrequency",
+                "A",
+                "T",
+                "C",
+                "G",
+                "TotalCoverage",
+            ],
+            axis=1,
+        )
+    )
+
+    expanded_all_refbase_positions_df["Samples"] = expanded_all_refbase_positions_df[
+        "Samples"
+    ].str.split(",")
+    expanded_all_refbase_positions_df[
+        "MappedBases"
+    ] = expanded_all_refbase_positions_df["MappedBases"].apply(list)
+
+    # now is the time the df is really expanded
+    expanded_all_refbase_positions_df = expanded_all_refbase_positions_df.explode(
+        ["Samples", "MappedBases"]
+    )
+    expanded_all_refbase_positions_df = expanded_all_refbase_positions_df.rename(
+        columns={"Samples": "Sample", "MappedBases": "MappedBase"}
+    )
+
+    expanded_all_refbase_positions_df["MappedBase"] = expanded_all_refbase_positions_df[
+        "MappedBase"
+    ].apply(lambda x: ref_base if x == "." else x)
+
+    per_transcript_base_counts = expanded_all_refbase_positions_df.groupby("Sample")[
+        "MappedBase"
+    ].value_counts()
+
+    per_transcript_per_sample_a_and_g_counts = []
+    for sample in samples:
+        if sample in per_transcript_base_counts:
+            # a_count represents the unedited adenosines (possibly zero)
+            try:
+                a_count = per_transcript_base_counts[sample][ref_base]
+            except KeyError:
+                a_count = 0
+            # g_count represnts the edited adenosines (possibly zero as well)
+            try:
+                g_count = per_transcript_base_counts[sample][alt_base]
+            except KeyError:
+                g_count = 0
+        else:
+            a_count = 0
+            g_count = 0
+        per_transcript_per_sample_a_and_g_counts.append((a_count, g_count))
+
+    return per_transcript_per_sample_a_and_g_counts
+
 
 # %%
+def calc_all_per_sample_a_and_g_counts(positions_dfs, strands, samples, processes=1):
+    # all_per_transcript_per_sample_a_and_g_counts = [
+    #     calc_per_transcript_per_sample_a_and_g_counts(positions_df, strand, samples)
+    #     for positions_df, strand in zip(positions_dfs, strands)
+    # ]
+    with Pool(processes=processes) as pool:
+        all_per_transcript_per_sample_a_and_g_counts = pool.starmap(
+            func=calc_per_transcript_per_sample_a_and_g_counts,
+            iterable=[
+                (positions_df, strand, samples)
+                for positions_df, strand in zip(positions_dfs, strands)
+            ],
+        )
+    # all_per_transcript_per_sample_a_and_g_counts
+
+    all_per_sample_a_and_g_counts = [[0, 0] for _ in samples]
+    for (
+        per_transcript_per_sample_a_and_g_counts
+    ) in all_per_transcript_per_sample_a_and_g_counts:
+        for i, (a_count, g_count) in enumerate(
+            per_transcript_per_sample_a_and_g_counts
+        ):
+            all_per_sample_a_and_g_counts[i][0] += a_count
+            all_per_sample_a_and_g_counts[i][1] += g_count
+
+    return all_per_sample_a_and_g_counts
+
+
+# %%
+def calc_per_sample_editing_index(positions_dfs, strands, samples, processes=1):
+    all_per_sample_a_and_g_counts = calc_all_per_sample_a_and_g_counts(
+        positions_dfs, strands, samples, processes
+    )
+    per_sample_editing_index = [
+        100 * g_count / (a_count + g_count)
+        for a_count, g_count in all_per_sample_a_and_g_counts
+    ]
+    return per_sample_editing_index
+
+
+# %%
+per_sample_editing_index = calc_per_sample_editing_index(
+    positions_dfs, strands, samples, processes=10
+)
+per_sample_editing_index
+
+# %%
+per_sample_editing_index_df = pd.DataFrame(
+    {"Sample": samples, "EditingIndex": per_sample_editing_index}
+)
+per_sample_editing_index_df
 
 # %% [markdown]
 # ### Noise in positions
@@ -1589,263 +1491,8 @@ multiple_logos_from_fasta_files(
 
 # %%
 
-# %% [markdown]
-# ### Editing vs. coverage
-
-# %%
-known_sites_df.head()
-
-
-# %%
-ref_base_positions_dfs = []
-
-for positions_df, strand in zip(positions_dfs, strands):
-    ref_base = "A" if strand == "+" else "T"
-    alt_base = "G" if strand == "+" else "C"
-    positions_df = positions_df.loc[positions_df["RefBase"] == ref_base]
-    positions_df.insert(
-        positions_df.columns.get_loc("EditingFrequency"),
-        "EditedReads",
-        positions_df[alt_base],
-    )
-    positions_df = positions_df.drop(
-        [
-            "MappedBases",
-            "Reads",
-            "Noise",
-            "RefBase",
-            "A",
-            "T",
-            "C",
-            "G",
-            "InProbRegion",
-        ],
-        axis=1,
-    )
-    ref_base_positions_dfs.append(positions_df)
-
-merged_ref_base_positions_df = pd.concat(ref_base_positions_dfs).reset_index(drop=True)
-
-merged_ref_base_positions_df = merged_ref_base_positions_df.merge(
-    known_sites_df.loc[:, ["Chrom", "Position", "EditingFrequency"]],
-    how="left",
-    on=["Chrom", "Position"],
-    suffixes=["", "Known"],
-)
-
-merged_ref_base_positions_df["Position"] = merged_ref_base_positions_df[
-    "Position"
-].astype("str")
-
-# merged_ref_base_positions_df = merged_ref_base_positions_df.fillna(0)
-
-merged_ref_base_positions_df.insert(
-    merged_ref_base_positions_df.columns.get_loc("EditingFrequency"),
-    "%Editing",
-    merged_ref_base_positions_df["EditingFrequency"] * 100,
-)
-merged_ref_base_positions_df.insert(
-    merged_ref_base_positions_df.columns.get_loc("EditingFrequencyKnown"),
-    "%EditingKnown",
-    merged_ref_base_positions_df["EditingFrequencyKnown"] * 100,
-)
-merged_ref_base_positions_df = merged_ref_base_positions_df.drop(
-    ["EditingFrequency", "EditingFrequencyKnown"], axis=1
-)
-
-melt_merged_ref_base_positions_df = merged_ref_base_positions_df.melt(
-    id_vars=[condition_col, "Chrom", "Position", "Edited", "KnownEditing"],
-    # var_name="",
-    # value_name=""
-)
-
-melt_merged_ref_base_positions_df
-
-
-# %%
-for condition in conditions:
-    df = melt_merged_ref_base_positions_df.loc[
-        melt_merged_ref_base_positions_df[condition_col] == condition
-    ]
-    # df = df.loc[~df["variable"].str.contains("%Editing")]
-    df = df.loc[df["variable"].isin(["TotalCoverage", "EditedReads"])]
-    df = df.loc[df["Edited"]]
-
-    fig = px.bar(
-        df,
-        x="Position",
-        y="value",
-        # facet_col="KnownEditing",
-        # facet_row="Edited",
-        title=(
-            f"Editing vs. coverage in {condition}"
-            "<br>"
-            "<sub>(only edited positions are presented)</sub>"
-        ),
-        color_discrete_sequence=[
-            color_discrete_map[condition],
-            color_discrete_map[condition],
-        ],
-        pattern_shape="variable",
-        pattern_shape_map={"TotalCoverage": "", "EditedReads": "\\"},
-        # pattern_shape_sequence=["", '\\', ],
-        barmode="overlay",
-    )
-    fig.update_layout(
-        legend_title="",
-        yaxis_title="Reads",
-        template=template,
-    )
-    fig.show()
-
-
-# %% [markdown]
-# ### Current vs. known editing levels
-
-# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"}
-# todo retain nan rows and turn nans to 0?
-
-cols = len(conditions)
-
-fig = make_subplots(
-    rows=1,
-    cols=cols,
-    subplot_titles=conditions,
-    shared_yaxes=True,
-    shared_xaxes=True,
-    x_title="% editing",
-    y_title="% known editing",
-)
-
-df = merged_ref_base_positions_df.copy()
-df = df.loc[df["Edited"] & df["KnownEditing"]]
-
-for col, condition, unique_reads_df in zip(
-    range(1, cols + 1), conditions, unique_reads_dfs
-):
-    condition_df = df.loc[df[condition_col] == condition]
-
-    x = condition_df["%Editing"]
-    y = condition_df["%EditingKnown"]
-
-    r, pv = scipy.stats.pearsonr(x, y)
-
-    fig.add_trace(
-        go.Scatter(
-            x=x,
-            y=y,
-            name=condition,
-            mode="markers",
-            marker_color=color_discrete_map[condition],
-        ),
-        row=1,
-        col=col,
-    )
-
-    fig.add_annotation(
-        row=1,
-        col=col,
-        x=20,
-        y=75,
-        xref="x",
-        yref="y",
-        text=f"<b>Pearson's r</b><br>p-val = {pv:.2e}<br>ρ = {r:.2g}",
-        bgcolor="white",
-        borderpad=4,
-        opacity=0.8,
-        showarrow=False,
-    )
-
-fig.update_layout(
-    title_text="Correlation between current & previously-reported editing levels",
-    showlegend=False,
-    template=template,
-)
-
-fig.update_xaxes(range=[0, 100])
-fig.update_yaxes(range=[0, 100])
-
-fig.show()
-
-
-# %%
-# todo turn to fig and drop nan (here they're treated as zeros)
-
-for condition in conditions:
-    df = melt_merged_ref_base_positions_df.loc[
-        melt_merged_ref_base_positions_df[condition_col] == condition
-    ]
-    df = df.loc[df["variable"].isin(["%Editing", "%EditingKnown"])]
-    df["variable"] = df["variable"].apply(
-        lambda x: "Current" if x == "%Editing" else "Previous"
-    )
-    df = df.loc[df["Edited"] | df["KnownEditing"]]
-    df["Position"] = df["Position"].astype(int)
-    df = df.sort_values("Position")
-
-    fig = px.line(
-        df,
-        x="Position",
-        y="value",
-        facet_row="KnownEditing",
-        category_orders={"KnownEditing": [True, False]},
-        facet_row_spacing=0.1,
-        color="variable",
-        color_discrete_sequence=subcolors_discrete_map[condition],
-        symbol="variable",
-        symbol_sequence=["circle", "square"],
-        title=f"Current vs. previously-reported editing levels in {condition}",
-        template=template,
-        height=500,
-    )
-    fig.update_layout(legend_title="Study")
-    fig.update_traces(marker_size=5)
-    fig.for_each_yaxis(lambda y: y.update(title="% editing"))  # for facet_row
-    fig.update_yaxes(nticks=6)
-    # https://community.plotly.com/t/changing-label-of-plotly-express-facet-categories/28066/5
-    facet_labels_dict = {
-        "KnownEditing=False": "New<br>positions",
-        "KnownEditing=True": "Known<br>positions",
-    }
-    fig.for_each_annotation(lambda a: a.update(text=facet_labels_dict[a.text]))
-    fig.show()
-
-
-# %% [markdown]
-# ### Positions' editing levels distribution
-
-# %%
-df = merged_ref_base_positions_df.loc[
-    merged_ref_base_positions_df["Edited"]
-]  # todo or maybe all positions - not just the edited ones?
-fig = px.histogram(
-    df,
-    x="%Editing",
-    facet_col=condition_col,
-    facet_col_spacing=facet_col_spacing,
-    # histnorm="percent",
-    # cumulative=True,
-    # marginal="histogram",
-    title="Distribution of editing levels in positions",
-    labels={"%Editing": "% editing"},
-    color=condition_col,
-    color_discrete_map=color_discrete_map,
-    category_orders=category_orders,
-    template=template,
-)
-
-# https://stackoverflow.com/questions/58167028/single-axis-caption-in-plotly-express-facet-plot
-for axis in fig.layout:
-    if type(fig.layout[axis]) == go.layout.YAxis:
-        fig.layout[axis].title.text = ""
-fig.update_layout(showlegend=False, yaxis_title="Positions")
-# fig.for_each_yaxis(lambda y: y.update(title="Transcripts"))   # for facet_row
-
-fig.show()
-
-
 # %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"}
-# ## Num of distinct unique proteins
+# ## Num of distinct proteins
 
 # %%
 neural_vs_non_neural_expression_df = pd.read_csv(
@@ -1981,6 +1628,8 @@ for neural_condition in neural_conditions:
     neural_df = neural_df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
     neural_dfs.append(neural_df)
 
+y_min = 1    
+
 fig = make_subplots(
     # rows=1,
     # cols=2,
@@ -1998,6 +1647,8 @@ fig = make_subplots(
 
 x = df["NumOfProteins"]
 y = df["CummulativeTranscripts"]
+
+y_min = min(y_min, y.min())
 
 fig.add_trace(
     go.Scatter(
@@ -2083,6 +1734,8 @@ for neural_condition, neural_trace_name, neural_df in zip(
         row=2,
         col=1,
     )
+    
+    y_min = min(y_min, y.min())
 
 
 x = max_distinct_proteins_df.loc[
@@ -2109,7 +1762,11 @@ fig.add_annotation(
 )
 
 fig.update_xaxes(type="log")
-fig.update_yaxes(type="log", range=[-2.2, 2.2])
+fig.update_yaxes(
+    type="log", 
+    # range=[-2, 2.2]
+    range=[np.log(y_min)*1.1 / np.log(10), 2.2]
+)
 
 width = 700
 height = 800
@@ -2125,11 +1782,11 @@ fig.update_layout(
     # showlegend=False,
 )
 
-fig.write_image(
-    "Distinct proteins per transcript vs. % of transcripts - Octopus.svg",
-    width=width,
-    height=height,
-)
+# fig.write_image(
+#     "Distinct proteins per transcript vs. % of transcripts - Octopus.svg",
+#     width=width,
+#     height=height,
+# )
 
 fig.show()
 
@@ -2141,50 +1798,86 @@ max_distinct_proteins_df.sort_values("NumOfProteins", ascending=False).iloc[:9]
 
 # %%
 # 9 chroms mostly diversified due to A-to-I RNA editing
-strongly_diversified_max_distinct_proteins_df = max_distinct_proteins_df.sort_values("NumOfProteins", ascending=False).iloc[:9]
-strongly_diversified_chroms = strongly_diversified_max_distinct_proteins_df["Chrom"].to_list()
-strongly_diversified_max_num_of_proteins = strongly_diversified_max_distinct_proteins_df["NumOfProteins"].to_list()
-strongly_diversified_transcripts = strongly_diversified_max_distinct_proteins_df["Transcript"].to_list()
+strongly_diversified_max_distinct_proteins_df = max_distinct_proteins_df.sort_values(
+    "NumOfProteins", ascending=False
+).iloc[:9]
+strongly_diversified_chroms = strongly_diversified_max_distinct_proteins_df[
+    "Chrom"
+].to_list()
+strongly_diversified_max_num_of_proteins = (
+    strongly_diversified_max_distinct_proteins_df["NumOfProteins"].to_list()
+)
+strongly_diversified_transcripts = strongly_diversified_max_distinct_proteins_df[
+    "Transcript"
+].to_list()
 
 # %%
 expanded_unique_proteins_dfs[0]
 
 # %%
 expanded_max_distinct_proteins_df = max_distinct_proteins_df.copy()
-expanded_max_distinct_proteins_df["Proteins"] = expanded_max_distinct_proteins_df["Proteins"].str.split(",")
-expanded_max_distinct_proteins_df = expanded_max_distinct_proteins_df.explode("Proteins").reset_index(drop=True)
-expanded_max_distinct_proteins_df = expanded_max_distinct_proteins_df.rename(columns={"Proteins": "Protein"})
+expanded_max_distinct_proteins_df["Proteins"] = expanded_max_distinct_proteins_df[
+    "Proteins"
+].str.split(",")
+expanded_max_distinct_proteins_df = expanded_max_distinct_proteins_df.explode(
+    "Proteins"
+).reset_index(drop=True)
+expanded_max_distinct_proteins_df = expanded_max_distinct_proteins_df.rename(
+    columns={"Proteins": "Protein"}
+)
 expanded_max_distinct_proteins_df = expanded_max_distinct_proteins_df.drop(
-    ["NumOfProteins", "NumOfReads", "MappedReads", "Samples", "MappedReadsPerSample", "DistinctProteins/Reads"],
-    axis=1
+    [
+        "NumOfProteins",
+        "NumOfReads",
+        "MappedReads",
+        "Samples",
+        "MappedReadsPerSample",
+        "DistinctProteins/Reads",
+    ],
+    axis=1,
 )
 
 # expanded_max_distinct_proteins_df
 
 expanded_max_distinct_proteins_dfs = [
-    expanded_max_distinct_proteins_df.loc[expanded_max_distinct_proteins_df["Chrom"] == chrom].merge(
-        expanded_unique_proteins_df,
-        on=["Chrom", "Transcript", "Protein"],
-        how="left"
-    ).merge(samples_and_tissues_df, on="Sample", how="left")
+    expanded_max_distinct_proteins_df.loc[
+        expanded_max_distinct_proteins_df["Chrom"] == chrom
+    ]
+    .merge(
+        expanded_unique_proteins_df, on=["Chrom", "Transcript", "Protein"], how="left"
+    )
+    .merge(samples_and_tissues_df, on="Sample", how="left")
     for chrom, expanded_unique_proteins_df in zip(chroms, expanded_unique_proteins_dfs)
 ]
 
 del expanded_max_distinct_proteins_df
 
 for expanded_max_distinct_proteins_df in expanded_max_distinct_proteins_dfs:
-    expanded_max_distinct_proteins_df.rename(columns={"Sample": "Sample2", "Protein": "Protein2", "Tissue": "Tissue2"}, inplace=True)
-    expanded_max_distinct_proteins_df.insert(2, "Sample", expanded_max_distinct_proteins_df["Sample2"])
-    expanded_max_distinct_proteins_df.insert(3, "Tissue", expanded_max_distinct_proteins_df["Tissue2"])
-    expanded_max_distinct_proteins_df.insert(4, "Protein", expanded_max_distinct_proteins_df["Protein2"])
-    expanded_max_distinct_proteins_df.drop(["Sample2", "Tissue2", "Protein2"], axis=1, inplace=True)
-    
+    expanded_max_distinct_proteins_df.rename(
+        columns={"Sample": "Sample2", "Protein": "Protein2", "Tissue": "Tissue2"},
+        inplace=True,
+    )
+    expanded_max_distinct_proteins_df.insert(
+        2, "Sample", expanded_max_distinct_proteins_df["Sample2"]
+    )
+    expanded_max_distinct_proteins_df.insert(
+        3, "Tissue", expanded_max_distinct_proteins_df["Tissue2"]
+    )
+    expanded_max_distinct_proteins_df.insert(
+        4, "Protein", expanded_max_distinct_proteins_df["Protein2"]
+    )
+    expanded_max_distinct_proteins_df.drop(
+        ["Sample2", "Tissue2", "Protein2"], axis=1, inplace=True
+    )
+
 expanded_max_distinct_proteins_dfs[1]
 
 # %%
 strongly_diversified_expanded_max_distinct_proteins_dfs = [
-    expanded_max_distinct_proteins_df 
-    for expanded_max_distinct_proteins_df, chrom in zip(expanded_max_distinct_proteins_dfs, chroms)
+    expanded_max_distinct_proteins_df
+    for expanded_max_distinct_proteins_df, chrom in zip(
+        expanded_max_distinct_proteins_dfs, chroms
+    )
     if chrom in strongly_diversified_chroms
 ]
 
@@ -2193,24 +1886,36 @@ strongly_diversified_expanded_max_distinct_proteins_dfs[0]
 # %%
 strongly_diversified_num_of_proteins_per_sample_dfs = []
 
-for strongly_diversified_expanded_max_distinct_proteins_df, num_of_unique_proteins in zip(strongly_diversified_expanded_max_distinct_proteins_dfs, strongly_diversified_max_num_of_proteins):
-    
-    gb = strongly_diversified_expanded_max_distinct_proteins_df.groupby(["Sample", "Tissue"])
-    
+for (
+    strongly_diversified_expanded_max_distinct_proteins_df,
+    num_of_unique_proteins,
+) in zip(
+    strongly_diversified_expanded_max_distinct_proteins_dfs,
+    strongly_diversified_max_num_of_proteins,
+):
+
+    gb = strongly_diversified_expanded_max_distinct_proteins_df.groupby(
+        ["Sample", "Tissue"]
+    )
+
     df = gb.apply(len).reset_index().rename(columns={0: "NumOfProteins"})
-    df2 = gb.apply(
-        lambda x: 100 * len(x) / num_of_unique_proteins
-    ).reset_index().rename(columns={0: "%RelativeNumOfProteins"})
+    df2 = (
+        gb.apply(lambda x: 100 * len(x) / num_of_unique_proteins)
+        .reset_index()
+        .rename(columns={0: "%RelativeNumOfProteins"})
+    )
     df = df.merge(df2)
-    
+
     strongly_diversified_num_of_proteins_per_sample_dfs.append(df)
-    
+
 strongly_diversified_num_of_proteins_per_sample_dfs[0]
 
 # %%
 cols = min(facet_col_wrap, len(strongly_diversified_num_of_proteins_per_sample_dfs), 3)
 rows = ceil(len(strongly_diversified_num_of_proteins_per_sample_dfs) / cols)
-row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(strongly_diversified_num_of_proteins_per_sample_dfs)]
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[
+    : len(strongly_diversified_num_of_proteins_per_sample_dfs)
+]
 
 x_title = "Tissue"
 y_title = "Distinct isoforms"
@@ -2219,10 +1924,20 @@ y_title = "Distinct isoforms"
 # subplot_titles = strongly_diversified_chroms
 subplot_titles = [
     f"{transcript.split('_')[0]}<br><sub>({chrom})</sub>"
-    for transcript, chrom in zip(strongly_diversified_transcripts, strongly_diversified_chroms)
+    for transcript, chrom in zip(
+        strongly_diversified_transcripts, strongly_diversified_chroms
+    )
 ]
 
-tissues_order = ["Axial nerve cord", "Frontal & vertical lobe", "Pedunculate & olfactory lobe", "Stellate g. & visceral g.", "Sucker", "Retina & optic lobe", "Non-neuronal tissues mix"]
+tissues_order = [
+    "Axial nerve cord",
+    "Frontal & vertical lobe",
+    "Pedunculate & olfactory lobe",
+    "Stellate g. & visceral g.",
+    "Sucker",
+    "Retina & optic lobe",
+    "Non-neuronal tissues mix",
+]
 tissue_to_legendrank = {tissue: x for x, tissue in enumerate(tissues_order, start=1)}
 
 fig = make_subplots(
@@ -2232,24 +1947,33 @@ fig = make_subplots(
     shared_yaxes=True,
     x_title=x_title,
     y_title=y_title,
-    vertical_spacing=0.12
+    vertical_spacing=0.12,
 )
 
 max_y = 0
 legend_constructed = False
 
-for (row, col), strongly_diversified_num_of_proteins_per_sample_df, strongly_diversified_max_num_of_protein in zip(
-    row_col_iter, strongly_diversified_num_of_proteins_per_sample_dfs, strongly_diversified_max_num_of_proteins
+for (
+    (row, col),
+    strongly_diversified_num_of_proteins_per_sample_df,
+    strongly_diversified_max_num_of_protein,
+) in zip(
+    row_col_iter,
+    strongly_diversified_num_of_proteins_per_sample_dfs,
+    strongly_diversified_max_num_of_proteins,
 ):
     _tissues = strongly_diversified_num_of_proteins_per_sample_df["Tissue"]
-    
+
     for tissue in _tissues:
-        
+
         x = [tissue]
-        y = strongly_diversified_num_of_proteins_per_sample_df.loc[strongly_diversified_num_of_proteins_per_sample_df["Tissue"] == tissue, "NumOfProteins"]
+        y = strongly_diversified_num_of_proteins_per_sample_df.loc[
+            strongly_diversified_num_of_proteins_per_sample_df["Tissue"] == tissue,
+            "NumOfProteins",
+        ]
 
         max_y = max(max_y, y.max())
-        
+
         if not legend_constructed:
             fig.add_trace(
                 go.Bar(
@@ -2257,7 +1981,7 @@ for (row, col), strongly_diversified_num_of_proteins_per_sample_df, strongly_div
                     y=y,
                     marker_color=tissues_color_discrete_map[tissue],
                     name=tissue,
-                    legendrank=tissue_to_legendrank[tissue]
+                    legendrank=tissue_to_legendrank[tissue],
                 ),
                 row=row,
                 col=col,
@@ -2274,37 +1998,37 @@ for (row, col), strongly_diversified_num_of_proteins_per_sample_df, strongly_div
                 row=row,
                 col=col,
             )
-        
+
     legend_constructed = True
-        
+
 #         fig.add_shape(
 #             type="line",
-#             # xref="paper", 
+#             # xref="paper",
 #             # yref="paper",
 #             # x0=0.1, x1=4,
 #             x0='Axial nerve cord', x1="Retina & optic lobe",
 #             y0=strongly_diversified_max_num_of_protein, y1=strongly_diversified_max_num_of_protein,
 #             line=dict(
-#                 color="grey", 
-#                 dash="dash", 
+#                 color="grey",
+#                 dash="dash",
 #                 width=2
 #             ),
 #             row=row,
 #             col=col,
 #         )
-        
+
 #         max_y = max(max_y, strongly_diversified_max_num_of_protein)
-        
+
 
 # fig.update_xaxes(tickangle=45, automargin=True)
 
 fig.update_xaxes(
-    showticklabels=False, # Hide x axis ticks 
-    categoryorder='array', 
-    categoryarray=tissues_order
+    showticklabels=False,  # Hide x axis ticks
+    categoryorder="array",
+    categoryarray=tissues_order,
 )
 fig.update_yaxes(
-    range=[0, max_y*1.1], 
+    range=[0, max_y * 1.1],
     # range=[0, 0.5+np.log(max_y)/np.log(10)],
     # type="log"
 )
@@ -2334,8 +2058,609 @@ fig.show()
 
 
 # %%
+strongly_diversified_per_transcript_per_sample_coverage_dfs = [
+    df
+    for df, chrom in zip(per_transcript_per_sample_coverage_dfs, chroms)
+    if chrom in strongly_diversified_chroms
+]
+ic(len(strongly_diversified_per_transcript_per_sample_coverage_dfs))
+strongly_diversified_per_transcript_per_sample_coverage_dfs[0]
 
 # %%
+cols = min(facet_col_wrap, len(strongly_diversified_num_of_proteins_per_sample_dfs), 3)
+rows = ceil(len(strongly_diversified_num_of_proteins_per_sample_dfs) / cols)
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[
+    : len(strongly_diversified_num_of_proteins_per_sample_dfs)
+]
+
+x_title = "Tissue"
+y_title = "Mapped reads"
+# title_text = "Distribution of min & max estimates of non-syn substitutions per read"
+
+# subplot_titles = strongly_diversified_chroms
+subplot_titles = [
+    f"{transcript.split('_')[0]}<br><sub>({chrom})</sub>"
+    for transcript, chrom in zip(
+        strongly_diversified_transcripts, strongly_diversified_chroms
+    )
+]
+
+tissues_order = [
+    "Axial nerve cord",
+    "Frontal & vertical lobe",
+    "Pedunculate & olfactory lobe",
+    "Stellate g. & visceral g.",
+    "Sucker",
+    "Retina & optic lobe",
+    "Non-neuronal tissues mix",
+]
+tissue_to_legendrank = {tissue: x for x, tissue in enumerate(tissues_order, start=1)}
+
+fig = make_subplots(
+    rows=rows,
+    cols=cols,
+    subplot_titles=subplot_titles,
+    shared_yaxes=True,
+    x_title=x_title,
+    y_title=y_title,
+    vertical_spacing=0.12,
+)
+
+max_y = 0
+legend_constructed = False
+
+for (
+    (row, col),
+    strongly_diversified_per_transcript_per_sample_coverage_df,
+    strongly_diversified_max_num_of_protein,
+) in zip(
+    row_col_iter,
+    strongly_diversified_per_transcript_per_sample_coverage_dfs,
+    strongly_diversified_max_num_of_proteins,
+):
+    _tissues = strongly_diversified_num_of_proteins_per_sample_df["Tissue"]
+
+    for tissue in _tissues:
+
+        x = [tissue]
+        y = strongly_diversified_per_transcript_per_sample_coverage_df.loc[
+            strongly_diversified_per_transcript_per_sample_coverage_df["Tissue"] == tissue,
+            "NumOfReads",
+        ]
+
+        max_y = max(max_y, y.max())
+
+        if not legend_constructed:
+            fig.add_trace(
+                go.Bar(
+                    x=x,
+                    y=y,
+                    marker_color=tissues_color_discrete_map[tissue],
+                    name=tissue,
+                    legendrank=tissue_to_legendrank[tissue],
+                ),
+                row=row,
+                col=col,
+            )
+        else:
+            fig.add_trace(
+                go.Bar(
+                    x=x,
+                    y=y,
+                    marker_color=tissues_color_discrete_map[tissue],
+                    # name=tissue,
+                    showlegend=False,
+                ),
+                row=row,
+                col=col,
+            )
+
+    legend_constructed = True
+
+
+# fig.update_xaxes(tickangle=45, automargin=True)
+
+fig.update_xaxes(
+    showticklabels=False,  # Hide x axis ticks
+    categoryorder="array",
+    categoryarray=tissues_order,
+)
+fig.update_yaxes(
+    range=[0, max_y * 1.1],
+    # range=[0, 0.5+np.log(max_y)/np.log(10)],
+    # type="log"
+)
+
+width = 1000
+height = 800
+
+
+fig.update_layout(
+    template=template,
+    title_text="Octopus",
+    title_x=0.1,
+    title_y=0.97,
+    # showlegend=False,
+    legend_title_text="Tissue",
+    width=width,
+    height=height,
+)
+
+# fig.write_image(
+#     f"{title_text} - PacBio.svg",
+#     width=max(350 * cols, 800),
+#     height=max(200 * rows, 300),
+# )
+
+fig.show()
+
+
+# %%
+cols = min(facet_col_wrap, len(strongly_diversified_num_of_proteins_per_sample_dfs), 3)
+rows = ceil(len(strongly_diversified_num_of_proteins_per_sample_dfs) / cols)
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[
+    : len(strongly_diversified_num_of_proteins_per_sample_dfs)
+]
+
+x_title = "Mapped reads"
+y_title = "Distinct isoforms"
+
+# title_text = "Distribution of min & max estimates of non-syn substitutions per read"
+
+# subplot_titles = strongly_diversified_chroms
+subplot_titles = [
+    f"{transcript.split('_')[0]}<br><sub>({chrom})</sub>"
+    for transcript, chrom in zip(
+        strongly_diversified_transcripts, strongly_diversified_chroms
+    )
+]
+
+tissues_order = [
+    "Axial nerve cord",
+    "Frontal & vertical lobe",
+    "Pedunculate & olfactory lobe",
+    "Stellate g. & visceral g.",
+    "Sucker",
+    "Retina & optic lobe",
+    "Non-neuronal tissues mix",
+]
+tissue_to_legendrank = {tissue: x for x, tissue in enumerate(tissues_order, start=1)}
+
+fig = make_subplots(
+    rows=rows,
+    cols=cols,
+    subplot_titles=subplot_titles,
+    shared_yaxes=True,
+    x_title=x_title,
+    y_title=y_title,
+    vertical_spacing=0.12,
+    # horizontal_spacing=0.2,
+)
+
+max_x = 0
+max_y = 0
+legend_constructed = False
+
+for (
+    (row, col),
+    strongly_diversified_num_of_proteins_per_sample_df,
+    strongly_diversified_max_num_of_protein,
+    strongly_diversified_per_transcript_per_sample_coverage_df
+) in zip(
+    row_col_iter,
+    strongly_diversified_num_of_proteins_per_sample_dfs,
+    strongly_diversified_max_num_of_proteins,
+    strongly_diversified_per_transcript_per_sample_coverage_dfs
+):
+    _tissues = strongly_diversified_num_of_proteins_per_sample_df["Tissue"]
+
+    for tissue in _tissues:
+
+        try:
+            x = strongly_diversified_per_transcript_per_sample_coverage_df.loc[
+                strongly_diversified_per_transcript_per_sample_coverage_df["Tissue"] == tissue,
+                "NumOfReads",
+            ]
+        except KeyError:
+            x = [0]
+        
+        y = strongly_diversified_num_of_proteins_per_sample_df.loc[
+            strongly_diversified_num_of_proteins_per_sample_df["Tissue"] == tissue,
+            "NumOfProteins",
+        ]
+        # ic(samp)
+
+        max_x = max(max_x, x.max())
+        max_y = max(max_y, y.max())
+
+        if not legend_constructed:
+            fig.add_trace(
+                go.Scatter(
+                    x=x,
+                    y=y,
+                    marker_color=tissues_color_discrete_map[tissue],
+                    name=tissue,
+                    legendrank=tissue_to_legendrank[tissue],
+                    # marker_pattern_shape="/",
+                    mode='markers'
+                ),
+                row=row,
+                col=col,
+            )
+        else:
+            fig.add_trace(
+                go.Scatter(
+                    x=x,
+                    y=y,
+                    marker_color=tissues_color_discrete_map[tissue],
+                    # name=tissue,
+                    showlegend=False,
+                    # marker_pattern_shape="/",
+                    mode='markers'
+                ),
+                row=row,
+                col=col,
+            )
+            
+       
+
+    legend_constructed = True
+
+
+# fig.update_xaxes(tickangle=45, automargin=True)
+
+fig.update_xaxes(
+    # showticklabels=False,  # Hide x axis ticks
+    # categoryorder="array",
+    # categoryarray=tissues_order,
+    range=[0, max_x*1.1]
+)
+# fig.update_yaxes(
+#     range=[0, max_y * 1.1],
+#     # range=[0, 0.5+np.log(max_y)/np.log(10)],
+#     # type="log"
+# )
+fig.update_yaxes(
+    # title_text=primary_y_title, 
+    range=[0, max_y * 1.1],
+    # secondary_y=False
+)
+# fig.update_yaxes(
+#     title_text=secondary_y_title, 
+#     range=[0, max_y_2 * 1.1],
+#     secondary_y=True
+# )
+
+width = 950
+height = 800
+
+fig.update_traces(opacity=0.7, marker_size=6)
+
+fig.update_layout(
+    template=template,
+    title_text="Octopus",
+    title_x=0.1,
+    title_y=0.97,
+    # showlegend=False,
+    legend_title_text="Tissue",
+    width=width,
+    height=height,
+    # barmode="overlay",
+)
+
+# fig.write_image(
+#     f"{title_text} - PacBio.svg",
+#     width=max(350 * cols, 800),
+#     height=max(200 * rows, 300),
+# )
+
+fig.show()
+
+
+# %%
+cols = min(facet_col_wrap, len(strongly_diversified_num_of_proteins_per_sample_dfs), 3)
+rows = ceil(len(strongly_diversified_num_of_proteins_per_sample_dfs) / cols)
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[
+    : len(strongly_diversified_num_of_proteins_per_sample_dfs)
+]
+
+x_title = "Tissue"
+primary_y_title = "Distinct isoforms"
+secondary_y_title = "Mapped reads"
+# title_text = "Distribution of min & max estimates of non-syn substitutions per read"
+
+# subplot_titles = strongly_diversified_chroms
+subplot_titles = [
+    f"{transcript.split('_')[0]}<br><sub>({chrom})</sub>"
+    for transcript, chrom in zip(
+        strongly_diversified_transcripts, strongly_diversified_chroms
+    )
+]
+
+tissues_order = [
+    "Axial nerve cord",
+    "Frontal & vertical lobe",
+    "Pedunculate & olfactory lobe",
+    "Stellate g. & visceral g.",
+    "Sucker",
+    "Retina & optic lobe",
+    "Non-neuronal tissues mix",
+]
+tissue_to_legendrank = {tissue: x for x, tissue in enumerate(tissues_order, start=1)}
+
+fig = make_subplots(
+    rows=rows,
+    cols=cols,
+    subplot_titles=subplot_titles,
+    shared_yaxes=True,
+    x_title=x_title,
+    # y_title=y_title,
+    vertical_spacing=0.12,
+    horizontal_spacing=0.2,
+    specs=[
+        [{"secondary_y": True} for _ in range(cols)]
+        for _ in range(rows)
+    ]
+)
+
+max_y_1 = 0
+max_y_2 = 0
+legend_constructed = False
+
+for (
+    (row, col),
+    strongly_diversified_num_of_proteins_per_sample_df,
+    strongly_diversified_max_num_of_protein,
+    strongly_diversified_per_transcript_per_sample_coverage_df
+) in zip(
+    row_col_iter,
+    strongly_diversified_num_of_proteins_per_sample_dfs,
+    strongly_diversified_max_num_of_proteins,
+    strongly_diversified_per_transcript_per_sample_coverage_dfs
+):
+    _tissues = strongly_diversified_num_of_proteins_per_sample_df["Tissue"]
+
+    for tissue in _tissues:
+
+        # distinct isoforms
+        
+        x = [tissue]
+        y = strongly_diversified_num_of_proteins_per_sample_df.loc[
+            strongly_diversified_num_of_proteins_per_sample_df["Tissue"] == tissue,
+            "NumOfProteins",
+        ]
+        # ic(samp)
+
+        max_y_1 = max(max_y_1, y.max())
+
+        if not legend_constructed:
+            fig.add_trace(
+                go.Bar(
+                    x=x,
+                    y=y,
+                    marker_color=tissues_color_discrete_map[tissue],
+                    name=tissue,
+                    legendrank=tissue_to_legendrank[tissue],
+                    # marker_pattern_shape="/",
+                ),
+                row=row,
+                col=col,
+                secondary_y=False,
+            )
+        else:
+            fig.add_trace(
+                go.Bar(
+                    x=x,
+                    y=y,
+                    marker_color=tissues_color_discrete_map[tissue],
+                    # name=tissue,
+                    showlegend=False,
+                    # marker_pattern_shape="/",
+                ),
+                row=row,
+                col=col,
+                secondary_y=False,
+            )
+            
+       # mapped reads
+    
+        try:
+            y = strongly_diversified_per_transcript_per_sample_coverage_df.loc[
+                strongly_diversified_per_transcript_per_sample_coverage_df["Tissue"] == tissue,
+                "NumOfReads",
+            ]
+        except KeyError:
+            y = [0]
+            
+        max_y_2 = max(max_y_2, y.max())
+    
+        fig.add_trace(
+            # go.Bar(
+            go.Scatter(
+                x=x,
+                y=y,
+                # marker_color=tissues_color_discrete_map[tissue],
+                marker_color="black",
+                showlegend=False,
+                # name=tissue,
+                # legendrank=tissue_to_legendrank[tissue],
+                # marker_pattern_shape="",
+            ),
+            row=row,
+            col=col,
+            secondary_y=True,
+        )
+
+    legend_constructed = True
+
+
+# fig.update_xaxes(tickangle=45, automargin=True)
+
+fig.update_xaxes(
+    showticklabels=False,  # Hide x axis ticks
+    categoryorder="array",
+    categoryarray=tissues_order,
+)
+# fig.update_yaxes(
+#     range=[0, max_y * 1.1],
+#     # range=[0, 0.5+np.log(max_y)/np.log(10)],
+#     # type="log"
+# )
+fig.update_yaxes(
+    title_text=primary_y_title, 
+    range=[0, max_y_1 * 1.1],
+    secondary_y=False
+)
+fig.update_yaxes(
+    title_text=secondary_y_title, 
+    range=[0, max_y_2 * 1.1],
+    secondary_y=True
+)
+
+width = 1200
+height = 800
+
+fig.update_traces(opacity=0.5)
+
+fig.update_layout(
+    template=template,
+    title_text="Octopus",
+    title_x=0.1,
+    title_y=0.97,
+    # showlegend=False,
+    legend_title_text="Tissue",
+    width=width,
+    height=height,
+    barmode="overlay",
+)
+
+# fig.write_image(
+#     f"{title_text} - PacBio.svg",
+#     width=max(350 * cols, 800),
+#     height=max(200 * rows, 300),
+# )
+
+fig.show()
+
+
+# %%
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
+# Create sample data
+x = [1, 2, 3, 4, 5]
+y1 = [10, 20, 30, 40, 50]
+y2 = [100, 200, 300, 400, 500]
+
+# Create subplots with shared y-axis
+fig = make_subplots(rows=1, cols=2, shared_yaxes=True)
+
+# Add traces to subplots
+fig.add_trace(go.Scatter(x=x, y=y1, name='Trace 1', yaxis='y1'), row=1, col=1)
+fig.add_trace(go.Scatter(x=x, y=y2, name='Trace 2', yaxis='y2'), row=1, col=2)
+
+# Retrieve tick values from primary y-axis
+primary_tickvals = fig['layout']['yaxis1']['tickvals']
+
+# Set tick values for secondary y-axis
+fig['layout']['yaxis2']['tickvals'] = primary_tickvals
+
+# Update layout
+fig.update_layout(title='Subplots with Synchronized Y-Axis Tick Values')
+
+# Show the figure
+fig.show()
+
+# %%
+# # Get the names of all y-axes
+# y_axes = []
+# for axis in fig['layout']['yaxis']:
+#     if axis.startswith('y'):
+#         y_axes.append(fig['layout']['yaxis'][axis]['title']['text'])
+
+# print(y_axes)
+
+
+
+# %%
+# fig['layout']
+
+# %%
+
+# %%
+# fig = make_subplots(rows=2, cols=2,
+#                     # shared_yaxes=True,
+#                     specs=[[{"secondary_y": True}, {"secondary_y": True}],
+#                            [{"secondary_y": True}, {"secondary_y": True}]])
+
+# # Top left
+# fig.add_trace(
+#     go.Scatter(x=[1, 2, 3], y=[2, 52, 62], name="yaxis data"),
+#     row=1, col=1, secondary_y=False)
+
+# fig.add_trace(
+#     go.Scatter(x=[1, 2, 3], y=[40, 50, 60], name="yaxis2 data"),
+#     row=1, col=1, secondary_y=True,
+# )
+
+# # Top right
+# fig.add_trace(
+#     go.Scatter(x=[1, 2, 3], y=[2, 52, 62], name="yaxis3 data"),
+#     row=1, col=2, secondary_y=False,
+# )
+
+# fig.add_trace(
+#     go.Scatter(x=[1, 2, 3], y=[40, 50, 60], name="yaxis4 data"),
+#     row=1, col=2, secondary_y=True,
+# )
+
+# # Bottom left
+# fig.add_trace(
+#     go.Scatter(x=[1, 2, 3], y=[2, 52, 62], name="yaxis5 data"),
+#     row=2, col=1, secondary_y=False,
+# )
+
+# fig.add_trace(
+#     go.Scatter(x=[1, 2, 3], y=[40, 50, 60], name="yaxis6 data"),
+#     row=2, col=1, secondary_y=True,
+# )
+
+# # Bottom right
+# fig.add_trace(
+#     go.Scatter(x=[1, 2, 3], y=[2, 52, 62], name="yaxis7 data"),
+#     row=2, col=2, secondary_y=False,
+# )
+
+# fig.add_trace(
+#     go.Scatter(x=[1, 2, 3], y=[40, 50, 60], name="yaxis8 data"),
+#     row=2, col=2, secondary_y=True,
+# )
+
+# fig.update_yaxes(
+#     title_text=primary_y_title, 
+#     # range=[0, max_y * 1.1],
+#     # range=[0, 0.5+np.log(max_y)/np.log(10)],
+#     # type="log"
+#     secondary_y=False
+# )
+# fig.update_yaxes(title_text=secondary_y_title, secondary_y=True)
+
+# width = 1000
+# height = 800
+
+
+# fig.update_layout(
+#     template=template,
+#     title_text="Octopus",
+#     title_x=0.1,
+#     title_y=0.97,
+#     # showlegend=False,
+#     legend_title_text="Tissue",
+#     width=width,
+#     height=height,
+# )
+
+# fig.show()
 
 # %%
 
@@ -3665,270 +3990,6 @@ fig.show()
 # # fig.update_yaxes(range=[0, distinct_unique_proteins_df["NumOfProteins"].max()*1.05])
 # fig.show()
 
-
-# %% [markdown] toc-hr-collapsed=true
-# #### Jaccard (overlap of solutions)
-
-# %%
-# proteins_jaccard_dfs = []
-# for condition in conditions:
-#     df = distinct_unique_proteins_df.loc[distinct_unique_proteins_df[condition_col] == condition].reset_index(drop=True)
-#     df["Proteins"] = df["Proteins"].apply(lambda x: set(x.split(",")))
-#     jaccard_df = calc_jaccard_df(df, "Proteins")
-#     proteins_jaccard_dfs.append(jaccard_df)
-# proteins_jaccard_dfs[0]
-
-# %%
-# annotated_proteins_jaccard_dfs = []
-
-# for condition, proteins_jaccard_df in zip(conditions, proteins_jaccard_dfs):
-
-#     df = distinct_unique_proteins_df.loc[distinct_unique_proteins_df[condition_col] == condition].reset_index(drop=True)
-#     df = (
-#         distinct_unique_proteins_df.loc[
-#             distinct_unique_proteins_df[condition_col] == condition,
-#             [condition_col, "Fraction", "FractionRepetition", "Algorithm", "AlgorithmRepetition"]
-#         ]
-#         .reset_index(drop=True)
-#     )
-#     df = pd.concat([df, proteins_jaccard_df], axis=1)
-#     index_details_dict = {
-#         i: f'{row["Fraction"]}-{row["FractionRepetition"]}-{row["Algorithm"]}-{row["AlgorithmRepetition"]}'
-#         for i, row in df.iterrows()
-#     }
-#     df = df.rename(columns=index_details_dict)
-
-#     annotated_proteins_jaccard_dfs.append(df)
-
-# annotated_proteins_jaccard_dfs[0]
-
-# %% [markdown]
-# ##### Heatmap
-
-# %%
-# df = annotated_proteins_jaccard_dfs[0]
-# # df = df.drop("Gene", axis=1).set_index(["Fraction", "FractionRepetition", "Algorithm", "AlgorithmRepetition"])
-# # df = df.set_axis(df.index, axis=1)
-# df
-
-# %%
-# fractions = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
-# total_len = len(df)
-# fraction_len = total_len / len(fractions)
-# middles = [int((fraction_len / 2) + (fraction_len * x)) for x in range(len(fractions))]
-# middles
-
-# %%
-# ticks = []
-# for x, fraction in enumerate(
-#     [fraction for fraction in fractions for _ in range(int(fraction_len))], start=1
-# ):
-#     if x > total_len:
-#         break
-#     tick = str(fraction) if x in middles else ""
-#     ticks.append(tick)
-
-# %%
-# for x, tick in enumerate(ticks, start=1):
-#     if tick != "":
-#         ic(x, tick)
-
-# %%
-# data = df.iloc[:, 5:].to_numpy()
-
-# %%
-# data.shape
-
-# %%
-# fig = px.imshow(
-#     # data,
-#     df.iloc[:, 5:],
-#     labels=dict(x="Fraction", y="Fraction", color="Jaccard index"),
-#     x=df["Fraction"],
-#     y=df["Fraction"],
-# )
-# fig.update_xaxes(side="top")
-# fig.show()
-
-# %%
-# import dash_bio
-# https://plotly.com/python/clustergram/
-
-# %%
-
-# %%
-# import seaborn as sns
-
-# sns.set_theme()
-# uniform_data = df.iloc[:, 5:].to_numpy()
-# ax = sns.heatmap(uniform_data)
-
-# %% [markdown]
-# ##### Distribution
-
-# %%
-# melted_proteins_jaccard_dfs = []
-
-# for annotated_proteins_jaccard_df in annotated_proteins_jaccard_dfs:
-
-#     df = pd.melt(
-#         annotated_proteins_jaccard_df,
-#         id_vars=[
-#             condition_col,
-#             "Fraction",
-#             "FractionRepetition",
-#             "Algorithm",
-#             "AlgorithmRepetition",
-#         ],
-#         var_name="ComparedAgainst",
-#         value_name="JaccardIndex",
-#     )
-
-#     melted_proteins_jaccard_dfs.append(df)
-
-# melted_proteins_jaccard_dfs[0]
-
-# %%
-# TODO - rerun this heavy cell after the notebook finished its running
-
-# cols = len(conditions)
-
-# x_title = "Jaccard index"
-# y_title = "# solutions"
-# title_text = "Distribution of Jaccard index between different solutions"
-
-# fig = make_subplots(
-#     rows=1,
-#     # rows=2,
-#     cols=cols,
-#     subplot_titles=conditions,
-#     shared_yaxes=True,
-#     x_title=x_title,
-#     y_title=y_title,
-# )
-
-# min_x = None
-# max_x = 0
-
-# algorithms = ["Ascending", "Descending"]
-
-# for col, (condition, melted_proteins_jaccard_df) in enumerate(zip(conditions, melted_proteins_jaccard_dfs), start=1):
-
-#     for i, alg in enumerate(algorithms):
-
-#         x = melted_proteins_jaccard_df.loc[
-#             melted_proteins_jaccard_df["Algorithm"] == alg, "JaccardIndex"
-#         ]
-
-#         fig.add_trace(
-#             go.Histogram(
-#                 x=x,
-#                 marker_color=subcolors_discrete_map[condition][i],
-#                 name=f"{condition}, {alg}",
-#             ),
-#             row=1,
-#             col=col,
-#         )
-
-#         min_x = min(min_x, x.min()) if min_x else x.min()
-#         max_x = max(max_x, x.max())
-
-# fig.update_layout(
-#     template=template,
-#     barmode="overlay",  # Overlay both histograms
-#     title_text=title_text,
-#     legend_title_text=f"{condition_col}, Algorithm",
-# )
-
-# # fig.update_traces(opacity=0.75)  # Reduce opacity to see both histograms
-# fig.update_xaxes(range=[min_x * 0.9, max_x * 1.1])
-
-# # fig.show()
-# fig.show(config={'staticPlot': True, 'responsive': False})
-
-# %%
-# TODO - rerun this heavy cell after the notebook finished its running
-
-# fractions = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
-# comparisons = ["Same<br>fraction", "Other<br>fractions"]
-# algorithms = ["Ascending", "Descending"]
-
-# x_title = "Fraction"
-# y_title = "Jaccard index"
-# title_text = "Intra- & inter-fraction Jaccard index comparisons"
-
-# cols = len(conditions)
-# rows = 2
-
-# fig = make_subplots(
-#     rows=rows,
-#     cols=cols,
-#     column_titles=conditions,
-#     row_titles=comparisons,
-#     # horizontal_spacing=0./rows,
-#     shared_xaxes=True,
-#     shared_yaxes=True,
-#     x_title=x_title,
-#     y_title=y_title,
-# )
-
-# for col, (condition, melted_proteins_jaccard_df) in enumerate(zip(conditions, melted_proteins_jaccard_dfs), start=1):
-
-#     # melted_proteins_jaccard_df = melted_proteins_jaccard_df.sample(200) # todo temp
-
-#     intra_fractions_lines = melted_proteins_jaccard_df.apply(lambda x: x["ComparedAgainst"].startswith(str(x["Fraction"])), axis=1)
-
-#     for row in range(1, rows + 1):
-
-#         if row == 1:
-#             inter_or_intra_df = melted_proteins_jaccard_df.loc[intra_fractions_lines]
-#             self_lines = inter_or_intra_df.apply(lambda x: f"{x['Fraction']}-{x['FractionRepetition']}-{x['Algorithm']}-{x['AlgorithmRepetition']}" == x["ComparedAgainst"], axis=1)
-#             inter_or_intra_df = inter_or_intra_df.loc[~self_lines]
-#         else:
-#             inter_or_intra_df = melted_proteins_jaccard_df.loc[~intra_fractions_lines]
-
-#         for i, alg in enumerate(algorithms):
-
-#             alg_df = inter_or_intra_df.loc[
-#                 inter_or_intra_df["Algorithm"] == alg
-#             ]
-#             x = alg_df["Fraction"]
-#             y = alg_df["JaccardIndex"]
-
-#             fig.add_trace(
-#                     go.Box(
-#                         x=x,
-#                         y=y,
-#                         marker_color=subcolors_discrete_map[condition][i],
-#                         name=f"{condition}, {alg}",
-#                         showlegend=row==1
-#                     ),
-#                     row=row,
-#                     col=col,
-#                 )
-
-# fig.update_layout(
-#     template=template,
-#     boxmode="group",
-#     title_text=title_text,
-#     legend_title_text=f"{condition_col}, Algorithm",
-#     height=600,
-#     # width=800
-# )
-
-# fig.update_xaxes(
-#     tick0 = 0,
-#     dtick = 0.1,
-#     tickangle = -60,
-#     matches='x'
-# )
-
-# fig.update_yaxes(range=[0, 1])
-
-# # fig.show()
-# fig.show(config={'staticPlot': True, 'responsive': False})
-
-# %%
 
 # %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"} toc-hr-collapsed=true
 # ## Supporting reads' coverage
