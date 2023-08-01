@@ -619,7 +619,8 @@ editable_aas_per_sample = [
     df.iloc[:, unique_proteins_first_col_pos:].shape[1] for df in unique_proteins_dfs
 ]
 
-editable_aas_per_sample
+for x in editable_aas_per_sample:
+    print(x)
 
 # %%
 # sorted(editable_aas_per_sample)
@@ -854,7 +855,7 @@ aligned_reads_counts
 sum(aligned_reads_counts)
 
 # %%
-total_aligned_filtered_reads - sum(aligned_reads_counts)
+# total_aligned_filtered_reads - sum(aligned_reads_counts)
 
 # %%
 # filtered_aligned_reads_counts = [
@@ -901,8 +902,9 @@ distinct_unique_proteins_counts = (
         distinct_unique_proteins_df["Fraction"] == max_fraction
     ]
     .groupby(condition_col)["NumOfProteins"]
-    .mean()
-    .round()
+    # .mean()
+    # .round()
+    .max()
     .astype(int)
 )
 
@@ -916,7 +918,7 @@ data_loss_df = pd.DataFrame(
         "Pileup reads": pileup_reads_counts,
         "Unique reads": unique_reads_counts,
         # "Distinct unique reads (mean)": distinct_unique_reads_counts,
-        "Distinct unique proteins (mean)": distinct_unique_proteins_counts,
+        "Distinct unique proteins (max)": distinct_unique_proteins_counts,
     },
     index=conditions,
 )

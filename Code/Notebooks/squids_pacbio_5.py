@@ -518,7 +518,9 @@ unique_proteins_first_col_pos
 editable_aas_per_sample = [
     df.iloc[:, unique_proteins_first_col_pos:].shape[1] for df in unique_proteins_dfs
 ]
+editable_aas_per_sample
 
+# %%
 avg_editables_aas_per_sample = sum(editable_aas_per_sample) / len(unique_proteins_dfs)
 
 print(f"Average of {avg_editables_aas_per_sample:.0f} editable AAs per sample")
@@ -1007,8 +1009,9 @@ distinct_unique_proteins_counts = (
         == 1.0
     ]
     .groupby(condition_col)["NumOfProteins"]
-    .mean()
-    .round()
+    # .mean()
+    # .round()
+    .max()
     .astype(int)
 )
 
@@ -1022,7 +1025,7 @@ data_loss_df = pd.DataFrame(
         "Pileup reads": pileup_reads_counts,
         "Unique reads": unique_reads_counts,
         # "Distinct unique reads (mean)": distinct_unique_reads_counts,
-        "Distinct unique proteins (mean)": distinct_unique_proteins_counts,
+        "Distinct unique proteins (max)": distinct_unique_proteins_counts,
     },
     index=conditions,
 )

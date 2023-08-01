@@ -656,7 +656,18 @@ fig.update_xaxes(
     range=[current_study_min_x, current_study_max_x],
 )
 
-fig.update_yaxes(range=[0, 100], tick0=0, dtick=20)
+# custom_tick_labels = ['0', '1', '2', '3', '4', '5']
+# fig.update_xaxes(ticktext=custom_tick_labels)
+fig.update_yaxes(
+    range=[0, 100], tick0=0, dtick=20
+    # range=[0, 100], tick0=0, dtick=20, 
+    # tick0=0, dtick=20
+    # range=[0, 2],
+    # range=[-2.8, 2],
+    # type="log",
+    # nticks=3, tick0=0,
+    # ticktext=['0', '1', '2', '3', '4', '5']
+)
 
 width = 1100
 height = 600
@@ -679,6 +690,132 @@ fig.write_image(
     width=width,
     height=height
 )
+
+fig.show()
+
+# %%
+fig = make_subplots(
+    rows=2,
+    cols=1,
+    shared_xaxes=True,
+    # subplot_titles=["Known positions", "New positions"],
+    row_titles=["Known<br>positions", "New<br>positions"],
+    x_title="Position",
+    y_title="% editing in squid's PCLO",
+    # vertical_spacing=0.15,
+    vertical_spacing=0.13,
+)
+
+symbols = ["circle", "square"]
+
+current_study_min_x = end
+current_study_max_x = start
+
+for row in [1, 2]:
+
+    if row == 1:
+        df = merged_ref_base_positions_df.loc[
+            merged_ref_base_positions_df["Edited_Known"]
+        ]
+    else:
+        df = merged_ref_base_positions_df.loc[
+            ~merged_ref_base_positions_df["Edited_Known"]
+        ]
+
+    for color, editing_percent_col, edited_col, col_suffix in zip(
+        px.colors.qualitative.Pastel[:3],
+        editing_percent_cols,
+        edited_cols,
+        col_suffixes,
+    ):
+
+        if row == 2 and col_suffix == "Known":
+            continue
+
+        x = df["Position"]
+        y = df[editing_percent_col]
+
+        if col_suffix != "Known":
+            _min_x = min([i for i, j in zip(x, y) if j != 0])
+            current_study_min_x = min(_min_x, current_study_min_x)
+            current_study_max_x = max(max(x), current_study_max_x)
+
+        if row == 1:
+            fig.add_trace(
+                go.Scatter(
+                    x=x,
+                    y=y,
+                    mode="lines+markers",
+                    marker=dict(
+                        color=color,
+                        opacity=0.7,
+                        size=4,
+                        # line=dict(
+                        #     width=2,
+                        #     color='DarkSlateGrey'
+                        # )
+                    ),
+                    name=col_suffix,
+                ),
+                row=row,
+                col=1,
+            )
+        else:
+            fig.add_trace(
+                go.Scatter(
+                    x=x,
+                    y=y,
+                    mode="lines+markers",
+                    marker=dict(color=color, opacity=0.7, size=4),
+                    showlegend=False,
+                ),
+                row=row,
+                col=1,
+            )
+
+fig.update_xaxes(
+    range=[current_study_min_x, current_study_max_x],
+)
+
+# custom_tick_labels = ['0', '1', '2', '3', '4', '5']
+# fig.update_xaxes(ticktext=custom_tick_labels)
+
+lowest_y_greater_than_0 = pd.Series(merged_ref_base_positions_df.loc[:, ["%Editing_PacBio", "%Editing_Illumina", "%Editing_Known"]].values.reshape(-1)).replace(0, np.NaN).min()
+
+fig.update_yaxes(
+    # range=[0, 100], tick0=0, dtick=20
+    # range=[0, 100], tick0=0, dtick=20, 
+    # tick0=0, dtick=20
+    # range=[0, 2],
+    range=[np.log(lowest_y_greater_than_0) / np.log(10), 2],
+    type="log",
+    # nticks=3, 
+    # dtick=1,
+    tick0=0,
+    # ticktext=['0', '1', '2', '3', '4', '5']
+)
+
+width = 1100
+height = 600
+
+fig.update_layout(
+    template=template, 
+    width=width,
+    height=height, 
+    legend=dict(
+        orientation="h",
+        yanchor="bottom",
+        y=1.02,
+        xanchor="right",
+        x=0.9
+    )
+)
+
+# fig.write_image(
+#     "Comparison of editing levels across platforms and studies in squid’s PCLO.svg",
+#     width=width,
+#     height=height
+# )
 
 fig.show()
 

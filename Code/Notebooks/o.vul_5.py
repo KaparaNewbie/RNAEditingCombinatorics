@@ -1328,58 +1328,52 @@ per_sample_editing_index_df
 # ### Noise in positions
 
 # %%
-# noise_dfs = []
-# for positions_df, condition, strand in zip(positions_dfs, conditions, strands):
-#     ref_base = "A" if strand == "+" else "T"
-#     df = positions_df.loc[positions_df["RefBase"] != ref_base]
-#     df = df.assign(Noise2=df["Noise"] * 100).rename(columns={"Noise2": "%Noise"})
-#     noise_dfs.append(df)
-# merged_noise_df = pd.concat(noise_dfs)
-# merged_noise_df.iloc[[0, 1, -2, -1]]
-
+positions_df
 
 # %%
-# fig = px.violin(
-#     merged_noise_df,
-#     x=condition_col,
-#     y="%Noise",
-#     # color=condition_col,
-#     # color_discrete_map=color_discrete_map,
-#     color_discrete_sequence=["black"],
-#     # category_orders=category_orders,
-#     template=template,
-#     title="Noise levels",
-# )
-# fig.update_layout(showlegend=False, title="Octopus")
-# fig.update_yaxes(
-#     title="% noise",
-#     # tickmode='linear',
-#     # tick0=0,
-#     # dtick=2
-# )
-# fig.show()
-
+per_chrom_mean_noise_levels = (
+    positions_df
+    .loc[positions_df["Noise"] <= 0.1]
+    .groupby("Chrom")["Noise"].nlargest(3)
+    .reset_index().drop("level_1", axis=1)
+    .groupby("Chrom").mean().reset_index()
+)
+per_chrom_mean_noise_levels
 
 # %%
-# for positions_df, condition, strand in zip(positions_dfs, conditions, strands):
-#     ref_base = "A" if strand == "+" else "T"
-#     df = positions_df.loc[positions_df["RefBase"] != ref_base]
-#     df = df.assign(Noise2=df["Noise"] * 100).rename(columns={"Noise2": "%Noise"})
-#     fig = px.bar(
-#         df,
-#         x="Position",
-#         y="%Noise",
-#         color=condition_col,
-#         color_discrete_map=color_discrete_map,
-#         category_orders=category_orders,
-#         # template=template,
-#         template="simple_white",
-#         title=f"Noise per position in {condition}",
-#     )
-#     fig.update_layout(showlegend=False)
-#     fig.update_yaxes(title="% noise")
-#     fig.show()
+per_chrom_mean_noise_levels["% noise"] = per_chrom_mean_noise_levels["Noise"] * 100
+fig = px.histogram(
+    per_chrom_mean_noise_levels,
+    x="% noise",
+    # y="TotalCoverage",
+    # color="EditingStatus",
+    # log_y=True
+    color_discrete_sequence=['black'],
+    labels={"% noise": "% mean noise"}
+)
+width = 560
+height = 400
 
+fig.update_layout(
+    #  xaxis_title="Editing frequency",
+    # title="Octopus",
+    title="Pooled octopus data",
+    title_x=0.15,
+     yaxis_title="Transcripts",
+     template=template,
+     width=width,
+     height=height,
+    #  showlegend=False
+     
+)
+
+fig.write_image(
+    "Mean per chrom noise levels - Octopus.svg",
+    width=width,
+    height=height,
+)
+
+fig.show()
 
 # %% [markdown]
 # ### Known & new editing sites
@@ -2475,8 +2469,8 @@ for (
         max_y_2 = max(max_y_2, y.max())
     
         fig.add_trace(
-            # go.Bar(
-            go.Scatter(
+            go.Bar(
+            # go.Scatter(
                 x=x,
                 y=y,
                 # marker_color=tissues_color_discrete_map[tissue],
