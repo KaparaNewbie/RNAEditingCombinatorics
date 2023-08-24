@@ -8,7 +8,7 @@ TODO add a brief explanation about the project.
 <br>
 
 <p align="center">
-    <img src="octopus_with_tentacles_made_from_dna_strands_mixing_test_tubes_in_the_lab.png"  width="300" height="300">
+    <img src="**octopus_with_tentacles_made_from_dna_strands_mixing_test_tubes_in_the_lab**.png"  width="300" height="300">
 </p>
 
 # Setup

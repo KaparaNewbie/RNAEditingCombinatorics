@@ -488,57 +488,126 @@ main();
 
 
 
-# infile = "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
-# firstcolpos = 15
-# delim = "\t"
-# # postfix_to_remove = ".aligned.sorted.MinRQ998.unique_proteins.csv"
-# # prefix_to_remove = ""
-# # postfix_to_add = ".GRANTHAM1974-100"
-# idcol = "Protein"
-# datatype = "Proteins"
-# # outdir = "D.pealeii/MpileupAndTranscripts/RQ998.2"
-# # fracstep = 0.2
-# # maxfrac = 1.0
-# # fracrepetitions = 4
-# # algrepetitions = 2
-# testfraction = 1.0
-# randseed = 1892
-# run_solve_threaded = false
-# sortresults = false
-# algs = ["Ascending", "Descending"]
-# gcp = false
-# shutdowngcp = false
 
-
-# df, firstcolpos = preparedf!(
-#     infile, delim, datatype, idcol, firstcolpos,
-#     testfraction, randseed
-# )
-
-# G = indistinguishable_rows(df, idcol; firstcolpos)
-
-# ArrG = @DArray [G for _ ∈ 1:1]  # move G across processes on a distributed array in order to save memory
-
-# fraction = 0.2
-# nrows = size(df, 1)
-# nsamplerows = convert(Int, round(fraction * nrows))
-# fracrepetition = 1
+# postfix_to_remove = ".aligned.sorted.MinRQ998.unique_proteins.csv"
+# prefix_to_remove = ""
+# postfix_to_add = ".GRANTHAM1974-100"
+# outdir = "D.pealeii/MpileupAndTranscripts/RQ998.2"
+# fracstep = 0.2
+# maxfrac = 1.0
+# fracrepetitions = 4
 # algrepetitions = 2
+infile = "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
+firstcolpos = 15
+delim = "\t"
+idcol = "Protein"
+datatype = "Proteins"
+testfraction = 0.1
+randseed = 1892
+run_solve_threaded = false
+sortresults = false
+algs = ["Ascending", "Descending"]
+gcp = false
+shutdowngcp = false
 
 
-# results = run_fracrepetition(
-#     df,
-#     idcol,
-#     ArrG,
-#     fraction,
-#     nsamplerows,
-#     fracrepetition,
-#     algrepetitions,
-#     run_solve_threaded,
-#     sortresults,
-#     algs,
-# )
+df, firstcolpos = preparedf!(
+    infile, delim, datatype, idcol, firstcolpos,
+    testfraction, randseed
+)
 
+G = indistinguishable_rows(df, idcol; firstcolpos)
+
+ArrG = @DArray [G for _ ∈ 1:1]  # move G across processes on a distributed array in order to save memory
+
+fraction = 1.0
+nrows = size(df, 1)
+nsamplerows = convert(Int, round(fraction * nrows))
+fracrepetition = 1
+algrepetitions = 2
+
+results = run_fracrepetition(
+    df,
+    idcol,
+    ArrG,
+    fraction,
+    nsamplerows,
+    fracrepetition,
+    algrepetitions,
+    run_solve_threaded,
+    sortresults,
+    algs,
+)
+
+best_mis_results_size = maximum(results[:, "NumUniqueSamples"])
+
+
+mis_ilp(G, optimizer)
+
+
+
+using JuMP
+using HiGHS
+
+optimizer = HiGHS.Optimizer
+
+
+
+
+
+
+
+sort_edge_by_vertices_names(u, v) = u < v ? (u, v) : (v, u)
+
+function mis_ilp(G, optimizer)
+    V = keys(G)
+    E = Set([sort_edge_by_vertices_names(u, v) for u ∈ V for v ∈ G[u] if u != v])
+
+    model = Model(optimizer)
+    @variable(model, x[V], Bin)
+    @objective(model, Max, sum(x))
+    for (u, v) ∈ E
+        @constraint(model, 0 <= x[u] + x[v] <= 1)
+    end
+    optimize!(model)
+
+    # termination_status(model) == 1 || throw(ErrorException("ILP failed"))
+    println("termination_status(model) = ", termination_status(model))
+
+    V2 = [v for v in V if value(x[v]) == 1]
+
+    length(V2) == objective_value(model) || throw(ErrorException("The objective value is not equal to the number of vertices whose value is 1 in the MIS"))
+
+    return V2
+end
+
+
+
+# V = keys(G)
+# E = Set([sort_edge_by_vertices_names(u, v) for u ∈ V for v ∈ G[u] if u != v])
+
+# model = Model(HiGHS.Optimizer)
+# @variable(model, x[V], Bin)
+# @objective(model, Max, sum(x))
+# for (u, v) ∈ E
+#     @constraint(model, 0 <= x[u] + x[v] <= 1)
+# end
+
+# print(model)
+
+# optimize!(model)
+
+# termination_status(model)
+
+# objective_value(model)
+
+# for u in V
+#     println(u, " = ", value(x[u]))
+# end
+
+# value(x["8Tb"]) == 1
+
+# V2 = [v for v in V if value(x[v]) == 1]
 
 
 
