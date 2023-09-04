@@ -508,7 +508,8 @@ randseed = 1892
 run_solve_threaded = true
 sortresults = false
 algs = [
-    # "Ascending", "Descending", "ILP"
+    # "Ascending", "Descending", 
+    "ILP"
     ]
 gcp = false
 shutdowngcp = false
