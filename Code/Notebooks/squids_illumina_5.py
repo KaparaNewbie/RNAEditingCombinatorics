@@ -217,6 +217,7 @@ expression_files = [
 known_sites_file = (
     "/private7/projects/Combinatorics/D.pealeii/Annotations/D.pea.EditingSites.csv"
 )
+transcriptome_file = "/private7/projects/Combinatorics/D.pealeii/Annotations/orfs_squ.fa"
 samtools_path = "/home/alu/kobish/anaconda3/envs/combinatorics/bin/samtools"
 threads = 20
 code_dir = "/private7/projects/Combinatorics/Code"
@@ -264,6 +265,9 @@ from sklearn import linear_model
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.metrics import mean_squared_error, r2_score
+from Bio import SeqIO
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
 
 # from numpy.random import RandomState
 
@@ -276,6 +280,7 @@ from Alignment.alignment_utils import (
     count_unique_filtered_aligned_reads,
     count_unique_reads,
 )
+from EditingUtils.seq import make_fasta_dict
 
 
 # %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"}
@@ -2163,7 +2168,7 @@ fig.write_image(
 fig.show()
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 # fig = px.bar(
 #     mean_distinct_proteins_df,
 #     x=condition_col,
@@ -2192,7 +2197,7 @@ fig.show()
 # fig.show()
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 # distinct_proteins_per_mapped_reads_df = distinct_unique_proteins_df.copy()
 # distinct_proteins_per_mapped_reads_df = distinct_proteins_per_mapped_reads_df.loc[
 #     distinct_proteins_per_mapped_reads_df["Algorithm"] == "Descending"
@@ -2216,7 +2221,7 @@ fig.show()
 # distinct_proteins_per_mapped_reads_df
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 # mean_distinct_proteins_per_mapped_reads_df = pd.DataFrame(
 #     {
 #         condition_col: conditions,
@@ -2247,7 +2252,7 @@ fig.show()
 
 # mean_distinct_proteins_per_mapped_reads_df
 
-# %% jupyter={"source_hidden": true}
+# %%
 # fig = go.Figure()
 
 # for condition in conditions:
@@ -2308,7 +2313,7 @@ fig.show()
 # fig.show()
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 # fig = px.bar(
 #     mean_distinct_proteins_per_mapped_reads_df,
 #     x=condition_col,
@@ -2331,7 +2336,7 @@ fig.show()
 # fig.show()
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 # fig = px.violin(
 #     distinct_proteins_per_mapped_reads_df,
 #     x=condition_col,
@@ -2355,11 +2360,11 @@ fig.show()
 # fig.show()
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 # distinct_unique_proteins_df["NumOfProteins"].max()
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 # condition = conditions[0]
 # df = distinct_unique_proteins_df.loc[
 #     distinct_unique_proteins_df[condition_col] == condition
@@ -2369,16 +2374,16 @@ fig.show()
 # x_fraction_mean
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 # y_fraction_mean = grouped_df["NumOfProteins"].mean().reset_index()
 # y_fraction_mean
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 # x_fraction_mean.merge(y_fraction_mean, on="Fraction")
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 # x_axis_name = "Reads"
 # y_axis_name = "Distinct unique proteins"
 # head_title = (
@@ -2518,7 +2523,7 @@ fig.show()
 # fig.show()
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 # x_axis_name = "Mapped reads"
 # y_axis_name = "Distinct proteins"
 # head_title = (
@@ -4919,6 +4924,8 @@ for assignment_df in assignment_dfs:
 assignment_dfs[0]
 
 # %%
+
+# %%
 x_axis_name = "Distinct protein rank"
 y_axis_name = "Cummulative relative<br>expression (%)"
 head_title = "Weighted cummulative expression vs. distinct protein rank"
@@ -5021,7 +5028,7 @@ fig.write_image(
 
 fig.show()
 
-# %% jupyter={"source_hidden": true}
+# %%
 # x_axis_name = "Distinct protein rank"
 # y_axis_name = "Cummulative relative<br>expression (%)"
 # head_title = "Weighted cummulative expression vs. distinct protein rank"
@@ -5130,7 +5137,7 @@ fig.show()
 
 # fig.show()
 
-# %% jupyter={"source_hidden": true}
+# %%
 # cols = min(facet_col_wrap, len(conditions), 4)
 # rows = ceil(len(conditions) / cols)
 # row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
@@ -5772,6 +5779,79 @@ fig.show()
 # %%
 
 # %% [markdown]
+# ##### Sequneces of ROBO2's 20 most-common proteins
+
+# %%
+robo2_assignment_df = assignment_dfs[-1].sort_values("%RelativeExpression", ascending=False).reset_index(drop=True).iloc[:20]
+robo2_assignment_df
+
+# %%
+robo2_unique_proteins_df = unique_proteins_dfs[-1]
+robo2_unique_proteins_df
+
+# %%
+robo2_20_recoding_sites = robo2_unique_proteins_df.loc[robo2_unique_proteins_df["Protein"].isin(robo2_assignment_df["Protein"])].iloc[:, unique_proteins_first_col_pos:].reset_index(drop=True)
+robo2_20_recoding_sites.set_axis([f"ROBO2_{i}" for i in range(20)], axis="index").to_csv("ROBO2_20_recoding_substitutions.tsv", sep="\t")
+robo2_20_recoding_sites
+
+# %%
+transcriptome_dict = make_fasta_dict(transcriptome_file)
+robo2_mrna_seq = transcriptome_dict[chroms[-1]]
+robo2_mrna_seq
+
+# %%
+robo2_start = starts[-1] - 1
+robo2_end = ends[-1]
+robo2_start, robo2_end
+
+# %%
+
+# %%
+robo2_mrna_seq[robo2_start:robo2_end].translate()
+
+# %%
+robo2_mrna_seq[robo2_start:robo2_start+3]
+
+# %%
+robo2_mrna_seq[robo2_start:robo2_start+3].translate()
+
+# %%
+robo2_20_proteins_df = pd.DataFrame(
+    {
+        # f"{x}:{x+3}({robo2_mrna_seq[x:x+3].translate()})": [str(robo2_mrna_seq[x:x+3].translate())] * 20
+        f"{x}:{x+3}({robo2_mrna_seq[x:x+3].translate()})": [str(robo2_mrna_seq[x:x+3].translate())] * 20
+        for x in range(robo2_start, robo2_end, 3)
+    }
+)
+robo2_20_proteins_df.update(robo2_20_recoding_sites)
+robo2_20_proteins_df = robo2_20_proteins_df.set_axis([f"ROBO2_{i}" for i in range(20)], axis="index")
+robo2_20_proteins_df.to_csv("ROBO2_20_seqs.tsv", sep="\t")
+robo2_20_proteins_df
+
+# %%
+robo2_20_proteins_simplified_df = robo2_20_proteins_df.applymap(lambda aa: aa if "," not in aa else "X")
+robo2_20_proteins_simplified_df
+
+# %%
+robo2_20_proteins_simplified_seq_records = [
+    SeqRecord(
+        seq=Seq("".join(aa for aa in robo2_20_proteins_simplified_df.iloc[i])),
+        id=f"ROBO2_{i}",
+        description=""
+    )
+    for i in range(20)
+]
+simplified_seq_records_output_file = "ROBO2_20_simplified_seqs.fasta"
+SeqIO.write(robo2_20_proteins_simplified_seq_records, simplified_seq_records_output_file, "fasta")
+
+
+# %%
+
+# %%
+
+# %%
+
+# %% [markdown]
 # ##### Clustering
 
 # %%
@@ -5815,7 +5895,7 @@ def drop_uniformative_aa_cols(df):
 
     return df.filter(informative_cols)
 
-# %% jupyter={"source_hidden": true}
+# %%
 # ML_INPUT_FIRST_COL_POS = 11
 
 
@@ -6077,7 +6157,7 @@ def run_pcas(
     return components_dfs
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 # # equal_exp_tsne_input_dfs = [
 # #     prepare_ml_input_df(
 # #         max_sol_df,
@@ -6142,7 +6222,7 @@ n_iter_500_weighted_conditions_tsnes, n_iter_500_weighted_conditions_Xs = run_ts
 # %%
 len(n_iter_500_weighted_conditions_tsnes)
 
-# %% jupyter={"source_hidden": true}
+# %%
 help(fig.write_image)
 
 # %%
@@ -6801,7 +6881,7 @@ n_jobs = 60
 # %% [markdown]
 # ##### Shannon's entropy
 
-# %% jupyter={"source_hidden": true}
+# %%
 # def calc_data_entropy(max_sol_exp_df, prcnt_equal_exp_col, prcnt_weighted_exp_col):
 #     def _calc_data_entropy(prcnt_exp_col):
 #         p = max_sol_exp_df[prcnt_exp_col] / 100
@@ -6814,13 +6894,13 @@ n_jobs = 60
 
 #     return s_data_equal_exp, s_data_weighted_exp
 
-# %% jupyter={"source_hidden": true}
+# %%
 # def calc_hypothetical_entropy(max_sol_exp_df, first_col_pos):
 #     p = max_sol_exp_df.iloc[:, first_col_pos:].apply(np.mean)
 #     s_hypo = sum(-p * np.log2(p) - (1 - p) * np.log2((1 - p)))
 #     return s_hypo
 
-# %% jupyter={"source_hidden": true}
+# %%
 # def calc_entropies(
 #     max_sol_exp_df,
 #     first_col_pos,
@@ -6833,7 +6913,7 @@ n_jobs = 60
 #     s_hypo = calc_hypothetical_entropy(max_sol_exp_df, first_col_pos)
 #     return s_data_equal_exp, s_data_weighted_exp, s_hypo
 
-# %% jupyter={"source_hidden": true}
+# %%
 # max_sol_exp_dfs = [
 #     prepare_ml_input_df(
 #         max_sol_df,
@@ -7378,7 +7458,7 @@ fig.update_yaxes(range=[0, max_y * 0.2])
 fig.show()
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 # cols = min(facet_col_wrap, len(conditions), 5)
 # rows = ceil(len(conditions) / cols)
 # row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]

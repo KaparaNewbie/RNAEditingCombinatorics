@@ -63,6 +63,7 @@ include(joinpath(@__DIR__, "indistinguishable_rows.jl"))
     using TimerOutputs
     # using BioSymbols
     using BioSequences
+    using JuMP, HiGHS # for ilp in solve
     # const to = TimerOutput() # Create a TimerOutput, this is the main type that keeps track of everything.
     include(joinpath(@__DIR__, "consts.jl")) # for ∅
     include(joinpath(@__DIR__, "timeformatters.jl"))
@@ -502,11 +503,13 @@ firstcolpos = 15
 delim = "\t"
 idcol = "Protein"
 datatype = "Proteins"
-testfraction = 0.1
+testfraction = 1.0
 randseed = 1892
-run_solve_threaded = false
+run_solve_threaded = true
 sortresults = false
-algs = ["Ascending", "Descending"]
+algs = [
+    # "Ascending", "Descending", "ILP"
+    ]
 gcp = false
 shutdowngcp = false
 
@@ -515,16 +518,15 @@ df, firstcolpos = preparedf!(
     infile, delim, datatype, idcol, firstcolpos,
     testfraction, randseed
 )
-
 G = indistinguishable_rows(df, idcol; firstcolpos)
-
 ArrG = @DArray [G for _ ∈ 1:1]  # move G across processes on a distributed array in order to save memory
 
 fraction = 1.0
 nrows = size(df, 1)
 nsamplerows = convert(Int, round(fraction * nrows))
 fracrepetition = 1
-algrepetitions = 2
+# algrepetitions = 2
+algrepetitions = 1
 
 results = run_fracrepetition(
     df,
@@ -538,48 +540,78 @@ results = run_fracrepetition(
     sortresults,
     algs,
 )
+sort!(results, "NumUniqueSamples", rev=true)
 
-best_mis_results_size = maximum(results[:, "NumUniqueSamples"])
+isindepdendetset(G, split(results[1, "UniqueSamples"], ","))
 
-
-mis_ilp(G, optimizer)
-
-
-
-using JuMP
-using HiGHS
-
-optimizer = HiGHS.Optimizer
+unique(split(results[1, "UniqueSamples"], ",")) == unique(split(results[2, "UniqueSamples"], ","))
 
 
+# # define input parameters for pmap
+# # @timeit to "fracrepetitions_inputs" fracrepetitions_inputs = prep_pmap_input(fracstep, maxfrac, df, fracrepetitions)
+# fracrepetitions_inputs = prep_pmap_input(fracstep, maxfrac, df, fracrepetitions)
+
+# # @timeit to "run_fracrepetition" fracrepetitions_results = pmap(
+# fracrepetitions_results = pmap(
+#     fracrepetitions_inputs;
+#     retry_delays=ExponentialBackOff(n=3, first_delay=5, max_delay=1000)
+# ) do (fraction, nsamplerows, fracrepetition)
+#     try
+#         run_fracrepetition(
+#             df,
+#             idcol,
+#             ArrG,
+#             fraction,
+#             nsamplerows,
+#             fracrepetition,
+#             algrepetitions,
+#             run_solve_threaded,
+#             sortresults,
+#             algs
+#         )
+#     catch e
+#         @warn "$(loggingtime())\trun_fracrepetition failed" infile fraction fracrepetition e
+#         missing
+#     end
+# end
 
 
 
 
+# best_mis_results_size = maximum(results[:, "NumUniqueSamples"])
 
-sort_edge_by_vertices_names(u, v) = u < v ? (u, v) : (v, u)
 
-function mis_ilp(G, optimizer)
-    V = keys(G)
-    E = Set([sort_edge_by_vertices_names(u, v) for u ∈ V for v ∈ G[u] if u != v])
+# mis_ilp_results = mis_ilp(G, optimizer)
 
-    model = Model(optimizer)
-    @variable(model, x[V], Bin)
-    @objective(model, Max, sum(x))
-    for (u, v) ∈ E
-        @constraint(model, 0 <= x[u] + x[v] <= 1)
-    end
-    optimize!(model)
 
-    # termination_status(model) == 1 || throw(ErrorException("ILP failed"))
-    println("termination_status(model) = ", termination_status(model))
 
-    V2 = [v for v in V if value(x[v]) == 1]
 
-    length(V2) == objective_value(model) || throw(ErrorException("The objective value is not equal to the number of vertices whose value is 1 in the MIS"))
+# using JuMP
+# using HiGHS
 
-    return V2
-end
+# sort_edge_by_vertices_names(u, v) = u < v ? (u, v) : (v, u)
+
+# function mis_ilp(G, optimizer=HiGHS.Optimizer)
+#     V = keys(G)
+#     E = Set([sort_edge_by_vertices_names(u, v) for u ∈ V for v ∈ G[u] if u != v])
+
+#     model = Model(optimizer)
+#     @variable(model, x[V], Bin)
+#     @objective(model, Max, sum(x))
+#     for (u, v) ∈ E
+#         @constraint(model, 0 <= x[u] + x[v] <= 1)
+#     end
+#     optimize!(model)
+
+#     # termination_status(model) == 1 || throw(ErrorException("ILP failed"))
+#     println("termination_status(model) = ", termination_status(model))
+
+#     V2 = [v for v in V if value(x[v]) == 1]
+
+#     length(V2) == objective_value(model) || throw(ErrorException("The objective value is not equal to the number of vertices whose value is 1 in the MIS"))
+
+#     return V2
+# end
 
 
 

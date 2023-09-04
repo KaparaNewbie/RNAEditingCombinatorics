@@ -50,6 +50,70 @@ function distinctascending(G, sortresults::Bool=false)
 
 end
 
+"""
+    isindepdendetset(G, V2)
+
+Return `true` if `V2` is an independet set in G, 
+i.e., if no two vertices in `V2` are connected by an edge in `G`,
+and `false` otherwise.
+"""
+function isindepdendetset(G, V2)
+    for u ∈ V2
+        for v ∈ G[u]
+            if v ∈ V2
+                return false
+            end
+        end
+    end
+    return true
+end
+
+
+sort_edge_by_vertices_names(u, v) = u < v ? (u, v) : (v, u)
+
+
+"""
+    ilp(G)
+
+`G = (V, E)` is a simple graph represented by a dictionary of neighborhood lists.   
+(So technically, `V = keys(G)` and `E = {(u, v) | v ∈ G[u]}`.)  
+Return `V2`, a maximal independent set (MIS) of vertices in `V` according to `G = (V, E)`, 
+by modeling this problem as an integer linear program (ILP) and solving it using the `optimizer`, 
+as follows:
+* Each vertex is a binary variable (equals either 1 or 0).
+* The objective function is the maximal sum of all vertices' values.
+* The model is constrained by the edges in `E` s.t. the sum of the values of any two vertices connected by an edge is at most 1, 
+so at most, only one of the vertices may be included in `V2`,
+Return the vertices in `V2` in a vector. Use `sortresults=true` to return them sorted in ascending order of vertices' names.
+"""
+function ilp(G, sortresults::Bool=false; optimizer=HiGHS.Optimizer)
+    V = keys(G)
+    E = Set([sort_edge_by_vertices_names(u, v) for u ∈ V for v ∈ G[u] if u != v]) # TODO replace != with ≠
+
+    model = Model(optimizer)
+    # set_attribute(model, MOI.NumberOfThreads, Threads.nthreads())
+    @variable(model, x[V], Bin)
+    @objective(model, Max, sum(x))
+    # TODO add all constraints at once?
+    for (u, v) ∈ E
+        @constraint(model, 0 <= x[u] + x[v] <= 1)
+    end
+    optimize!(model)
+
+    # termination_status(model) == 1 || throw(ErrorException("ILP failed"))
+    println("termination_status(model) = ", termination_status(model))
+
+    V2 = [v for v in V if value(x[v]) == 1]
+
+    length(V2) == objective_value(model) || throw(ErrorException("The objective value is not equal to the number of vertices whose value is 1 in the MIS"))
+
+    # return V2 as a vector (optionally sorted in ascending order of names)
+    if sortresults
+        return ThreadsX.sort([x for x ∈ V2])
+    else
+        return collect(V2)
+    end
+end
 
 
 
@@ -258,7 +322,8 @@ end
 const algfuncs = Dict(
     "Ascending" => distinctascending,
     "Descending" => distinctdescending,
-    "Unordered" => distinctunordered
+    "Unordered" => distinctunordered,
+    "ILP" => ilp,
 )
 
 
