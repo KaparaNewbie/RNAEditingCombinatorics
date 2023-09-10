@@ -75,20 +75,21 @@ sort_edge_by_vertices_names(u, v) = u < v ? (u, v) : (v, u)
 """
     ilp(G)
 
-`G = (V, E)` is a simple graph represented by a dictionary of neighborhood lists.   
-(So technically, `V = keys(G)` and `E = {(u, v) | v ∈ G[u]}`.)  
+`G = (V, E)` is a simple graph represented by a dictionary of neighborhood lists 
+(`V = keys(G)` and `E = {(u, v) | v ∈ G[u]}`).  
 Return `V2`, a maximal independent set (MIS) of vertices in `V` according to `G = (V, E)`, 
 by modeling this problem as an integer linear program (ILP) and solving it using the `optimizer`, 
 as follows:
 * Each vertex is a binary variable (equals either 1 or 0).
 * The objective function is the maximal sum of all vertices' values.
-* The model is constrained by the edges in `E` s.t. the sum of the values of any two vertices connected by an edge is at most 1, 
-so at most, only one of the vertices may be included in `V2`,
-Return the vertices in `V2` in a vector. Use `sortresults=true` to return them sorted in ascending order of vertices' names.
+* The model is constrained by the edges in `E` s.t. the sum of the values of any two vertices connected 
+by an edge is at most 1, so at most, only one of the vertices may be included in `V2`.  
+
+Return the vertices in `V2` in a vector (possibly sorted in ascending order of vertices' names if `sortresults == true`).
 """
 function ilp(G, sortresults::Bool=false; optimizer=HiGHS.Optimizer)
     V = keys(G)
-    E = Set([sort_edge_by_vertices_names(u, v) for u ∈ V for v ∈ G[u] if u != v]) # TODO replace != with ≠
+    E = Set([sort_edge_by_vertices_names(u, v) for u ∈ V for v ∈ G[u] if u ≠ v]) # TODO replace != with ≠
 
     model = Model(optimizer)
     # set_attribute(model, MOI.NumberOfThreads, Threads.nthreads())
@@ -96,16 +97,16 @@ function ilp(G, sortresults::Bool=false; optimizer=HiGHS.Optimizer)
     @objective(model, Max, sum(x))
     # TODO add all constraints at once?
     for (u, v) ∈ E
-        @constraint(model, 0 <= x[u] + x[v] <= 1)
+        @constraint(model, 0 ≤ x[u] + x[v] ≤ 1)
     end
     optimize!(model)
 
     # termination_status(model) == 1 || throw(ErrorException("ILP failed"))
     println("termination_status(model) = ", termination_status(model))
 
-    V2 = [v for v in V if value(x[v]) == 1]
+    V2 = [v for v ∈ V if value(x[v]) == 1]
 
-    length(V2) == objective_value(model) || throw(ErrorException("The objective value is not equal to the number of vertices whose value is 1 in the MIS"))
+    length(V2) == convert(Int, objective_value(model)) || throw(ErrorException("The objective value is not equal to the number of vertices whose value is 1 in the MIS"))
 
     # return V2 as a vector (optionally sorted in ascending order of names)
     if sortresults

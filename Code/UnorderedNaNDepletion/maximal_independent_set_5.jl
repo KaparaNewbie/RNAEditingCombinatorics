@@ -505,7 +505,7 @@ idcol = "Protein"
 datatype = "Proteins"
 testfraction = 1.0
 randseed = 1892
-run_solve_threaded = true
+run_solve_threaded = false
 sortresults = false
 algs = [
     # "Ascending", "Descending", 
@@ -542,6 +542,8 @@ results = run_fracrepetition(
     algs,
 )
 sort!(results, "NumUniqueSamples", rev=true)
+
+isindepdendetset(G, V2)
 
 isindepdendetset(G, split(results[1, "UniqueSamples"], ","))
 
