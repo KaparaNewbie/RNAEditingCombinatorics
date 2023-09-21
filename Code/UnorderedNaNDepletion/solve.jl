@@ -89,19 +89,16 @@ Return the vertices in `V2` in a vector (possibly sorted in ascending order of v
 """
 function ilp(G, sortresults::Bool=false; optimizer=HiGHS.Optimizer)
     V = keys(G)
-    E = Set([sort_edge_by_vertices_names(u, v) for u ∈ V for v ∈ G[u] if u ≠ v]) # TODO replace != with ≠
+    E = Set([sort_edge_by_vertices_names(u, v) for u ∈ V for v ∈ G[u] if u ≠ v])
 
     model = Model(optimizer)
-    # set_attribute(model, MOI.NumberOfThreads, Threads.nthreads())
     @variable(model, x[V], Bin)
     @objective(model, Max, sum(x))
-    # TODO add all constraints at once?
     for (u, v) ∈ E
         @constraint(model, 0 ≤ x[u] + x[v] ≤ 1)
     end
     optimize!(model)
 
-    # termination_status(model) == 1 || throw(ErrorException("ILP failed"))
     println("termination_status(model) = ", termination_status(model))
 
     V2 = [v for v ∈ V if value(x[v]) == 1]
