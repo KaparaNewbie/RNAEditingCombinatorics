@@ -103,7 +103,8 @@ function ilp(G, sortresults::Bool=false; optimizer=HiGHS.Optimizer)
 
     V2 = [v for v ∈ V if value(x[v]) == 1]
 
-    length(V2) == convert(Int, objective_value(model)) || throw(ErrorException("The objective value is not equal to the number of vertices whose value is 1 in the MIS"))
+    length(V2) == convert(Int, objective_value(model)) || 
+    throw(ErrorException("The objective value is not equal to the number of vertices whose value is 1 in the MIS"))
 
     # return V2 as a vector (optionally sorted in ascending order of names)
     if sortresults
