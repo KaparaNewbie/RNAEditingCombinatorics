@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.14.5
+#       jupytext_version: 1.15.2
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -37,7 +37,6 @@ import pandas as pd
 import plotly.colors as pc
 import plotly.express as px
 import plotly.graph_objects as go
-
 from scipy import interpolate  # todo unimport this later?
 import scipy.stats
 import seaborn as sns
@@ -1636,7 +1635,7 @@ fig.update_layout(
     # title="Octopus",
     title="Pooled octopus data",
     title_x=0.15,
-    yaxis_title="Transcripts",
+    yaxis_title="Genes",
     template=template,
     width=width,
     height=height,
@@ -2141,15 +2140,15 @@ y_min = 1
 
 tmr50_legendtitle = "50 reads"
 tmr1000_legendtitle = "1000 reads"
-legend_title_text = "Minimum coverage per transcript      "
+legend_title_text = "Minimum coverage per gene      "
 
 marker_size = 4
 
 fig = make_subplots(
     rows=2,
     cols=1,
-    x_title="Distinct proteins per transcript",
-    y_title="% of transcripts",
+    x_title="Distinct proteins per gene",
+    y_title="% of genes",
     shared_yaxes=True,
     shared_xaxes=True,
     # vertical_spacing=facet_row_spacing / 2.5,
@@ -2343,7 +2342,7 @@ fig.add_annotation(
     y=np.log(1) / np.log(10),
     xref="x",
     yref="y",
-    text=f"<b>Mann-Whitney U between<br>neural to non-neural transcripts</b><br>p-val = {pv:.2e}<br>statistic = {statistic:.2g}",
+    text=f"<b>Mann-Whitney U between<br>neural to non-neural genes</b><br>p-val = {pv:.2e}<br>statistic = {statistic:.2g}",
     bgcolor="white",
     borderpad=4,
     font=dict(size=11),
@@ -2378,7 +2377,7 @@ fig.update_layout(
 )
 
 fig.write_image(
-    "Distinct proteins per transcript vs. % of transcripts - log(y) - Octopus.svg",
+    "Distinct proteins per gene vs. % of genes - log(y) - Octopus.svg",
     width=width,
     height=height,
 )
@@ -4474,7 +4473,7 @@ fig.show()
 # %%
 distinct_unique_proteins_df
 
-# %%
+# %% jupyter={"source_hidden": true}
 # min_max_fraction_1_distinct_prots_df = (
 #     distinct_unique_proteins_df.loc[distinct_unique_proteins_df["Fraction"] == 1.0]
 #     .groupby(condition_col)["NumOfProteins"]
@@ -4517,10 +4516,10 @@ dispersion_df["HighDispersion"] = dispersion_df["%SolutionsDispersion"] > 1
 
 dispersion_df
 
-# %%
+# %% jupyter={"source_hidden": true}
 # len(dispersion_df.loc[dispersion_df["HighDispersion"]])
 
-# %%
+# %% jupyter={"source_hidden": true}
 # fig = px.scatter(
 #     dispersion_df,
 #     x="MinNumOfProteins",
@@ -4551,7 +4550,7 @@ dispersion_df
 
 # fig.show()
 
-# %%
+# %% jupyter={"source_hidden": true}
 # fig = px.scatter(
 #     dispersion_df.loc[dispersion_df["%SolutionsDispersion"] > 0],
 #     x="NumOfReads",
@@ -4584,7 +4583,7 @@ dispersion_df
 
 # fig.show()
 
-# %%
+# %% jupyter={"source_hidden": true}
 # fig = px.scatter(
 #     dispersion_df.loc[dispersion_df["%SolutionsDispersion"] > 0],
 #     x="MinNumOfProteins",
@@ -4626,7 +4625,7 @@ fig = go.Figure(
 
 # fig.update_xaxes(title="% dispersion<br><sub>100 * (max - min) / max</sub>")
 fig.update_xaxes(title="% dispersion of distinct proteins sets' sizes")
-fig.update_yaxes(title="Transcripts", type="log")
+fig.update_yaxes(title="Genes", type="log")
 
 fig.update_layout(
     # showlegend=False,

@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.14.5
+#       jupytext_version: 1.15.2
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -116,8 +116,12 @@ fig = px.histogram(
     marginal="histogram",
     # opacity=0.75,
     # barmode="group",
-    labels={"ReadLen": "CCS read length", "Gene": "Transcript"},
-    title="Squid's PacBio",
+    labels={
+    "ReadLen": "CCS read length", 
+            # "Gene": "Transcript"
+           },
+    # title="Squid's PacBio",
+    title="Squid's Long-reads",
     color=condition_col,
     color_discrete_map=color_discrete_map,
     category_orders=category_orders,
@@ -235,9 +239,12 @@ fig = px.histogram(
     barmode="overlay",
     marginal="box",
     histfunc="avg",
-    labels={"Deletions": "deletion events", "ReadQuality": "Read quality", "Gene": "Transcript"},
+    labels={"Deletions": "deletion events", "ReadQuality": "Read quality", 
+            # "Gene": "Transcript"
+           },
     # title="Occurrence of deletion events (regardless of their length) vs. read quality",
-    title="Squid's PacBio",
+    # title="Squid's PacBio",
+    title="Squid's Long-reads",
     color=condition_col,
     color_discrete_map=color_discrete_map,
     category_orders=category_orders,
@@ -250,17 +257,21 @@ fig = px.histogram(
 for axis in fig.layout:
     if type(fig.layout[axis]) == go.layout.YAxis:
         fig.layout[axis].title.text = ""
+
+width = 550
+height = 350
+        
 fig.update_layout(
     title_x=0.17,
     yaxis_title="Deletion events (avg)",
-    width=600,
-    height=350,
+    width=width,
+    height=height,
 )
 
 fig.write_image(
     "Avg deletion events vs read quality - PacBio.svg",
-    width=600,
-    height=350,
+    width=width,
+    height=height,
 )
 
 fig.show()

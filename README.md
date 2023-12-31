@@ -2689,3 +2689,32 @@ Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000/DistinctProteins.regular.26.6.23.log
 ```
 * alu 13
+
+
+```bash
+python \
+Code/UnorderedNaNDepletion/prepare_fofns_for_expression.py \
+--proteins_dir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50/ProteinsFiles \
+--proteins_postfix .gz \
+--distinct_proteins_dir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50/DistinctProteins
+
+DISTINCTFILES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50/DistinctProteins/DistinctProteinsForExpressionLevels.txt)
+ALLROTSFILES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50/DistinctProteins/UniqueProteinsForExpressionLevels.txt)
+SAMPLESNAMES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50/DistinctProteins/ChromsNamesForExpressionLevels.txt)
+
+mkdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50/ExpressionLevels
+
+nohup \
+julia \
+--project=. \
+--threads 20 \
+Code/UnorderedNaNDepletion/expressionlevels.jl \
+--distinctfiles $DISTINCTFILES \
+--allprotsfiles $ALLROTSFILES \
+--samplenames $SAMPLESNAMES \
+--firstcolpos 16 \
+--fractions 0.2 0.4 0.6 0.8 1.0 \
+--outdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50/ExpressionLevels \
+> O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50/expressionlevels.regular.26.9.23.out &
+```
+* alu 13
