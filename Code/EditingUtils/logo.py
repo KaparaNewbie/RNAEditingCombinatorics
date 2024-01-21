@@ -113,11 +113,15 @@ def plot_multiple_logos(
     # cols = min(facet_col_wrap, len(conditions), 4)
     # rows = ceil(len(conditions) / cols)
 
-    ncols = min(max_cols if max_cols >= 4 else num_of_plots, num_of_plots)
+    ncols = min((max_cols if max_cols >= 4 else num_of_plots), num_of_plots)
     nrows = ceil(num_of_plots / ncols)
 
     fig, axes = plt.subplots(
-        nrows=nrows, ncols=ncols, figsize=(width, height), gridspec_kw={"wspace": 0.5}
+        nrows=nrows,
+        ncols=ncols,
+        figsize=(width, height),
+        gridspec_kw={"wspace": 0.5},
+        squeeze=False,
     )
     # axes = list(chain.from_iterable(axes))
     axes = axes.flat
@@ -216,12 +220,13 @@ def multiple_logos_from_fasta_files(
     ]
 
     # plot the motif according to the frequency file, and save it to temp_dir
-    if len(freq_dfs) > 1:
-        fig = plot_multiple_logos(
-            freq_dfs, sub_titles, main_title, width, height, max_cols
-        )
-    else:
-        fig = plot_single_logo(freq_dfs[0], sub_titles[0], width, height)
+    # if len(freq_dfs) > 1:
+    #     fig = plot_multiple_logos(
+    #         freq_dfs, sub_titles, main_title, width, height, max_cols
+    #     )
+    # else:
+    #     fig = plot_single_logo(freq_dfs[0], sub_titles[0], width, height)
+    fig = plot_multiple_logos(freq_dfs, sub_titles, main_title, width, height, max_cols)
     if out_file:
         fig.savefig(Path(out_file).absolute(), dpi=dpi)
     return fig
