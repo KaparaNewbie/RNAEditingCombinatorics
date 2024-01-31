@@ -37,12 +37,13 @@ import pandas as pd
 import plotly.colors as pc
 import plotly.express as px
 import plotly.graph_objects as go
+
 from scipy import interpolate  # todo unimport this later?
 import scipy.stats
 import seaborn as sns
 from Bio import SeqIO, motifs  # biopython
-from Bio.SeqRecord import SeqRecord
 from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
 from icecream import ic
 from logomaker import Logo  # logomaker
 from matplotlib_venn import venn2, venn3
@@ -285,6 +286,9 @@ complete_data_df = data_df.loc[data_df["ExpressionFile"].notna()].reset_index(dr
 #     "Name", keep=False, ignore_index=True
 # )
 complete_data_df
+
+# %%
+# complete_data_df[["Chrom"]].to_csv("TMR50.CompleteData.Chroms.tsv", sep="\t", index=False)
 
 # %%
 robo2_index = complete_data_df.loc[complete_data_df["Chrom"] == robo2_chrom].index[0]
@@ -675,6 +679,146 @@ positions_df = pd.concat(positions_dfs, ignore_index=True)
 positions_df
 
 # %%
+edited_positions_df = positions_df.loc[
+    positions_df["Edited"],
+    [
+        condition_col,
+        "Chrom",
+        "Position",
+        "TotalCoverage",
+        "A",
+        "T",
+        "C",
+        "G",
+        "EditingFrequency",
+    ],
+]
+edited_positions_df
+
+# %%
+edited_positions_df["TotalCoverage"].describe()
+
+# %%
+edited_positions_df["TotalCoverage"].value_counts()
+
+# %%
+totcov_vs_editfreq_df = edited_positions_df.groupby(["TotalCoverage", "EditingFrequency"]).size().reset_index().rename(columns={0: "DenovoSites"})
+totcov_vs_editfreq_df
+
+# %%
+totcov_vs_editing_df = edited_positions_df.groupby(["TotalCoverage", "G"]).size().reset_index().rename(columns={0: "DenovoSites"})
+totcov_vs_editing_df
+
+# %%
+totcov_vs_editing_df.head(30)
+
+# %%
+totcov_vs_editing_df.groupby("G").size().reset_index()
+
+# %%
+totcov_vs_editing_df.loc[totcov_vs_editing_df["G"] == 1]
+
+# %%
+fig = px.scatter(
+    totcov_vs_editfreq_df,
+    x="TotalCoverage",
+    y="EditingFrequency",
+    color="DenovoSites",
+    template=template,
+    log_x=True
+)
+fig.update_layout(
+    width=600,
+    height=400
+)
+fig.show()
+
+# %%
+fig = px.scatter(
+    totcov_vs_editing_df,
+    x="TotalCoverage",
+    y="G",
+    color="DenovoSites",
+    template=template,
+    log_x=True,
+    marginal_x="rug",
+    marginal_y="histogram"
+)
+fig.update_layout(
+    width=600,
+    height=400
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    edited_positions_df,
+    x="TotalCoverage",
+    # y="EditingFrequency",
+    # histfunc="avg",
+    marginal="box",
+    template=template,
+    # log_x=True,
+    log_y=True
+)
+fig.update_layout(
+    width=600,
+    height=400
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    edited_positions_df,
+    x="TotalCoverage",
+    y="EditingFrequency",
+    histfunc="avg",
+    marginal="box",
+    template=template,
+    # log_x=True
+)
+fig.update_layout(
+    width=600,
+    height=400
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    totcov_vs_editing_df,
+    x="TotalCoverage",
+    y="G",
+    histfunc="avg",
+    marginal="box",
+    template=template,
+    # log_x=True
+)
+fig.update_layout(
+    width=600,
+    height=400
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    edited_positions_df.loc[edited_positions_df["TotalCoverage"]<=1000],
+    x="TotalCoverage",
+    y="EditingFrequency",
+    histfunc="avg",
+    marginal="box",
+    template=template
+)
+fig.update_layout(
+    width=600,
+    height=400
+)
+fig.show()
+
+# %%
+
+# %%
+
+# %%
 
 # %%
 
@@ -697,6 +841,12 @@ print(
 reads_dfs = [pd.read_csv(reads_file, sep=sep) for reads_file in reads_files]
 reads_dfs[0]
 
+
+# %%
+reads_dfs[1]
+
+# %%
+len(reads_dfs[0])
 
 # %%
 # {
@@ -1288,7 +1438,7 @@ def calc_per_transcript_per_sample_coverage(
     return per_sample_per_transcript_coverage_df
 
 
-# %%
+# %% jupyter={"source_hidden": true}
 # expanded_positions_df = (
 #     positions_dfs[0]
 #     .loc[~positions_dfs[0]["InProbRegion"]]
@@ -1320,7 +1470,7 @@ def calc_per_transcript_per_sample_coverage(
 
 # expanded_positions_df
 
-# %%
+# %% jupyter={"source_hidden": true}
 # per_sample_coverage = expanded_positions_df.groupby("Sample")["Read"].apply(lambda x: x.unique().size)
 # per_sample_coverage
 
@@ -1336,7 +1486,7 @@ def calc_per_transcript_per_sample_coverage(
 # # per_sample_per_transcript_coverage_df.insert(0, )
 # per_sample_per_transcript_coverage_df
 
-# %%
+# %% jupyter={"source_hidden": true}
 # per_sample_per_transcript_coverage_df = (
 #     expanded_positions_df.groupby(["Chrom", "Transcript", "Sample"])["Read"]
 #     .apply(lambda x: x.unique().size)
@@ -1345,7 +1495,7 @@ def calc_per_transcript_per_sample_coverage(
 # )
 # per_sample_per_transcript_coverage_df
 
-# %%
+# %% jupyter={"source_hidden": true}
 # calc_per_transcript_per_sample_coverage(positions_dfs[0])
 
 # %%
@@ -1354,7 +1504,7 @@ def calc_per_transcript_per_sample_coverage(
 #     for positions_df in positions_dfs
 # ]
 
-with Pool(processes=10) as pool:
+with Pool(processes=4) as pool:
     per_transcript_per_sample_coverage_dfs = pool.starmap(
         func=calc_per_transcript_per_sample_coverage,
         iterable=[
@@ -1478,7 +1628,6 @@ fig.show()
 
 # %%
 def calc_per_transcript_per_sample_a_and_g_counts(positions_df, strand, samples):
-
     ref_base = "A" if strand == "+" else "T"
     alt_base = "G" if strand == "+" else "C"
 
@@ -1617,23 +1766,74 @@ per_chrom_mean_noise_levels = (
 per_chrom_mean_noise_levels
 
 # %%
+per_chrom_mean_noise_levels["Noise"].describe()
+
+# %%
+per_chrom_mean_noise_levels["Noise"].median() * 100
+
+# %%
+described_noise_df = per_chrom_mean_noise_levels["Noise"].describe()
+quartiles = ["25%", "50%", "75%"]
+noise_quartiles = described_noise_df.loc[quartiles].mul(100).values
+noise_quartiles
+
+# %%
+# new version with the noise quartiles
+
 per_chrom_mean_noise_levels["% noise"] = per_chrom_mean_noise_levels["Noise"] * 100
 fig = px.histogram(
     per_chrom_mean_noise_levels,
     x="% noise",
-    # y="TotalCoverage",
-    # color="EditingStatus",
-    # log_y=True
     color_discrete_sequence=["black"],
-    labels={"% noise": "% mean noise"},
+    labels={"% noise": "Per-gene noise level [%]"},
 )
-width = 560
-height = 400
+
+f = fig.full_figure_for_development(warn=False)
+x = f.data[0]["x"]
+xbins = f.data[0].xbins
+plotbins = list(
+    np.arange(
+        start=xbins["start"],
+        stop=xbins["end"] + xbins["size"],
+        step=xbins["size"],
+    )
+)
+counts, bins = np.histogram(list(x), bins=plotbins)
+max_count = max(counts)
+max_noise_quartiles_y = max_count * 0.8
+
+for i, (quartile, noise_quartile) in enumerate(zip(quartiles, noise_quartiles)):
+    fig.add_shape(
+        type="line",
+        x0=noise_quartile,
+        x1=noise_quartile,
+        y0=0,
+        y1=max_noise_quartiles_y - (i * 0.3 * max_noise_quartiles_y),
+        line=dict(
+            color="red",
+            width=5,
+            dash="dash",
+        ),
+        opacity=0.5,
+        label=dict(
+            text=f"{quartile}<br> of genes",
+            textposition="end",
+            textangle=45,
+            # font_size=14,
+        ),
+    )
+
+fig.update_xaxes(dtick=1)
+fig.update_yaxes(dtick=50)
+
+width = 650
+height = 650 * 400 / 560
 
 fig.update_layout(
     #  xaxis_title="Editing frequency",
     # title="Octopus",
-    title="Pooled octopus data",
+    # title="Pooled octopus data",
+    title="Noise level<br><sub>Whole-transcriptome long-reads (octopus)</sub>",
     title_x=0.15,
     yaxis_title="Genes",
     template=template,
@@ -1642,8 +1842,9 @@ fig.update_layout(
     #  showlegend=False
 )
 
+
 fig.write_image(
-    "Mean per chrom noise levels - Octopus.svg",
+    "Mean per chrom noise levels - with quartiles - Octopus.svg",
     width=width,
     height=height,
 )
@@ -1651,58 +1852,40 @@ fig.write_image(
 fig.show()
 
 # %%
-# noise_dfs = []
-# for positions_df, condition, strand in zip(positions_dfs, conditions, strands):
-#     ref_base = "A" if strand == "+" else "T"
-#     df = positions_df.loc[positions_df["RefBase"] != ref_base]
-#     df = df.assign(Noise2=df["Noise"] * 100).rename(columns={"Noise2": "%Noise"})
-#     noise_dfs.append(df)
-# merged_noise_df = pd.concat(noise_dfs)
-# merged_noise_df.iloc[[0, 1, -2, -1]]
+# # current version
 
-
-# %%
-# fig = px.violin(
-#     merged_noise_df,
-#     x=condition_col,
-#     y="%Noise",
-#     # color=condition_col,
-#     # color_discrete_map=color_discrete_map,
+# per_chrom_mean_noise_levels["% noise"] = per_chrom_mean_noise_levels["Noise"] * 100
+# fig = px.histogram(
+#     per_chrom_mean_noise_levels,
+#     x="% noise",
+#     # y="TotalCoverage",
+#     # color="EditingStatus",
+#     # log_y=True
 #     color_discrete_sequence=["black"],
-#     # category_orders=category_orders,
+#     labels={"% noise": "Per-gene noise level [%]"},
+# )
+# width = 560
+# height = 400
+
+# fig.update_layout(
+#     #  xaxis_title="Editing frequency",
+#     # title="Octopus",
+#     title="Pooled octopus data",
+#     title_x=0.15,
+#     yaxis_title="Genes",
 #     template=template,
-#     title="Noise levels",
+#     width=width,
+#     height=height,
+#     #  showlegend=False
 # )
-# fig.update_layout(showlegend=False, title="Octopus")
-# fig.update_yaxes(
-#     title="% noise",
-#     # tickmode='linear',
-#     # tick0=0,
-#     # dtick=2
+
+# fig.write_image(
+#     "Mean per chrom noise levels - Octopus.svg",
+#     width=width,
+#     height=height,
 # )
+
 # fig.show()
-
-
-# %%
-# for positions_df, condition, strand in zip(positions_dfs, conditions, strands):
-#     ref_base = "A" if strand == "+" else "T"
-#     df = positions_df.loc[positions_df["RefBase"] != ref_base]
-#     df = df.assign(Noise2=df["Noise"] * 100).rename(columns={"Noise2": "%Noise"})
-#     fig = px.bar(
-#         df,
-#         x="Position",
-#         y="%Noise",
-#         color=condition_col,
-#         color_discrete_map=color_discrete_map,
-#         category_orders=category_orders,
-#         # template=template,
-#         template="simple_white",
-#         title=f"Noise per position in {condition}",
-#     )
-#     fig.update_layout(showlegend=False)
-#     fig.update_yaxes(title="% noise")
-#     fig.show()
-
 
 # %% [markdown]
 # ### Known & new editing sites
@@ -1714,7 +1897,8 @@ rows = 1
 fig, ax = plt.subplots(
     # nrows=rows,
     # ncols=cols,
-    figsize=(3.5 * cols, 2.5 * rows),
+    # figsize=(3.5 * cols, 2.5 * rows),
+    figsize=(4.5 * cols, 2.5 * rows),
     constrained_layout=True,
     gridspec_kw=dict(hspace=0.2, wspace=0.3),
 )
@@ -1730,13 +1914,16 @@ sets = [
     for label in labels
 ]
 
-labels[0] = f"Edited\n({len(sets[0])})"
-labels[1] = f"Known editing\n({len(sets[1])})"
+# labels[0] = f"Edited\n({len(sets[0])})"
+# labels[1] = f"Known editing\n({len(sets[1])})"
+labels[0] = f"De-novo\n({len(sets[0])})"
+labels[1] = f"Known\n({len(sets[1])})"
 
 venn2(sets, set_labels=labels, ax=ax)
 
 fig.suptitle(
-    "Pooled octopus data",
+    # "Pooled octopus data",
+    "Whole-transcriptome octopus data",
     fontsize="xx-large",
     # y=1.2
 )
@@ -1815,11 +2002,30 @@ editing_sites_bedtool = (
 
 
 fasta_files = [editing_sites_bedtool.seqfn]
-main_title = None
-sub_titles = ["Pooled octopus sites"]
+# main_title = None
+# sub_titles = ["Pooled octopus sites"]
+main_title = "Whole-transcriptome octopus data"
+sub_titles = [""]
 
 # %%
 out_file = Path("ADAR motif of pooled editing sites - Octopus.svg")
+
+# %%
+num_of_plots = 1
+_max_cols = 4
+ncols = min((_max_cols if _max_cols >= 4 else num_of_plots), num_of_plots)
+nrows = ceil(num_of_plots / ncols)
+ncols, nrows
+
+# %%
+fig, axes = plt.subplots(
+        nrows=nrows, ncols=ncols, figsize=(0.33*14, 4), gridspec_kw={"wspace": 0.5}, squeeze=False
+    )
+
+# %%
+axes.flat
+
+# %%
 
 # %%
 multiple_logos_from_fasta_files(
@@ -1827,8 +2033,9 @@ multiple_logos_from_fasta_files(
     main_title,
     sub_titles,
     out_file,
-    width=14 / 3,
+    width=0.33*14,
     height=4,
+    dpi=300
 );
 
 # %%
@@ -2147,6 +2354,356 @@ marker_size = 4
 fig = make_subplots(
     rows=2,
     cols=1,
+    # x_title="Distinct proteins per gene",
+    x_title="Distinct protein isoforms per gene",
+    y_title="% of genes",
+    shared_yaxes=True,
+    shared_xaxes=True,
+    # vertical_spacing=facet_row_spacing / 2.5,
+    # horizontal_spacing=facet_col_spacing * 1.5,
+    vertical_spacing=0.05,
+    # horizontal_spacing=0.025,
+)
+
+# tmr50
+
+x = df["NumOfProteins"]
+y = df["CummulativeTranscripts"]
+
+y_min = min(y_min, y.min())
+
+tmr50_all_color = "purple"
+
+fig.add_trace(
+    go.Scatter(
+        x=x,
+        y=y,
+        mode="lines+markers",
+        marker=dict(color=tmr50_all_color, size=marker_size),
+        line=dict(color=tmr50_all_color, dash="dash"),
+        # name="All",
+        # legendgroup=tmr50_legendtitle,  # this can be any string
+        # legendgrouptitle_text=tmr50_legendtitle,
+        name=">= 50 reads",
+        legend="legend",
+    ),
+    row=1,
+    col=1,
+)
+
+
+fig.add_trace(
+    go.Scatter(
+        x=[x_mean],
+        y=[y_mean],
+        mode="markers+text",
+        marker=dict(
+            color=tmr50_all_color,
+            size=marker_size * 2.5,
+            # line=dict(
+            #     color="yellow",
+            #     width=3
+            # )
+        ),
+        showlegend=False,
+        # text=f"{x_mean:.0f} distinct proteins<br>(avg)",
+        text=f"{x_mean:.0f} distinct<br>proteins<br>(avg)",
+        textposition="bottom left",
+        textfont=dict(color=tmr50_all_color, size=11),
+    ),
+    row=1,
+    col=1,
+)
+
+# tmr1000
+
+x = tmr1000_df["NumOfProteins"]
+y = tmr1000_df["CummulativeTranscripts"]
+
+y_min = min(y_min, y.min())
+
+fig.add_trace(
+    go.Scatter(
+        x=x,
+        y=y,
+        mode="lines+markers",
+        marker=dict(color="green", size=marker_size),
+        line=dict(color="green", dash="dash"),
+        # name="All",
+        # legendgroup=tmr1000_legendtitle,  # this can be any string
+        # legendgrouptitle_text=tmr1000_legendtitle,
+        name=">= 1000 reads   ",
+        legend="legend",
+    ),
+    row=1,
+    col=1,
+)
+
+
+fig.add_trace(
+    go.Scatter(
+        x=[tmr1000_x_mean],
+        y=[tmr1000_y_mean],
+        mode="markers+text",
+        marker=dict(
+            color="green",
+            size=marker_size * 2.5,
+            # line=dict(
+            #     color="yellow",
+            #     width=3
+            # )
+        ),
+        showlegend=False,
+        text=f"{tmr1000_x_mean:.0f} distinct proteins<br>(avg)",
+        textposition="top right",
+        textfont=dict(color="green", size=11),
+    ),
+    row=1,
+    col=1,
+)
+
+fig.add_shape(
+    type="rect",
+    x0=1,
+    y0=0,
+    x1=5,
+    y1=100,
+    line=dict(
+        # color="RoyalBlue",
+        width=0,
+    ),
+    # fillcolor="LightSkyBlue",
+    fillcolor="orange",
+    opacity=0.2,
+    row=1,
+    col=1,
+)
+
+fig.add_shape(
+    type="rect",
+    x0=5,
+    y0=0,
+    x1=50,
+    y1=100,
+    line=dict(
+        # color="RoyalBlue",
+        width=0,
+    ),
+    fillcolor="LightSkyBlue",
+    # fillcolor="orange",
+    # fillcolor="red",
+    opacity=0.2,
+    row=1,
+    col=1,
+)
+
+fig.add_trace(
+    go.Scatter(
+        x=[2.25, 17],
+        # y=[80, 85],
+        y=[0.3, 0.3],
+        text=[
+            "~5 isoforms<br>per gene<br>due to<br>alternative<br>splicing",
+            #   "Alternative splicing:<br>an average of ~5 isoforms per gene",
+            "~50 distinct<br>polypeptides<br>per gene",
+        ],
+        mode="text",
+        textfont=dict(size=11),
+        showlegend=False,
+    ),
+    row=1,
+    col=1,
+)
+
+for neural_condition, neural_trace_name, neural_df in zip(
+    neural_conditions, neural_trace_names, neural_dfs
+):
+    if neural_condition == "Missing":
+        continue
+    x = neural_df["NumOfProteins"]
+    y = neural_df["CummulativeTranscripts"]
+    color = neural_color_discrete_map[neural_condition]
+
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=y,
+            mode="lines+markers",
+            marker=dict(color=color, size=marker_size),
+            line=dict(color=color, dash="dash", width=0.5),
+            name=neural_trace_name,
+            # legendgroup=tmr50_legendtitle,  # this can be any string
+            # legendgrouptitle_text=tmr50_legendtitle,
+            legend="legend1",
+        ),
+        # row=1, col=2
+        row=2,
+        col=1,
+    )
+
+    y_min = min(y_min, y.min())
+
+
+x = max_distinct_proteins_df.loc[
+    max_distinct_proteins_df["IsNeural"] == "Yes", "NumOfProteins"
+]
+y = max_distinct_proteins_df.loc[
+    max_distinct_proteins_df["IsNeural"] == "No", "NumOfProteins"
+]
+statistic, pv = scipy.stats.mannwhitneyu(x, y)
+
+fig.add_annotation(
+    x=np.log(10) / np.log(10),
+    y=np.log(1) / np.log(10),
+    xref="x",
+    yref="y",
+    text=f"<b>Mann-Whitney U between<br>neural to non-neural genes</b><br>p-val = {pv:.2e}<br>statistic = {statistic:.2g}",
+    bgcolor="white",
+    borderpad=4,
+    font=dict(size=11),
+    opacity=0.8,
+    showarrow=False,
+    row=2,
+    col=1,
+)
+
+fig.update_xaxes(type="log")
+fig.update_yaxes(
+    type="log",
+    # range=[-2, 2.2]
+    range=[np.log(y_min) * 1.1 / np.log(10), 2.2],
+)
+
+width = 800
+height = 800
+
+fig.update_layout(
+    # xaxis_title="Distinct proteins per transcript",
+    # yaxis_title="% of transcripts",
+    # title="Pooled octopus data",
+    title="Whole-transcriptome octopus data",
+    title_x=0.15,
+    template=template,
+    width=width,
+    height=height,
+    # legend_title_text=legend_title_text,
+    # legend_font=dict(size=10),
+    # legend_grouptitlefont=dict(size=12),
+    # showlegend=False,
+#     legend={
+#             # "title": "By country",
+#             # "xref": "container",
+#             # "yref": "container",
+#          "xref": "paper",
+#             "yref": "paper",
+#             "y": 0.9,
+#             # "bgcolor": "Orange",
+#         },
+#         legend1={
+#             # "title": "By continent",
+#             # "xref": "container",
+#             # "yref": "container",
+#              "xref": "paper",
+#             "yref": "paper",
+#             "y": 0.5,
+#             # "bgcolor": "Gold",
+
+#         },
+)
+
+fig.write_image(
+    "Distinct proteins per gene vs. % of genes - log(y) - Octopus.svg",
+    width=width,
+    height=height,
+)
+
+fig.show()
+
+# %%
+df = (
+    max_distinct_proteins_df.loc[:, ["NumOfProteins"]]
+    .sort_values("NumOfProteins")
+    .reset_index(drop=True)
+)
+df["CummulativeTranscripts"] = 100 * (df.index + 1) / len(df)
+df["CummulativeTranscripts"] = df["CummulativeTranscripts"][::-1].values
+x = df["NumOfProteins"]
+y = df["CummulativeTranscripts"]
+x_mean = x.mean()
+x_mean_closest = x.iloc[(x - x_mean).abs().argsort()[:1]]
+x_mean_closest_k = x_mean_closest.index.values[0]
+if x_mean == x_mean_closest.values[0]:
+    y_mean = y.iloc[x_mean_closest_k]
+else:
+    if x_mean < x_mean_closest.values[0]:
+        i = x_mean_closest_k - 1
+        j = x_mean_closest_k + 1
+    else:
+        i = x_mean_closest_k
+        j = x_mean_closest_k + 2
+    y_mean = np.interp(x_mean, x.iloc[i:j], y.iloc[i:j])
+df = df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
+
+tmr1000_df = (
+    tmr1000_max_distinct_proteins_df.loc[:, ["NumOfProteins"]]
+    .sort_values("NumOfProteins")
+    .reset_index(drop=True)
+)
+tmr1000_df["CummulativeTranscripts"] = 100 * (tmr1000_df.index + 1) / len(tmr1000_df)
+tmr1000_df["CummulativeTranscripts"] = tmr1000_df["CummulativeTranscripts"][::-1].values
+tmr1000_x = tmr1000_df["NumOfProteins"]
+tmr1000_y = tmr1000_df["CummulativeTranscripts"]
+tmr1000_x_mean = tmr1000_x.mean()
+tmr1000_x_mean_closest = tmr1000_x.iloc[
+    (tmr1000_x - tmr1000_x_mean).abs().argsort()[:1]
+]
+tmr1000_x_mean_closest_k = tmr1000_x_mean_closest.index.values[0]
+if tmr1000_x_mean == tmr1000_x_mean_closest.values[0]:
+    tmr1000_y_mean = tmr1000_y.iloc[tmr1000_x_mean_closest_k]
+else:
+    if tmr1000_x_mean < tmr1000_x_mean_closest.values[0]:
+        i = tmr1000_x_mean_closest_k - 1
+        j = tmr1000_x_mean_closest_k + 1
+    else:
+        i = tmr1000_x_mean_closest_k
+        j = tmr1000_x_mean_closest_k + 2
+    tmr1000_y_mean = np.interp(tmr1000_x_mean, tmr1000_x.iloc[i:j], tmr1000_y.iloc[i:j])
+tmr1000_df = tmr1000_df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
+
+neural_conditions = ["Yes", "No", "Missing"]
+neural_trace_names = ["Neural", "Non-neural", "Missing"]
+neural_color_discrete_map = {
+    "Yes": "red",
+    "No": "rgb(0,170,255)",  # kind of azure
+    "Missing": "rgb(192,192,192)",  # kind of terminal grey
+}
+neural_dfs = []
+for neural_condition in neural_conditions:
+    neural_df = (
+        max_distinct_proteins_df.loc[
+            max_distinct_proteins_df["IsNeural"] == neural_condition, ["NumOfProteins"]
+        ]
+        .sort_values("NumOfProteins")
+        .reset_index(drop=True)
+    )
+    neural_df["CummulativeTranscripts"] = 100 * (neural_df.index + 1) / len(neural_df)
+    neural_df["CummulativeTranscripts"] = neural_df["CummulativeTranscripts"][
+        ::-1
+    ].values
+    neural_df = neural_df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
+    neural_dfs.append(neural_df)
+
+y_min = 1
+
+tmr50_legendtitle = "50 reads"
+tmr1000_legendtitle = "1000 reads"
+legend_title_text = "Minimum coverage per gene      "
+
+marker_size = 4
+
+fig = make_subplots(
+    rows=2,
+    cols=1,
     x_title="Distinct proteins per gene",
     y_title="% of genes",
     shared_yaxes=True,
@@ -2376,11 +2933,11 @@ fig.update_layout(
     # showlegend=False,
 )
 
-fig.write_image(
-    "Distinct proteins per gene vs. % of genes - log(y) - Octopus.svg",
-    width=width,
-    height=height,
-)
+# fig.write_image(
+#     "Distinct proteins per gene vs. % of genes - log(y) - Octopus.svg",
+#     width=width,
+#     height=height,
+# )
 
 fig.show()
 
@@ -2805,7 +3362,6 @@ for (
     strongly_diversified_expanded_max_distinct_proteins_dfs,
     strongly_diversified_max_num_of_proteins,
 ):
-
     gb = strongly_diversified_expanded_max_distinct_proteins_df.groupby(
         ["Sample", "Tissue"]
     )
@@ -2822,7 +3378,7 @@ for (
 
 strongly_diversified_num_of_proteins_per_sample_dfs[0]
 
-# %%
+# %% jupyter={"source_hidden": true}
 # cols = min(facet_col_wrap, len(strongly_diversified_num_of_proteins_per_sample_dfs), 3)
 # rows = ceil(len(strongly_diversified_num_of_proteins_per_sample_dfs) / cols)
 # row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[
@@ -2978,7 +3534,7 @@ strongly_diversified_per_transcript_per_sample_coverage_dfs = [
 ic(len(strongly_diversified_per_transcript_per_sample_coverage_dfs))
 strongly_diversified_per_transcript_per_sample_coverage_dfs[0]
 
-# %%
+# %% jupyter={"source_hidden": true}
 # cols = min(facet_col_wrap, len(strongly_diversified_num_of_proteins_per_sample_dfs), 3)
 # rows = ceil(len(strongly_diversified_num_of_proteins_per_sample_dfs) / cols)
 # row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[
@@ -3117,23 +3673,21 @@ row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[
     : len(strongly_diversified_num_of_proteins_per_sample_dfs)
 ]
 
-x_title = "Mapped reads"
-y_title = "Distinct proteins"
+x_title = "Coverage"
+y_title = "Distinct protein isoforms"
 
 # title_text = "Distribution of min & max estimates of non-syn substitutions per read"
 
-# subplot_titles = strongly_diversified_chroms
+
 # subplot_titles = [
-#     f"{transcript.split('_')[0]}<br><sub>({chrom})</sub>"
-#     for transcript, chrom in zip(
-#         strongly_diversified_transcripts, strongly_diversified_chroms
+#     f"{transcript.split('_')[0]}<br><sub>Pooled distinct proteins = {int(total_pooled_isoforms)}</sub>"
+#     for transcript, total_pooled_isoforms in zip(
+#         strongly_diversified_transcripts, strongly_diversified_max_num_of_proteins
 #     )
 # ]
-# subplot_titles = [
-#     f"{transcript.split('_')[0]}" for transcript in strongly_diversified_transcripts
-# ]
+
 subplot_titles = [
-    f"{transcript.split('_')[0]}<br><sub>Pooled distinct proteins = {int(total_pooled_isoforms)}</sub>"
+    f"{transcript.split('_')[0]} ({int(total_pooled_isoforms)})"
     for transcript, total_pooled_isoforms in zip(
         strongly_diversified_transcripts, strongly_diversified_max_num_of_proteins
     )
@@ -3179,7 +3733,6 @@ for (
     _tissues = strongly_diversified_num_of_proteins_per_sample_df["Tissue"]
 
     for tissue in _tissues:
-
         try:
             x = strongly_diversified_per_transcript_per_sample_coverage_df.loc[
                 strongly_diversified_per_transcript_per_sample_coverage_df["Tissue"]
@@ -3261,9 +3814,9 @@ fig.update_traces(opacity=0.7, marker_size=6)
 
 fig.update_layout(
     template=template,
-    title_text="Octopus",
-    title_x=0.1,
-    title_y=0.97,
+    # title_text="Octopus",
+    # title_x=0.1,
+    # title_y=0.97,
     # showlegend=False,
     legend_title_text="Tissue",
     width=width,
@@ -3591,7 +4144,7 @@ fig.show()
 
 # %%
 
-# %% [markdown] toc-hr-collapsed=true
+# %% [markdown]
 # ### Comparing algorithms
 
 # %% [markdown]
@@ -4473,7 +5026,7 @@ fig.show()
 # %%
 distinct_unique_proteins_df
 
-# %% jupyter={"source_hidden": true}
+# %%
 # min_max_fraction_1_distinct_prots_df = (
 #     distinct_unique_proteins_df.loc[distinct_unique_proteins_df["Fraction"] == 1.0]
 #     .groupby(condition_col)["NumOfProteins"]
@@ -4639,6 +5192,77 @@ fig.update_layout(
 fig.write_image("%SolutionsDispersion - Octopus.svg", width=600, height=400)
 
 fig.show()
+
+# %%
+fig = go.Figure(
+    go.Histogram(
+        y=dispersion_df["%SolutionsDispersion"],
+        marker_color="black",
+    )
+)
+
+# fig.update_xaxes(title="% dispersion<br><sub>100 * (max - min) / max</sub>")
+fig.update_yaxes(title="Dispersion [%]", 
+                 # type="log"
+                )
+fig.update_xaxes(title="Genes", 
+                 type="log"
+                )
+
+fig.update_layout(
+    # showlegend=False,
+    title="Pooled octopus data",
+    title_x=0.15,
+    width=600,
+    height=400,
+    template=template,
+)
+
+# fig.write_image("%SolutionsDispersion - Octopus.svg", width=600, height=400)
+
+fig.show()
+
+# %%
+grouped_dispersion_df = dispersion_df.groupby("%SolutionsDispersion").size().reset_index().rename(columns={0: "Genes"})
+grouped_dispersion_df
+
+# %%
+fig = go.Figure(
+    go.Bar(
+        x=grouped_dispersion_df["Genes"],
+        y=grouped_dispersion_df["%SolutionsDispersion"],
+        marker_color="black",
+    )
+)
+
+# fig.update_xaxes(title="% dispersion<br><sub>100 * (max - min) / max</sub>")
+fig.update_xaxes(title="Genes", type="log")
+fig.update_yaxes(
+    title="Dispersion [%]", 
+    # type="log"
+                )
+
+fig.update_layout(
+    # showlegend=False,
+    title="Pooled octopus data",
+    title_x=0.15,
+    width=600,
+    height=400,
+    template=template,
+)
+
+# fig.write_image("%SolutionsDispersion - Octopus.svg", width=600, height=400)
+
+fig.show()
+
+# %% [markdown]
+# ##### Saving dispersion df
+
+# %%
+saved_dispersion_df = dispersion_df.rename(columns={"Transcript": "Gene"})
+saved_dispersion_df.insert(0, "Platform", "Whole-transcriptome octopus data")
+saved_dispersion_df.to_csv("Dispersion.Octopus.tsv", sep="\t", index=False)
+saved_dispersion_df
 
 # %%
 # y_axis_name = "Distinct unique proteins"
@@ -5135,7 +5759,6 @@ fig = make_subplots(
 for col, condition, unique_proteins_df in zip(
     range(1, cols + 1), conditions, unique_proteins_dfs
 ):
-
     fig.add_trace(
         go.Histogram(
             x=unique_proteins_df["NumOfReads"],
@@ -5901,7 +6524,6 @@ def make_percentile_df(
     percentile_step=10,
     allowed_algorithms=["Ascending", "Descending"],
 ):
-
     gb = expression_df.loc[expression_df["Algorithm"].isin(allowed_algorithms)].groupby(
         "#Solution"
     )
@@ -6848,7 +7470,6 @@ for (
     reverse_transforms,
     fit_texts,
 ):
-
     assignment_df = maximal_df.sort_values(
         "TotalWeightedSupportingReads", ascending=False
     ).reset_index(drop=True)
@@ -6985,10 +7606,10 @@ robo2_assignment_df
 
 # %%
 robo2_unique_proteins_df = [
-        unique_proteins_df
-        for unique_proteins_df in unique_proteins_dfs
-        if unique_proteins_df["Transcript"].str.contains("ROBO2").any()
-    ][0]
+    unique_proteins_df
+    for unique_proteins_df in unique_proteins_dfs
+    if unique_proteins_df["Transcript"].str.contains("ROBO2").any()
+][0]
 robo2_unique_proteins_df
 
 # %%
@@ -7067,7 +7688,9 @@ robo2_20_proteins_simplified_seq_records = [
     )
     for i in range(top_x_robo2_proteins)
 ]
-simplified_seq_records_output_file = f"ROBO2_{top_x_robo2_proteins}_simplified_seqs.O.vul.fasta"
+simplified_seq_records_output_file = (
+    f"ROBO2_{top_x_robo2_proteins}_simplified_seqs.O.vul.fasta"
+)
 SeqIO.write(
     robo2_20_proteins_simplified_seq_records,
     simplified_seq_records_output_file,
@@ -7333,7 +7956,6 @@ def run_pcas(
     rng = np.random.RandomState(seed)
 
     for condition, pca_input_df in zip(conditions, pca_input_dfs):
-
         if top_expressed_proteins is None:
             _top_expressed_proteins = len(pca_input_df)
         else:
@@ -7368,7 +7990,6 @@ def run_tsnes(
     rng = np.random.RandomState(seed)
 
     for condition, tsne_input_df in zip(conditions, tsne_input_dfs):
-
         condition_tsnes = []
 
         if top_expressed_proteins is None:
@@ -7379,7 +8000,6 @@ def run_tsnes(
         conditions_Xs.append(X)
 
         for perplexity in perplexities:
-
             t_sne = TSNE(
                 n_components=n_components,
                 learning_rate=learning_rate,
@@ -7573,7 +8193,6 @@ x, y = top_1000_prots_perplexity_tsne.T
 for (row, col), cluster, cluster_size in zip(
     row_col_iter, top_1000_kmodes_clusters, cluster_sizes
 ):
-
     # colormap = {label: color for label, color in zip(range(cluster_size), color_sequence[:cluster_size])}
     # colors = [colormap[label] for label in cluster]
 
@@ -7640,7 +8259,6 @@ x, y = prots_perplexity_tsne.T
 for (row, col), cluster, cluster_size in zip(
     row_col_iter, kmodes_clusters, cluster_sizes
 ):
-
     colormap = {
         label: color
         for label, color in zip(range(cluster_size), color_sequence[:cluster_size])
@@ -7905,14 +8523,12 @@ for row, (condition, X, condition_tsnes) in enumerate(
     ),
     start=1,
 ):
-
     # n = X.shape[0]
     # color_options = [color_discrete_map[condition], "white"]
     # colors = color_highest_expressed_proteins(n, rank_cutoff, color_options)
     colors = "white"
 
     for col, prots_perplexity_tsne in enumerate(condition_tsnes, start=1):
-
         x, y = prots_perplexity_tsne.T
 
         fig.add_trace(
@@ -7970,7 +8586,6 @@ marker_size = 1
 for (row, col), condition, condition_pca in zip(
     row_col_iter, conditions, weighted_conditions_pcas
 ):
-
     n = len(condition_pca)
     color_options = [color_discrete_map[condition], "white"]
     colors = color_highest_expressed_proteins(n, rank_cutoff, color_options)
@@ -8057,13 +8672,11 @@ for row, (condition, X, condition_tsnes) in enumerate(
     ),
     start=1,
 ):
-
     n = X.shape[0]
     color_options = [color_discrete_map[condition], "white"]
     colors = color_highest_expressed_proteins(n, rank_cutoff, color_options)
 
     for col, prots_perplexity_tsne in enumerate(condition_tsnes, start=1):
-
         x, y = prots_perplexity_tsne.T
 
         fig.add_trace(
@@ -8110,7 +8723,6 @@ for conditions_pcas, sorting_method in zip(
     [top_1000_equal_conditions_pcas, top_1000_weighted_conditions_pcas],
     ["equal", "weighted"],
 ):
-
     head_title = (
         f"PCAs for top {top_expressed_proteins} expressed proteins in largest solution of each {str(condition_col).lower()}"
         "<br>"
@@ -8132,7 +8744,6 @@ for conditions_pcas, sorting_method in zip(
     for col, (condition, condition_pca) in enumerate(
         zip(conditions, conditions_pcas), start=1
     ):
-
         n = len(condition_pca)
         color_options = [color_discrete_map[condition], "white"]
         colors = color_highest_expressed_proteins(n, rank_cutoff, color_options)
@@ -8652,9 +9263,7 @@ col_names = ["MinNonSyns", "MaxNonSyns"]
 estimate_names = ["Min", "Max"]
 
 for (row, col), condition, proteins_df in zip(row_col_iter, conditions, proteins_dfs):
-
     for i, (col_name, estimate_name) in enumerate(zip(col_names, estimate_names)):
-
         x = proteins_df[col_name]
 
         fig.add_trace(

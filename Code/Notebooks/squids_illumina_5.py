@@ -1424,6 +1424,16 @@ bonferroni_masks = [
 ]
 
 # %%
+
+# %%
+pclo_masked_bonferroni_corr = np.ma.masked_array(corrected_corrs_matrices[13], mask=bonferroni_masks[13], fill_value=np.nan).filled()
+    
+pclo_masked_bonferroni_corr_df = pd.DataFrame(pclo_masked_bonferroni_corr)
+pclo_masked_bonferroni_corr_df.to_csv("PCLOMaskedBonferroniCorr.Illumina.tsv", index=False, sep="\t")
+
+pclo_masked_bonferroni_corr_df
+
+# %%
 # cmap=sns.diverging_palette(230, 20, as_cmap=True)
 # cmap=sns.color_palette("vlag", as_cmap=True)
 # cmap=sns.color_palette("PiYG", as_cmap=True)
@@ -1672,6 +1682,16 @@ symmetric_pclo_mi_df = get_symmetric_mi_df(
     mi_df=merged_mi_df,
     positions=reads_w_nan_dfs[pclo_index].iloc[:, reads_first_col_pos:].columns,
 )
+
+# %%
+symmetric_pclo_mi_matrix = symmetric_pclo_mi_df.values
+mask = np.triu(np.ones_like(symmetric_pclo_mi_matrix, dtype=bool))
+pclo_masked_symmetric_mi_matrix = np.ma.masked_array(symmetric_pclo_mi_matrix, mask=mask, fill_value=np.nan).filled()
+
+pclo_masked_symmetric_mi_df = pd.DataFrame(pclo_masked_symmetric_mi_matrix)
+pclo_masked_symmetric_mi_df.to_csv("PCLOMaskedMI.Illumina.tsv", index=False, sep="\t")
+
+pclo_masked_symmetric_mi_df
 
 # %%
 sns.set_theme(style="white")
@@ -1963,11 +1983,11 @@ fig.update_layout(
     title_text="Squid's Short-reads",
     title_x=0.1,
 )
-fig.write_image(
-    "Per chrom noise levels - Illumina.svg",
-    width=width,
-    height=height,
-)
+# fig.write_image(
+#     "Per chrom noise levels - Illumina.svg",
+#     width=width,
+#     height=height,
+# )
 
 fig.show()
 
@@ -1992,6 +2012,17 @@ for positions_df, condition, strand in zip(positions_dfs, conditions, strands):
     fig.update_yaxes(title="% noise")
     fig.show()
 
+
+# %% [markdown]
+# #### Saving noise dfs
+
+# %%
+merged_noise_df.insert(0, "Platform", "Short-reads")
+# merged_noise_df.loc[:, condition_col] = merged_noise_df.loc[:, condition_col].apply(lambda x: "GRIA2" if x == "GRIA" else x)
+merged_noise_df
+
+# %%
+merged_noise_df.to_csv("NoiseLevels.Illumina.tsv", sep="\t", index=False)
 
 # %% [markdown]
 # ### Known & new editing sites
@@ -2021,8 +2052,10 @@ fig, axs = plt.subplots(
 for condition, ax in zip(conditions, axs.flat):
     labels = conditions_labels[condition]
     sets = conditions_sets[condition]
-    labels[0] = f"Edited\n({len(sets[0])})"
-    labels[1] = f"Known editing\n({len(sets[1])})"
+    # labels[0] = f"Edited\n({len(sets[0])})"
+    # labels[1] = f"Known editing\n({len(sets[1])})"
+    labels[0] = f"De-novo\n({len(sets[0])})"
+    labels[1] = f"Known\n({len(sets[1])})"
     labels = labels[:2]
     sets = sets[:2]
     v_func = venn2
@@ -3092,6 +3125,18 @@ fig.show()
 
 
 # %% [markdown]
+# #### Saving distinct proteins dfs
+
+# %%
+dfs = [distinct_unique_proteins_df, max_distinct_proteins_df]
+out_files = ["DistinctProteins.Illumina.tsv", "MaxDistinctProteinsF1.Illumina.tsv"]
+for df, out_file in zip(dfs, out_files):
+    df = df.copy()
+    df.insert(0, "Platform", "Short-reads")
+    # df.loc[:, condition_col] = df.loc[:, condition_col].apply(lambda x: "GRIA2" if x == "GRIA" else x)
+    df.to_csv(out_file, sep="\t", index=False)
+
+# %% [markdown]
 # ### NaNs distribution
 
 # %%
@@ -3756,6 +3801,13 @@ fig.write_image("%SolutionsDispersion - Illumina.svg", width=width, height=heigh
 
 fig.show()
 
+
+# %% [markdown]
+# ##### Saving dispersion df
+
+# %%
+min_max_fraction_1_distinct_prots_df.insert(0, "Platform", "Short-reads")
+min_max_fraction_1_distinct_prots_df.to_csv("Dispersion.Illumina.tsv", sep="\t", index=False)
 
 # %%
 # fig = go.Figure(data=[go.Histogram(x=min_max_fraction_1_distinct_prots_df["%SolutionsDispersion"])])
@@ -7223,7 +7275,7 @@ for (
 fig.update_yaxes(rangemode="tozero", tick0=0.0, dtick=0.05)
 
 fig.update_layout(
-    title_text="Squid's Short-reads",
+    title_text="Short-reads",
     title_x=0.1,
     # title_y=0.95,
     template=template,
@@ -7371,6 +7423,10 @@ for (
         sorted_unique_formatted_labels = sorted(list(unique_formatted_labels))
 
     for i, unique_label in enumerate(sorted_unique_formatted_labels):
+        
+        # don't plot perimiter of unclustered proteins
+        if unique_label == "*":
+            continue
 
         color = hdbscan_labels_color_map[unique_label]
         
@@ -7434,7 +7490,7 @@ height = 1100
 # fig.update_traces(textfont_size=4)
 
 fig.update_layout(
-    title_text="Squid's Short-reads",
+    title_text="Short-reads",
     title_x=0.1,
     # title_y=0.95,
     template=template,
@@ -7541,7 +7597,7 @@ fig.update_xaxes(
 )
 
 fig.update_layout(
-    title_text="Squid's Short-reads",
+    title_text="Short-reads",
     title_x=0.1,
     # title_y=0.95,
     template=template,
@@ -7560,7 +7616,7 @@ fig.show()
 # %% [markdown]
 # ##### Shannon's entropy
 
-# %%
+# %% jupyter={"source_hidden": true}
 # def calc_data_entropy(max_sol_exp_df, prcnt_equal_exp_col, prcnt_weighted_exp_col):
 #     def _calc_data_entropy(prcnt_exp_col):
 #         p = max_sol_exp_df[prcnt_exp_col] / 100
@@ -7573,13 +7629,13 @@ fig.show()
 
 #     return s_data_equal_exp, s_data_weighted_exp
 
-# %%
+# %% jupyter={"source_hidden": true}
 # def calc_hypothetical_entropy(max_sol_exp_df, first_col_pos):
 #     p = max_sol_exp_df.iloc[:, first_col_pos:].apply(np.mean)
 #     s_hypo = sum(-p * np.log2(p) - (1 - p) * np.log2((1 - p)))
 #     return s_hypo
 
-# %%
+# %% jupyter={"source_hidden": true}
 # def calc_entropies(
 #     max_sol_exp_df,
 #     first_col_pos,
@@ -7592,7 +7648,7 @@ fig.show()
 #     s_hypo = calc_hypothetical_entropy(max_sol_exp_df, first_col_pos)
 #     return s_data_equal_exp, s_data_weighted_exp, s_hypo
 
-# %%
+# %% jupyter={"source_hidden": true}
 # max_sol_exp_dfs = [
 #     prepare_ml_input_df(
 #         max_sol_df,
@@ -7713,6 +7769,9 @@ shannon_df[condition_col] = (
 )
 
 shannon_df
+
+# %%
+shannon_df.to_csv("ShanonEntropy.Illumina.tsv", sep="\t", index=False)
 
 # %%
 fig = go.Figure()
@@ -8056,85 +8115,85 @@ fig.show()
 # ## Distribution of non-syns
 
 # %%
-cols = min(facet_col_wrap, len(conditions), 5)
-rows = ceil(len(conditions) / cols)
-row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
+# cols = min(facet_col_wrap, len(conditions), 5)
+# rows = ceil(len(conditions) / cols)
+# row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
 
-x_title = "Non-syn substitutions per protein"
-y_title = "Proteins"
-title_text = "Distribution of min & max estimates of non-syn substitutions per protein"
+# x_title = "Non-syn substitutions per protein"
+# y_title = "Proteins"
+# title_text = "Distribution of min & max estimates of non-syn substitutions per protein"
 
-fig = make_subplots(
-    rows=rows,
-    cols=cols,
-    subplot_titles=conditions,
-    shared_yaxes=True,
-    x_title=x_title,
-    y_title=y_title,
-)
+# fig = make_subplots(
+#     rows=rows,
+#     cols=cols,
+#     subplot_titles=conditions,
+#     shared_yaxes=True,
+#     x_title=x_title,
+#     y_title=y_title,
+# )
 
-min_x = None
-max_x = 0
-max_y = 0
+# min_x = None
+# max_x = 0
+# max_y = 0
 
-col_names = ["MinNonSyns", "MaxNonSyns"]
-estimate_names = ["Min", "Max"]
+# col_names = ["MinNonSyns", "MaxNonSyns"]
+# estimate_names = ["Min", "Max"]
 
-for (row, col), condition, proteins_df in zip(row_col_iter, conditions, proteins_dfs):
-    for i, (col_name, estimate_name) in enumerate(zip(col_names, estimate_names)):
-        x = proteins_df[col_name]
+# for (row, col), condition, proteins_df in zip(row_col_iter, conditions, proteins_dfs):
+#     for i, (col_name, estimate_name) in enumerate(zip(col_names, estimate_names)):
+#         x = proteins_df[col_name]
 
-        fig.add_trace(
-            go.Histogram(
-                x=x,
-                marker_color=subcolors_discrete_map[condition][i],
-                name=f"{condition}, {estimate_name}",
-            ),
-            row=row,
-            col=col,
-        )
+#         fig.add_trace(
+#             go.Histogram(
+#                 x=x,
+#                 marker_color=subcolors_discrete_map[condition][i],
+#                 name=f"{condition}, {estimate_name}",
+#             ),
+#             row=row,
+#             col=col,
+#         )
 
-        min_x = min(min_x, x.min()) if min_x else x.min()
-        max_x = max(max_x, x.max())
-        max_y = max(max_y, len(x))
+#         min_x = min(min_x, x.min()) if min_x else x.min()
+#         max_x = max(max_x, x.max())
+#         max_y = max(max_y, len(x))
 
 
-for (row, col), condition in zip(row_col_iter, conditions):
-    for i, (col_name, estimate_name) in enumerate(zip(col_names, estimate_names)):
-        fig.add_trace(
-            go.Scatter(
-                x=[0.75 * max_x],
-                y=[(0.13 * max_y) - (20_000 * i)],
-                mode="markers+text",
-                marker=dict(
-                    color=subcolors_discrete_map[condition][i],
-                    size=9,
-                    # opacity=0.7,
-                    symbol="square",
-                    # line=dict(width=0),
-                ),
-                text=estimate_name,
-                textposition="middle right",
-                textfont=dict(size=9),
-            ),
-            row=row,
-            col=col,
-        )
+# for (row, col), condition in zip(row_col_iter, conditions):
+#     for i, (col_name, estimate_name) in enumerate(zip(col_names, estimate_names)):
+#         fig.add_trace(
+#             go.Scatter(
+#                 x=[0.75 * max_x],
+#                 y=[(0.13 * max_y) - (20_000 * i)],
+#                 mode="markers+text",
+#                 marker=dict(
+#                     color=subcolors_discrete_map[condition][i],
+#                     size=9,
+#                     # opacity=0.7,
+#                     symbol="square",
+#                     # line=dict(width=0),
+#                 ),
+#                 text=estimate_name,
+#                 textposition="middle right",
+#                 textfont=dict(size=9),
+#             ),
+#             row=row,
+#             col=col,
+#         )
 
-fig.update_layout(
-    template=template,
-    barmode="overlay",  # Overlay both histograms
-    title_text=title_text,
-    title_y=0.95,
-    showlegend=False,
-    height=200 * rows,
-)
+# fig.update_layout(
+#     template=template,
+#     barmode="overlay",  # Overlay both histograms
+#     title_text=title_text,
+#     title_y=0.95,
+#     showlegend=False,
+#     height=200 * rows,
+# )
 
-fig.update_traces(opacity=0.75)  # Reduce opacity to see both histograms
-fig.update_xaxes(range=[min_x * 0.9, max_x * 1.1])
-fig.update_yaxes(range=[0, max_y * 0.2])
+# fig.update_traces(opacity=0.75)  # Reduce opacity to see both histograms
+# fig.update_xaxes(range=[min_x * 0.9, max_x * 1.1])
+# fig.update_yaxes(range=[0, max_y * 0.2])
 
-fig.show()
+# fig.show()
 
 
 # %% jupyter={"source_hidden": true}
@@ -8381,7 +8440,8 @@ for (row, col), condition in zip(row_col_iter, conditions):
                 mode="lines+text",
                 line=dict(
                     color="white",
-                    dash="dash",
+                    # dash="dash",
+                    dash="dot",
                     width=4,
                 ),
                 text=["", "", f"{x_mean:.0f}"],

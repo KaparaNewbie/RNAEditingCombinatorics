@@ -19,13 +19,14 @@ mapped_bams = [
     "/private7/projects/Combinatorics/D.pealeii/Alignment/BestN1/PCLO-CNS-RESUB.C0x1291.aligned.sorted.bam",
 ]
 condition_col = "Gene"
-conditions = ["GRIA", "PCLO"]
+conditions = ["GRIA2", "PCLO"]
 
 # %%
 # from pathlib import Path
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import pysam
 from icecream import ic
 
@@ -104,45 +105,6 @@ df
 # %%
 # reads w/o any deletion event
 (df.loc[df["Deletions"] == 0].groupby(condition_col).size())
-
-# %%
-fig = px.histogram(
-    df,
-    x="ReadLen",
-    facet_col=condition_col,
-    facet_col_spacing=facet_col_spacing,
-    histnorm="percent",
-    cumulative=True,
-    marginal="histogram",
-    # opacity=0.75,
-    # barmode="group",
-    labels={
-    "ReadLen": "CCS read length", 
-            # "Gene": "Transcript"
-           },
-    # title="Squid's PacBio",
-    title="Squid's Long-reads",
-    color=condition_col,
-    color_discrete_map=color_discrete_map,
-    category_orders=category_orders,
-    template=template,
-)
-
-# https://stackoverflow.com/questions/58167028/single-axis-caption-in-plotly-express-facet-plot
-for axis in fig.layout:
-    if type(fig.layout[axis]) == go.layout.YAxis:
-        fig.layout[axis].title.text = ""
-fig.update_layout(
-    showlegend=False, yaxis_title="Accumulated <br>% of reads", width=600, height=350, title_x=0.13,
-)
-
-fig.write_image(
-    "Accumulated % of reads length - PacBio.svg",
-    width=600,
-    height=350,
-)
-
-fig.show()
 
 # %%
 fig = px.histogram(
@@ -229,43 +191,200 @@ fig.update_layout(showlegend=False)
 fig.show()
 
 # %%
+df
+
+# %%
 fig = px.histogram(
     df,
-    x="ReadQuality",
-    y="Deletions",
-    # facet_col=condition_col,
-    # facet_col_spacing=facet_col_spacing,
-    opacity=0.5,
-    barmode="overlay",
-    marginal="box",
-    histfunc="avg",
-    labels={"Deletions": "deletion events", "ReadQuality": "Read quality", 
+    x="ReadLen",
+    facet_col=condition_col,
+    facet_col_spacing=facet_col_spacing,
+    histnorm="percent",
+    cumulative=True,
+    marginal="histogram",
+    # opacity=0.75,
+    # barmode="group",
+    labels={
+    "ReadLen": "Read length", 
             # "Gene": "Transcript"
            },
-    # title="Occurrence of deletion events (regardless of their length) vs. read quality",
     # title="Squid's PacBio",
-    title="Squid's Long-reads",
+    # title="Squid's Long-reads",
+    title="Long-reads coverage",
     color=condition_col,
     color_discrete_map=color_discrete_map,
     category_orders=category_orders,
     template=template,
 )
 
-# fig.update_layout(showlegend=False)
-
 # https://stackoverflow.com/questions/58167028/single-axis-caption-in-plotly-express-facet-plot
 for axis in fig.layout:
     if type(fig.layout[axis]) == go.layout.YAxis:
         fig.layout[axis].title.text = ""
 
+fig.for_each_annotation(lambda a: a.update(text=a.text.replace("Gene=", "")))
+
+width=600
+height=350
+
+fig.update_layout(
+    showlegend=False, 
+    # yaxis_title="Accumulated <br>% of reads", 
+    # yaxis_title="Accumulated <br>reads [%]", 
+    yaxis_title="Reads [%]",
+    width=width, height=height, title_x=0.13,
+)
+
+fig.write_image(
+    "Accumulated % of reads length - PacBio.svg",
+    width=width, height=height,
+)
+
+fig.show()
+
+# %%
+# fig = px.histogram(
+#     df,
+#     x="ReadQuality",
+#     y="Deletions",
+#     # facet_col=condition_col,
+#     # facet_col_spacing=facet_col_spacing,
+#     opacity=0.5,
+#     barmode="overlay",
+#     marginal="box",
+#     histfunc="avg",
+#     labels={"Deletions": "deletion events", "ReadQuality": "Read quality", 
+#             # "Gene": "Transcript"
+#            },
+#     # title="Occurrence of deletion events (regardless of their length) vs. read quality",
+#     # title="Squid's Long-reads",
+#     title="Long-reads quality",
+#     color=condition_col,
+#     color_discrete_map=color_discrete_map,
+#     category_orders=category_orders,
+#     template=template,
+# )
+
+# # fig.update_layout(showlegend=False)
+
+# # https://stackoverflow.com/questions/58167028/single-axis-caption-in-plotly-express-facet-plot
+# for axis in fig.layout:
+#     if type(fig.layout[axis]) == go.layout.YAxis:
+#         fig.layout[axis].title.text = ""
+
+# # fig.for_each_annotation(lambda a: a.update(text=a.text.replace("Gene=", "")))
+# # fig.for_each_trace(lambda t: t.update(name=t.name.replace("smoker=", "")))
+        
+# width = 550
+# height = 350
+        
+# fig.update_layout(
+#     title_x=0.17,
+#     yaxis_title="Deletion events (avg)",
+#     width=width,
+#     height=height,
+# )
+
+# fig.write_image(
+#     "Avg deletion events vs read quality - PacBio.svg",
+#     width=width,
+#     height=height,
+# )
+
+# fig.show()
+
+# %%
+# fig = make_subplots(
+#     rows=1,
+#     cols=2,
+#     subplot_titles=conditions,
+#     shared_yaxes="all",
+#     x_title="Read quality",
+#     y_title="Deletion events (avg)",
+# )
+
+# fig = go.Figure()
+fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+for condition in conditions:
+    
+    x = df.loc[df[condition_col] == condition, "ReadQuality"]
+    y = df.loc[df[condition_col] == condition, "Deletions"]
+    
+    fig.add_trace(
+            go.Histogram(
+                x=x,
+                y=y,
+                marker_color=color_discrete_map[condition],
+                name=condition,
+                bingroup=1,
+                histfunc="avg",
+            ),
+        )
+    
+    cum_reads_df = (
+        df.loc[df[condition_col] == condition, ["ReadQuality"]]
+        .sort_values("ReadQuality", ascending=False)
+        .reset_index(drop=True)
+    )
+    cum_reads_df["%CummulativeReads"] = 100 * (cum_reads_df.index + 1) / len(cum_reads_df)
+    # cum_reads_df["%CummulativeReads"] = cum_reads_df["%CummulativeReads"][::-1].values
+    # cum_reads_df["%CummulativeReads"] = 100 - cum_reads_df["%CummulativeReads"]
+    x = cum_reads_df["ReadQuality"]
+    y = cum_reads_df["%CummulativeReads"]
+    
+    fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=y,
+                mode="lines",
+                marker_color=color_discrete_map[condition],
+                # name=condition,
+                # bingroup=1,
+                # histfunc="avg",
+                 # histnorm='percent',
+                showlegend=False,
+            ),
+        secondary_y=True,
+        )
+
+
+fig.update_xaxes(title="Read quality")
+fig.update_yaxes(title="Deletion events<br>(avg)", gridcolor='black',linewidth=5
+                 # tick0=0, dtick=1
+                )
+fig.update_yaxes(
+    title_text="Reads [%]", 
+                 secondary_y=True, 
+                 # tickmode="sync", 
+                 range=[0, 100], 
+                 tick0=0, dtick=25,
+                 showgrid=True, 
+                 gridcolor='LightPink',
+                 griddash='dash',
+                 linewidth=5
+                )
+
+fig.update_traces(opacity=0.5)
+
 width = 550
 height = 350
-        
+
 fig.update_layout(
-    title_x=0.17,
-    yaxis_title="Deletion events (avg)",
+    template=template,
     width=width,
     height=height,
+    barmode="overlay",
+    bargap=0.1,
+    title="Long-reads quality",
+    title_x=0.17,
+    legend=dict(
+        orientation="h", 
+        x=0.85,
+        y=0.7,
+        xref="container",
+        yref="container",
+        xanchor="right",)
 )
 
 fig.write_image(
@@ -274,35 +393,4 @@ fig.write_image(
     height=height,
 )
 
-fig.show()
-
-# %%
-
-# %%
-
-# %%
-n = 20
-
-sites = list(range(1, n + 1))
-isoforms = [2**x for x in sites]
-
-df = pd.DataFrame({"Editing sites": sites, "Max possible isoforms": isoforms})
-df[">=15"] = df["Editing sites"] >= 15
-
-fig = px.scatter(
-    df,
-    x="Editing sites",
-    y="Max possible isoforms",
-    log_y=True,
-    color=">=15",
-    color_discrete_sequence=["green", "orange"],
-    symbol=">=15",
-    template=template,
-    # height=400
-)
-fig.update_traces(
-    marker=dict(size=8),
-    selector=dict(mode="markers"),
-)
-fig.update_layout(showlegend=False)
 fig.show()
