@@ -4,11 +4,11 @@ from pathlib import Path
 from typing import Union
 from itertools import chain
 from multiprocessing import Pool
-from datetime import datetime
 
 from pybedtools import BedTool
 import numpy as np
 import pandas as pd
+
 from icecream import ic
 from statsmodels.stats.proportion import binom_test
 from statsmodels.stats.multitest import fdrcorrection
@@ -16,11 +16,6 @@ from Bio import Seq
 
 from Pileup.ids import compress_ids
 from EditingUtils.seq import make_fasta_dict
-from General.consts import ic_prefix
-
-
-# configure icecream to print the time of the print and the context (file, line, function)
-ic.configureOutput(includeContext=True, prefix=ic_prefix)
 
 
 def replace_reads_names_in_pos(old_reads_str, old_to_new_mapping, reads_sep):
@@ -774,8 +769,6 @@ def multisample_pileups_to_positions_all_transcripts(
     samples_per_chroms: defaultdict[str, list[str]],
     reads_mapping_files: list[Path],
     positions_files: list[Path],
-    corrected_noise_files: list[Path],
-    corrected_editing_files: list[Path],
     min_percent_of_max_coverage: float,
     min_absolute_coverage: Union[int, None],
     snp_noise_level: float,
@@ -820,8 +813,6 @@ def multisample_pileups_to_positions_all_transcripts(
         `samples_per_chroms` (defaultdict[str, list[str]]): A dictionary with chroms as keys and lists of samples' names (corresponding to `pileup_files_per_chroms`) as values.
         `reads_mapping_files` (list[Path]): Write mapping from the original reads to their shortened versions to these files. There's one file per chrom.
         `positions_files` (list[Path]): Write the positions dataframes, after parsing the pileup and applying statistical tests to the noise and editing levels, to these files.
-        `corrected_noise_files` (list[Path]): Write the binom and corrected noise p-values of noise to these files, each corresponding to a different chrom/positions_file.
-        `corrected_editing_files` (list[Path]): Write the binom and corrected noise p-values of editing to these files, each corresponding to a different chrom/positions_file.
         `min_percent_of_max_coverage` (float): In each transcript, keep only positions with `coverage` >= `min_percent_of_max_coverage` * `max_coverage`, where `max_coverage` is the maximum coverage in that transcript.
         `min_absolute_coverage` (Union[int, None]): In each transcript, keep only positions with `coverage` >= `min_absolute_coverage`. If None, `min_percent_of_max_coverage` is used instead.
         `snp_noise_level` (float): Treat non-refbase positions with `noise` >= `snp_noise_level` as SNPs, so they won't be considered for noise threshold.
@@ -853,40 +844,32 @@ def multisample_pileups_to_positions_all_transcripts(
 
     transcriptome_dict = make_fasta_dict(transcriptome_file)
 
-    # todo uncomment!!!
-    # todo uncomment!!!
-    # todo uncomment!!!
     # get the positions dfs up until noise correction (not included)
     with Pool(processes=processes) as pool:
-        pool.starmap(
+        positions_dfs = pool.starmap(
             func=multisample_pileups_to_positions_part_1,
             iterable=[
                 (
                     pileup_files_per_chroms[chrom],
                     samples_per_chroms[chrom],
                     strand,
-                    positions_file,
                     problamatic_regions_file,
                     known_sites_file,
                     cds_regions_file,
                     reads_mapping_file,
                     out_files_sep,
                 )
-                for reads_mapping_file, chrom, strand, positions_file in zip(
-                    reads_mapping_files, chroms, strands, positions_files
+                for reads_mapping_file, chrom, strand in zip(
+                    reads_mapping_files,
+                    chroms,
+                    strands,
                 )
             ],
         )
-    # todo uncomment!!!
-    # todo uncomment!!!
-    # todo uncomment!!!
 
-    # binom & BH correction for noise
-    binom_and_bh_correction_for_noise_all_transcripts(
-        positions_files,
-        corrected_noise_files,
-        out_files_sep,
-        chroms,
+    # binom # BH correcttion for noise
+    positions_dfs = binom_and_bh_correction_for_noise_all_transcripts(
+        positions_dfs,
         processes,
         cds_regions_df,
         transcriptome_dict,
@@ -898,37 +881,29 @@ def multisample_pileups_to_positions_all_transcripts(
 
     # determine "naive" editing status
     with Pool(processes=processes) as pool:
-        pool.starmap(
+        positions_dfs = pool.starmap(
             func=multisample_pileups_to_positions_part_2,
             iterable=[
                 (
-                    positions_file,
-                    corrected_noise_file,
-                    out_files_sep,
+                    positions_df,
                     strand,
                     snp_noise_level,
                     top_x_noisy_positions,
                     assurance_factor,
                     remove_non_refbase_noisy_positions,
                     denovo_detection,
-                    binom_noise_pval_col,
-                    bh_noise_pval_col,
                     bh_noisy_col,
                 )
-                for positions_file, corrected_noise_file, strand in zip(
-                    positions_files,
-                    corrected_noise_files,
+                for positions_df, strand in zip(
+                    positions_dfs,
                     strands,
                 )
             ],
         )
 
-    # binom & BH correction for editing
-    binom_and_bh_correction_for_editing_all_transcripts(
-        positions_files,
-        corrected_editing_files,
-        out_files_sep,
-        chroms,
+    # binom # BH correcttion for editing
+    positions_dfs = binom_and_bh_correction_for_editing_all_transcripts(
+        positions_dfs,
         processes,
         cds_regions_df,
         transcriptome_dict,
@@ -940,26 +915,23 @@ def multisample_pileups_to_positions_all_transcripts(
 
     # final editing decision, some cleaning, and writing to file
     with Pool(processes=processes) as pool:
-        pool.starmap(
+        positions_dfs = pool.starmap(
             func=multisample_pileups_to_positions_part_3,
             iterable=[
                 (
-                    positions_file,
-                    corrected_editing_file,
-                    out_files_sep,
+                    positions_df,
                     pileup_files_per_chroms[chrom],
                     strand,
                     min_percent_of_max_coverage,
                     min_absolute_coverage,
                     final_editing_scheme,
+                    positions_file,
+                    out_files_sep,
                     keep_pileup_files,
-                    binom_editing_pval_col,
-                    bh_editing_pval_col,
                     bh_editing_col,
                 )
-                for positions_file, corrected_editing_file, chrom, strand, positions_file in zip(
-                    positions_files,
-                    corrected_editing_files,
+                for positions_df, chrom, strand, positions_file in zip(
+                    positions_dfs,
                     chroms,
                     strands,
                     positions_files,
@@ -968,261 +940,16 @@ def multisample_pileups_to_positions_all_transcripts(
         )
 
 
-def binom_and_bh_correction_for_noise_all_transcripts(
-    positions_files: list[Path],
-    corrected_noise_files: list[Path],
-    out_files_sep: str,
-    chroms: list[str],
-    processes: int,
-    cds_regions_df: pd.DataFrame,
-    transcriptome_dict: dict[str, Seq.Seq],
-    alternative_hypothesis: str,
-    binom_pval_col: str,
-    bh_pval_col: str,
-    bh_rejection_col: str,
-):
-    """
-    Perform binomial test for noise followed by Benjamini-Hochberg correction for all non-adenosines in the transcriptome, and rewrite the updated results to the disk.
-
-    Args:
-        `positions_files` (list[Path]): A list of intermidate positions files, where each file contains positions in a transcript.
-        `corrected_editing_files` (list[Path]): A list of paths to files to write the corrected editing positions to.
-        `out_files_sep` (str): The separator to use in the output files.
-        `chroms` (list[str]): A list of the chromosomes of the transcripts.
-        `processes` (int): The number of processes to use in parallel.
-        `cds_regions_df` (Path): A DataFrame representing a BED-6 coordinates of the transcriptome's CDS.
-        `transcriptome_dict` (dict[str, Seq.Seq]): A dictionary of the transcriptome, where the keys are the chromosomes and the values are the sequences.
-        `alternative_hypothesis` (str, optional): The alternative hypothesis for the binomial test, either "larger", "smaller", or "two-sided".
-        `binom_pval_col` (str, optional): The name of the column in the returned DataFrame that will contain the p-value of the binomial test.
-        `bh_pval_col` (str, optional): The name of the column in the returned DataFrame that will contain the corrected p-value after applying the Benjamini-Hochberg procedure.
-        `bh_rejection_col` (str, optional): The name of the column in the returned DataFrame that will contain the information on whether the corrected p-value after applying the Benjamini-Hochberg procedure is significant (i.e., "rejected").
-    """
-    # get dataframes with the following columns for each transcript:
-    # (1) Chrom
-    # (2) Position
-    # (3) RefBaseCount
-    # (4) AltBaseCount
-    # (5) binom_pval_col - the p-value of the binomial test for noise in this position
-    starmap_iterable = [
-        (
-            positions_file,
-            out_files_sep,
-            chrom,
-            cds_regions_df.loc[cds_regions_df["Chrom"] == chrom, "Start"].values[0],
-            cds_regions_df.loc[cds_regions_df["Chrom"] == chrom, "End"].values[0],
-            cds_regions_df.loc[cds_regions_df["Chrom"] == chrom, "Strand"].values[0],
-            transcriptome_dict,
-            alternative_hypothesis,
-            binom_pval_col,
-        )
-        for positions_file, chrom in zip(positions_files, chroms)
-    ]
-    with Pool(processes=processes) as pool:
-        per_transcript_coding_non_adenosines_dfs = pool.starmap(
-            func=get_covered_and_uncovered_coding_non_adenosines_in_transcript,
-            iterable=starmap_iterable,
-        )
-
-    # concat all the dataframes into one in order to perform the BH correction
-    all_transcripts_coding_non_adenosines_df = pd.concat(
-        per_transcript_coding_non_adenosines_dfs
-    ).reset_index(drop=True)
-    # perform the BH correction
-    bh_rejections, bh_corrected_pvals = fdrcorrection(
-        all_transcripts_coding_non_adenosines_df[binom_pval_col]
-    )
-    # add the corrected p-values and rejections to the concatenated dataframe
-    all_transcripts_coding_non_adenosines_df[bh_pval_col] = bh_corrected_pvals
-    all_transcripts_coding_non_adenosines_df[bh_rejection_col] = bh_rejections
-
-    # seperate the merged dataframe back into individual dataframes by transcript
-    corrected_per_transcript_coding_non_adenosines_dfs = [
-        all_transcripts_coding_non_adenosines_df.loc[
-            all_transcripts_coding_non_adenosines_df["Chrom"] == chrom
-        ]
-        for chrom in chroms
-    ]
-    # write them to the disk in parallel
-    with Pool(processes=processes) as pool:
-        pool.starmap(
-            write_df_to_outfile,
-            iterable=[
-                (df, corrected_noise_file, out_files_sep)
-                for df, corrected_noise_file in zip(
-                    corrected_per_transcript_coding_non_adenosines_dfs,
-                    corrected_noise_files,
-                )
-            ],
-        )
-
-
-def get_covered_and_uncovered_coding_non_adenosines_in_transcript(
-    positions_file: Path,
-    sep: str,
-    chrom: str,
-    start: int,
-    end: int,
-    strand: str,
-    transcriptome_dict: dict[str, Seq.Seq],
-    alternative_hypothesis: str,
-    binom_pval_col: str,
-) -> pd.DataFrame:
-    """
-    Get a DataFrame of coding non-adenosine bases positions in a transcript with the p-value of binomial test for the
-    noise in each position.
-
-    The positions are taken from a two sources: the `positions_df` which contains covered non-adenosine bases (i.e.,
-    positions with coverage > 0), and all the other coding non-adenosine bases in the transcript (their binomial P-value
-    is 1.0 by definition).
-
-    Note! This function assumes that the coverage of bases not in `positions_df` is exactly 0
-    (however, it's possible that the entire coverage in a position is due to unkown bases (N)).
-    Any other coverage-based filter should be applied only after this function is called.
-
-    Args:
-        `positions_file` (Path): An intermidate file of mapped positions in the transcript, where each row is a position.
-        `sep` (str): The separator used in `positions_file`.
-        `chrom` (str): The chromosome of the transcript.
-        `start` (int): The start position of the transcript, 0-based.
-        `end` (int): The end position of the transcript, exclusive.
-        `strand` (str): The strand of the transcript.
-        `transciptome_dict` (dict[str, Seq.Seq]): A dictionary of the transcriptome, where the keys are the chromosomes and the values are the sequences.
-        `alternative_hypothesis` (str): The alternative hypothesis for the binomial test, either "larger", "smaller", or "two-sided".
-        `binom_pval_col` (str): The name of the column in the returned DataFrame that will contain the p-value of the binomial test.
-
-    Returns:
-        pd.DataFrame: A DataFrame of coding non-adenosine bases positions in a transcript with the following cols:
-        (1) Chrom, (2) Position, and (3) binom_pval_col - the p-value of binomial test for noise in that position.
-    """
-
-    # read the positions file into a DataFrame
-    covered_coding_non_adenosines_positions_df = pd.read_csv(
-        positions_file,
-        sep=sep,
-        usecols=[
-            "Chrom",
-            "Position",
-            "CDS",
-            "RefBase",
-            "TotalCoverage",
-            "A",
-            "T",
-            "C",
-            "G",
-            "Noise",
-        ],
-    )
-
-    # verify that the positions file contains only one chromosome, and that it's the same as the given chrom
-    unique_chroms_in_positions_df = covered_coding_non_adenosines_positions_df[
-        "Chrom"
-    ].unique()
-    if (
-        len(unique_chroms_in_positions_df) > 1
-        or chrom not in unique_chroms_in_positions_df
-    ):
-        raise ValueError(
-            f"Unmatching chroms: {chrom = } != {covered_coding_non_adenosines_positions_df['Chrom'].unique() = }"
-        )
-
-    # retain only coding non-adenosine positions with total coverage > 0
-    # (however, it's possible that the entire coverage in a position is due to unkown bases (N))
-    negative_ref_base = "A" if strand == "+" else "T"
-    covered_coding_non_adenosines_positions_df = (
-        covered_coding_non_adenosines_positions_df.loc[
-            (covered_coding_non_adenosines_positions_df["CDS"])
-            & (
-                covered_coding_non_adenosines_positions_df["RefBase"]
-                != negative_ref_base
-            )
-        ]
-    ).drop(columns=["CDS"])
-
-    # get all coding non-adenosines in the transcript
-    # (including those with total coverage > 0, which are already in `covered_coding_non_adenosines_positions_df`)
-    # this df's columns are (1) Chrom, (2) Position
-    all_coding_non_adenosines_df = get_positions_of_desired_bases_in_transcript(
-        chrom, start, end, strand, transcriptome_dict, {"T", "C", "G"}
-    )
-
-    # add some columns to all_coding_non_adenosines_df before returning it
-    # (we don't have any covered positions with desired bases in this transcript,
-    # so we can't calculate the binomial p-values for them)
-    # # set the missing binom values of uncovered positions as 1.0 (by definition)
-    if len(covered_coding_non_adenosines_positions_df) == 0:
-        ic(f"len(covered_coding_non_adenosines_positions_df) == 0 for {chrom = }")
-        all_coding_non_adenosines_df[binom_pval_col] = 1.0
-        all_coding_non_adenosines_df["RefBaseCount"] = 0
-        all_coding_non_adenosines_df["AltBaseCount"] = 0
-        return all_coding_non_adenosines_df
-
-    # perform binomial test on each covered position
-    ref_and_alt_base_counts_df = covered_coding_non_adenosines_positions_df.apply(
-        lambda x: ref_and_alt_base_count_in_noise_position(
-            x["RefBase"],
-            strand,
-            x["A"],
-            x["T"],
-            x["C"],
-            x["G"],
-        ),
-        axis=1,
-        result_type="expand",
-    ).rename(columns={0: "RefBaseCount", 1: "AltBaseCount"})
-    covered_coding_non_adenosines_positions_df[["RefBaseCount", "AltBaseCount"]] = (
-        ref_and_alt_base_counts_df
-    )
-    covered_coding_non_adenosines_positions_df[binom_pval_col] = (
-        covered_coding_non_adenosines_positions_df.apply(
-            lambda x: binom_test(
-                x["AltBaseCount"],
-                x["RefBaseCount"] + x["AltBaseCount"],
-                0.001,
-                alternative=alternative_hypothesis,
-            ),
-            axis=1,
-        )
-    )
-
-    # merge the two DataFrames, such that the positions in `all_coding_non_adenosines_df` will have the P-value from the binomial test,
-    # as well as the RefBaseCount and AltBaseCount the test was based on
-    all_coding_non_adenosines_df = all_coding_non_adenosines_df.merge(
-        covered_coding_non_adenosines_positions_df.loc[
-            :, ["Chrom", "Position", "RefBaseCount", "AltBaseCount", binom_pval_col]
-        ],
-        on=["Chrom", "Position"],
-        how="left",
-    ).sort_values(by=["Chrom", "Position"], ignore_index=True)
-
-    # set the missing binom values of uncovered positions as 1.0 (by definition)
-    all_coding_non_adenosines_df[binom_pval_col] = all_coding_non_adenosines_df[
-        binom_pval_col
-    ].fillna(1.0)
-    all_coding_non_adenosines_df["RefBaseCount"] = all_coding_non_adenosines_df[
-        "RefBaseCount"
-    ].fillna(0)
-    all_coding_non_adenosines_df["AltBaseCount"] = all_coding_non_adenosines_df[
-        "AltBaseCount"
-    ].fillna(0)
-    # return covered_coding_non_adenosines_positions_df
-    return all_coding_non_adenosines_df
-
-
-def write_df_to_outfile(df: pd.DataFrame, out_file: Path, sep: str):
-    df.to_csv(out_file, sep=sep, index=False, na_rep=np.NaN)
-
-
 def multisample_pileups_to_positions_part_1(
     pileup_files: list[Path],
     samples: list[str],
     strand: str,
-    positions_file: Path,
     problamatic_regions_file: Union[Path, str, None] = None,
     known_sites_file: Union[Path, str, None] = None,
     cds_regions_file: Union[Path, str, None] = None,
     reads_mapping_file: Union[Path, str, None] = None,
     out_files_sep: str = "\t",
-) -> None:
+):
     """
     Read pileup files of reads mapped to a certain transcript from one or more samples into a DataFrame.
     Verify format and change to 0-based coordinates.
@@ -1230,19 +957,20 @@ def multisample_pileups_to_positions_part_1(
     Replace reads' names with a shortened, memory-efficient version, and possibly write the mapping from the original
     reads to their shortened versions to a file.
     Annotate base counts and noise.
-    Write the intermediate positions dataframe to a file.
 
     Args:
         `pileup_files` (Path): A list of paths to files creates by the `mpileup` function, each belonging to a different sample.
         `samples`: list[str]: A list of samples' names corresponding to `pileup_files`.
         `strand` (str): The ORF's strand.
-        `positions_file` (Path): Write the intermidate positions dataframe to this file.
         `problamatic_regions_file` (Union[Path, str, None]): If given, annotate positions as residing in problamatic genomic regions.
         `known_sites_file` (Union[Path, str, None]): If given, annotate positions as known editing sites.
         `cds_regions_file` (Union[Path, str, None]): If given, annotate positions as coding sites. Else, *all sites are considered as coding!*.
         `reads_mapping_file` (Union[Path, str, None]): If given, write mapping from the original reads to their shortened versions to this file.
         `out_files_sep` (str): Use this char as a seperator for csv out files. Defaults to tab.
 
+
+    Returns:
+        pd.DataFrame: A df of the parsed pileup files.
     """
     cols = [
         "Chrom",
@@ -1254,7 +982,6 @@ def multisample_pileups_to_positions_part_1(
         "Reads",
     ]
 
-    ic()
     positions_dfs = [
         pd.read_csv(pileup_file, sep="\t", names=cols) for pileup_file in pileup_files
     ]
@@ -1324,14 +1051,15 @@ def multisample_pileups_to_positions_part_1(
     # # todo uncomment!!!
     # # todo uncomment!!!
     # # todo uncomment!!!
-    replace_reads_names(
-        positions_df,
-        "TotalCoverage",
-        "Reads",
-        reads_sep=",",
-        mapping_out_file=reads_mapping_file,
-        out_files_sep=out_files_sep,
-    )
+    #
+    # replace_reads_names(
+    #     positions_df,
+    #     "TotalCoverage",
+    #     "Reads",
+    #     reads_sep=",",
+    #     mapping_out_file=reads_mapping_file,
+    #     out_files_sep=out_files_sep,
+    # )
     # todo uncomment!!!
     # todo uncomment!!!
     # # todo uncomment!!!
@@ -1396,77 +1124,38 @@ def multisample_pileups_to_positions_part_1(
     # only then calculate noise
     annotate_noise(positions_df, strand)
 
-    positions_df.to_csv(positions_file, sep=out_files_sep, index=False, na_rep=np.NaN)
-
-    # return positions_df
+    return positions_df
 
 
 def multisample_pileups_to_positions_part_2(
-    positions_file: Path,
-    corrected_noise_file: Path,
-    sep: str,
+    positions_df: pd.DataFrame,
     strand: str,
     snp_noise_level: float,
     top_x_noisy_positions: int,
     assurance_factor: float,
     remove_non_refbase_noisy_positions: bool,
     denovo_detection: bool,
-    binom_noise_pval_col: str,
-    bh_noise_pval_col: str,
     bh_noisy_col: str,
 ):
     """
-    The input positions_file is after noise annotation, and the BH correction is added according to the corrected noise p-value from the `corrected_noise_file`.
-    Then, that noise is used to calculate the noise threshold and basic editing status according to it.
+    The input positions_df is given after BH correction for noise, and is used to calculate the noise threshold and
+    basic editing status according to it.
 
     Args:
-        `positions_file` (Path): The positions file after BH correction for noise.
-        `corrected_noise_file` (Path): Read the binom and corrected noise p-values from this file.
-        `sep` (str): The seperator used in the positions_file and corrected_noise_file.
+        `positions_df` (pd.DataFrame): The positions df after BH correction for noise.
         `strand` (str): The ORF's strand.
         `snp_noise_level` (float): Treat non-refbase positions with noise >= snp_noise_level as SNPs, so they won't be considered for noise threshold.
         `top_x_noisy_positions` (int): Use this many positions with highest noise levels to define initial noise threshold.
         `assurance_factor` (float): Multiply the measured noise by this factor to define the actual noise threshold.
         `remove_non_refbase_noisy_positions` (bool): If true, remove non refbase positions with too-high noise. Even if this is False, these positions are not considered for noise_threshold determination.
-        `denovo_detection` (bool): Whether to determine both new ("denovo") and known sites as naively edited (not the final decision), or only known ones.
-        `binom_noise_pval_col` (str): The name of the column in the final file that will contain the p-value of the binomial test for noise.
-        `bh_noise_pval_col` (str): The name of the column in the final file that will contain the corrected p-value for noise after applying the Benjamini-Hochberg procedure.
-        `bh_noisy_col` (str): The name of the column in the final file that will contain the information on whether the corrected noise p-value after applying the Benjamini-Hochberg procedure is significant (i.e., "rejected").
+        `denovo_detection` (bool): Whether to determine both new ("denovo") and known sites as naively edited (not the final decision), or only known ones. Defaults to True.
+        `bh_noisy_col` (str): The name of the column in the returned DataFrame that will contain the information on whether the corrected noise p-value after applying the Benjamini-Hochberg procedure is significant (i.e., "rejected").
+
+    Returns:
+        pd.DataFrame: A df after basic/naive editing status annotation, and before BH correction for editing.
     """
+
     ref_base = "A" if strand == "+" else "T"
-
-    # read the positions df
-    positions_df = pd.read_csv(positions_file, sep=sep, dtype={"Reads": str})
-
-    # read the corrected noise df
-    corrected_noise_df = pd.read_csv(corrected_noise_file, sep=sep)
-
-    # merge the corrected noise into the positions df
-    if not corrected_noise_df.empty:
-        positions_df = positions_df.merge(
-            corrected_noise_df.loc[
-                :,
-                [
-                    "Chrom",
-                    "Position",
-                    binom_noise_pval_col,
-                    bh_noise_pval_col,
-                    bh_noisy_col,
-                ],
-            ],
-            on=["Chrom", "Position"],
-            how="left",
-        )
-    else:
-        positions_df[binom_noise_pval_col] = positions_df[ref_base].apply(
-            lambda x: 1.0 if x != ref_base else np.NaN
-        )
-        positions_df[bh_noise_pval_col] = positions_df[ref_base].apply(
-            lambda x: 1.0 if x != ref_base else np.NaN
-        )
-        positions_df[bh_noisy_col] = positions_df[ref_base].apply(
-            lambda x: False if x != ref_base else np.NaN
-        )
 
     #  possibly remove non refbase positions with too-high noise & define noise threshold
     if remove_non_refbase_noisy_positions:
@@ -1506,77 +1195,43 @@ def multisample_pileups_to_positions_part_2(
     annotate_editing_frequency_per_position(positions_df, strand)
     annotate_edited_sites(positions_df, strand, noise_threshold, denovo_detection)
 
-    positions_df.to_csv(positions_file, sep=sep, index=False, na_rep=np.NaN)
+    return positions_df
 
 
 def multisample_pileups_to_positions_part_3(
-    positions_file: Path,
-    corrected_editing_file: Path,
-    sep: str,
+    positions_df: pd.DataFrame,
     pileup_files: list[Path],
     strand: str,
     min_percent_of_max_coverage: float,
     min_absolute_coverage: Union[int, None],
     final_editing_scheme: str,
-    keep_pileup_files: bool,
-    binom_editing_pval_col: str,
-    bh_editing_pval_col: str,
-    bh_editing_col: str,
+    positions_out_file: Union[Path, str, None] = None,
+    out_files_sep: str = "\t",
+    keep_pileup_files: bool = False,
+    bh_editing_col: str = "EditedCorrected",
 ):
     """
-    The input positions_file is given after basic editing annoatation, and the BH correction for editing is added according to the corrected editing p-value from the `corrected_editing_file`.
+    The input positions_df is given after BH correction for noise & editing.
     Then, apply some coverage based filtering, and annotate the final editing status according to the final editing scheme.
     In addition, some verifications are made.
-    Finaly, writes the final positions_df to a file, and possibly delete the original pileup files.
+    Possibly writes the final positions_df to a file, and possibly delete the original pileup files.
 
     Args:
-        `positions_file` (Path): The positions file after BH correction for noise.
-        `corrected_editing_file` (Path): Read the binom and corrected noise p-values from this file.
-        `sep` (str): The seperator used in the positions_file and corrected_noise_file.
+        `positions_df` (pd.DataFrame): The positions df after BH correction for noise.
         `pileup_files` (Path): A list of paths to files creates by the `mpileup` function from reads mapped to the transcript, each belonging to a different sample.
         `strand` (str): The transcript's strand.
         `min_percent_of_max_coverage` (float): In each transcript, keep only positions with `coverage` >= `min_percent_of_max_coverage` * `max_coverage`, where `max_coverage` is the maximum coverage in that transcript.
         `min_absolute_coverage` (Union[int, None]): In each transcript, keep only positions with `coverage` >= `min_absolute_coverage`. If None, `min_percent_of_max_coverage` is used instead.
-        `final_editing_scheme` (str): The final editing scheme to use. Can be either "BH only" or "BH after noise thresholding".
-        `binom_editing_pval_col` (str): The name of the column in the final file that will contain the p-value of the binomial test for editing.
-        `bh_editing_pval_col` (str): The name of the column in the final file that will contain the corrected p-value for editing after applying the Benjamini-Hochberg procedure.
-        `bh_editing_col` (str): The name of the column in the final file that will contain the information on whether the corrected editing p-value after applying the Benjamini-Hochberg procedure is significant (i.e., "rejected").
+        `final_editing_scheme` (str): The final editing scheme to use. Can be "BH only" or "BH after noise thresholding".
+        `positions_out_file` (Union[Path, str, None]): If given, write positions_df to this file.
+        `out_files_sep` (str): Use this char as a seperator for csv out files. Defaults to tab.
+        `bh_editing_col` (str): The name of the column in the returned DataFrame that will contain the information on whether the corrected editing p-value after applying the Benjamini-Hochberg procedure is significant (i.e., "rejected"). Defaults to "EditedCorrected".
+
+    Returns:
+        pd.DataFrame: The final positions df after BH correction for noise & editing of that transcript.
     """
 
     ref_base = "A" if strand == "+" else "T"
-
-    # read the positions df
-    positions_df = pd.read_csv(positions_file, sep=sep, dtype={"Reads": str})
-
-    # read the corrected editing df
-    corrected_editing_df = pd.read_csv(corrected_editing_file, sep=sep)
-
-    # merge the corrected noise into the positions df
-    if not corrected_editing_df.empty:
-        positions_df = positions_df.merge(
-            corrected_editing_df.loc[
-                :,
-                [
-                    "Chrom",
-                    "Position",
-                    binom_editing_pval_col,
-                    bh_editing_pval_col,
-                    bh_editing_col,
-                ],
-            ],
-            on=["Chrom", "Position"],
-            how="left",
-        )
-    else:
-        positions_df[binom_editing_pval_col] = positions_df[ref_base].apply(
-            lambda x: 1.0 if x == ref_base else np.NaN
-        )
-        positions_df[bh_editing_pval_col] = positions_df[ref_base].apply(
-            lambda x: 1.0 if x == ref_base else np.NaN
-        )
-        positions_df[bh_editing_col] = positions_df[ref_base].apply(
-            lambda x: False if x == ref_base else np.NaN
-        )
 
     # remove positions with insufficient coverage defined by absolute or relative coverage criteria
     # (we can finally do this after BH correction for noise & editing)
@@ -1621,18 +1276,22 @@ def multisample_pileups_to_positions_part_3(
         )
     annotate_edited_sites_final_decision(positions_df, bh_editing_col, editing_cols)
 
-    positions_df.to_csv(positions_file, sep=sep, index=False, na_rep=np.NaN)
+    positions_df = positions_df.loc[positions_df["TotalCoverage"] > 0]
+    if len(positions_df) == 0:
+        return
+
+    if positions_out_file:
+        positions_df.to_csv(
+            positions_out_file, sep=out_files_sep, index=False, na_rep=np.NaN
+        )
 
     if not keep_pileup_files:
         for pileup_file in pileup_files:
             subprocess.run(f"rm {pileup_file}", shell=True)
 
 
-def binom_and_bh_correction_for_editing_all_transcripts(
-    positions_files: list[Path],
-    corrected_editing_files: list[Path],
-    out_files_sep: str,
-    chroms: list[str],
+def binom_and_bh_correction_for_noise_all_transcripts(
+    positions_dfs: list[pd.DataFrame],
     processes: int,
     cds_regions_df: pd.DataFrame,
     transcriptome_dict: dict[str, Seq.Seq],
@@ -1640,162 +1299,161 @@ def binom_and_bh_correction_for_editing_all_transcripts(
     binom_pval_col: str,
     bh_pval_col: str,
     bh_rejection_col: str,
+    out_file: Path | None = None,
+) -> list[pd.DataFrame]:
+    with Pool(processes=processes) as pool:
+        per_transcript_coding_non_adenosines_dfs = pool.starmap(
+            func=get_covered_and_uncovered_coding_non_adenosines_in_transcript,
+            iterable=[
+                (
+                    positions_df,
+                    chrom,
+                    start,
+                    end,
+                    strand,
+                    transcriptome_dict,
+                    alternative_hypothesis,
+                    binom_pval_col,
+                )
+                for positions_df, (chrom, start, end, strand) in zip(
+                    positions_dfs,
+                    cds_regions_df[["Chrom", "Start", "End", "Strand"]].itertuples(
+                        index=False
+                    ),
+                )
+            ],
+        )
+
+    all_transcripts_coding_non_adenosines_df = pd.concat(
+        per_transcript_coding_non_adenosines_dfs
+    ).reset_index(drop=True)
+
+    bh_rejections, bh_corrected_pvals = fdrcorrection(
+        all_transcripts_coding_non_adenosines_df[binom_pval_col]
+    )
+
+    all_transcripts_coding_non_adenosines_df[bh_pval_col] = bh_corrected_pvals
+    all_transcripts_coding_non_adenosines_df[bh_rejection_col] = bh_rejections
+
+    # merge back the corrected p-values and rejections to the original positions_dfs
+    corrected_positions_dfs = []
+    for positions_df in positions_dfs:
+        # if len(positions_df) == 0:
+        #     continue
+        corrected_positions_df = positions_df.merge(
+            all_transcripts_coding_non_adenosines_df.loc[
+                :,
+                [
+                    "Chrom",
+                    "Position",
+                    binom_pval_col,
+                    bh_pval_col,
+                    bh_rejection_col,
+                ],
+            ],
+            on=["Chrom", "Position"],
+            how="left",
+        )
+        corrected_positions_dfs.append(corrected_positions_df)
+
+    if out_file is not None:
+        all_transcripts_coding_non_adenosines_df.to_csv(out_file, sep="\t", index=False)
+
+    return corrected_positions_dfs
+
+
+def binom_and_bh_correction_for_editing_all_transcripts(
+    positions_dfs: list[pd.DataFrame],
+    processes: int,
+    cds_regions_df: pd.DataFrame,
+    transcriptome_dict: dict[str, Seq.Seq],
+    alternative_hypothesis: str,
+    binom_pval_col: str,
+    bh_pval_col: str,
+    bh_rejection_col: str,
+    out_file: Path | None = None,
 ) -> list[pd.DataFrame]:
     """
-    Perform binomial test for editing followed by Benjamini-Hochberg correction for all adenosines in the transcriptome, and rewrite the updated results to the disk.
+    Perform binomial test for editing followed by Benjamini-Hochberg correction for all adenosines in the
+    transcriptome.
 
     Args:
-        `positions_files` (list[Path]): A list of intermidate positions files, where each file contains positions in a transcript.
-        `corrected_editing_files` (list[Path]): A list of paths to files to write the corrected editing positions to.
-        `out_files_sep` (str): The separator to use in the output files.
-        `chroms` (list[str]): A list of the chromosomes of the transcripts.
+        `positions_dfs` (list[pd.DataFrame]): A list of DataFrames, where each DataFrame contains the positions of adenosines in a transcript.
         `processes` (int): The number of processes to use in parallel.
-        `cds_regions_df` (Path): A DataFrame representing a BED-6 coordinates of the transcriptome's CDS.
+        `cds_regions_df` (Path): A DataFrame represent a BED-6 coordinates of the transcriptome's CDS.
         `transcriptome_dict` (dict[str, Seq.Seq]): A dictionary of the transcriptome, where the keys are the chromosomes and the values are the sequences.
         `alternative_hypothesis` (str, optional): The alternative hypothesis for the binomial test, either "larger", "smaller", or "two-sided".
         `binom_pval_col` (str, optional): The name of the column in the returned DataFrame that will contain the p-value of the binomial test.
         `bh_pval_col` (str, optional): The name of the column in the returned DataFrame that will contain the corrected p-value after applying the Benjamini-Hochberg procedure.
         `bh_rejection_col` (str, optional): The name of the column in the returned DataFrame that will contain the information on whether the corrected p-value after applying the Benjamini-Hochberg procedure is significant (i.e., "rejected").
+        `out_file` (Path, optional): If given, write all corrected positions from all transcripts to this file.
+
+    Returns:
+        list[pd.DataFrame]: The same list of DataFrames as `positions_dfs`, but with the binomial p-values, corrected
+        p-values and corresponding rejections.
     """
-    # get dataframes with the following columns for each transcript:
-    # (1) Chrom
-    # (2) Position
-    # (3) RefBaseCount
-    # (4) AltBaseCount
-    # (5) binom_pval_col - the p-value of the binomial test for editing in this position
-    starmap_iterable = [
-        (
-            positions_file,
-            out_files_sep,
-            chrom,
-            cds_regions_df.loc[cds_regions_df["Chrom"] == chrom, "Start"].values[0],
-            cds_regions_df.loc[cds_regions_df["Chrom"] == chrom, "End"].values[0],
-            cds_regions_df.loc[cds_regions_df["Chrom"] == chrom, "Strand"].values[0],
-            transcriptome_dict,
-            alternative_hypothesis,
-            binom_pval_col,
-        )
-        for positions_file, chrom in zip(positions_files, chroms)
-    ]
+
     with Pool(processes=processes) as pool:
         per_transcript_coding_adenosines_dfs = pool.starmap(
             func=get_covered_and_uncovered_coding_adenosines_in_transcript,
-            iterable=starmap_iterable,
-        )
-
-    # concat all the dataframes into one in order to perform the BH correction
-    all_transcripts_coding_adenosines_df = pd.concat(
-        per_transcript_coding_adenosines_dfs
-    ).reset_index(drop=True)
-    # perform the BH correction
-    bh_rejections, bh_corrected_pvals = fdrcorrection(
-        all_transcripts_coding_adenosines_df[binom_pval_col]
-    )
-    # add the corrected p-values and rejections to the concatenated dataframe
-    all_transcripts_coding_adenosines_df[bh_pval_col] = bh_corrected_pvals
-    all_transcripts_coding_adenosines_df[bh_rejection_col] = bh_rejections
-
-    # seperate the merged dataframe back into individual dataframes by transcript
-    corrected_per_transcript_coding_adenosines_dfs = [
-        all_transcripts_coding_adenosines_df.loc[
-            all_transcripts_coding_adenosines_df["Chrom"] == chrom
-        ]
-        for chrom in chroms
-    ]
-    # write them to the disk in parallel
-    with Pool(processes=processes) as pool:
-        pool.starmap(
-            write_df_to_outfile,
             iterable=[
-                (df, corrected_editing_file, out_files_sep)
-                for df, corrected_editing_file in zip(
-                    corrected_per_transcript_coding_adenosines_dfs,
-                    corrected_editing_files,
+                (
+                    positions_df,
+                    chrom,
+                    start,
+                    end,
+                    strand,
+                    transcriptome_dict,
+                    alternative_hypothesis,
+                    binom_pval_col,
+                )
+                for positions_df, (chrom, start, end, strand) in zip(
+                    positions_dfs,
+                    cds_regions_df[["Chrom", "Start", "End", "Strand"]].itertuples(
+                        index=False
+                    ),
                 )
             ],
         )
 
+    all_transcripts_coding_adenosines_df = pd.concat(
+        per_transcript_coding_adenosines_dfs
+    ).reset_index(drop=True)
 
-# sep = "\t"
-# alternative_hypothesis = "larger"
-# binom_pval_col = binom_noise_pval_col = "NoiseBinomPVal"
-# total_mapped_reads = 50
+    bh_rejections, bh_corrected_pvals = fdrcorrection(
+        all_transcripts_coding_adenosines_df[binom_pval_col]
+    )
 
-# transcriptome_file = Path("O.vulgaris/Annotations/orfs_oct.fa").absolute()
-# cds_regions_file = Path("O.vulgaris/Annotations/orfs_oct.bed").absolute()
-# alignments_stats_table = Path(
-#     "O.vulgaris/Alignment/PRJNA791920/IsoSeq.Polished.Unclustered/AggregatedByChromBySampleSummary.tsv"
-# ).absolute()
+    all_transcripts_coding_adenosines_df[bh_pval_col] = bh_corrected_pvals
+    all_transcripts_coding_adenosines_df[bh_rejection_col] = bh_rejections
 
-# transcriptome_dict = make_fasta_dict(transcriptome_file)
-# cds_regions_df = pd.read_csv(
-#     cds_regions_file,
-#     sep="\t",
-#     names=["Chrom", "Start", "End", "Name", "Score", "Strand"],
-# )
-# alignments_stats_df = pd.read_csv(alignments_stats_table, sep=sep)
-# alignments_stats_df = alignments_stats_df.loc[
-#     alignments_stats_df["MappedReads"] >= total_mapped_reads
-# ].merge(cds_regions_df, how="left")
+    # merge back the corrected p-values and rejections to the original positions_dfs
+    corrected_positions_dfs = []
+    for positions_df in positions_dfs:
+        corrected_positions_df = positions_df.merge(
+            all_transcripts_coding_adenosines_df.loc[
+                :,
+                [
+                    "Chrom",
+                    "Position",
+                    binom_pval_col,
+                    bh_pval_col,
+                    bh_rejection_col,
+                ],
+            ],
+            on=["Chrom", "Position"],
+            how="left",
+        )
+        corrected_positions_dfs.append(corrected_positions_df)
 
-# # i = 1802 # all non-adenosines are covered
-# # i = 1805 # comp132374_c0_seq1
-# i = 2246 # comp72309_c0_seq1
-# chrom, start, end, strand = alignments_stats_df.loc[
-#     i, ["Chrom", "Start", "End", "Strand"]
-# ]
+    if out_file is not None:
+        all_transcripts_coding_adenosines_df.to_csv(out_file, sep="\t", index=False)
 
-# positions_file = f"/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BH/PositionsFiles/{chrom}.positions.csv.gz"
-# corrected_noise_file = f"/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BH/PositionsFiles/{chrom}.CorrectedNoise.csv.gz"
-
-# originial_positions_file = f"/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50/PositionsFiles/{chrom}.positions.csv.gz"
-
-# original_positions_df = pd.read_csv(originial_positions_file, sep=sep)
-# original_positions_df = original_positions_df.loc[original_positions_df["RefBase"] != "A"].drop(columns=["MappedBases", "Samples"])
-# ref_and_alt_base_counts_df = original_positions_df.apply(
-#     lambda x: ref_and_alt_base_count_in_noise_position(
-#         x["RefBase"],
-#         strand,
-#         x["A"],
-#         x["T"],
-#         x["C"],
-#         x["G"],
-#     ),
-#     axis=1,
-#     result_type="expand",
-# ).rename(columns={0: "RefBaseCount", 1: "AltBaseCount"})
-# original_positions_df[["RefBaseCount", "AltBaseCount"]] = (
-#     ref_and_alt_base_counts_df
-# )
-
-# original_positions_df["Noise"].describe()
-# original_positions_df.loc[(original_positions_df["Noise"] > 0) & (original_positions_df["Noise"] < 1), "Noise"].mul(100).describe()
-# original_positions_df.loc[original_positions_df["Noise"] == 1]
+    return corrected_positions_dfs
 
 
-# covered_coding_non_adenosines_positions_df
-
-
-# covered_coding_non_adenosines_positions_df.loc[covered_coding_non_adenosines_positions_df[binom_pval_col] < 0.01]
-
-# covered_coding_non_adenosines_positions_df[]
-
-# mututal_sites_new = covered_coding_non_adenosines_positions_df.loc[
-#     covered_coding_non_adenosines_positions_df["Position"].isin(
-#         original_positions_df["Position"]
-#     )
-# ].reset_index(drop=True)
-
-# mututal_sites_original = original_positions_df.loc[
-#     original_positions_df["Position"].isin(
-#         mututal_sites_new["Position"]
-#     )
-# ].reset_index(drop=True)
-
-
-def get_covered_and_uncovered_coding_adenosines_in_transcript(
-    positions_file: Path,
-    sep: str,
+def get_covered_and_uncovered_coding_non_adenosines_in_transcript(
+    positions_df: pd.DataFrame,
     chrom: str,
     start: int,
     end: int,
@@ -1803,6 +1461,141 @@ def get_covered_and_uncovered_coding_adenosines_in_transcript(
     transcriptome_dict: dict[str, Seq.Seq],
     alternative_hypothesis: str,
     binom_pval_col: str,
+) -> pd.DataFrame:
+    """
+    Get a DataFrame of coding non-adenosine bases positions in a transcript with the p-value of binomial test for the
+    noise in each position.
+
+    The positions are taken from a two sources: the `positions_df` which contains covered non-adenosine bases (i.e.,
+    positions with coverage > 0), and all the other coding non-adenosine bases in the transcript (their binomial P-value
+    is 1.0 by definition).
+
+    Note! This function assumes that the coverage of bases not in `positions_df` is exactly 0
+    (however, it's possible that the entire coverage in a position is due to unkown bases (N)).
+    Any other coverage-based filter should be applied only after this function is called.
+
+    Args:
+        `positions_df` (pd.DataFrame): A DataFrame of mapped positions in the transcript, where each row is a position.
+        `chrom` (str): The chromosome of the transcript.
+        `start` (int): The start position of the transcript, 0-based.
+        `end` (int): The end position of the transcript, exclusive.
+        `strand` (str): The strand of the transcript.
+        `transciptome_dict` (dict[str, Seq.Seq]): A dictionary of the transcriptome, where the keys are the chromosomes and the values are the sequences.
+        `alternative_hypothesis` (str): The alternative hypothesis for the binomial test, either "larger", "smaller", or "two-sided".
+        `binom_pval_col` (str): The name of the column in the returned DataFrame that will contain the p-value of the binomial test.
+
+    Returns:
+        pd.DataFrame: _description_
+    """
+
+    # retain only coding non-adenosine positions with total coverage > 0
+    negative_ref_base = "A" if strand == "+" else "T"
+
+    covered_coding_non_adenosines_positions_df = positions_df.loc[
+        (positions_df["CDS"]) & (positions_df["RefBase"] != negative_ref_base),
+        [
+            "Chrom",
+            "Position",
+            "RefBase",
+            "A",
+            "T",
+            "C",
+            "G",
+            "TotalCoverage",
+            "Noise",
+        ],
+    ]
+
+    # get all coding non-adenosines in the transcript
+    # (including those with total coverage > 0, which are already in `positions_df`)
+    # this df's columns are (1) Chrom, (2) Position and (3) RefBase
+    all_coding_non_adenosines_df = get_positions_of_desired_bases_in_transcript(
+        chrom, start, end, strand, transcriptome_dict, {"T", "C", "G"}
+    )
+
+    # add some columns to all_coding_non_adenosines_df before returning it
+    # (we don't have any covered positions with desired bases in this transcript,
+    # so we can't calculate the binomial p-values for them)
+    if len(covered_coding_non_adenosines_positions_df) == 0:
+        all_coding_non_adenosines_df[binom_pval_col] = 1.0
+        all_coding_non_adenosines_df["Noise"] = 0.0
+        for col in [
+            "TotalCoverage",
+            "A",
+            "T",
+            "C",
+            "G",
+            "RefBaseCount",
+            "AltBaseCount",
+        ]:
+            all_coding_non_adenosines_df[col] = 0
+        return all_coding_non_adenosines_df
+
+    # perform binomial test on each covered position
+    ref_and_alt_base_counts_df = covered_coding_non_adenosines_positions_df.apply(
+        lambda x: ref_and_alt_base_count_in_noise_position(
+            x["RefBase"],
+            strand,
+            x["A"],
+            x["T"],
+            x["C"],
+            x["G"],
+        ),
+        axis=1,
+        result_type="expand",
+    ).rename(columns={0: "RefBaseCount", 1: "AltBaseCount"})
+    covered_coding_non_adenosines_positions_df[["RefBaseCount", "AltBaseCount"]] = (
+        ref_and_alt_base_counts_df
+    )
+    covered_coding_non_adenosines_positions_df[binom_pval_col] = (
+        covered_coding_non_adenosines_positions_df.apply(
+            lambda x: binom_test(
+                x["AltBaseCount"],
+                x["RefBaseCount"] + x["AltBaseCount"],
+                0.001,
+                alternative=alternative_hypothesis,
+            ),
+            axis=1,
+        )
+    )
+
+    # merge the two DataFrames, such that the positions in `positions_df` will have the P-value from the binomial test,
+    # as well as original editing status (if available), the total coverage, and the number of Gs
+    all_coding_non_adenosines_df = all_coding_non_adenosines_df.merge(
+        covered_coding_non_adenosines_positions_df,
+        on=["Chrom", "Position", "RefBase"],
+        how="left",
+    ).sort_values(by=["Chrom", "Position"], ignore_index=True)
+
+    # fill in the missing values for the uncovered positions
+    all_coding_non_adenosines_df[binom_pval_col] = all_coding_non_adenosines_df[
+        binom_pval_col
+    ].fillna(1.0)
+    for col in [
+        "TotalCoverage",
+        "A",
+        "T",
+        "C",
+        "G",
+        "Noise",
+        "RefBaseCount",
+        "AltBaseCount",
+    ]:
+        all_coding_non_adenosines_df[col] = all_coding_non_adenosines_df[col].fillna(0)
+
+    # return covered_coding_non_adenosines_positions_df
+    return all_coding_non_adenosines_df
+
+
+def get_covered_and_uncovered_coding_adenosines_in_transcript(
+    positions_df: pd.DataFrame,
+    chrom: str,
+    start: int,
+    end: int,
+    strand: str,
+    transcriptome_dict: dict[str, Seq.Seq],
+    alternative_hypothesis: str,
+    binom_editing_pval_col: str,
 ) -> pd.DataFrame:
     """
     Get a DataFrame of coding adenosines positions in a transcript with the p-value of binomial test for the editing in
@@ -1817,76 +1610,38 @@ def get_covered_and_uncovered_coding_adenosines_in_transcript(
     Any other coverage-based filter should be applied only after this function is called.
 
     Args:
-        `positions_file` (Path): An intermidate file of mapped positions in the transcript, where each row is a position.
-        `sep` (str): The separator used in `positions_file`.
-        `chrom` (str): The chromosome of the transcript.
-        `start` (int): The start position of the transcript, 0-based.
-        `end` (int): The end position of the transcript, exclusive.
-        `strand` (str): The strand of the transcript.
-        `transciptome_dict` (dict[str, Seq.Seq]): A dictionary of the transcriptome, where the keys are the chromosomes and the values are the sequences.
-        `alternative_hypothesis` (str): The alternative hypothesis for the binomial test, either "larger", "smaller", or "two-sided".
-        `binom_pval_col` (str): The name of the column in the returned DataFrame that will contain the p-value of the binomial test.
+        positions_df (pd.DataFrame): A DataFrame of mapped positions in the transcript, where each row is a position.
+        chrom (str): The chromosome of the transcript.
+        start (int): The start position of the transcript, 0-based.
+        end (int): The end position of the transcript, exclusive.
+        strand (str): The strand of the transcript.
+        transciptome_dict (dict[str, Seq.Seq]): A dictionary of the transcriptome, where the keys are the chromosomes
+        and the values are the sequences.
+        alternative (str): The alternative hypothesis for the binomial test, either "larger", "smaller", or "two-sided".
+        binom_editing_pval_col (str): The name of the column in the returned DataFrame that will contain the p-value of
+        the binomial test.
 
     Returns:
-        pd.DataFrame: A DataFrame of coding adenosine bases positions in a transcript with the following cols:
-        (1) Chrom, (2) Position, and (3) binom_pval_col - the p-value of binomial test for editing in that position.
+        pd.DataFrame: _description_
     """
-    # read the positions file into a DataFrame
-    covered_coding_adenosines_positions_df = pd.read_csv(
-        positions_file,
-        sep=sep,
-        usecols=[
+    # retain only coding adenosines positions with total coverage > 0
+    # (however, it's possible that the entire coverage in a position is due to unkown bases (N))
+    ref_base = "A" if strand == "+" else "T"
+    covered_coding_adenosines_positions_df = positions_df.loc[
+        (positions_df["CDS"]) & (positions_df["RefBase"] == ref_base),
+        [
             "Chrom",
             "Position",
-            "CDS",
             "RefBase",
-            "TotalCoverage",
             "A",
             "T",
             "C",
             "G",
-            "Noise",
+            "G",
+            "TotalCoverage",
+            "Edited",
         ],
-        dtype={"Reads": str},
-    )
-
-    # verify that the positions file contains only one chromosome, and that it's the same as the given chrom
-    unique_chroms_in_positions_df = covered_coding_adenosines_positions_df[
-        "Chrom"
-    ].unique()
-    if (
-        len(unique_chroms_in_positions_df) > 1
-        or chrom not in unique_chroms_in_positions_df
-    ):
-        raise ValueError(
-            f"Unmatching chroms: {chrom = } != {covered_coding_adenosines_positions_df['Chrom'].unique() = }"
-        )
-
-    # retain only coding adenosines positions with total coverage > 0
-    # (however, it's possible that the entire coverage in a position is due to unkown bases (N))
-    ref_base = "A" if strand == "+" else "T"
-    covered_coding_adenosines_positions_df = covered_coding_adenosines_positions_df.loc[
-        (covered_coding_adenosines_positions_df["CDS"])
-        & (covered_coding_adenosines_positions_df["RefBase"] == ref_base)
-    ].drop(columns=["CDS"])
-
-    # get all coding adenosines in the transcript
-    # (including those with total coverage > 0, which are already in `covered_coding_adenosines_positions_df`)
-    # this df's columns are (1) Chrom, (2) Position
-    all_coding_adenosines_df = get_positions_of_desired_bases_in_transcript(
-        chrom, start, end, strand, transcriptome_dict, {"A"}
-    )
-
-    # add some columns to all_coding_adenosines_df before returning it
-    # (we don't have any covered positions with desired bases in this transcript,
-    # so we can't calculate the binomial p-values for them)
-    # # set the missing binom values of uncovered positions as 1.0 (by definition)
-    if len(covered_coding_adenosines_positions_df) == 0:
-        ic(f"len(covered_coding_adenosines_positions_df) == 0 for {chrom = }")
-        all_coding_adenosines_df[binom_pval_col] = 1.0
-        all_coding_adenosines_df["RefBaseCount"] = 0
-        all_coding_adenosines_df["AltBaseCount"] = 0
-        return all_coding_adenosines_df
+    ]
 
     # perform binomial test on each covered position
     ref_and_alt_base_counts_df = covered_coding_adenosines_positions_df.apply(
@@ -1903,7 +1658,7 @@ def get_covered_and_uncovered_coding_adenosines_in_transcript(
     covered_coding_adenosines_positions_df[["RefBaseCount", "AltBaseCount"]] = (
         ref_and_alt_base_counts_df
     )
-    covered_coding_adenosines_positions_df[binom_pval_col] = (
+    covered_coding_adenosines_positions_df[binom_editing_pval_col] = (
         covered_coding_adenosines_positions_df.apply(
             lambda x: binom_test(
                 x["AltBaseCount"],
@@ -1915,26 +1670,26 @@ def get_covered_and_uncovered_coding_adenosines_in_transcript(
         )
     )
 
-    # merge the two DataFrames, such that the positions in `all_coding_adenosines_df` will have the P-value from the binomial test,
-    # as well as the RefBaseCount and AltBaseCount the test was based on
+    # get all coding adenosines in the transcript (including the coverage > 0, which are already in `positions_df`)
+    all_coding_adenosines_df = get_positions_of_desired_bases_in_transcript(
+        chrom, start, end, strand, transcriptome_dict, {"A"}
+    )
+
+    # merge the two DataFrames, such that the positions in `positions_df` will have the P-value from the binomial test,
+    # as well as original editing status (if available), the total coverage, and the number of Gs
     all_coding_adenosines_df = all_coding_adenosines_df.merge(
-        covered_coding_adenosines_positions_df.loc[
-            :, ["Chrom", "Position", "RefBaseCount", "AltBaseCount", binom_pval_col]
-        ],
-        on=["Chrom", "Position"],
-        how="left",
+        covered_coding_adenosines_positions_df, on=["Chrom", "Position"], how="left"
     ).sort_values(by=["Chrom", "Position"], ignore_index=True)
 
-    # set the missing binom values of uncovered positions as 1.0 (by definition)
-    all_coding_adenosines_df[binom_pval_col] = all_coding_adenosines_df[
-        binom_pval_col
+    # fill in the missing values for the uncovered positions
+    all_coding_adenosines_df["Edited"] = all_coding_adenosines_df["Edited"].fillna(
+        False
+    )
+    all_coding_adenosines_df[binom_editing_pval_col] = all_coding_adenosines_df[
+        binom_editing_pval_col
     ].fillna(1.0)
-    all_coding_adenosines_df["RefBaseCount"] = all_coding_adenosines_df[
-        "RefBaseCount"
-    ].fillna(0)
-    all_coding_adenosines_df["AltBaseCount"] = all_coding_adenosines_df[
-        "AltBaseCount"
-    ].fillna(0)
+    for col in ["TotalCoverage", "A", "T", "C", "G", "RefBaseCount", "AltBaseCount"]:
+        all_coding_adenosines_df[col] = all_coding_adenosines_df[col].fillna(0)
 
     # return covered_coding_adenosines_positions_df
     return all_coding_adenosines_df
@@ -1960,7 +1715,7 @@ def get_positions_of_desired_bases_in_transcript(
         `desired_bases` (set[str]): A set of bases to be considered. They are given w.r.t the biological data, so if the strand is "-", the desired bases are the complements of the given ones.
 
     Returns:
-        pd.DataFrame: A dataframe, where each row contains the chromosome and the (start) position of a
+        pd.DataFrame: A dataframe, where each row contains the chromosome, the (start) position, and the reference of a
         desired base in the transcript.
     """
     if strand == "-":
@@ -1972,15 +1727,14 @@ def get_positions_of_desired_bases_in_transcript(
     seq = transcriptome_dict[chrom]
 
     for x in range(start, end):
-        # base = seq[x : x + 1]
+        base = seq[x : x + 1]
         # if strand == "-":
         #     base = base.reverse_complement()
-        base = seq[x]
         if base in desired_bases:
-            positions_of_desired_bases.append((chrom, x))
+            positions_of_desired_bases.append((chrom, x, base))
 
     positions_of_desired_bases_df = pd.DataFrame(
-        positions_of_desired_bases, columns=["Chrom", "Position"]
+        positions_of_desired_bases, columns=["Chrom", "Position", "RefBase"]
     )
 
     return positions_of_desired_bases_df
@@ -2020,6 +1774,18 @@ def ref_and_alt_base_count_in_noise_position(
         tuple[int, int]: The numbers of reads supporting `ref_base` and `alt_base`, respectively.
     """
     base_counts = [a_count, t_count, c_count, g_count]
+
+    # if (
+    #     (strand == "+" and ref_base == "A") or (strand == "-" and ref_base == "T")
+    # ) and sum(base_counts) == 0:
+    #     raise ValueError(
+    #         "This function is only for non-adenosine positions with coverage > 0."
+    #     )
+
+    # elif (strand == "+" and ref_base == "A") or (strand == "-" and ref_base == "T"):
+    #     raise ValueError("This function is only for non-adenosine positions.")
+    # elif sum(base_counts) == 0:
+    #     raise ValueError("This function is only for positions with coverage > 0.")
 
     if (strand == "+" and ref_base == "A") or (strand == "-" and ref_base == "T"):
         raise ValueError("This function is only for non-adenosine positions.")

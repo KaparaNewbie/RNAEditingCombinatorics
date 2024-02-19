@@ -65,6 +65,7 @@ from Alignment.alignment_utils import (
 # %% papermill={"duration": 0.071769, "end_time": "2022-02-01T09:42:43.049672", "exception": false, "start_time": "2022-02-01T09:42:42.977903", "status": "completed"} tags=["parameters"]
 condition_col = "Gene"
 conditions = ["GRIA", "PCLO"]
+fixed_conditions = ["GRIA2", "PCLO"]
 chroms = ["comp141693_c0_seq1", "comp141882_c0_seq14"]
 starts = [170, 0]
 ends = [2999, 6294]
@@ -79,31 +80,31 @@ aligned_bam_files = [
     "/private7/projects/Combinatorics/D.pealeii/Alignment/BestN1/PCLO-CNS-RESUB.C0x1291.aligned.sorted.bam",
 ]
 filtered_aligned_bam_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.bam",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.bam",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.bam",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.bam",
 ]
 include_flags = None
 exclude_flags = "2304"  # remove secondary and supplementary (chimeric) alignments
 sep = "\t"
 positions_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
 ]
 reads_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz",
 ]
 unique_reads_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_reads.csv.gz",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_reads.csv.gz",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_reads.csv.gz",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_reads.csv.gz",
 ]
 proteins_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.proteins.csv.gz",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.proteins.csv.gz",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.proteins.csv.gz",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.proteins.csv.gz",
 ]
 unique_proteins_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz",
 ]
 reads_first_col_pos = 6
 unique_reads_first_col_pos = 8
@@ -111,61 +112,35 @@ proteins_first_col_pos = 12
 unique_proteins_first_col_pos = 14
 reads_editing_col = "EditingFrequency"
 proteins_editing_col = "MinNonSyns"
-# distinct_unique_reads_files = [
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA.AllRows.DistinctUniqueReads.csv",
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO.AllRows.DistinctUniqueReads.csv",
-# ]
-
-# # old distinct files
-# distinct_unique_proteins_files = [
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.DistinctUniqueProteins.03.03.2023-15:36:38.csv",
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.DistinctUniqueProteins.03.03.2023-15:53:01.csv",
-# ]
 
 # distinct files with available supporting reads
 distinct_unique_proteins_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.DistinctUniqueProteins.Regular.AvailableReads.22.05.2023-11:08:27.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.DistinctUniqueProteins.Regular.AvailableReads.22.05.2023-11:26:31.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.06.02.2024-09:29:20.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.DistinctUniqueProteins.06.02.2024-09:46:24.csv",
 ]
 
 distinct_unique_proteins_fraction01_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.DistinctUniqueProteins.Fraction0_1.11.05.2023-17:03:49.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.DistinctUniqueProteins.Fraction0_1.11.05.2023-17:11:00.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.Fraction0_1.06.02.2024-10:55:32.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.DistinctUniqueProteins.Fraction0_1.06.02.2024-11:05:02.csv",
 ]
-
-
-# proteins_jaccard_files = [
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA.AllRows.JaccardMatrixProteins.csv",
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO.AllRows.JaccardMatrixProteins.csv",
-# ]
-
-# # old expression files
-# expression_files = [
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA.DistinctUniqueProteins.ExpressionLevels.csv",
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO.DistinctUniqueProteins.ExpressionLevels.csv",
-# ]
-# fraction01_expression_files = [
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA.DistinctUniqueProteins.ExpressionLevels.Fraction0_1.csv",
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO.DistinctUniqueProteins.ExpressionLevels.Fraction0_1.csv"
-# ]
 
 # new expression files with supporting reads and unique proteins
 expression_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA.DistinctUniqueProteins.ExpressionLevels.Regular.SupportingReadsAndProteins.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO.DistinctUniqueProteins.ExpressionLevels.Regular.SupportingReadsAndProteins.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA.DistinctUniqueProteins.ExpressionLevels.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO.DistinctUniqueProteins.ExpressionLevels.csv",
 ]
 fraction01_expression_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA.DistinctUniqueProteins.ExpressionLevels.Fraction0_1.SupportingReadsAndProteins.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO.DistinctUniqueProteins.ExpressionLevels.Fraction0_1.SupportingReadsAndProteins.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA.DistinctUniqueProteins.ExpressionLevels.Fraction0_1.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO.DistinctUniqueProteins.ExpressionLevels.Fraction0_1.csv",
 ]
 
 distinct_dissimilar_miyata_proteins_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.DistinctUniqueProteins.AAgroupsMiyata1979.03.03.2023-15:49:55.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.DistinctUniqueProteins.AAgroupsMiyata1979.03.03.2023-16:09:24.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.AAgroupsMiyata1979.06.02.2024-13:43:37.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.DistinctUniqueProteins.AAgroupsMiyata1979.06.02.2024-14:14:55.csv",
 ]
 miyata_expression_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA.DistinctUniqueProteins.ExpressionLevels.AAgroupsMiyata1979.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO.DistinctUniqueProteins.ExpressionLevels.AAgroupsMiyata1979.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA.DistinctUniqueProteins.ExpressionLevels.AAgroupsMiyata1979.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO.DistinctUniqueProteins.ExpressionLevels.AAgroupsMiyata1979.csv",
 ]
 grantham_cutoff_scores = [
     # 50, 75,
@@ -174,18 +149,18 @@ grantham_cutoff_scores = [
 ]
 distinct_dissimilar_grantham_proteins_files = [
     [
-        "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.DistinctUniqueProteins.GRANTHAM1974-100.08.03.2023-12:37:40.csv",
+        "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.GRANTHAM1974-100.06.02.2024-14:27:55.csv",
     ],
     [
-        "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.DistinctUniqueProteins.GRANTHAM1974-100.08.03.2023-13:53:05.csv",
+        "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.DistinctUniqueProteins.GRANTHAM1974-100.06.02.2024-15:51:50.csv",
     ],
 ]
 grantham_expression_files = [
     [
-        "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA.DistinctUniqueProteins.ExpressionLevels.GRANTHAM1974-100.csv",
+        "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA.DistinctUniqueProteins.ExpressionLevels.GRANTHAM1974-100.csv",
     ],
     [
-        "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO.DistinctUniqueProteins.ExpressionLevels.GRANTHAM1974-100.csv",
+        "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO.DistinctUniqueProteins.ExpressionLevels.GRANTHAM1974-100.csv",
     ],
 ]
 alg_repetitions = 5
@@ -883,48 +858,6 @@ distinct_dissimilar_grantham_proteins_df.groupby([condition_col, "CutoffScore"])
 ].max()
 
 # %% [markdown]
-# #### Jaccards
-
-# %%
-# proteins_jaccard_dfs = []
-# for jaccard_file in proteins_jaccard_files:
-#     df = pd.read_csv(jaccard_file, sep=sep)
-#     proteins_jaccard_dfs.append(df)
-# proteins_jaccard_dfs[0]
-
-# %%
-# annotated_proteins_jaccard_dfs = []
-
-# for condition, proteins_jaccard_df in zip(conditions, proteins_jaccard_dfs):
-
-#     df = distinct_unique_proteins_df.loc[
-#         distinct_unique_proteins_df[condition_col] == condition
-#     ].reset_index(drop=True)
-#     df = distinct_unique_proteins_df.loc[
-#         distinct_unique_proteins_df[condition_col] == condition,
-#         [
-#             condition_col,
-#             "Fraction",
-#             "FractionRepetition",
-#             "Algorithm",
-#             "AlgorithmRepetition",
-#         ],
-#     ].reset_index(drop=True)
-
-
-#     index_details_dict = {
-#         str(
-#             i + 1
-#         ): f'{row["Fraction"]}-{row["FractionRepetition"]}-{row["Algorithm"]}-{row["AlgorithmRepetition"]}'
-#         for i, row in df.iterrows()
-#     }
-#     df = df.rename(columns=index_details_dict)
-
-#     annotated_proteins_jaccard_dfs.append(df)
-
-# annotated_proteins_jaccard_dfs[0]
-
-# %% [markdown]
 # ## Summary of data loss
 
 # %%
@@ -1451,9 +1384,9 @@ bonferroni_masks = [
 ]
 
 # %%
-masked_corr = np.ma.masked_array(corr, mask=mask, fill_value=np.nan).filled()
-# masked_corr = mx
-masked_corr
+# masked_corr = np.ma.masked_array(corr, mask=mask, fill_value=np.nan).filled()
+# # masked_corr = mx
+# masked_corr
 
 # %%
 masked_bonferroni_corrs = [
@@ -1614,7 +1547,7 @@ for condition, corr, mask in zip(conditions, corrected_corrs_matrices, fdr_by_ma
     sns.heatmap(
         corr,
         mask=mask,
-        cmap=cmap,
+        cmap=sns.color_palette("coolwarm_r", as_cmap=True),
         square=True,
         linewidths=0.5,
         xticklabels=False,
@@ -4559,557 +4492,8 @@ ax.set(xscale="log")
 # fig.show()
 
 
-# %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"} jp-MarkdownHeadingCollapsed=true
-# ### Unique proteins
-
-# %%
-# unique_proteins_dfs[0].head()
-
-
-# %%
-# max(df["NumOfReads"].max() for df in unique_proteins_dfs)
-
-
-# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"}
-# cols = len(conditions)
-
-# x_title = "Reads"
-# y_title = "log<sub>10</sub> unique proteins"
-# title_text = "Distribution of supporting reads per unique protein"
-
-# fig = make_subplots(
-#     rows=1,
-#     cols=cols,
-#     subplot_titles=conditions,
-#     shared_yaxes=True,
-#     shared_xaxes=True,
-#     x_title=x_title,
-#     y_title=y_title,
-# )
-
-# for col, condition, unique_proteins_df in zip(
-#     range(1, cols + 1), conditions, unique_proteins_dfs
-# ):
-
-#     fig.add_trace(
-#         go.Histogram(
-#             x=unique_proteins_df["NumOfReads"],
-#             marker_color=color_discrete_map[condition],
-#         ),
-#         row=1,
-#         col=col,
-#     )
-
-# fig.update_layout(
-#     title_text=title_text,
-#     showlegend=False,
-#     template=template,
-# )
-
-# # min_x = min(0, min(df["NumOfReads"].min() for df in unique_proteins_dfs))
-# min_x = 0
-# max_x = max(df["NumOfReads"].max() for df in unique_proteins_dfs) * 1.05
-# fig.update_xaxes(range=[min_x, max_x])
-# fig.update_yaxes(type="log")
-
-# fig.show()
-
-
 # %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"}
 # ### Distinct unique proteins
-
-# %% [markdown] toc-hr-collapsed=true
-# #### Jaccard - TODO - erase?
-
-# %%
-# gdf = (
-#     expanded_distinct_unique_proteins_df
-#     .groupby([condition_col, "Fraction", "FractionRepetition", "Algorithm", "AlgorithmRepetition"])
-# )
-
-# %%
-# fraction_1_dfs = []
-
-# for condition in conditions:
-#     df = expanded_distinct_unique_proteins_df.loc[
-#         (expanded_distinct_unique_proteins_df[condition_col] == condition) &
-#         (expanded_distinct_unique_proteins_df["Fraction"] == 1.0)
-#     ]
-#     df["Reads"] = df["Reads"].apply(lambda x: x.split(","))
-#     df = df.groupby(["FractionRepetition", "Algorithm", "AlgorithmRepetition"])["Reads"].apply(lambda x: list(chain(x))).reset_index()
-#     df["Reads"] = df["Reads"].apply(lambda x: set(chain.from_iterable(x)))
-#     df["NumOfReads"] = df["Reads"].apply(lambda x: len(x))
-#     fraction_1_dfs.append(df)
-
-# fraction_1_dfs[0]
-
-# %%
-# def jaccard_index(s1: set, s2: set):
-#     return len(s1 & s2) / len(s1 | s2)
-
-# %%
-# def calc_jaccard_df(df, col="Proteins"):
-#     return df[col].apply(
-#         lambda x: df[col].apply(lambda y: jaccard_index(x, y))
-#     ).reset_index(drop=True)
-
-# %% [markdown]
-# ##### By sample
-
-# %%
-# condition = conditions[0]
-
-# %%
-# df = distinct_unique_proteins_df.loc[distinct_unique_proteins_df[condition_col] == condition]
-# df = df.loc[df["Fraction"] == 1.0].reset_index(drop=True)
-# df["Proteins"] = df["Proteins"].apply(lambda x: x.split(","))
-# # df["Proteins"] = df["Proteins"].apply(lambda x: set(chain.from_iterable(x)))
-# df["Proteins"] = df["Proteins"].apply(lambda x: set(x))
-
-# df
-
-# %%
-# calc_jaccard_df(df, "Proteins")
-
-# %%
-
-# %%
-# fraction_1_jaccard_dfs = []
-# for condition in conditions:
-#     df = distinct_unique_proteins_df.loc[distinct_unique_proteins_df[condition_col] == condition]
-#     df = df.loc[df["Fraction"] == 1.0].reset_index(drop=True)
-#     df["Proteins"] = df["Proteins"].apply(lambda x: x.split(","))
-#     df["Proteins"] = df["Proteins"].apply(lambda x: set(x))
-#     fraction_1_jaccard_dfs.append(calc_jaccard_df(df, "Proteins"))
-# fraction_1_jaccard_dfs[0]
-
-# %%
-# fraction_1_jaccard_dfs[0].melt()
-
-# %%
-# cols = len(conditions)
-
-# fig = make_subplots(
-#     rows=1,
-#     cols=cols,
-#     subplot_titles=conditions,
-#     shared_yaxes=True,
-#     shared_xaxes=True,
-#     # x_title="PC1",
-#     # y_title="PC2",
-# )
-
-# min_x = None
-# max_y = None
-# max_x = None
-# min_y = None
-
-
-# for col, condition, jaccard_df in zip(
-#     range(1, cols + 1), conditions, fraction_1_jaccard_dfs
-# ):
-
-#     f1_df = distinct_unique_proteins_df.loc[distinct_unique_proteins_df[condition_col] == condition]
-#     f1_df = f1_df.loc[f1_df["Fraction"] == 1.0].reset_index(drop=True)
-
-#     for i, alg in enumerate(f1_df["Algorithm"].unique()):
-
-#         alg_components = components.loc[components["Algorithm"] == alg]
-#         x = alg_components["PC1"]
-#         y = alg_components["PC2"]
-
-#         fig.add_trace(
-#             go.Histogram(
-#                 x=x,
-#                 y=y,
-#                 mode="markers",
-#                 marker_color=subcolors_discrete_map[condition][i],
-#                 name=f"{condition}, {alg}",
-#             ),
-#             row=1,
-#             col=col,
-#         )
-
-#     fig.add_annotation(
-#         row=1,
-#         col=col,
-#         # align="right",
-#         x=min_x+abs(min_x)*0.4,
-#         y=max_y-abs(max_y)*0.34,
-#         xref="x",
-#         yref="y",
-#         text=(
-#             "<b>Variance explaind</b>"
-#             "<br>"
-#             f"PC1 = {pca.explained_variance_ratio_[0] * 100:.2f}%"
-#             "<br>"
-#             f"PC2 = {pca.explained_variance_ratio_[1] * 100:.2f}%"
-#         ),
-#         bgcolor="white",
-#         opacity=0.7,
-#         borderpad=4,
-#     )
-
-# fig.update_layout(
-#     title_text="Jaccard Index PCA on reads supporting different sets of distinct unique proteins",
-#     legend_title_text=f"{condition_col}, Algorithm",
-#     template=template,
-# )
-
-# fig.update_xaxes(range=[min_x-abs(min_x)*0.2, max_x+abs(max_x)*0.2])
-# # fig.update_yaxes(range=[min_y, max_y])
-
-# fig.show()
-
-
-# %%
-
-# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"}
-# cols = len(conditions)
-
-# fig = make_subplots(
-#     rows=1,
-#     cols=cols,
-#     subplot_titles=conditions,
-#     shared_yaxes=True,
-#     shared_xaxes=True,
-#     x_title="PC1",
-#     y_title="PC2",
-# )
-
-# min_x = None
-# max_y = None
-# max_x = None
-# min_y = None
-
-# components_dfs = []
-# pcas = []
-# for condition, f1_jaccard_df in zip(
-#     conditions, fraction_1_jaccard_dfs
-# ):
-#     f1_df = distinct_unique_proteins_df.loc[distinct_unique_proteins_df[condition_col] == condition]
-#     f1_df = f1_df.loc[f1_df["Fraction"] == 1.0].reset_index(drop=True)
-#     X = f1_jaccard_df
-#     features_names = X.columns
-#     pca = PCA(n_components=2, random_state=1892)  # our lord & savior J.R.R.T was born in 1892
-#     components = pca.fit_transform(X)
-#     components = pd.concat([f1_df.loc[:, ["FractionRepetition", "Algorithm", "AlgorithmRepetition"]], pd.DataFrame(components)], axis=1).rename(columns={0: "PC1", 1: "PC2"})
-#     min_x = min(min_x, components["PC1"].min()) if min_x else components["PC1"].min()
-#     max_y = max(max_y, components["PC2"].max()) if max_y else components["PC2"].max()
-#     max_x = max(max_x, components["PC1"].max()) if max_x else components["PC1"].max()
-#     min_y = min(min_y, components["PC2"].min()) if min_y else components["PC2"].min()
-#     components_dfs.append(components)
-#     pcas.append(pca)
-
-# for col, condition, components, f1_df, pca in zip(
-#     range(1, cols + 1), conditions, components_dfs, fraction_1_dfs, pcas
-# ):
-
-#     for i, alg in enumerate(f1_df["Algorithm"].unique()):
-
-#         alg_components = components.loc[components["Algorithm"] == alg]
-#         x = alg_components["PC1"]
-#         y = alg_components["PC2"]
-
-#         fig.add_trace(
-#             go.Scatter(
-#                 x=x,
-#                 y=y,
-#                 mode="markers",
-#                 marker_color=subcolors_discrete_map[condition][i],
-#                 name=f"{condition}, {alg}",
-#             ),
-#             row=1,
-#             col=col,
-#         )
-
-#     fig.add_annotation(
-#         row=1,
-#         col=col,
-#         # align="right",
-#         x=min_x+abs(min_x)*0.4,
-#         y=max_y-abs(max_y)*0.34,
-#         xref="x",
-#         yref="y",
-#         text=(
-#             "<b>Variance explaind</b>"
-#             "<br>"
-#             f"PC1 = {pca.explained_variance_ratio_[0] * 100:.2f}%"
-#             "<br>"
-#             f"PC2 = {pca.explained_variance_ratio_[1] * 100:.2f}%"
-#         ),
-#         bgcolor="white",
-#         opacity=0.7,
-#         borderpad=4,
-#     )
-
-# fig.update_layout(
-#     title_text="Jaccard Index PCA on reads supporting different sets of distinct unique proteins",
-#     legend_title_text=f"{condition_col}, Algorithm",
-#     template=template,
-# )
-
-# fig.update_xaxes(range=[min_x-abs(min_x)*0.2, max_x+abs(max_x)*0.2])
-# # fig.update_yaxes(range=[min_y, max_y])
-
-# fig.show()
-
-
-# %% [markdown]
-# ##### By sample & algorithm
-
-# %%
-# algs = ["Ascending", "Descending"]
-
-# %%
-# fraction_1_alg_condition_jaccard_dfs = {}
-# for df, condition in zip(fraction_1_dfs, conditions):
-#     for alg in algs:
-#         jaccard_df = calc_jaccard_df(df.loc[df["Algorithm"] == alg], "Reads")
-#         fraction_1_alg_condition_jaccard_dfs[(condition, alg)] = jaccard_df
-
-# %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"}
-# cols = len(conditions)
-# rows = 2
-
-# # subplot_titles = [f"{condition}, {alg}" for condition in conditions for alg in algs]
-# subplot_titles = [f"{condition}, {alg}" for alg in algs for condition in conditions ]
-
-# fig = make_subplots(
-#     rows=rows,
-#     cols=cols,
-#     subplot_titles=subplot_titles,
-#     shared_yaxes=True,
-#     shared_xaxes=True,
-#     x_title="PC1",
-#     y_title="PC2",
-# )
-
-# min_x = None
-# max_y = None
-# max_x = None
-# min_y = None
-
-# components_dfs = {}
-# pcas = {}
-# for col, (f1_df, condition) in enumerate(zip(fraction_1_dfs, conditions), start=1):
-#     for row, alg in enumerate(algs, start=1):
-#         f1_alg_df = f1_df.loc[f1_df["Algorithm"] == alg]
-#         X = fraction_1_alg_condition_jaccard_dfs[(condition, alg)]
-#         features_names = X.columns
-#         pca = PCA(n_components=2, random_state=1892)  # our lord & savior J.R.R.T was born in 1892
-#         components = pca.fit_transform(X)
-#         components = pd.concat([f1_alg_df.loc[:, ["FractionRepetition", "Algorithm", "AlgorithmRepetition"]], pd.DataFrame(components)], axis=1).rename(columns={0: "PC1", 1: "PC2"})
-#         min_x = min(min_x, components["PC1"].min()) if min_x else components["PC1"].min()
-#         max_y = max(max_y, components["PC2"].max()) if max_y else components["PC2"].max()
-#         max_x = max(max_x, components["PC1"].max()) if max_x else components["PC1"].max()
-#         min_y = min(min_y, components["PC2"].min()) if min_y else components["PC2"].min()
-#         components_dfs[(condition, alg)] = components
-#         pcas[(condition, alg)] = pca
-
-# ic(min_x, max_x)
-# ic(min_y, max_y)
-
-# for col, (condition, components, f1_df, pca) in enumerate(
-#     zip(conditions, components_dfs, fraction_1_dfs, pcas),
-#     start=1
-# ):
-#     for row, alg in enumerate(algs, start=1):
-#         components = components_dfs[(condition, alg)]
-#         x = components["PC1"]
-#         y = components["PC2"]
-#         fig.add_trace(
-#             go.Scatter(
-#                 x=x,
-#                 y=y,
-#                 mode="markers",
-#                 marker_color=subcolors_discrete_map[condition][row - 1],
-#                 # name=f"{condition}, {alg}",
-#             ),
-#             row=row,
-#             col=col,
-#         )
-#         pca = pcas[(condition, alg)]
-#         fig.add_annotation(
-#             row=row,
-#             col=col,
-#             # align="right",
-#             font=dict(
-#                 size=10,
-#             ),
-#             showarrow=False,
-#             # x=min_x+abs(min_x)*0.4,
-#             x=min_x+abs(min_x)*1.5,
-#             y=max_y+2.25,
-#             # y=3,
-#             xref="x",
-#             yref="y",
-#             text=(
-#                 "<b>Variance explaind</b>"
-#                 "<br>"
-#                 f"PC1 = {pca.explained_variance_ratio_[0] * 100:.2f}%"
-#                 "<br>"
-#                 f"PC2 = {pca.explained_variance_ratio_[1] * 100:.2f}%"
-#             ),
-#             bgcolor="white",
-#             opacity=0.7,
-#             borderpad=4,
-
-#         )
-
-# fig.update_layout(
-#     title_text="Jaccard Index PCA on reads supporting different sets of distinct unique proteins",
-#     # legend_title_text=f"{condition_col}, Algorithm",
-#     showlegend=False,
-#     template=template,
-# )
-
-# fig.update_xaxes(range=[min_x-abs(min_x)*0.2, max_x+abs(max_x)*0.2])
-# # fig.update_yaxes(range=[min_y, max_y])
-
-# fig.show()
-
-
-# %% [markdown]
-# ##### By sample, algorithm & fraction repetition
-
-# %%
-# # jaccards per fraction repetition
-
-# f_r_jaccard_dfs = {}
-# for fraction_1_df, condition in zip(fraction_1_dfs, conditions):
-#     f_r_condition_jaccard_dfs = {}
-#     for f_r in np.sort(fraction_1_df["FractionRepetition"].unique()):
-#         f_r_df = fraction_1_df.loc[fraction_1_df["FractionRepetition"] == f_r].reset_index(drop=True)
-#         f_r_condition_jaccard_dfs[f_r] = f_r_df["Reads"].apply(
-#             lambda x: f_r_df["Reads"].apply(lambda y: jaccard_index(x, y))
-#         )
-#     f_r_jaccard_dfs[condition] = f_r_condition_jaccard_dfs
-# f_r_jaccard_dfs[conditions[0]][1]
-
-# %%
-# max_cols = 5
-
-# for condition, f1_df in zip(conditions, fraction_1_dfs):
-
-#     f_r_condition_jaccard_dfs = f_r_jaccard_dfs[condition]
-
-#     frs = sorted(list(f_r_condition_jaccard_dfs.keys()))
-#     plots = len(frs)
-#     cols = min(plots, max_cols)
-#     rows = ceil(plots / cols)
-#     rows_and_cols = [
-#         (row, col)
-#         for row in range(1, rows + 1)
-#         for col in range(1, cols + 1)
-#         if row * col <= plots
-#     ]
-#     # frs_subcolors_discrete_map = n_repetitions_colormap(subcolors_discrete_map, condition, plots)
-
-#     fig = make_subplots(
-#         rows=rows,
-#         cols=cols,
-#         subplot_titles=[str(fr) for fr in frs],
-#         shared_yaxes=True,
-#         shared_xaxes=True,
-#         x_title="PC1",
-#         y_title="PC2",
-#     )
-
-#     min_x = None
-#     max_y = None
-#     max_x = None
-#     min_y = None
-
-#     components_dfs = []
-#     pcas = []
-
-#     for fr in f_r_condition_jaccard_dfs:
-
-#         fr_f1_df = f1_df.loc[f1_df["FractionRepetition"] == fr].reset_index(drop=True)
-#         X = f_r_condition_jaccard_dfs[fr]
-#         features_names = X.columns
-#         pca = PCA(n_components=2, random_state=1892)  # our lord & savior J.R.R.T was born in 1892
-#         components = pca.fit_transform(X)
-#         components = (
-#             pd.concat(
-#                 [
-#                     fr_f1_df.loc[:, ["FractionRepetition", "Algorithm", "AlgorithmRepetition"]],
-#                     pd.DataFrame(components)
-#                 ],
-#                 axis=1
-#             )
-#             .rename(columns={0: "PC1", 1: "PC2"})
-#         )
-#         min_x = min(min_x, components["PC1"].min()) if min_x else components["PC1"].min()
-#         max_y = max(max_y, components["PC2"].max()) if max_y else components["PC2"].max()
-#         max_x = max(max_x, components["PC1"].max()) if max_x else components["PC1"].max()
-#         min_y = min(min_y, components["PC2"].min()) if min_y else components["PC2"].min()
-#         components_dfs.append(components)
-#         pcas.append(pca)
-
-#     for (row, col), components, pca, fr in zip(
-#         rows_and_cols, components_dfs, pcas, frs
-#     ):
-
-#         for i, alg in enumerate(components["Algorithm"].unique()):
-
-#             alg_components = components.loc[components["Algorithm"] == alg]
-#             x = alg_components["PC1"]
-#             y = alg_components["PC2"]
-
-#             fig.add_trace(
-#                 go.Scatter(
-#                     x=x,
-#                     y=y,
-#                     mode="markers",
-#                     marker_color=subcolors_discrete_map[condition][i],
-#                     name=f"{alg}, {fr}",
-#                     # name=alg,
-#                 ),
-#                 row=row,
-#                 col=col,
-#             )
-
-#         # fig.add_annotation(
-#         #     row=row,
-#         #     col=col,
-#         #     # align="right",
-#         #     x=min_x+abs(min_x)*0.4,
-#         #     y=max_y-abs(max_y)*0.34,
-#         #     xref="x",
-#         #     yref="y",
-#         #     text=(
-#         #         "<b>Variance explaind</b>"
-#         #         "<br>"
-#         #         f"PC1 = {pca.explained_variance_ratio_[0] * 100:.2f}%"
-#         #         "<br>"
-#         #         f"PC2 = {pca.explained_variance_ratio_[1] * 100:.2f}%"
-#         #     ),
-#         #     bgcolor="white",
-#         #     opacity=0.7,
-#         #     borderpad=4,
-#         # )
-
-#     fig.update_layout(
-#         title_text=f"Jaccard Index PCA on reads supporting different sets of distinct unique proteins in {condition}",
-#         # legend_title_text=f"{condition_col}, Algorithm",
-#         legend_title_text="Algorithm",
-#         template=template,
-#     )
-
-#     fig.update_xaxes(range=[min_x-abs(min_x)*0.2, max_x+abs(max_x)*0.2])
-#     # fig.update_yaxes(range=[min_y, max_y])
-
-#     fig.show()
-
-# %%
-
-# %%
-
-# %%
-
-# %%
 
 # %% [markdown]
 # #### Expression levels
@@ -5170,6 +4554,97 @@ def find_rand_maximal_solution(
 
 
 # %%
+# def make_percentile_df(
+#     expression_df,
+#     first_percentile=10,
+#     inclusive_last_percentile=110,
+#     percentile_step=10,
+#     allowed_algorithms=["Ascending", "Descending"],
+# ):
+
+#     gb = expression_df.loc[expression_df["Algorithm"].isin(allowed_algorithms)].groupby(
+#         "#Solution"
+#     )
+#     solutions_expression_dfs = [gb.get_group(x) for x in gb.groups]
+
+#     equal_supp_reads_dfs = []
+#     weighted_supp_reads_dfs = []
+#     for df in solutions_expression_dfs:
+#         equal_df = df.sort_values(
+#             "TotalEqualSupportingReads", ascending=False
+#         ).reset_index(drop=True)
+#         equal_df["CumTotalEqualSupportingReads"] = equal_df[
+#             "TotalEqualSupportingReads"
+#         ].cumsum()
+#         equal_df["%CumTotalEqualSupportingReads"] = (
+#             100
+#             * equal_df["CumTotalEqualSupportingReads"]
+#             / equal_df["TotalEqualSupportingReads"].sum()
+#         )
+#         equal_supp_reads_dfs.append(equal_df)
+#         weighted_df = df.sort_values(
+#             "TotalWeightedSupportingReads", ascending=False
+#         ).reset_index(drop=True)
+#         weighted_df["CumTotalWeightedSupportingReads"] = weighted_df[
+#             "TotalWeightedSupportingReads"
+#         ].cumsum()
+#         weighted_df["%CumTotalWeightedSupportingReads"] = (
+#             100
+#             * weighted_df["CumTotalWeightedSupportingReads"]
+#             / weighted_df["TotalWeightedSupportingReads"].sum()
+#         )
+#         weighted_supp_reads_dfs.append(weighted_df)
+
+#     # equal_supp_reads_dfs, weighted_supp_reads_dfs = make_supp_reads_dfs(expression_df)
+
+#     solutions = []
+#     assignment_methods = []
+#     percentiles = []
+#     required_proteins = []
+#     algorithms = []
+#     _conditions = []
+
+#     for dfs, method, col in zip(
+#         [equal_supp_reads_dfs, weighted_supp_reads_dfs],
+#         ["Equal", "Weighted"],
+#         ["%CumTotalEqualSupportingReads", "%CumTotalWeightedSupportingReads"],
+#     ):
+#         for df in dfs:
+#             # ic(df.iloc[:1, :3], method, col)
+#             # break
+#             solution = df.loc[0, "#Solution"]
+#             algorithm = df.loc[0, "Algorithm"]
+#             _condition = df.loc[0, condition_col]
+#             a = df[col].to_numpy()
+#             # for percentile in range(50, 100, 10):
+#             # for percentile in range(10, 110, 10):
+#             for percentile in range(
+#                 first_percentile, inclusive_last_percentile, percentile_step
+#             ):
+#                 idx = (np.abs(a - percentile)).argmin()
+#                 if a[idx] < percentile:
+#                     idx += 1
+#                 solutions.append(solution)
+#                 assignment_methods.append(method)
+#                 percentiles.append(percentile)
+#                 required_proteins.append(idx)
+#                 algorithms.append(algorithm)
+#                 _conditions.append(_condition)
+
+#     percentile_df = pd.DataFrame(
+#         {
+#             "#Solution": solutions,
+#             "AssignmentMethod": assignment_methods,
+#             "Percentile": percentiles,
+#             "RequiredProteins": required_proteins,
+#             "Algorithm": algorithms,
+#             condition_col: _conditions,
+#         }
+#     )
+
+#     return percentile_df
+
+# %%
 def choose_sample_solutions(
     expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
 ):
@@ -5201,6 +4676,18 @@ maximal_solutions = [
     for expression_df in expression_dfs
 ]
 maximal_solutions
+
+# %%
+# percentile_dfs = [
+#     make_percentile_df(
+#         expression_df.loc[expression_df["#Solution"] == maximal_solution].reset_index(
+#             drop=True
+#         ),
+#         allowed_algorithms=["Ascending", "Descending"],
+#     )
+#     for expression_df, maximal_solution in zip(expression_dfs, maximal_solutions)
+# ]
+# percentile_dfs[0]
 
 # %%
 maximal_dfs = [
@@ -5719,7 +5206,7 @@ for (row, col), assignment_df, condition in zip(
         col=col,
     )
 
-# fig.update_xaxes(tick0=0, dtick=10_000, matches="x")
+fig.update_xaxes(tick0=0, dtick=5_000, matches="x")
 
 width = max(650, 250 * cols)
 height = max(400, 200 * rows)
@@ -6025,9 +5512,8 @@ row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(condi
 
 # (start, end) tuples for both x and y
 linear_spaces = [
-    (300, 15_000),
-    # (250, 23_000)
-    (700, 15_000),
+    (173, 8_402),
+    (615, 17_356),
 ]
 
 forward_transforms = [
@@ -7621,367 +7107,83 @@ n_iter = 500
 n_jobs = 40
 
 # %%
-# n_iter_500_equal_conditions_tsnes, n_iter_500_equal_conditions_Xs = run_tsnes(
+# # n_iter_500_equal_conditions_tsnes, n_iter_500_equal_conditions_Xs = run_tsnes(
+# #     conditions,
+# #     equal_exp_tsne_input_dfs,
+# #     seed,
+# #     perplexities=perplexities,
+# #     n_iter=n_iter,
+# #     n_jobs=n_jobs,
+# # )
+# n_iter_500_weighted_conditions_tsnes, n_iter_500_weighted_conditions_Xs = run_tsnes(
 #     conditions,
-#     equal_exp_tsne_input_dfs,
+#     weighted_exp_tsne_input_dfs,
 #     seed,
 #     perplexities=perplexities,
 #     n_iter=n_iter,
 #     n_jobs=n_jobs,
 # )
-n_iter_500_weighted_conditions_tsnes, n_iter_500_weighted_conditions_Xs = run_tsnes(
-    conditions,
-    weighted_exp_tsne_input_dfs,
-    seed,
-    perplexities=perplexities,
-    n_iter=n_iter,
-    n_jobs=n_jobs,
-)
 
 # %%
-cols = min(facet_col_wrap, len(conditions), 5)
-rows = ceil(len(conditions) / cols)
-row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
-
-fig = make_subplots(
-    rows=rows,
-    cols=cols,
-    subplot_titles=conditions,
-    # shared_yaxes=True,
-    x_title="t-SNE 1",
-    y_title="t-SNE 2",
-)
-
-# min_x = None
-# max_x = 0
-# max_y = 0
-
-marker_size = 1
-line_width = 0.5
-
-
-for (row, col), condition, X, condition_umaps in zip(
-    row_col_iter,
-    conditions,
-    n_iter_500_weighted_conditions_Xs,
-    n_iter_500_weighted_conditions_tsnes,
-):
-    colors = "white"
-
-    prots_perplexity_tsne = condition_umaps[-1]  # perplexity 150
-
-    x, y = prots_perplexity_tsne.T
-
-    fig.add_trace(
-        go.Scattergl(
-            # go.Scatter(
-            x=x,
-            y=y,
-            mode="markers",
-            marker=dict(color=colors, line_width=line_width, size=marker_size),
-        ),
-        row=row,
-        col=col,
-    )
-
-
-fig.update_layout(
-    title_text="Squid's PacBio",
-    title_x=0.19,
-    # title_y=0.95,
-    template=template,
-    showlegend=False,
-    width=600,
-    height=350,
-)
-
-fig.write_image("tSNE clustering - PacBio.svg", width=600, height=350)
-
-fig.show()
-
-# %%
-
-# %%
-# rank_cutoff = 1000
-
-# head_title = (
-#     f"t-SNEs for largest solution of each {str(condition_col).lower()} under different perplexities"
-#     # "<br>"
-#     # f"<sub>{rank_cutoff} highest expressed proteins are colored</sub>"
-# )
-# row_titles = conditions
-# column_titles = [f"Perplexity = {perplexity}" for perplexity in perplexities]
-
-# fig = make_subplots(
-#     rows=len(conditions),
-#     cols=len(perplexities),
-#     row_titles=row_titles,
-#     column_titles=column_titles,
-#     # shared_yaxes=True,
-#     # shared_xaxes=True
-# )
-
-# marker_size = 1
-# line_width = 0.5
-
-# for row, (condition, X, condition_tsnes) in enumerate(
-#     zip(
-#         conditions,
-#         n_iter_500_weighted_conditions_Xs,
-#         n_iter_500_weighted_conditions_tsnes,
-#     ),
-#     start=1,
-# ):
-
-#     # n = X.shape[0]
-#     # color_options = [color_discrete_map[condition], "white"]
-#     # colors = color_highest_expressed_proteins(n, rank_cutoff, color_options)
-#     colors = "white"
-
-#     for col, prots_perplexity_tsne in enumerate(condition_tsnes, start=1):
-
-#         x, y = prots_perplexity_tsne.T
-
-#         fig.add_trace(
-#             go.Scattergl(
-#                 x=x,
-#                 y=y,
-#                 mode="markers",
-#                 marker=dict(color=colors, line_width=line_width, size=marker_size),
-#             ),
-#             row=row,
-#             col=col,
-#         )
-
-# fig.update_layout(
-#     title_text=head_title,
-#     title_y=0.95,
-#     template=template,
-#     showlegend=False,
-#     width=1200,
-#     height=600,
-# )
-
-# fig.write_image("tSNE clustering - PacBio.svg", width=1200, height=600)
-
-# fig.show()
-
-# %%
-
-# %%
-
-# %%
-# # equal_conditions_pcas = run_pcas(conditions, equal_exp_tsne_input_dfs, seed)
-# weighted_conditions_pcas = run_pcas(conditions, weighted_exp_tsne_input_dfs, seed)
-
-# %%
-# rank_cutoff = 1000
-
-# cols = min(facet_col_wrap, len(conditions), 4)
+# cols = min(facet_col_wrap, len(conditions), 5)
 # rows = ceil(len(conditions) / cols)
 # row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
-
-# head_title = (
-#     f"PCAs for largest solution of each {str(condition_col).lower()}"
-#     "<br>"
-#     f"<sub>{rank_cutoff} highest expressed proteins are colored</sub>"
-# )
-# column_titles = conditions
 
 # fig = make_subplots(
 #     rows=rows,
 #     cols=cols,
 #     subplot_titles=conditions,
 #     # shared_yaxes=True,
-#     # shared_xaxes=True,
-#     x_title="PC1",
-#     y_title="PC2",
+#     x_title="t-SNE 1",
+#     y_title="t-SNE 2",
 # )
 
+# # min_x = None
+# # max_x = 0
+# # max_y = 0
+
 # marker_size = 1
+# line_width = 0.5
 
-# for (row, col), condition, condition_pca in zip(
-#     row_col_iter, conditions, weighted_conditions_pcas
+
+# for (row, col), condition, X, condition_umaps in zip(
+#     row_col_iter,
+#     conditions,
+#     n_iter_500_weighted_conditions_Xs,
+#     n_iter_500_weighted_conditions_tsnes,
 # ):
+#     colors = "white"
 
-#     n = len(condition_pca)
-#     color_options = [color_discrete_map[condition], "white"]
-#     colors = color_highest_expressed_proteins(n, rank_cutoff, color_options)
+#     prots_perplexity_tsne = condition_umaps[-1]  # perplexity 150
 
-#     x = condition_pca["PC1"]
-#     y = condition_pca["PC2"]
+#     x, y = prots_perplexity_tsne.T
 
 #     fig.add_trace(
 #         go.Scattergl(
-#             x=x, y=y, mode="markers", marker=dict(color=colors, line_width=0.5, size=marker_size)
+#             # go.Scatter(
+#             x=x,
+#             y=y,
+#             mode="markers",
+#             marker=dict(color=colors, line_width=line_width, size=marker_size),
 #         ),
-#         row=1,
+#         row=row,
 #         col=col,
 #     )
 
-# fig.update_layout(
-#     title_text=head_title,
-#     title_y=0.95,
-#     template=template,
-#     showlegend=False,
-#     width=800,
-#     height=500,
-# )
-
-# fig.show()
-
-# %% [markdown]
-# > Top 1000 expressed proteins
-
-# %%
-# # perplexities = [5, 30, 50, 100]
-# perplexities = [5, 30, 50, 100, 150, 200]
-
-# %%
-# top_expressed_proteins = 1000
-# # top_1000_equal_conditions_tsnes, top_1000_equal_conditions_Xs = run_tsnes(
-# #     conditions,
-# #     equal_exp_tsne_input_dfs,
-# #     seed,
-# #     perplexities=perplexities,
-# #     top_expressed_proteins=top_expressed_proteins,
-# # )
-# top_1000_weighted_conditions_tsnes, top_1000_weighted_conditions_Xs = run_tsnes(
-#     conditions,
-#     weighted_exp_tsne_input_dfs,
-#     seed,
-#     perplexities=perplexities,
-#     top_expressed_proteins=top_expressed_proteins,
-# )
-
-# %%
-# rank_cutoff = 1000
-
-# # head_title = (
-# #     f"t-SNEs for largest solution of each {str(condition_col).lower()} under different perplexities"
-# #     "<br>"
-# #     f"<sub>{rank_cutoff} highest expressed proteins are colored</sub>"
-# # )
-# head_title = (
-#     f"t-SNEs for top {top_expressed_proteins} expressed proteins in largest solution of each {str(condition_col).lower()} under different perplexities"
-#     "<br>"
-#     f"<sub>{rank_cutoff} highest expressed proteins (according to % of total {sorting_method} expression) are colored</sub>"
-# )
-# row_titles = conditions
-# column_titles = [f"Perplexity = {perplexity}" for perplexity in perplexities]
-
-# fig = make_subplots(
-#     rows=len(conditions),
-#     cols=len(perplexities),
-#     row_titles=row_titles,
-#     column_titles=column_titles,
-#     # shared_yaxes=True,
-#     # shared_xaxes=True
-# )
-
-# marker_size = 1
-
-# for row, (condition, X, condition_tsnes) in enumerate(
-#     zip(conditions, top_1000_weighted_conditions_Xs, top_1000_weighted_conditions_tsnes), start=1
-# ):
-
-#     n = X.shape[0]
-#     color_options = [color_discrete_map[condition], "white"]
-#     colors = color_highest_expressed_proteins(n, rank_cutoff, color_options)
-
-#     for col, prots_perplexity_tsne in enumerate(condition_tsnes, start=1):
-
-#         x, y = prots_perplexity_tsne.T
-
-#         fig.add_trace(
-#             go.Scattergl(
-#                 x=x, y=y, mode="markers", marker=dict(color=colors, line_width=0.5, size=marker_size)
-#             ),
-#             row=row,
-#             col=col,
-#         )
 
 # fig.update_layout(
-#     title_text=head_title,
-#     title_y=0.95,
+#     title_text="Squid's PacBio",
+#     title_x=0.19,
+#     # title_y=0.95,
 #     template=template,
 #     showlegend=False,
-#     width=1200,
-#     height=600,
+#     width=600,
+#     height=350,
 # )
+
+# fig.write_image("tSNE clustering - PacBio.svg", width=600, height=350)
 
 # fig.show()
-
-# %%
-# top_expressed_proteins = 1000
-# # top_1000_equal_conditions_pcas = run_pcas(
-# #     conditions,
-# #     equal_exp_tsne_input_dfs,
-# #     seed,
-# #     top_expressed_proteins=top_expressed_proteins,
-# # )
-# top_1000_weighted_conditions_pcas = run_pcas(
-#     conditions,
-#     weighted_exp_tsne_input_dfs,
-#     seed,
-#     top_expressed_proteins=top_expressed_proteins,
-# )
-
-# %%
-# rank_cutoff = 100
-
-# for conditions_pcas, sorting_method in zip(
-#     [top_1000_equal_conditions_pcas, top_1000_weighted_conditions_pcas],
-#     ["equal", "weighted"],
-# ):
-
-#     head_title = (
-#         f"PCAs for top {top_expressed_proteins} expressed proteins in largest solution of each {str(condition_col).lower()}"
-#         "<br>"
-#         f"<sub>{rank_cutoff} highest expressed proteins (according to % of total {sorting_method} expression) are colored</sub>"
-#     )
-#     column_titles = conditions
-
-#     fig = make_subplots(
-#         rows=1,
-#         cols=len(conditions),
-#         # row_titles=row_titles,
-#         column_titles=column_titles,
-#         shared_yaxes=True,
-#         shared_xaxes=True,
-#         x_title="PC1",
-#         y_title="PC2",
-#     )
-
-#     for col, (condition, condition_pca) in enumerate(
-#         zip(conditions, conditions_pcas), start=1
-#     ):
-
-#         n = len(condition_pca)
-#         color_options = [color_discrete_map[condition], "white"]
-#         colors = color_highest_expressed_proteins(n, rank_cutoff, color_options)
-
-#         x = condition_pca["PC1"]
-#         y = condition_pca["PC2"]
-
-#         fig.add_trace(
-#             go.Scattergl(
-#                 x=x, y=y, mode="markers", marker=dict(color=colors, line_width=0.5)
-#             ),
-#             row=1,
-#             col=col,
-#         )
-
-#     fig.update_layout(
-#         title_text=head_title,
-#         title_y=0.95,
-#         template=template,
-#         showlegend=False,
-#         width=800,
-#         height=500,
-#     )
-
-#     fig.show()
 
 # %% [markdown]
 # ##### Clustering: kmeans
@@ -9322,64 +8524,64 @@ fig.show()
 # #### Distinct unique edited reads
 
 # %%
-expanded_distinct_unique_reads_df.head()
+# expanded_distinct_unique_reads_df.head()
 
 
 # %%
-cols = len(conditions)
+# cols = len(conditions)
 
-x_title = "% editing in read (mean)"
-y_title = "Distinct unique<br>edited reads"
-title_text = "Distribution of % editing per Distinct unique edited read"
+# x_title = "% editing in read (mean)"
+# y_title = "Distinct unique<br>edited reads"
+# title_text = "Distribution of % editing per Distinct unique edited read"
 
-fig = make_subplots(
-    rows=1,
-    cols=cols,
-    subplot_titles=conditions,
-    shared_yaxes=True,
-    # shared_xaxes=True,
-    x_title=x_title,
-    y_title=y_title,
-)
+# fig = make_subplots(
+#     rows=1,
+#     cols=cols,
+#     subplot_titles=conditions,
+#     shared_yaxes=True,
+#     # shared_xaxes=True,
+#     x_title=x_title,
+#     y_title=y_title,
+# )
 
-x_col = "EditingFrequency"
-max_x = 0
+# x_col = "EditingFrequency"
+# max_x = 0
 
-for col, condition in zip(range(1, cols + 1), conditions):
-    df = expanded_distinct_unique_reads_df.copy()
-    df = (
-        df.loc[(df["Fraction"] == 1.0) & (df[condition_col] == condition)]
-        .groupby([condition_col, "UniqueRead"])[x_col]
-        .mean()
-        .reset_index()
-    )
+# for col, condition in zip(range(1, cols + 1), conditions):
+#     df = expanded_distinct_unique_reads_df.copy()
+#     df = (
+#         df.loc[(df["Fraction"] == 1.0) & (df[condition_col] == condition)]
+#         .groupby([condition_col, "UniqueRead"])[x_col]
+#         .mean()
+#         .reset_index()
+#     )
 
-    x = df[x_col] * 100
+#     x = df[x_col] * 100
 
-    fig.add_trace(
-        go.Histogram(
-            x=x,
-            marker_color=color_discrete_map[condition],
-        ),
-        row=1,
-        col=col,
-    )
+#     fig.add_trace(
+#         go.Histogram(
+#             x=x,
+#             marker_color=color_discrete_map[condition],
+#         ),
+#         row=1,
+#         col=col,
+#     )
 
-    max_x = max(max_x, x.max())
+#     max_x = max(max_x, x.max())
 
-fig.update_layout(title_text=title_text, template=template, showlegend=False)
+# fig.update_layout(title_text=title_text, template=template, showlegend=False)
 
-min_x = 0
-max_x = max_x * 1.05
-fig.update_xaxes(range=[min_x, max_x])
+# min_x = 0
+# max_x = max_x * 1.05
+# fig.update_xaxes(range=[min_x, max_x])
 
-fig.show()
+# fig.show()
 
 
 # %% [markdown]
 # ## Distribution of non-syns
 
-# %%
+# %% jupyter={"source_hidden": true}
 # cols = min(facet_col_wrap, len(conditions), 4)
 # rows = ceil(len(conditions) / cols)
 # row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
@@ -9538,7 +8740,7 @@ non_syns_per_read_df["MinNonSyns"].sum() / len(non_syns_per_read_df)
 # Distribution of min & max estimates of non-syn substitutions per *read*
 
 
-fixed_conditions = ["GRIA2", "PCLO"]
+# fixed_conditions = ["GRIA2", "PCLO"]
 
 cols = min(facet_col_wrap, len(conditions), 4)
 rows = ceil(len(conditions) / cols)

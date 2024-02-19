@@ -1762,8 +1762,21 @@ per_chrom_mean_noise_levels = (
     .groupby("Chrom")
     .mean()
     .reset_index()
+    .sort_values(["Chrom", "Noise"])
+    .reset_index(drop=True)
+    .merge(
+        positions_df.loc[:, ["Transcript", "Chrom"]].drop_duplicates(),
+        on="Chrom",
+        how="left"
+    )
 )
 per_chrom_mean_noise_levels
+
+# %%
+saved_dispersion_df = dispersion_df.rename(columns={"Transcript": "Gene"})
+saved_dispersion_df.insert(0, "Platform", "Whole-transcriptome octopus data")
+saved_dispersion_df.to_csv("Dispersion.Octopus.tsv", sep="\t", index=False)
+saved_dispersion_df
 
 # %%
 per_chrom_mean_noise_levels["Noise"].describe()

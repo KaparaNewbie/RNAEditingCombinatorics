@@ -12,22 +12,31 @@ from multiprocessing import Pool
 from pathlib import Path
 from typing import Union
 from collections import defaultdict
+import subprocess
 
 import pandas as pd
 import numpy as np
 from pybedtools import BedTool
+from icecream import ic
 
-from General.consts import final_words
 from General.argparse_utils import abs_path_from_str, expanded_path_from_str
 from Alignment.alignment_utils import filter_bam_by_read_quality, sample_bam
 from Pileup.mpileup import mpileup
-from Pileup.positions import pileup_to_positions, multisample_pileups_to_positions
+from Pileup.positions import (
+    pileup_to_positions,
+    # multisample_pileups_to_positions_old,
+    multisample_pileups_to_positions_all_transcripts,
+)
 from Pileup.reads import reads_and_unique_reads, multisample_reads_and_unique_reads
 from Pileup.proteins import (
     proteins_and_unique_proteins,
     multisample_proteins_and_unique_proteins,
 )
-from icecream import ic
+from General.consts import final_words, ic_prefix
+
+# configure icecream to print the time of the print and the context (file, line, function)
+ic.configureOutput(includeContext=True, prefix=ic_prefix)
+
 
 DataFrameOrSeries = Union[pd.DataFrame, pd.Series]
 
@@ -42,6 +51,7 @@ def undirected_sequencing_main(
     known_editing_sites: Path,
     cds_regions: Path,
     min_percent_of_max_coverage: float,
+    min_mapped_reads_per_position: Union[int, None],
     include_flags: str,
     exclude_flags: str,
     parity: str,
@@ -57,7 +67,9 @@ def undirected_sequencing_main(
     min_bq: int,
     out_files_sep: str,
     keep_pileup_files: bool,
+    keep_bam_files: bool,
     override_existing_pileup_files: bool,
+    override_existing_bam_files: bool,
     gz_compression: bool,
     alignments_stats_table: Path,
     alignments_stats_table_sep: str,
@@ -77,6 +89,14 @@ def undirected_sequencing_main(
     sample_reads: bool,
     num_sampled_reads: int,
     seed: int,
+    final_editing_scheme: str,
+    alternative_hypothesis: str,
+    # binom_noise_pval_col: str,
+    # bh_noise_pval_col: str,
+    # bh_noisy_col: str,
+    # binom_editing_pval_col: str,
+    # bh_editing_pval_col: str,
+    # bh_editing_col: str,
     **kwargs,
 ):
     prob_regions_bed = None  # we don't deal with individual "problamitic" sites in such large scale analysis
@@ -94,19 +114,13 @@ def undirected_sequencing_main(
         names="Chrom Start End Name Score Strand".split(),
         comment="#",
     )
-    samples_df = pd.read_csv(samples_table, sep=samples_table_sep)
-    sample_to_group_dict = {
-        row[sample_col]: row[group_col] for _, row in samples_df.iterrows()
-    }
+    # samples_df = pd.read_csv(samples_table, sep=samples_table_sep)
+    # sample_to_group_dict = {
+    #     row[sample_col]: row[group_col] for _, row in samples_df.iterrows()
+    # }
     alignments_stats_df = pd.read_csv(
         alignments_stats_table, sep=alignments_stats_table_sep
     )
-
-    # alignments_stats_df = alignments_stats_df.loc[
-    #     (alignments_stats_df["Samples"] >= min_samples)
-    #     & (alignments_stats_df["MappedReadsPerSample"] >= min_mapped_reads_per_sample)
-    #     & (alignments_stats_df["KnownSites"] >= min_known_sites)
-    # ]
 
     alignments_stats_df = alignments_stats_df.loc[
         (alignments_stats_df["Samples"] >= min_samples)
@@ -117,12 +131,28 @@ def undirected_sequencing_main(
 
     alignments_stats_df = alignments_stats_df.merge(cds_df, how="left")
 
-    # test_chroms = "comp183313_c0_seq12, comp162994_c0_seq1, comp183909_c0_seq7, comp181233_c0_seq10, comp183670_c0_seq3, comp183256_c0_seq35, comp183782_c0_seq5, comp183377_c0_seq11, comp181723_c2_seq2, comp169467_c0_seq1, comp183713_c0_seq9"
+    # todo - remove - this is for debugging
+    # test_chroms = [
+    #     "comp183313_c0_seq12",
+    #     "comp162994_c0_seq1",
+    #     "comp183909_c0_seq7",
+    #     "comp181233_c0_seq10",
+    #     "comp183670_c0_seq3",
+    #     "comp183256_c0_seq35",
+    #     "comp183782_c0_seq5",
+    #     "comp183377_c0_seq11",
+    #     "comp181723_c2_seq2",
+    #     "comp169467_c0_seq1",
+    #     "comp183713_c0_seq9",
+    # ]
+    # alignments_stats_df = alignments_stats_df.loc[
+    #     alignments_stats_df["Chrom"].isin(test_chroms)
+    # ]
 
     chroms = []
     swissprot_names = []
     samples = []
-    groups = []
+    # groups = []
     orfs_starts = []
     orfs_ends = []
     pileup_formatted_regions = []
@@ -131,6 +161,7 @@ def undirected_sequencing_main(
     for _, row in alignments_stats_df.iterrows():
         chrom = row["Chrom"]
 
+        # # todo - remove - this is for debugging
         # if chrom not in test_chroms:
         #     continue
 
@@ -142,6 +173,7 @@ def undirected_sequencing_main(
         bams_in_chrom = list(
             Path(main_by_chrom_dir, chrom).glob(f"*{postfix}")
         )  # should be something like `*.bam`
+        ic(bams_in_chrom)  # todo - remove
         for bam_in_chrom in bams_in_chrom:
             # ic(bam_in_chrom)
             sample = bam_in_chrom.stem[: bam_in_chrom.stem.index(interfix_start)]
@@ -165,7 +197,14 @@ def undirected_sequencing_main(
             filtered_bam_files = pool.starmap(
                 func=filter_bam_by_read_quality,
                 iterable=[
-                    (samtools_path, in_bam, min_rq, threads, filterd_bams_dir)
+                    (
+                        samtools_path,
+                        in_bam,
+                        min_rq,
+                        threads,
+                        filterd_bams_dir,
+                        override_existing_bam_files,
+                    )
                     for in_bam in bam_files
                 ],
             )
@@ -229,6 +268,13 @@ def undirected_sequencing_main(
             ],
         )
 
+    if not keep_bam_files:
+        if min_rq is not None:
+            subprocess.run(f"rm -rf {filterd_bams_dir}", shell=True)
+        # delete sampled reads, whether they were previously filtered by base quality or not
+        if sample_reads:
+            subprocess.run(f"rm -rf {sampled_bams_dir}", shell=True)
+
     compression_postfix = ".gz" if gz_compression else ""
 
     # 4 - pileup files -> positions dfs
@@ -265,6 +311,14 @@ def undirected_sequencing_main(
         Path(positions_dir, f"{chrom}.positions.csv{compression_postfix}")
         for chrom in unique_chroms
     ]
+    corrected_noise_files = [
+        Path(positions_dir, f"{chrom}.CorrectedNoise.csv{compression_postfix}")
+        for chrom in unique_chroms
+    ]
+    corrected_editing_files = [
+        Path(positions_dir, f"{chrom}.CorrectedEditing.csv{compression_postfix}")
+        for chrom in unique_chroms
+    ]
 
     pileup_files_per_chroms = defaultdict(list)
     samples_per_chroms = defaultdict(list)
@@ -272,36 +326,53 @@ def undirected_sequencing_main(
         pileup_files_per_chroms[chrom].append(pileup_file)
         samples_per_chroms[chrom].append(sample)
 
-    with Pool(processes=processes) as pool:
-        pool.starmap(
-            func=multisample_pileups_to_positions,
-            iterable=[
-                (
-                    pileup_files_per_chroms[chrom],
-                    samples_per_chroms[chrom],
-                    strand,
-                    min_percent_of_max_coverage,
-                    snp_noise_level,
-                    top_x_noisy_positions,
-                    assurance_factor,
-                    prob_regions_bed,
-                    known_editing_sites,
-                    cds_regions,
-                    positions_file,
-                    reads_mapping_file,
-                    out_files_sep,
-                    keep_pileup_files,
-                    remove_non_refbase_noisy_positions,
-                    denovo_detection,
-                )
-                for reads_mapping_file, chrom, strand, positions_file in zip(
-                    reads_mapping_files,
-                    unique_chroms,
-                    unique_orfs_strands,
-                    positions_files,
-                )
-            ],
-        )
+    binom_noise_pval_col = "NoiseBinomPVal"
+    bh_noise_pval_col = "NoiseCorrectedPVal"
+    bh_noisy_col = "NoisyCorrected"
+    binom_editing_pval_col = "EditingBinomPVal"
+    bh_editing_pval_col = "EditingCorrectedPVal"
+    bh_editing_col = "EditedCorrected"
+
+    multisample_pileups_to_positions_all_transcripts(
+        processes,
+        unique_chroms,
+        unique_orfs_strands,
+        pileup_files_per_chroms,
+        samples_per_chroms,
+        reads_mapping_files,
+        positions_files,
+        corrected_noise_files,
+        corrected_editing_files,
+        min_percent_of_max_coverage,
+        min_mapped_reads_per_position,  # min_absolute_coverage
+        snp_noise_level,
+        top_x_noisy_positions,
+        assurance_factor,
+        transcriptome,
+        final_editing_scheme,
+        prob_regions_bed,  # problamatic_regions_file
+        known_editing_sites,  # known_sites_file
+        cds_regions,  # cds_regions_file
+        out_files_sep,
+        keep_pileup_files,
+        remove_non_refbase_noisy_positions,
+        denovo_detection,
+        alternative_hypothesis,
+        binom_noise_pval_col,
+        bh_noise_pval_col,
+        bh_noisy_col,
+        binom_editing_pval_col,
+        bh_editing_pval_col,
+        bh_editing_col,
+    )
+
+    # the pileup files themsevles were deleted by each processes turning pileup into positions,
+    # so pileup_dir is empty now
+    if not keep_pileup_files:
+        subprocess.run(f"rm -rf {pileup_dir}", shell=True)
+
+    # # todo comment out - this is for debugging
+    # return
 
     # 5 - positions dfs -> reads & unique reads dfs
 
@@ -331,6 +402,7 @@ def undirected_sequencing_main(
                     snp_noise_level,
                     top_x_noisy_positions,
                     pooled_transcript_noise_threshold,
+                    bh_noisy_col,
                     reads_file,
                     unique_reads_file,
                     out_files_sep,
@@ -459,6 +531,8 @@ def directed_sequencing_main(
     4. parse the pileup files to sets of transcripts according the editing sites they consist of
     """
 
+    ic()
+
     out_dir.mkdir(exist_ok=True)
 
     # 1 - get data
@@ -564,7 +638,46 @@ def directed_sequencing_main(
     ]
 
     remove_non_refbase_noisy_positions = True
-    with Pool(processes=int(processes / 2)) as pool:
+
+    # pileup_to_positions_inputs = [
+    #     (
+    #         pileup_file,
+    #         strand,
+    #         min_percent_of_max_coverage,
+    #         snp_noise_level,
+    #         top_x_noisy_positions,
+    #         assurance_factor,
+    #         prob_regions_bed,
+    #         known_editing_sites,
+    #         cds_regions,
+    #         positions_file,
+    #         reads_mapping_file,
+    #         out_files_sep,
+    #         keep_pileup_files,
+    #         remove_non_refbase_noisy_positions,
+    #     )
+    #     for pileup_file, reads_mapping_file, strand, prob_regions_bed, positions_file in zip(
+    #         pileup_files,
+    #         reads_mapping_files,
+    #         strands,
+    #         prob_regions_beds,
+    #         positions_files,
+    #     )
+    # ]
+
+    # ic(pileup_to_positions_inputs)
+
+    # for inputs in pileup_to_positions_inputs:
+    #     pileup_to_positions(*inputs)
+
+    # pileup_to_positions(*pileup_to_positions_inputs[0])
+
+    if processes >= 2:
+        pileup_to_positions_processes = max(2, int(processes / 2))
+    else:
+        pileup_to_positions_processes = 1
+
+    with Pool(processes=pileup_to_positions_processes) as pool:
         pool.starmap(
             func=pileup_to_positions,
             iterable=[
@@ -679,7 +792,7 @@ def define_args() -> argparse.Namespace:
         "--transcriptome",
         required=True,
         type=abs_path_from_str,
-        help=("A transcritpome reference fasta file. Should have no introns."),
+        help="A transcritpome reference fasta file. Should have no introns.",
     )
     parser.add_argument(
         "--known_editing_sites",
@@ -687,7 +800,7 @@ def define_args() -> argparse.Namespace:
         required=True,
         help=(
             "6-col bed file with known A-to-I editing sites. "
-            "Currently, only editing sites on the positive strand are supported."
+            + "Currently, only editing sites on the positive strand are supported."
         ),
     )
     parser.add_argument(
@@ -704,7 +817,7 @@ def define_args() -> argparse.Namespace:
         "--exclude_flags",
         help=(
             "Exclude reads with this flag. "
-            "The recommended 2304 remove secondary and supplementary (chimeric) alignments.",
+            + "The recommended 2304 remove secondary and supplementary (chimeric) alignments."
         ),
     )
     parser.add_argument(
@@ -738,10 +851,10 @@ def define_args() -> argparse.Namespace:
         type=int,
         help=(
             "Minimum base quality for a base to be considered. "
-            "Note base-quality 0 is used as a filtering mechanism for overlap removal. "
-            "Hence using --min-BQ 0 will disable the overlap removal code and act "
-            "as if the --ignore-overlaps option has been set. "
-            "Use this flag for Illumina reads."
+            + "Note base-quality 0 is used as a filtering mechanism for overlap removal. "
+            + "Hence using --min-BQ 0 will disable the overlap removal code and act "
+            + "as if the --ignore-overlaps option has been set. "
+            + "Use this flag for Illumina reads."
         ),
     )
     parser.add_argument(
@@ -762,11 +875,11 @@ def define_args() -> argparse.Namespace:
         default=1.5,
         help=(
             "The noise in a certain position is defined as number of bases of the most abundant alt_base, "
-            "divided by the same number + the number of ref_base bases. "
-            "This is done for all ref_bases that aren't A on the positive strand or T on the negative strand. "
-            "Then, the actual noise level is determined by the "
-            "initial noise threshold (see `top_x_noisy_positions`) * assurance_factor. "
-            "That actual noise level is used to decide wether a position undergoes RNA editing."
+            + "divided by the same number + the number of ref_base bases. "
+            + "This is done for all ref_bases that aren't A on the positive strand or T on the negative strand. "
+            + "Then, the actual noise level is determined by the "
+            + "initial noise threshold (see `top_x_noisy_positions`) * assurance_factor. "
+            + "That actual noise level is used to decide wether a position undergoes RNA editing."
         ),
     )
     parser.add_argument(
@@ -831,16 +944,12 @@ def define_args() -> argparse.Namespace:
     directed_sequencing_subparser.add_argument(
         "--start_col",
         default="Start",
-        help=(
-            "Start col label in `data_table`. Its values should be 0-based (as in BED format).",
-        ),
+        help="Start col label in `data_table`. Its values should be 0-based (as in BED format).",
     )
     directed_sequencing_subparser.add_argument(
         "--end_col",
         default="End",
-        help=(
-            "End col label in `data_table`. Its values should be inclusive (as in BED format)."
-        ),
+        help="End col label in `data_table`. Its values should be inclusive (as in BED format).",
     )
     directed_sequencing_subparser.add_argument(
         "--strand_col", default="Strand", help="Strand col label in `data_table`."
@@ -884,25 +993,37 @@ def define_args() -> argparse.Namespace:
     )
     undirected_sequencing_subparser.add_argument(
         "--min_samples",
-        default=7,
+        default=0,
         help="Use only chroms with at least that many samples mapped to them.",
         type=int,
     )
     undirected_sequencing_subparser.add_argument(
         "--min_mapped_reads_per_sample",
-        default=100,
+        default=0,
         help="Use only chroms with whose mean coverage is at least that.",
         type=float,
     )
     undirected_sequencing_subparser.add_argument(
         "--total_mapped_reads",
-        default=0,
+        default=50,
         help="Use only chroms with with total (pooled) coverage of at least that.",
         type=int,
     )
     undirected_sequencing_subparser.add_argument(
+        "--min_mapped_reads_per_position",
+        type=int,
+        default=None,
+        help=(
+            "For each position pooled from multiple samples, keep only positions with "
+            "such absolute coverage. "
+            "(To be effective, it should probably be lower than `total_mapped_reads`.) "
+            "By default, the minimal coverage is relative, and determined by the "
+            "`min_percent_of_max_coverage` parameter."
+        ),
+    )
+    undirected_sequencing_subparser.add_argument(
         "--min_known_sites",
-        default=5,
+        default=0,
         help="Use only chroms with at least that many known editing sites in them.",
         type=int,
     )
@@ -912,7 +1033,7 @@ def define_args() -> argparse.Namespace:
         help=(
             "Use only transcripts whose pooled_transcript_noise "
             "(same as noise level before the multiplication by assurance factor) "
-            "is below pooled_transcript_noise_threshold"
+            "is below `pooled_transcript_noise_threshold`."
         ),
         type=float,
     )
@@ -927,13 +1048,13 @@ def define_args() -> argparse.Namespace:
         default=".aligned.sorted",
         help=(
             "For a BAM named `SRR17321899.aligned.sorted.comp22_c1_seq1`, with a given postfix (see above), "
-            "the interfix_start allows to get the sample's name.",
+            "the interfix_start allows to get the sample's name."
         ),
     )
     undirected_sequencing_subparser.add_argument(
         "--cds_regions",
         type=abs_path_from_str,
-        help=("6-col bed file of coding regions - used to define ORFs' boundries."),
+        help="6-col bed file of coding regions - used to define ORFs' boundries.",
         required=True,
     )
     undirected_sequencing_subparser.add_argument(
@@ -958,7 +1079,22 @@ def define_args() -> argparse.Namespace:
         action="store_true",
         help="Allow only known sites to be considered as edited, rather than denovo ones too.",
     )
-
+    undirected_sequencing_subparser.add_argument(
+        "--final_editing_scheme",
+        choices=["BH only", "BH after noise thresholding"],
+        required=True,
+        help=(
+            "The final editing scheme to use. "
+            "It can either depend only on corrected editing p-values across the CDS of the whole transcriptome, "
+            "or also depend on the noise thresholding (which is corrected for multiple testing in the same manner)."
+        ),
+    )
+    undirected_sequencing_subparser.add_argument(
+        "--alternative_hypothesis",
+        choices=["larger", "smaller", "two-sided"],
+        required=True,
+        help="Alternative hypothesis for the binomial test for noise and editing.",
+    )
     undirected_sequencing_subparser.add_argument(
         "--pileup_dir_name", default="PileupFiles"
     )
@@ -970,6 +1106,20 @@ def define_args() -> argparse.Namespace:
     )
     undirected_sequencing_subparser.add_argument(
         "--proteins_dir_name", default="ProteinsFiles"
+    )
+    undirected_sequencing_subparser.add_argument(
+        "--keep_bam_files",
+        action="store_true",
+        help=(
+            "Keep the filtered and/or sampled bam files. "
+            "Altough this option perhaps could be suitable to the directed data as well, "
+            "in practice, the number of directed samples is relatively small."
+        ),
+    )
+    undirected_sequencing_subparser.add_argument(
+        "--override_existing_bam_files",
+        action="store_true",
+        help="Recreate existing filtered and/or sampled bam files from previous runs.",
     )
 
     # subparsers.default = "default"
@@ -986,6 +1136,8 @@ if __name__ == "__main__":
 
     parser = define_args()
     args = parser.parse_args()
+    ic(args)
+    # ic(args)
     args.func(
         **vars(args)
     )  # https://stackoverflow.com/a/35824590/10249633 argparse.Namespace -> Dict

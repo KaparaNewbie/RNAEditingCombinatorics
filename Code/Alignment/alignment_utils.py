@@ -15,6 +15,7 @@ def sample_bam(
     num_reads: float,
     seed: int,
     threads: int,
+    override_existing_out_file: bool = True
 ):
     """Sample a BAM file.
 
@@ -25,7 +26,11 @@ def sample_bam(
         num_reads (int): Number of reads to sample.
         seed (int): Seed for the random number generator.
         threads (int): Number of threads to use.
+        override_existing_out_file (bool, optional): If True, override the existing output file. Defaults to True.
     """
+    # check if the output file already exists
+    if out_bam.exists() and not override_existing_out_file:
+        return
     # calculate fraction of reads to sample by dividing the number of total number in the number of reads to sample
     total_reads = count_reads(samtools_path, in_bam, None, None, None, threads)
     fraction = num_reads / total_reads
@@ -49,7 +54,7 @@ def sample_bam(
 
 
 def filter_bam_by_read_quality(
-    samtools_path: Path, in_bam: Path, min_rq: float, threads: int, out_dir: Path
+    samtools_path: Path, in_bam: Path, min_rq: float, threads: int, out_dir: Path, override_existing_out_file: bool = True
 ) -> Path:
     """Filter a BAM file by read quality.
 
@@ -59,10 +64,15 @@ def filter_bam_by_read_quality(
         min_rq (float): Minimum read quality to keep.
         threads (int): Number of threads to use.
         out_dir (Path): Write the filtered BAM file to this directory.
+        override_existing_out_file (bool, optional): If True, override the existing output file. Defaults to True.
 
     Returns:
         Path: Path of the filtered BAM file.
     """
+    # 0 - check if the output file already exists
+    filtered_bam = Path(out_dir, f"{in_bam.stem}.MinRQ{str(min_rq)[2:]}.bam")
+    if filtered_bam.exists() and not override_existing_out_file:
+        return filtered_bam
     # 1 - find reads with quality equal to or greater than the threshold min_rq
     with pysam.AlignmentFile(in_bam, "rb") as samfile:
         high_quality_reads_names = [
@@ -75,7 +85,7 @@ def filter_bam_by_read_quality(
     with high_quality_reads_file.open("w") as f:
         f.write("\n".join(high_quality_reads_names))
     # 3 - create a new bam by using only those high quality reads
-    filtered_bam = Path(out_dir, f"{in_bam.stem}.MinRQ{str(min_rq)[2:]}.bam")
+    # filtered_bam = Path(out_dir, f"{in_bam.stem}.MinRQ{str(min_rq)[2:]}.bam")
     filter_cmd = (
         f"{samtools_path} "
         "view "

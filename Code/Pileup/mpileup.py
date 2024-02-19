@@ -5,6 +5,10 @@ import subprocess
 from icecream import ic
 
 from Alignment.alignment_utils import count_reads
+from General.consts import ic_prefix
+
+# configure icecream to print the time of the print and the context (file, line, function)
+ic.configureOutput(includeContext=True, prefix=ic_prefix)
 
 
 def define_max_depth(
@@ -37,13 +41,13 @@ def mpileup(
     in_bam: Path,
     out_file: Path,
     threads: int,
-    override_existing_pileup_files: bool, 
+    override_existing_pileup_files: bool,
 ):
-    # only run mpileup if `out_file` doesn't exist or if it does, 
+    # only run mpileup if `out_file` doesn't exist or if it does,
     # but the user whishes to recreate it
     if out_file.exists() and not override_existing_pileup_files:
         return
-    
+
     max_depth = define_max_depth(
         samtools_path, in_bam, region, include_flags, exclude_flags, threads
     )

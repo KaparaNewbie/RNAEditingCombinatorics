@@ -157,7 +157,7 @@ def add_illumina_pe_reads_in_positions(edited_positions_df, strand, group):
     return positions_per_read
 
 
-def add_pacbio_se_multisample_reads_in_positions(edited_positions_df, strand, group):
+def add_pacbio_multisample_se_reads_in_positions(edited_positions_df, strand, group):
     unique_reads = set(chain.from_iterable(edited_positions_df["Reads"].str.split(",")))
     positions_per_read = {read: [] for read in unique_reads}
     sample_per_read = {}
@@ -249,7 +249,7 @@ def positions_to_reads(
     return reads_df
 
 
-def multisample_positions_to_reads(
+def multisample_positions_to_reads_old(
     positions_file: Union[str, Path],
     sep: str,
     strand: str,
@@ -291,7 +291,93 @@ def multisample_positions_to_reads(
         (
             positions_per_read,
             sample_per_read,
-        ) = add_pacbio_se_multisample_reads_in_positions(
+        ) = add_pacbio_multisample_se_reads_in_positions(
+            edited_positions_df, strand, group
+        )
+    elif parity in ["pe", "PE"]:
+        raise NotImplemented
+    else:
+        raise Exception(f"{group = }: Parity {parity} not recognized.")
+
+    reads_df = pd.DataFrame(positions_per_read)
+    reads_df = reads_df.T.reset_index().rename({"index": "Read"}, axis="columns")
+    reads_df = reads_df.rename(
+        columns={
+            old_col: pos
+            for old_col, pos in zip(
+                reads_df.columns[1:], edited_positions_df["Position"]
+            )
+        }
+    )
+    reads_df.insert(0, group_col, group)
+    reads_df.insert(1, "Sample", [sample_per_read[read] for read in reads_df["Read"]])
+    # note: the editing frequency can't be calculate based on edited, unedited and ambigous positions,
+    # as these positions do not include all adenosines in the read - only those that are edited, unedited or ambigous,
+    # within positions that at least one read is edited in.
+    annotate_edited_positions(reads_df, 3)
+    annotate_unedited_positions(reads_df, 4)
+    annotate_ambigous_positions(reads_df, 5)
+    annotate_editing_frequency_per_read(reads_df, 3, positions_df, strand)
+
+    return reads_df
+
+
+def multisample_positions_to_reads(
+    positions_file: Union[str, Path],
+    sep: str,
+    strand: str,
+    group_col,
+    group,
+    parity: str,
+    snp_noise_level: float,
+    top_x_noisy_positions: int,
+    pooled_transcript_noise_threshold: float,
+    bh_noisy_col: str,
+):
+    positions_df = pd.read_csv(positions_file, sep=sep, dtype={"Reads": str})
+
+    # pooled_transcript_noise = (
+    #     positions_df.loc[positions_df["Noise"] < snp_noise_level, "Noise"]
+    #     .sort_values(ascending=False)[:top_x_noisy_positions]
+    #     .mean()
+    # )
+
+    pooled_transcript_noise = (
+        positions_df.loc[
+            (positions_df["Noise"] < snp_noise_level) & (positions_df[bh_noisy_col]),
+            "Noise",
+        ]
+        .sort_values(ascending=False)[:top_x_noisy_positions]
+        .mean()
+    )
+
+    if pd.isna(pooled_transcript_noise):
+        pooled_transcript_noise = 0
+    # we require `>` rather than `>=`
+    # in order to enforce processing the positions into reads
+    # by setting `top_x_noisy_positions = 1`
+    # (or any value of `snp_noise_level` that will lead to
+    # `pooled_transcript_noise == pooled_transcript_noise_threshold`,
+    # for that matter)
+    # ic(positions_file, pooled_transcript_noise)
+    if pooled_transcript_noise > pooled_transcript_noise_threshold:
+        raise ValueError(
+            f"ERROR: {positions_file = } has {pooled_transcript_noise = } >= {pooled_transcript_noise_threshold = } "
+            "and will not undergo fuether processing into reads, proteins, etc."
+        )
+
+    # retain only edited & reliable positions within coding regions
+    edited_positions_df = positions_df.loc[
+        positions_df["CDS"]
+        & positions_df["EditedFinal"]
+        & ~positions_df["InProbRegion"]
+    ]
+
+    if parity in ["se", "SE"]:
+        (
+            positions_per_read,
+            sample_per_read,
+        ) = add_pacbio_multisample_se_reads_in_positions(
             edited_positions_df, strand, group
         )
     elif parity in ["pe", "PE"]:
@@ -465,6 +551,50 @@ def reads_and_unique_reads(
     # return reads_df, unique_reads_df
 
 
+def multisample_reads_and_unique_reads_old(
+    positions_file,
+    strand,
+    group_col,
+    group,
+    parity: str,
+    snp_noise_level: float,
+    top_x_noisy_positions: int,
+    pooled_transcript_noise_threshold: float,
+    reads_out_file: Union[Path, str, None] = None,
+    unique_reads_out_file: Union[Path, str, None] = None,
+    sep: str = "\t",
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    if not Path(positions_file).exists():
+        return
+
+    try:
+        reads_df = multisample_positions_to_reads_old(
+            positions_file,
+            sep,
+            strand,
+            group_col,
+            group,
+            parity,
+            snp_noise_level,
+            top_x_noisy_positions,
+            pooled_transcript_noise_threshold,
+        )
+
+        unique_reads_df = multisample_reads_to_unique_reads(reads_df)
+
+        if reads_out_file:
+            reads_df.to_csv(reads_out_file, sep=sep, index=False, na_rep=np.NaN)
+
+        if unique_reads_out_file:
+            unique_reads_df.to_csv(
+                unique_reads_out_file, sep=sep, index=False, na_rep=np.NaN
+            )
+    except (
+        ValueError
+    ) as e:  # will be raised if pooled_transcript_noise_threshold is met
+        print(e)
+
+
 def multisample_reads_and_unique_reads(
     positions_file,
     strand,
@@ -474,6 +604,7 @@ def multisample_reads_and_unique_reads(
     snp_noise_level: float,
     top_x_noisy_positions: int,
     pooled_transcript_noise_threshold: float,
+    bh_noisy_col: str,
     reads_out_file: Union[Path, str, None] = None,
     unique_reads_out_file: Union[Path, str, None] = None,
     sep: str = "\t",
@@ -492,6 +623,7 @@ def multisample_reads_and_unique_reads(
             snp_noise_level,
             top_x_noisy_positions,
             pooled_transcript_noise_threshold,
+            bh_noisy_col
         )
 
         unique_reads_df = multisample_reads_to_unique_reads(reads_df)

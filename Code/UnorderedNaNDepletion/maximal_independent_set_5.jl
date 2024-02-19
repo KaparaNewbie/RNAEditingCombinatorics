@@ -490,299 +490,14 @@ main();
 
 
 
-# postfix_to_remove = ".aligned.sorted.MinRQ998.unique_proteins.csv"
-# prefix_to_remove = ""
-# postfix_to_add = ".GRANTHAM1974-100"
-# outdir = "D.pealeii/MpileupAndTranscripts/RQ998.2"
-# fracstep = 0.2
-# maxfrac = 1.0
-# fracrepetitions = 4
-# algrepetitions = 2
-infile = "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
-firstcolpos = 15
-delim = "\t"
-idcol = "Protein"
-datatype = "Proteins"
-testfraction = 1.0
-randseed = 1892
-run_solve_threaded = false
-sortresults = false
-algs = [
-    # "Ascending", "Descending", 
-    "ILP"
-    ]
-gcp = false
-shutdowngcp = false
-
-
-df, firstcolpos = preparedf!(
-    infile, delim, datatype, idcol, firstcolpos,
-    testfraction, randseed
-)
-G = indistinguishable_rows(df, idcol; firstcolpos)
-ArrG = @DArray [G for _ ∈ 1:1]  # move G across processes on a distributed array in order to save memory
-
-fraction = 1.0
-nrows = size(df, 1)
-nsamplerows = convert(Int, round(fraction * nrows))
-fracrepetition = 1
-# algrepetitions = 2
-algrepetitions = 1
-
-results = run_fracrepetition(
-    df,
-    idcol,
-    ArrG,
-    fraction,
-    nsamplerows,
-    fracrepetition,
-    algrepetitions,
-    run_solve_threaded,
-    sortresults,
-    algs,
-)
-sort!(results, "NumUniqueSamples", rev=true)
-
-isindepdendetset(G, V2)
-
-isindepdendetset(G, split(results[1, "UniqueSamples"], ","))
-
-unique(split(results[1, "UniqueSamples"], ",")) == unique(split(results[2, "UniqueSamples"], ","))
-
-
-# # define input parameters for pmap
-# # @timeit to "fracrepetitions_inputs" fracrepetitions_inputs = prep_pmap_input(fracstep, maxfrac, df, fracrepetitions)
-# fracrepetitions_inputs = prep_pmap_input(fracstep, maxfrac, df, fracrepetitions)
-
-# # @timeit to "run_fracrepetition" fracrepetitions_results = pmap(
-# fracrepetitions_results = pmap(
-#     fracrepetitions_inputs;
-#     retry_delays=ExponentialBackOff(n=3, first_delay=5, max_delay=1000)
-# ) do (fraction, nsamplerows, fracrepetition)
-#     try
-#         run_fracrepetition(
-#             df,
-#             idcol,
-#             ArrG,
-#             fraction,
-#             nsamplerows,
-#             fracrepetition,
-#             algrepetitions,
-#             run_solve_threaded,
-#             sortresults,
-#             algs
-#         )
-#     catch e
-#         @warn "$(loggingtime())\trun_fracrepetition failed" infile fraction fracrepetition e
-#         missing
-#     end
-# end
-
-
-
-
-# best_mis_results_size = maximum(results[:, "NumUniqueSamples"])
-
-
-# mis_ilp_results = mis_ilp(G, optimizer)
-
-
-
-
-# using JuMP
-# using HiGHS
-
-# sort_edge_by_vertices_names(u, v) = u < v ? (u, v) : (v, u)
-
-# function mis_ilp(G, optimizer=HiGHS.Optimizer)
-#     V = keys(G)
-#     E = Set([sort_edge_by_vertices_names(u, v) for u ∈ V for v ∈ G[u] if u != v])
-
-#     model = Model(optimizer)
-#     @variable(model, x[V], Bin)
-#     @objective(model, Max, sum(x))
-#     for (u, v) ∈ E
-#         @constraint(model, 0 <= x[u] + x[v] <= 1)
-#     end
-#     optimize!(model)
-
-#     # termination_status(model) == 1 || throw(ErrorException("ILP failed"))
-#     println("termination_status(model) = ", termination_status(model))
-
-#     V2 = [v for v in V if value(x[v]) == 1]
-
-#     length(V2) == objective_value(model) || throw(ErrorException("The objective value is not equal to the number of vertices whose value is 1 in the MIS"))
-
-#     return V2
-# end
-
-
-
-# V = keys(G)
-# E = Set([sort_edge_by_vertices_names(u, v) for u ∈ V for v ∈ G[u] if u != v])
-
-# model = Model(HiGHS.Optimizer)
-# @variable(model, x[V], Bin)
-# @objective(model, Max, sum(x))
-# for (u, v) ∈ E
-#     @constraint(model, 0 <= x[u] + x[v] <= 1)
-# end
-
-# print(model)
-
-# optimize!(model)
-
-# termination_status(model)
-
-# objective_value(model)
-
-# for u in V
-#     println(u, " = ", value(x[u]))
-# end
-
-# value(x["8Tb"]) == 1
-
-# V2 = [v for v in V if value(x[v]) == 1]
-
-
-
-
-# describe(df)
-
-# substitutionmatrix = GRANTHAM1974
-# similarityscorecutoff = 100
-# similarityvalidator = <
-
-# aagroups = AA_groups_Miyata1979
-
-
-# # # G is the main neighborhood matrix and created only once; samples can create subgraphs induced by it
-# G1 = indistinguishable_rows(df, idcol; firstcolpos)
-# G2 = indistinguishable_rows(df, idcol, substitutionmatrix, similarityscorecutoff, similarityvalidator; firstcolpos)
-# G3 = indistinguishable_rows(df, idcol, aagroups; firstcolpos)
-
-# S1 = sum(length.(values(G1)))
-# S2 = sum(length.(values(G2)))
-# S3 = sum(length.(values(G3)))
-
-
-
-# results2 = solve(
-#     G2,
-#     1.0,
-#     1,
-#     2,
-#     true,
-#     false,
-#     ["Ascending", "Descending"]
-# )
-
-
-# distinctfile1 = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO.AllRows.DistinctUniqueProteins.csv"
-# distinctfile2 = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.DistinctUniqueProteins.GRANTHAM1974-100.05.12.2022-13:58:52.csv"
-# distinctfile3 = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.DistinctUniqueProteins.AAgroupsMiyata1979.04.12.2022-18:09:53.csv"
-
-# truestrings = ["TRUE", "True", "true"]
-# falsestrings = ["FALSE", "False", "false"]
-
-# innerdelim = ","
-
-# function prepare_distinctdf(distinctfile, delim, innerdelim, truestrings, falsestrings)
-#     distinctdf = DataFrame(CSV.File(distinctfile; delim, truestrings, falsestrings))
-#     transform!(distinctdf, :UniqueSamples => (x -> split.(x, innerdelim)) => :UniqueSamples)
-#     distinctdf[!, "Index"] = collect(1:size(distinctdf, 1))
-#     return distinctdf
-# end
-
-# distinctdf1 = prepare_distinctdf(distinctfile1, delim, innerdelim, truestrings, falsestrings)
-# distinctdf2 = prepare_distinctdf(distinctfile2, delim, innerdelim, truestrings, falsestrings)
-# distinctdf3 = prepare_distinctdf(distinctfile3, delim, innerdelim, truestrings, falsestrings)
-
-
-
-# distinct1 = distinctdf1[argmax(distinctdf1[:, "NumUniqueSamples"]), "UniqueSamples"]
-# distinct2 = distinctdf2[argmax(distinctdf2[:, "NumUniqueSamples"]), "UniqueSamples"]
-# distinct3 = distinctdf3[argmax(distinctdf3[:, "NumUniqueSamples"]), "UniqueSamples"]
-
-
-# function verify(G, distinctsamples)
-#     badcouples = []
-#     for (i, x) in enumerate(distinctsamples)
-#         for y in distinctsamples[i+1:end]
-#             if x in G[y] || y in G[x]
-#                 append!(badcouples, (x, y))
-#             end
-#         end
-#     end
-#     badcouples
-# end
-
-
-# badcouples1 = verify(G1, distinct1)
-# badcouples2 = verify(G2, distinct2)
-# badcouples3 = verify(G3, distinct3)
-
-
-
-
-
-
-# using BioAlignments
-# using BioSymbols
-# using UnicodePlots
-
-# sm = GRANTHAM1974
-# AAs = [
-#     AA_A, AA_R, AA_N, AA_D, AA_C, AA_Q, AA_E, AA_G, AA_H, AA_I, 
-#     AA_L, AA_K, AA_M, AA_F, AA_P, AA_S, AA_T, AA_W, AA_Y, AA_V
-# ]
-
-# scores = Int64[]
-# for (i, x) in enumerate(AAs)
-#     for y in AAs[i:end]
-#         append!(scores, sm[x, y])
-#     end
-# end
-# 
-
-# 
-
-# 
-
-
-
-
-# chroms = [
-#     "comp133638_c0_seq1", "comp133885_c0_seq1", "comp144143_c0_seq1",
-#     "comp144194_c0_seq1", "comp144516_c0_seq1", "comp147803_c0_seq1",
-#       "comp159522_c0_seq1", "comp165907_c0_seq14", "comp175606_c2_seq5",
-#        "comp177903_c0_seq3", "comp180146_c10_seq6", "comp180146_c11_seq1",
-#        "comp181287_c10_seq4"
-# ]
-
-# infiles = [
-#     "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered/ProteinsFiles/$chrom.unique_proteins.csv.gz"
-#     for chrom in chroms
-# ]
-
-# # samplenames = [
-# #         "G3BP2_MOUSE",
-# #         "TBA_LYTPI",
-# #         "BZW1_CHICK",
-# #         "KARG_LIOJA",
-# #         "SRSF2_PANTR",
-# #         "GRP78_RAT",
-# #         "APEH_MOUSE",
-# #         "TRI45_BOVIN",
-# #         "RHO_APLCA",
-# #         "TPM_HELAS",
-# #         "TMM59_MOUSE",
-# #         "H33_XENTR",
-# #         "HNRL1_MOUSE"
-# # ]
-
-# samplenames = chroms
-
+# # postfix_to_remove = ".aligned.sorted.MinRQ998.unique_proteins.csv"
+# # prefix_to_remove = ""
+# # postfix_to_add = ".GRANTHAM1974-100"
+# # outdir = "D.pealeii/MpileupAndTranscripts/RQ998.2"
+# # fracstep = 0.2
+# # maxfrac = 1.0
+# # fracrepetitions = 4
+# # algrepetitions = 2
 # infile = "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
 # firstcolpos = 15
 # delim = "\t"
@@ -790,52 +505,337 @@ unique(split(results[1, "UniqueSamples"], ",")) == unique(split(results[2, "Uniq
 # datatype = "Proteins"
 # testfraction = 1.0
 # randseed = 1892
+# run_solve_threaded = false
+# sortresults = false
+# algs = [
+#     # "Ascending", "Descending", 
+#     "ILP"
+#     ]
+# gcp = false
+# shutdowngcp = false
 
-# # # samplename = "comp179788_c0_seq1"
-# # outdir = "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered/DistinctProteins.Addendum"
-# # mkpath(outdir)
 
-# # postfix_to_add = ""
-# # # postfix_to_remove = ".unique_proteins.csv.gz"
-# # fracstep = 0.2
-# # maxfrac = 1.0
-# # fracrepetitions = 4
+# df, firstcolpos = preparedf!(
+#     infile, delim, datatype, idcol, firstcolpos,
+#     testfraction, randseed
+# )
+# G = indistinguishable_rows(df, idcol; firstcolpos)
+# ArrG = @DArray [G for _ ∈ 1:1]  # move G across processes on a distributed array in order to save memory
+
+# fraction = 1.0
+# nrows = size(df, 1)
+# nsamplerows = convert(Int, round(fraction * nrows))
+# fracrepetition = 1
 # # algrepetitions = 2
-# # run_solve_threaded = true
-# # sortresults = false
-# # algs = ["Ascending", "Descending"]
-# # substitutionmatrix = nothing
-# # aagroups = nothing
-# # similarityscorecutoff = 0
-# # similarityvalidator = >=
+# algrepetitions = 1
+
+# results = run_fracrepetition(
+#     df,
+#     idcol,
+#     ArrG,
+#     fraction,
+#     nsamplerows,
+#     fracrepetition,
+#     algrepetitions,
+#     run_solve_threaded,
+#     sortresults,
+#     algs,
+# )
+# sort!(results, "NumUniqueSamples", rev=true)
+
+# isindepdendetset(G, V2)
+
+# isindepdendetset(G, split(results[1, "UniqueSamples"], ","))
+
+# unique(split(results[1, "UniqueSamples"], ",")) == unique(split(results[2, "UniqueSamples"], ","))
 
 
-# # for (infile, samplename) in zip(infiles, samplenames)
-# #     run_sample(
-# #         infile, delim, samplename, idcol, firstcolpos, datatype, outdir, postfix_to_add,
-# #         fracstep, maxfrac, fracrepetitions, algrepetitions, testfraction, randseed,
-# #         run_solve_threaded, sortresults, algs,
-# #         substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups
-# #     )
+# # # define input parameters for pmap
+# # # @timeit to "fracrepetitions_inputs" fracrepetitions_inputs = prep_pmap_input(fracstep, maxfrac, df, fracrepetitions)
+# # fracrepetitions_inputs = prep_pmap_input(fracstep, maxfrac, df, fracrepetitions)
+
+# # # @timeit to "run_fracrepetition" fracrepetitions_results = pmap(
+# # fracrepetitions_results = pmap(
+# #     fracrepetitions_inputs;
+# #     retry_delays=ExponentialBackOff(n=3, first_delay=5, max_delay=1000)
+# # ) do (fraction, nsamplerows, fracrepetition)
+# #     try
+# #         run_fracrepetition(
+# #             df,
+# #             idcol,
+# #             ArrG,
+# #             fraction,
+# #             nsamplerows,
+# #             fracrepetition,
+# #             algrepetitions,
+# #             run_solve_threaded,
+# #             sortresults,
+# #             algs
+# #         )
+# #     catch e
+# #         @warn "$(loggingtime())\trun_fracrepetition failed" infile fraction fracrepetition e
+# #         missing
+# #     end
 # # end
-# # df, firstcolpos = preparedf!(
-# #     infile, delim, datatype, idcol, firstcolpos,
-# #     testfraction, randseed
+
+
+
+
+# # best_mis_results_size = maximum(results[:, "NumUniqueSamples"])
+
+
+# # mis_ilp_results = mis_ilp(G, optimizer)
+
+
+
+
+# # using JuMP
+# # using HiGHS
+
+# # sort_edge_by_vertices_names(u, v) = u < v ? (u, v) : (v, u)
+
+# # function mis_ilp(G, optimizer=HiGHS.Optimizer)
+# #     V = keys(G)
+# #     E = Set([sort_edge_by_vertices_names(u, v) for u ∈ V for v ∈ G[u] if u != v])
+
+# #     model = Model(optimizer)
+# #     @variable(model, x[V], Bin)
+# #     @objective(model, Max, sum(x))
+# #     for (u, v) ∈ E
+# #         @constraint(model, 0 <= x[u] + x[v] <= 1)
+# #     end
+# #     optimize!(model)
+
+# #     # termination_status(model) == 1 || throw(ErrorException("ILP failed"))
+# #     println("termination_status(model) = ", termination_status(model))
+
+# #     V2 = [v for v in V if value(x[v]) == 1]
+
+# #     length(V2) == objective_value(model) || throw(ErrorException("The objective value is not equal to the number of vertices whose value is 1 in the MIS"))
+
+# #     return V2
+# # end
+
+
+
+# # V = keys(G)
+# # E = Set([sort_edge_by_vertices_names(u, v) for u ∈ V for v ∈ G[u] if u != v])
+
+# # model = Model(HiGHS.Optimizer)
+# # @variable(model, x[V], Bin)
+# # @objective(model, Max, sum(x))
+# # for (u, v) ∈ E
+# #     @constraint(model, 0 <= x[u] + x[v] <= 1)
+# # end
+
+# # print(model)
+
+# # optimize!(model)
+
+# # termination_status(model)
+
+# # objective_value(model)
+
+# # for u in V
+# #     println(u, " = ", value(x[u]))
+# # end
+
+# # value(x["8Tb"]) == 1
+
+# # V2 = [v for v in V if value(x[v]) == 1]
+
+
+
+
+# # describe(df)
+
+# # substitutionmatrix = GRANTHAM1974
+# # similarityscorecutoff = 100
+# # similarityvalidator = <
+
+# # aagroups = AA_groups_Miyata1979
+
+
+# # # # G is the main neighborhood matrix and created only once; samples can create subgraphs induced by it
+# # G1 = indistinguishable_rows(df, idcol; firstcolpos)
+# # G2 = indistinguishable_rows(df, idcol, substitutionmatrix, similarityscorecutoff, similarityvalidator; firstcolpos)
+# # G3 = indistinguishable_rows(df, idcol, aagroups; firstcolpos)
+
+# # S1 = sum(length.(values(G1)))
+# # S2 = sum(length.(values(G2)))
+# # S3 = sum(length.(values(G3)))
+
+
+
+# # results2 = solve(
+# #     G2,
+# #     1.0,
+# #     1,
+# #     2,
+# #     true,
+# #     false,
+# #     ["Ascending", "Descending"]
 # # )
 
-# # G = indistinguishable_rows(df, idcol; firstcolpos)
+
+# # distinctfile1 = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO.AllRows.DistinctUniqueProteins.csv"
+# # distinctfile2 = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.DistinctUniqueProteins.GRANTHAM1974-100.05.12.2022-13:58:52.csv"
+# # distinctfile3 = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.DistinctUniqueProteins.AAgroupsMiyata1979.04.12.2022-18:09:53.csv"
+
+# # truestrings = ["TRUE", "True", "true"]
+# # falsestrings = ["FALSE", "False", "false"]
+
+# # innerdelim = ","
+
+# # function prepare_distinctdf(distinctfile, delim, innerdelim, truestrings, falsestrings)
+# #     distinctdf = DataFrame(CSV.File(distinctfile; delim, truestrings, falsestrings))
+# #     transform!(distinctdf, :UniqueSamples => (x -> split.(x, innerdelim)) => :UniqueSamples)
+# #     distinctdf[!, "Index"] = collect(1:size(distinctdf, 1))
+# #     return distinctdf
+# # end
+
+# # distinctdf1 = prepare_distinctdf(distinctfile1, delim, innerdelim, truestrings, falsestrings)
+# # distinctdf2 = prepare_distinctdf(distinctfile2, delim, innerdelim, truestrings, falsestrings)
+# # distinctdf3 = prepare_distinctdf(distinctfile3, delim, innerdelim, truestrings, falsestrings)
 
 
-# # ArrG = @DArray [G for _ ∈ 1:1]  # move G across processes on a distributed array in order to save memory
 
-# # # having built G, we only need to keep the reads and unique reads/proteins they support
-# # select!(df, idcol)
+# # distinct1 = distinctdf1[argmax(distinctdf1[:, "NumUniqueSamples"]), "UniqueSamples"]
+# # distinct2 = distinctdf2[argmax(distinctdf2[:, "NumUniqueSamples"]), "UniqueSamples"]
+# # distinct3 = distinctdf3[argmax(distinctdf3[:, "NumUniqueSamples"]), "UniqueSamples"]
 
 
-# # run_sample(
-# #     infile, delim, samplename, idcol, firstcolpos, datatype, outdir, postfix_to_add,
-# #     fracstep, maxfrac, fracrepetitions, algrepetitions, testfraction, randseed,
-# #     run_solve_threaded, sortresults, algs,
-# #     substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups
-# # )
+# # function verify(G, distinctsamples)
+# #     badcouples = []
+# #     for (i, x) in enumerate(distinctsamples)
+# #         for y in distinctsamples[i+1:end]
+# #             if x in G[y] || y in G[x]
+# #                 append!(badcouples, (x, y))
+# #             end
+# #         end
+# #     end
+# #     badcouples
+# # end
+
+
+# # badcouples1 = verify(G1, distinct1)
+# # badcouples2 = verify(G2, distinct2)
+# # badcouples3 = verify(G3, distinct3)
+
+
+
+
+
+
+# # using BioAlignments
+# # using BioSymbols
+# # using UnicodePlots
+
+# # sm = GRANTHAM1974
+# # AAs = [
+# #     AA_A, AA_R, AA_N, AA_D, AA_C, AA_Q, AA_E, AA_G, AA_H, AA_I, 
+# #     AA_L, AA_K, AA_M, AA_F, AA_P, AA_S, AA_T, AA_W, AA_Y, AA_V
+# # ]
+
+# # scores = Int64[]
+# # for (i, x) in enumerate(AAs)
+# #     for y in AAs[i:end]
+# #         append!(scores, sm[x, y])
+# #     end
+# # end
+# # 
+
+# # 
+
+# # 
+
+
+
+
+# # chroms = [
+# #     "comp133638_c0_seq1", "comp133885_c0_seq1", "comp144143_c0_seq1",
+# #     "comp144194_c0_seq1", "comp144516_c0_seq1", "comp147803_c0_seq1",
+# #       "comp159522_c0_seq1", "comp165907_c0_seq14", "comp175606_c2_seq5",
+# #        "comp177903_c0_seq3", "comp180146_c10_seq6", "comp180146_c11_seq1",
+# #        "comp181287_c10_seq4"
+# # ]
+
+# # infiles = [
+# #     "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered/ProteinsFiles/$chrom.unique_proteins.csv.gz"
+# #     for chrom in chroms
+# # ]
+
+# # # samplenames = [
+# # #         "G3BP2_MOUSE",
+# # #         "TBA_LYTPI",
+# # #         "BZW1_CHICK",
+# # #         "KARG_LIOJA",
+# # #         "SRSF2_PANTR",
+# # #         "GRP78_RAT",
+# # #         "APEH_MOUSE",
+# # #         "TRI45_BOVIN",
+# # #         "RHO_APLCA",
+# # #         "TPM_HELAS",
+# # #         "TMM59_MOUSE",
+# # #         "H33_XENTR",
+# # #         "HNRL1_MOUSE"
+# # # ]
+
+# # samplenames = chroms
+
+# # infile = "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
+# # firstcolpos = 15
+# # delim = "\t"
+# # idcol = "Protein"
+# # datatype = "Proteins"
+# # testfraction = 1.0
+# # randseed = 1892
+
+# # # # samplename = "comp179788_c0_seq1"
+# # # outdir = "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered/DistinctProteins.Addendum"
+# # # mkpath(outdir)
+
+# # # postfix_to_add = ""
+# # # # postfix_to_remove = ".unique_proteins.csv.gz"
+# # # fracstep = 0.2
+# # # maxfrac = 1.0
+# # # fracrepetitions = 4
+# # # algrepetitions = 2
+# # # run_solve_threaded = true
+# # # sortresults = false
+# # # algs = ["Ascending", "Descending"]
+# # # substitutionmatrix = nothing
+# # # aagroups = nothing
+# # # similarityscorecutoff = 0
+# # # similarityvalidator = >=
+
+
+# # # for (infile, samplename) in zip(infiles, samplenames)
+# # #     run_sample(
+# # #         infile, delim, samplename, idcol, firstcolpos, datatype, outdir, postfix_to_add,
+# # #         fracstep, maxfrac, fracrepetitions, algrepetitions, testfraction, randseed,
+# # #         run_solve_threaded, sortresults, algs,
+# # #         substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups
+# # #     )
+# # # end
+# # # df, firstcolpos = preparedf!(
+# # #     infile, delim, datatype, idcol, firstcolpos,
+# # #     testfraction, randseed
+# # # )
+
+# # # G = indistinguishable_rows(df, idcol; firstcolpos)
+
+
+# # # ArrG = @DArray [G for _ ∈ 1:1]  # move G across processes on a distributed array in order to save memory
+
+# # # # having built G, we only need to keep the reads and unique reads/proteins they support
+# # # select!(df, idcol)
+
+
+# # # run_sample(
+# # #     infile, delim, samplename, idcol, firstcolpos, datatype, outdir, postfix_to_add,
+# # #     fracstep, maxfrac, fracrepetitions, algrepetitions, testfraction, randseed,
+# # #     run_solve_threaded, sortresults, algs,
+# # #     substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups
+# # # )
 
