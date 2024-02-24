@@ -460,7 +460,7 @@ def pileup_to_positions(
             )
 
     # replace reads' names with a shortened, memory-efficient version
-    ic(pileup_file, "before replacing reads' names in pileup_to_positions")
+    # ic(pileup_file, "before replacing reads' names in pileup_to_positions")
     replace_reads_names(
         positions_df,
         "TotalCoverage",
@@ -469,7 +469,7 @@ def pileup_to_positions(
         mapping_out_file=reads_mapping_file,
         out_files_sep=out_files_sep,
     )
-    ic(pileup_file, "after replacing reads' names in pileup_to_positions")
+    # ic(pileup_file, "after replacing reads' names in pileup_to_positions")
 
     # remove positions with insufficient coverage
     max_coverage = positions_df["TotalCoverage"].max()
@@ -853,9 +853,6 @@ def multisample_pileups_to_positions_all_transcripts(
 
     transcriptome_dict = make_fasta_dict(transcriptome_file)
 
-    # todo uncomment!!!
-    # todo uncomment!!!
-    # todo uncomment!!!
     # get the positions dfs up until noise correction (not included)
     with Pool(processes=processes) as pool:
         pool.starmap(
@@ -877,9 +874,6 @@ def multisample_pileups_to_positions_all_transcripts(
                 )
             ],
         )
-    # todo uncomment!!!
-    # todo uncomment!!!
-    # todo uncomment!!!
 
     # binom & BH correction for noise
     binom_and_bh_correction_for_noise_all_transcripts(
@@ -1113,18 +1107,6 @@ def get_covered_and_uncovered_coding_non_adenosines_in_transcript(
         ],
     )
 
-    # verify that the positions file contains only one chromosome, and that it's the same as the given chrom
-    unique_chroms_in_positions_df = covered_coding_non_adenosines_positions_df[
-        "Chrom"
-    ].unique()
-    if (
-        len(unique_chroms_in_positions_df) > 1
-        or chrom not in unique_chroms_in_positions_df
-    ):
-        raise ValueError(
-            f"Unmatching chroms: {chrom = } != {covered_coding_non_adenosines_positions_df['Chrom'].unique() = }"
-        )
-
     # retain only coding non-adenosine positions with total coverage > 0
     # (however, it's possible that the entire coverage in a position is due to unkown bases (N))
     negative_ref_base = "A" if strand == "+" else "T"
@@ -1155,6 +1137,19 @@ def get_covered_and_uncovered_coding_non_adenosines_in_transcript(
         all_coding_non_adenosines_df["RefBaseCount"] = 0
         all_coding_non_adenosines_df["AltBaseCount"] = 0
         return all_coding_non_adenosines_df
+
+    # verify that the positions file contains only one chromosome, and that it's the same as the given chrom
+    # (we verify it only now since we know that the file is not empty)
+    unique_chroms_in_positions_df = covered_coding_non_adenosines_positions_df[
+        "Chrom"
+    ].unique()
+    if (
+        len(unique_chroms_in_positions_df) > 1
+        or chrom not in unique_chroms_in_positions_df
+    ):
+        raise ValueError(
+            f"Unmatching chroms: {chrom = } != {covered_coding_non_adenosines_positions_df['Chrom'].unique() = }"
+        )
 
     # perform binomial test on each covered position
     ref_and_alt_base_counts_df = covered_coding_non_adenosines_positions_df.apply(
@@ -1254,7 +1249,6 @@ def multisample_pileups_to_positions_part_1(
         "Reads",
     ]
 
-    ic()
     positions_dfs = [
         pd.read_csv(pileup_file, sep="\t", names=cols) for pileup_file in pileup_files
     ]
@@ -1314,16 +1308,6 @@ def multisample_pileups_to_positions_part_1(
             )
 
     # replace reads' names with a shortened, memory-efficient version
-    # todo uncomment!!!
-    # todo uncomment!!!
-    # # todo uncomment!!!
-    # # todo uncomment!!!
-    # # todo uncomment!!!
-    # # todo uncomment!!!
-    # # todo uncomment!!!
-    # # todo uncomment!!!
-    # # todo uncomment!!!
-    # # todo uncomment!!!
     replace_reads_names(
         positions_df,
         "TotalCoverage",
@@ -1332,16 +1316,6 @@ def multisample_pileups_to_positions_part_1(
         mapping_out_file=reads_mapping_file,
         out_files_sep=out_files_sep,
     )
-    # todo uncomment!!!
-    # todo uncomment!!!
-    # # todo uncomment!!!
-    # # todo uncomment!!!
-    # # todo uncomment!!!
-    # # todo uncomment!!!
-    # # todo uncomment!!!
-    # # todo uncomment!!!
-    # # todo uncomment!!!
-    # # todo uncomment!!!
 
     # if len(positions_df) > 0:
     positions_df["Sample"] = positions_df["Sample"].astype(str)
@@ -1547,6 +1521,13 @@ def multisample_pileups_to_positions_part_3(
 
     # read the positions df
     positions_df = pd.read_csv(positions_file, sep=sep, dtype={"Reads": str})
+    if len(positions_df) == 0:
+        ic(f"{positions_file = } is empty - we delete it and return")
+        subprocess.run(f"rm {positions_file}", shell=True)
+        if not keep_pileup_files:
+            for pileup_file in pileup_files:
+                subprocess.run(f"rm {pileup_file}", shell=True)
+        return
 
     # read the corrected editing df
     corrected_editing_df = pd.read_csv(corrected_editing_file, sep=sep)
@@ -1591,11 +1572,13 @@ def multisample_pileups_to_positions_part_3(
     non_ref_base_edit_freq = positions_df.loc[
         positions_df["RefBase"] != ref_base, "EditingFrequency"
     ].unique()
-    assert len(non_ref_base_edit_freq) == 1 and np.isnan(non_ref_base_edit_freq[0])
+    if len(non_ref_base_edit_freq) == 1 or np.isnan(non_ref_base_edit_freq[0]):
+        raise ValueError()
     ref_base_noise = positions_df.loc[
         positions_df["RefBase"] == ref_base, "Noise"
     ].unique()
-    assert len(ref_base_noise) == 1 and np.isnan(ref_base_noise[0])
+    if len(ref_base_noise) == 1 or np.isnan(ref_base_noise[0]):
+        raise ValueError()
 
     # verify that the number of mapped bases ==
     # number of reads' names ==
@@ -1605,7 +1588,7 @@ def multisample_pileups_to_positions_part_3(
         mapped_reads = row.Reads.split(",")
         mapped_samples = row.Samples.split(",")
         if not (len(mapped_bases) == len(mapped_reads) == len(mapped_samples)):
-            raise ValueError
+            raise ValueError()
 
     # finally, annotate editing based on one of two possible schemes:
     # 1. based on the corrected editing p-values alone
@@ -1850,18 +1833,6 @@ def get_covered_and_uncovered_coding_adenosines_in_transcript(
         dtype={"Reads": str},
     )
 
-    # verify that the positions file contains only one chromosome, and that it's the same as the given chrom
-    unique_chroms_in_positions_df = covered_coding_adenosines_positions_df[
-        "Chrom"
-    ].unique()
-    if (
-        len(unique_chroms_in_positions_df) > 1
-        or chrom not in unique_chroms_in_positions_df
-    ):
-        raise ValueError(
-            f"Unmatching chroms: {chrom = } != {covered_coding_adenosines_positions_df['Chrom'].unique() = }"
-        )
-
     # retain only coding adenosines positions with total coverage > 0
     # (however, it's possible that the entire coverage in a position is due to unkown bases (N))
     ref_base = "A" if strand == "+" else "T"
@@ -1887,6 +1858,19 @@ def get_covered_and_uncovered_coding_adenosines_in_transcript(
         all_coding_adenosines_df["RefBaseCount"] = 0
         all_coding_adenosines_df["AltBaseCount"] = 0
         return all_coding_adenosines_df
+
+    # verify that the positions file contains only one chromosome, and that it's the same as the given chrom
+    # (we verify it only now since we know that the file is not empty)
+    unique_chroms_in_positions_df = covered_coding_adenosines_positions_df[
+        "Chrom"
+    ].unique()
+    if (
+        len(unique_chroms_in_positions_df) > 1
+        or chrom not in unique_chroms_in_positions_df
+    ):
+        raise ValueError(
+            f"Unmatching chroms: {chrom = } != {covered_coding_adenosines_positions_df['Chrom'].unique() = }"
+        )
 
     # perform binomial test on each covered position
     ref_and_alt_base_counts_df = covered_coding_adenosines_positions_df.apply(

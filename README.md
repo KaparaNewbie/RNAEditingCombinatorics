@@ -3098,8 +3098,13 @@ undirected_sequencing_data \
 > O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BH/pileup.19.2.24.out &
 ```
 * alu 13
-* 14:04
-* 3668036
+* 18:42
+* 3308157
+
+
+/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BH/PositionsFiles/comp181924_c0_seq4.positions.csv.gz
+
+
 
 
 import pandas as pd
