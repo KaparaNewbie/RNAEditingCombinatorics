@@ -951,12 +951,11 @@ def multisample_pileups_to_positions_all_transcripts(
                     bh_editing_pval_col,
                     bh_editing_col,
                 )
-                for positions_file, corrected_editing_file, chrom, strand, positions_file in zip(
+                for positions_file, corrected_editing_file, chrom, strand in zip(
                     positions_files,
                     corrected_editing_files,
                     chroms,
                     strands,
-                    positions_files,
                 )
             ],
         )
@@ -976,7 +975,8 @@ def binom_and_bh_correction_for_noise_all_transcripts(
     bh_rejection_col: str,
 ):
     """
-    Perform binomial test for noise followed by Benjamini-Hochberg correction for all non-adenosines in the transcriptome, and rewrite the updated results to the disk.
+    Perform binomial test for noise followed by Benjamini-Hochberg correction for all non-adenosines in the 
+    transcriptome, and rewrite the updated results to the disk.
 
     Args:
         `positions_files` (list[Path]): A list of intermidate positions files, where each file contains positions in a transcript.
@@ -1390,7 +1390,8 @@ def multisample_pileups_to_positions_part_2(
     bh_noisy_col: str,
 ):
     """
-    The input positions_file is after noise annotation, and the BH correction is added according to the corrected noise p-value from the `corrected_noise_file`.
+    The input positions_file is after noise annotation, and the BH correction is added according to the corrected 
+    noise p-value from the `corrected_noise_file`.
     Then, that noise is used to calculate the noise threshold and basic editing status according to it.
 
     Args:
@@ -1498,8 +1499,10 @@ def multisample_pileups_to_positions_part_3(
     bh_editing_col: str,
 ):
     """
-    The input positions_file is given after basic editing annoatation, and the BH correction for editing is added according to the corrected editing p-value from the `corrected_editing_file`.
-    Then, apply some coverage based filtering, and annotate the final editing status according to the final editing scheme.
+    The input positions_file is given after basic editing annoatation, and the BH correction for editing is added 
+    according to the corrected editing p-value from the `corrected_editing_file`.
+    Then, apply some coverage based filtering, and annotate the final editing status according to the final 
+    editing scheme.
     In addition, some verifications are made.
     Finaly, writes the final positions_df to a file, and possibly delete the original pileup files.
 
@@ -1522,7 +1525,11 @@ def multisample_pileups_to_positions_part_3(
     # read the positions df
     positions_df = pd.read_csv(positions_file, sep=sep, dtype={"Reads": str})
     if len(positions_df) == 0:
-        ic(f"{positions_file = } is empty - we delete it and return")
+        ic(
+            f"ERROR: {positions_file = } is empty - we delete it and return "
+            "(it won't be further processed into reads, proteins, etc.)."
+        )
+
         subprocess.run(f"rm {positions_file}", shell=True)
         if not keep_pileup_files:
             for pileup_file in pileup_files:
@@ -1572,13 +1579,13 @@ def multisample_pileups_to_positions_part_3(
     non_ref_base_edit_freq = positions_df.loc[
         positions_df["RefBase"] != ref_base, "EditingFrequency"
     ].unique()
-    if len(non_ref_base_edit_freq) == 1 or np.isnan(non_ref_base_edit_freq[0]):
-        raise ValueError()
+    if len(non_ref_base_edit_freq) != 1 or not np.isnan(non_ref_base_edit_freq[0]):
+        raise ValueError("non_ref_base_edit_freq != 1 or not nan")
     ref_base_noise = positions_df.loc[
         positions_df["RefBase"] == ref_base, "Noise"
     ].unique()
-    if len(ref_base_noise) == 1 or np.isnan(ref_base_noise[0]):
-        raise ValueError()
+    if len(ref_base_noise) != 1 or not np.isnan(ref_base_noise[0]):
+        raise ValueError("ref_base_noise != 1 or not nan")
 
     # verify that the number of mapped bases ==
     # number of reads' names ==
@@ -1588,7 +1595,10 @@ def multisample_pileups_to_positions_part_3(
         mapped_reads = row.Reads.split(",")
         mapped_samples = row.Samples.split(",")
         if not (len(mapped_bases) == len(mapped_reads) == len(mapped_samples)):
-            raise ValueError()
+            raise ValueError(
+                f"Line {row_num} at {positions_file} contains indels and/or doesn't have the same number "
+                "of mapped bases, reads, and samples."
+            )
 
     # finally, annotate editing based on one of two possible schemes:
     # 1. based on the corrected editing p-values alone

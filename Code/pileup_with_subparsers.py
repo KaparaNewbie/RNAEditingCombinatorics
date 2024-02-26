@@ -132,23 +132,23 @@ def undirected_sequencing_main(
     alignments_stats_df = alignments_stats_df.merge(cds_df, how="left")
 
     # todo - remove - this is for debugging
-    test_chroms = [
-        "comp183313_c0_seq12",
-        "comp162994_c0_seq1",
-        "comp183909_c0_seq7",
-        "comp181233_c0_seq10",
-        "comp183670_c0_seq3",
-        "comp183256_c0_seq35",
-        "comp183782_c0_seq5",
-        "comp183377_c0_seq11",
-        "comp181723_c2_seq2",
-        "comp169467_c0_seq1",
-        "comp183713_c0_seq9",
-        "comp181924_c0_seq4"
-    ]
-    alignments_stats_df = alignments_stats_df.loc[
-        alignments_stats_df["Chrom"].isin(test_chroms)
-    ]
+    # test_chroms = [
+    #     "comp183313_c0_seq12",
+    #     "comp162994_c0_seq1",
+    #     "comp183909_c0_seq7",
+    #     "comp181233_c0_seq10",
+    #     "comp183670_c0_seq3",
+    #     "comp183256_c0_seq35",
+    #     "comp183782_c0_seq5",
+    #     "comp183377_c0_seq11",
+    #     "comp181723_c2_seq2",
+    #     "comp169467_c0_seq1",
+    #     "comp183713_c0_seq9",
+    #     "comp181924_c0_seq4",
+    # ]
+    # alignments_stats_df = alignments_stats_df.loc[
+    #     alignments_stats_df["Chrom"].isin(test_chroms)
+    # ]
 
     chroms = []
     swissprot_names = []
@@ -366,9 +366,6 @@ def undirected_sequencing_main(
     # so pileup_dir is empty now
     if not keep_pileup_files:
         subprocess.run(f"rm -rf {pileup_dir}", shell=True)
-
-    # # todo comment out - this is for debugging
-    # return
 
     # 5 - positions dfs -> reads & unique reads dfs
 

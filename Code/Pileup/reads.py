@@ -279,7 +279,7 @@ def multisample_positions_to_reads_old(
     if pooled_transcript_noise > pooled_transcript_noise_threshold:
         raise ValueError(
             f"ERROR: {positions_file = } has {pooled_transcript_noise = } >= {pooled_transcript_noise_threshold = } "
-            "and will not undergo fuether processing into reads, proteins, etc."
+            "and will not undergo further processing into reads, proteins, etc."
         )
 
     # retain only edited & reliable positions within coding regions
