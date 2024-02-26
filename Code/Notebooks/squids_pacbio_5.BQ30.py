@@ -53,6 +53,7 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.metrics import mean_squared_error, r2_score, silhouette_score
 from sklearn.preprocessing import StandardScaler
+from Bio import Seq
 
 sys.path.append(str(Path(code_dir).absolute()))
 from Alignment.alignment_utils import (
@@ -61,6 +62,7 @@ from Alignment.alignment_utils import (
     count_reads_in_unaligned_bam,
     count_unique_filtered_aligned_reads,
 )
+from EditingUtils.seq import make_fasta_dict
 
 # %% papermill={"duration": 0.071769, "end_time": "2022-02-01T09:42:43.049672", "exception": false, "start_time": "2022-02-01T09:42:42.977903", "status": "completed"} tags=["parameters"]
 condition_col = "Gene"
@@ -171,6 +173,17 @@ samtools_path = "/home/alu/kobish/anaconda3/envs/combinatorics/bin/samtools"
 threads = 20
 code_dir = "/private7/projects/Combinatorics/Code"
 seed = 1892
+transcriptome_file = (
+    "/private7/projects/Combinatorics/D.pealeii/Annotations/orfs_squ.fa"
+)
+primers_for = [
+    "CTGATCACAACGATGTGTTGGTCG",
+    "AGTCTTAGACTCGCCTGTTACGCCC"
+]
+primers_rev = [
+    "AAAAACCTTGTAACAGCCATTCCTGC",
+    "CATGCTGAATTGCACCCATGCAGC"
+]
 
 
 # %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"}
@@ -361,6 +374,31 @@ for x in editing_positions_per_sample:
 print(
     f"Average of {sum(editing_positions_per_sample)/len(positions_dfs)} editing sites per sample"
 )
+
+# %%
+transcriptome_dict = make_fasta_dict(transcriptome_file)
+
+# %%
+primers_ranges = []
+for chrom, primer_for, primer_rev in zip(chroms, primers_for, primers_rev):
+    chrom_seq = transcriptome_dict[chrom]
+    primer_for_start = chrom_seq.find(primer_for)
+    primer_rev = Seq.Seq(primer_rev).reverse_complement()
+    primer_rev_end = chrom_seq.find(primer_rev) + len(primer_rev)
+    primers_ranges.append((primer_for_start, primer_rev_end))
+primers_ranges
+
+# %%
+within_primers_editing_positions_per_sample = [
+    len(df.loc[(df["Edited"]) & (df["CDS"]) & (df["Position"] >= primer_for_start) & (df["Position"] + 1 <= primer_rev_end)]) 
+    for df, (primer_for_start, primer_rev_end) in zip(positions_dfs, primers_ranges)
+]
+for x in within_primers_editing_positions_per_sample:
+    print(x)
+
+# %%
+
+# %%
 
 # %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"}
 # ## Reads
@@ -4720,7 +4758,7 @@ for assignment_df in assignment_dfs:
 
 assignment_dfs[0]
 
-# %% jupyter={"source_hidden": true}
+# %%
 # maximal_dfs = [
 #     expression_df.loc[expression_df["#Solution"] == maximal_solution].reset_index(
 #         drop=True
@@ -4779,7 +4817,7 @@ assignment_dfs[0]
 
 # assignment_dfs[0]
 
-# %% jupyter={"source_hidden": true}
+# %%
 # x_axis_name = "Distinct protein rank"
 # y_axis_name = "Cummulative relative<br>expression (%)"
 # head_title = "Cummulative expression vs. distinct unique proteins"
@@ -4899,7 +4937,7 @@ assignment_dfs[0]
 # # )
 # fig.show()
 
-# %% jupyter={"source_hidden": true}
+# %%
 # x_axis_name = "Distinct protein rank"
 # y_axis_name = "Cummulative relative<br>expression (%)"
 # head_title = "Cummulative expression vs. distinct unique proteins"
@@ -5021,7 +5059,7 @@ assignment_dfs[0]
 # # )
 # fig.show()
 
-# %% jupyter={"source_hidden": true}
+# %%
 # x_axis_name = "Distinct protein rank"
 # y_axis_name = "Cummulative relative<br>expression (%)"
 # head_title = "Weighted cummulative expression vs. distinct protein rank"
@@ -5254,7 +5292,7 @@ def formulate_semilog10_equation(coef, intercept):
         intercept = np.abs(intercept)
     return f"y = 1 / ({coef:.2f}*log(x) {operator} {intercept:.2f})"
 
-# %% jupyter={"source_hidden": true}
+# %%
 # cols = min(facet_col_wrap, len(conditions), 3)
 # rows = ceil(len(conditions) / cols)
 # row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
@@ -5811,7 +5849,7 @@ maximal_fraction01_solutions = [
 ]
 maximal_fraction01_solutions
 
-# %% jupyter={"source_hidden": true}
+# %%
 # fraction01_percentile_dfs = [
 #     make_percentile_df(
 #         expression_df.loc[expression_df["#Solution"] == maximal_solution].reset_index(
@@ -7335,12 +7373,12 @@ weighted_conditions_umaps, weighted_conditions_umap_Xs = run_umaps(
 
 weighted_conditions_umaps[0]
 
-# %% jupyter={"source_hidden": true}
+# %%
 # conditions_hdbscan_labels = run_hdbscan(weighted_conditions_umaps, seed=seed)
 
 # [set(labels) for labels in conditions_hdbscan_labels]
 
-# %% jupyter={"source_hidden": true}
+# %%
 # # hdbscan_labels_dict = {-1: "*"} | {x: chr(ord("A") + x) for x in range(26)}
 
 # # hdbscan_labels_color_map = {"*": "white"} | {
@@ -7805,7 +7843,7 @@ fig.show()
 # %% [markdown]
 # ##### Shannon's entropy
 
-# %% jupyter={"source_hidden": true}
+# %%
 # max_sol_dfs = [
 #     expression_df.loc[expression_df["#Solution"] == maximal_solution].reset_index(
 #         drop=True
@@ -7814,7 +7852,7 @@ fig.show()
 # ]
 # max_sol_dfs[0]
 
-# %% jupyter={"source_hidden": true}
+# %%
 # def calc_data_entropy(max_sol_exp_df, prcnt_equal_exp_col, prcnt_weighted_exp_col):
 #     def _calc_data_entropy(prcnt_exp_col):
 #         p = max_sol_exp_df[prcnt_exp_col] / 100
@@ -7827,7 +7865,7 @@ fig.show()
 
 #     return s_data_equal_exp, s_data_weighted_exp
 
-# %% jupyter={"source_hidden": true}
+# %%
 # def calc_entropies(
 #     max_sol_exp_df,
 #     first_col_pos,
@@ -7840,13 +7878,13 @@ fig.show()
 #     s_hypo = calc_hypothetical_entropy(max_sol_exp_df, first_col_pos)
 #     return s_data_equal_exp, s_data_weighted_exp, s_hypo
 
-# %% jupyter={"source_hidden": true}
+# %%
 # def calc_hypothetical_entropy(max_sol_exp_df, first_col_pos):
 #     p = max_sol_exp_df.iloc[:, first_col_pos:].apply(np.mean)
 #     s_hypo = sum(-p * np.log2(p) - (1 - p) * np.log2((1 - p)))
 #     return s_hypo
 
-# %% jupyter={"source_hidden": true}
+# %%
 # max_sol_exp_dfs = [
 #     prepare_ml_input_df(
 #         max_sol_df,
@@ -8581,7 +8619,7 @@ fig.show()
 # %% [markdown]
 # ## Distribution of non-syns
 
-# %% jupyter={"source_hidden": true}
+# %%
 # cols = min(facet_col_wrap, len(conditions), 4)
 # rows = ceil(len(conditions) / cols)
 # row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
