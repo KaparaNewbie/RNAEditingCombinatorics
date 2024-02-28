@@ -36,7 +36,7 @@ function preparedf!(
         df = DataFrame(CSV.File(infile, delim=delim))
     elseif datatype == "Proteins"
         # note: "Protein" is actually the ID of a *unique* protein!!!
-        df1 = DataFrame(CSV.File(infile, delim=delim, select=collect(1:firstcolpos-1), types=Dict("Protein" => String)))  
+        df1 = DataFrame(CSV.File(infile, delim=delim, select=collect(1:firstcolpos-1), types=Dict("Protein" => String, "Reads" => String)))  
         df1[!, "Protein"] = InlineString.(df1[!, :Protein])
         # make sure columns of AAs containing only Ts aren't parsed as boolean columns
         df2 = DataFrame(CSV.File(infile, delim=delim, drop=collect(1:firstcolpos-1), types=String))
