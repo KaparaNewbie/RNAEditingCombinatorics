@@ -79,23 +79,32 @@ transcriptome_file = (
     "/private7/projects/Combinatorics/O.vulgaris/Annotations/orfs_oct.fa"
 )
 
-positions_dir = Path(
-    "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50/PositionsFiles/"
-)
-reads_dir = Path(
-    "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50/ReadsFiles/"
-)
-proteins_dir = Path(
-    "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50/ProteinsFiles/"
-)
 
-distinct_proteins_dir = Path(
-    "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50/DistinctProteins/"
-)
+# positions_dir = Path(
+#     "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BH/PositionsFiles/"
+# )
+# reads_dir = Path(
+#     "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BH/ReadsFiles/"
+# )
+# proteins_dir = Path(
+#     "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BH/ProteinsFiles/"
+# )
 
-expression_dir = Path(
-    "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50/ExpressionLevels"
-)
+# distinct_proteins_dir = Path(
+#     "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BH/DistinctProteins2/"
+# )
+
+# # expression_dir = Path(
+# #     "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50/ExpressionLevels"
+# # )
+
+main_data_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise/")
+
+positions_dir = Path(main_data_dir, "PositionsFiles")
+reads_dir = Path(main_data_dir, "ReadsFiles")
+proteins_dir = Path(main_data_dir, "ProteinsFiles")
+distinct_proteins_dir = Path(main_data_dir, "DistinctProteins2")
+# expression_dir = Path(main_data_dir, "ExpressionLevels")
 
 neural_vs_non_neural_expression_file = Path(
     "/private7/projects/Combinatorics/O.vulgaris/Annotations/NeuralVsNonNeuralExpression.csv"
@@ -218,12 +227,12 @@ chroms_in_distinct_proteins_files = [
     for distinct_proteins_file in distinct_proteins_files
 ]
 
-expression_files = list(
-    expression_dir.glob("*.DistinctUniqueProteins.ExpressionLevels.csv")
-)
-chroms_in_expression_files = [
-    expression_file.name.split(".")[0] for expression_file in expression_files
-]
+# expression_files = list(
+#     expression_dir.glob("*.DistinctUniqueProteins.ExpressionLevels.csv")
+# )
+# chroms_in_expression_files = [
+#     expression_file.name.split(".")[0] for expression_file in expression_files
+# ]
 
 
 proteins_data_df = pd.DataFrame(
@@ -247,14 +256,14 @@ distinct_proteins_data_df = pd.DataFrame(
     }
 )
 
-expression_data_df = pd.DataFrame(
-    {"Chrom": chroms_in_expression_files, "ExpressionFile": expression_files}
-)
+# expression_data_df = pd.DataFrame(
+#     {"Chrom": chroms_in_expression_files, "ExpressionFile": expression_files}
+# )
 
 proteins_data_df = (
     proteins_data_df.merge(unique_proteins_data_df, on="Chrom", how="left")
     .merge(distinct_proteins_data_df, on="Chrom", how="left")
-    .merge(expression_data_df, on="Chrom", how="left")
+    # .merge(expression_data_df, on="Chrom", how="left")
 )
 
 proteins_data_df
@@ -273,14 +282,14 @@ data_df
 data_df.loc[data_df["Name"].str.contains("ROBO2")]
 
 # %%
-assert (
-    data_df.loc[data_df["ExpressionFile"].notna()].reset_index(drop=True).shape
-    == data_df.loc[data_df["DistinctProteinsFile"].notna()].reset_index(drop=True).shape
-), "some distinct proteins don't have expression levels"
+# assert (
+#     data_df.loc[data_df["ExpressionFile"].notna()].reset_index(drop=True).shape
+#     == data_df.loc[data_df["DistinctProteinsFile"].notna()].reset_index(drop=True).shape
+# ), "some distinct proteins don't have expression levels"
 
 # %%
-complete_data_df = data_df.loc[data_df["ExpressionFile"].notna()].reset_index(drop=True)
-# complete_data_df = data_df.loc[data_df["DistinctProteinsFile"].notna()].reset_index(drop=True)
+# complete_data_df = data_df.loc[data_df["ExpressionFile"].notna()].reset_index(drop=True)
+complete_data_df = data_df.loc[data_df["DistinctProteinsFile"].notna()].reset_index(drop=True)
 
 # complete_data_df = complete_data_df.drop_duplicates(
 #     "Name", keep=False, ignore_index=True
@@ -313,25 +322,18 @@ unique_reads_files = complete_data_df["UniqueReadsFile"].tolist()
 proteins_files = complete_data_df["ProteinsFile"].tolist()
 unique_proteins_files = complete_data_df["UniqueProteinsFile"].tolist()
 distinct_unique_proteins_files = complete_data_df["DistinctProteinsFile"].tolist()
-expression_files = complete_data_df["ExpressionFile"].tolist()
+# expression_files = complete_data_df["ExpressionFile"].tolist()
 
 # %% [markdown]
 # # Data loading - TMR 1000
 
 # %%
-tmr1000_positions_dir = Path(
-    "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000/PositionsFiles/"
-)
-tmr1000_reads_dir = Path(
-    "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000/ReadsFiles/"
-)
-tmr1000_proteins_dir = Path(
-    "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000/ProteinsFiles/"
-)
+tmr1000_main_data_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BHAfterNoise/")
 
-tmr1000_distinct_proteins_dir = Path(
-    "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000/DistinctProteins/"
-)
+tmr1000_positions_dir = Path(tmr1000_main_data_dir, "PositionsFiles")
+tmr1000_reads_dir = Path(tmr1000_main_data_dir, "ReadsFiles")
+tmr1000_proteins_dir = Path(tmr1000_main_data_dir, "ProteinsFiles")
+tmr1000_distinct_proteins_dir = Path(tmr1000_main_data_dir, "DistinctProteins2")
 
 # %%
 tmr1000_positions_files = list(tmr1000_positions_dir.glob("*.positions.csv.gz"))
@@ -675,12 +677,21 @@ positions_dfs[0]
 
 
 # %%
+positions_dfs[0].columns
+
+# %%
 positions_df = pd.concat(positions_dfs, ignore_index=True)
 positions_df
 
 # %%
+# previoisly edited positions, which are now not considered edited
+positions_df.loc[
+    (positions_df["Edited"]) & (~positions_df["EditedFinal"])
+]
+
+# %%
 edited_positions_df = positions_df.loc[
-    positions_df["Edited"],
+    positions_df["EditedFinal"],
     [
         condition_col,
         "Chrom",
@@ -823,7 +834,7 @@ fig.show()
 # %%
 
 # %%
-editing_positions_per_sample = [len(df.loc[(df["Edited"])]) for df in positions_dfs]
+editing_positions_per_sample = [len(df.loc[(df["EditedFinal"])]) for df in positions_dfs]
 print(
     f"Average of {sum(editing_positions_per_sample)/len(positions_dfs)} editing sites per sample"
 )
@@ -1265,66 +1276,6 @@ def calc_per_transcript_per_sample_coverage(
     return per_sample_per_transcript_coverage_df
 
 
-# %% jupyter={"source_hidden": true}
-# expanded_positions_df = (
-#     positions_dfs[0]
-#     .loc[~positions_dfs[0]["InProbRegion"]]
-#     .reset_index(drop=True)
-#     .drop(
-#         [
-#             "Phred",
-#             "MappedBases",
-#             "Noise",
-#             "EditingFrequency",
-#             "A",
-#             "T",
-#             "C",
-#             "G",
-#             "TotalCoverage",
-#         ],
-#         axis=1,
-#     )
-# )
-
-# expanded_positions_df["Samples"] = expanded_positions_df["Samples"].str.split(",")
-# expanded_positions_df["Reads"] = expanded_positions_df["Reads"].str.split(",")
-
-# # now is the time the df is really expanded
-# expanded_positions_df = expanded_positions_df.explode(["Samples", "Reads"])
-# expanded_positions_df = expanded_positions_df.rename(
-#     columns={"Samples": "Sample", "Reads": "Read"}
-# )
-
-# expanded_positions_df
-
-# %% jupyter={"source_hidden": true}
-# per_sample_coverage = expanded_positions_df.groupby("Sample")["Read"].apply(lambda x: x.unique().size)
-# per_sample_coverage
-
-# complete_per_sample_coverage = []
-# for sample in samples:
-#     if sample in per_sample_coverage:
-#         coverage = per_sample_coverage[sample]
-#     else:
-#         coverage = 0
-#     complete_per_sample_coverage.append(coverage)
-
-# per_sample_per_transcript_coverage_df = pd.DataFrame({"Sample": samples, "Reads": complete_per_sample_coverage})
-# # per_sample_per_transcript_coverage_df.insert(0, )
-# per_sample_per_transcript_coverage_df
-
-# %% jupyter={"source_hidden": true}
-# per_sample_per_transcript_coverage_df = (
-#     expanded_positions_df.groupby(["Chrom", "Transcript", "Sample"])["Read"]
-#     .apply(lambda x: x.unique().size)
-#     .reset_index()
-#     .rename(columns={"Read": "NumOfReads"})
-# )
-# per_sample_per_transcript_coverage_df
-
-# %% jupyter={"source_hidden": true}
-# calc_per_transcript_per_sample_coverage(positions_dfs[0])
-
 # %%
 # per_transcript_per_sample_coverage_dfs = [
 #     calc_per_transcript_per_sample_coverage(positions_df)
@@ -1581,7 +1532,7 @@ per_sample_editing_index_df
 
 # %%
 per_chrom_mean_noise_levels = (
-    positions_df.loc[positions_df["Noise"] <= 0.1]
+    positions_df.loc[(positions_df["Noise"] <= 0.1) & (positions_df["NoisyCorrected"])]
     .groupby("Chrom")["Noise"]
     .nlargest(3)
     .reset_index()
@@ -1691,42 +1642,6 @@ fig.write_image(
 
 fig.show()
 
-# %%
-# # current version
-
-# per_chrom_mean_noise_levels["% noise"] = per_chrom_mean_noise_levels["Noise"] * 100
-# fig = px.histogram(
-#     per_chrom_mean_noise_levels,
-#     x="% noise",
-#     # y="TotalCoverage",
-#     # color="EditingStatus",
-#     # log_y=True
-#     color_discrete_sequence=["black"],
-#     labels={"% noise": "Per-gene noise level [%]"},
-# )
-# width = 560
-# height = 400
-
-# fig.update_layout(
-#     #  xaxis_title="Editing frequency",
-#     # title="Octopus",
-#     title="Pooled octopus data",
-#     title_x=0.15,
-#     yaxis_title="Genes",
-#     template=template,
-#     width=width,
-#     height=height,
-#     #  showlegend=False
-# )
-
-# fig.write_image(
-#     "Mean per chrom noise levels - Octopus.svg",
-#     width=width,
-#     height=height,
-# )
-
-# fig.show()
-
 # %% [markdown]
 # ### Known & new editing sites
 
@@ -1743,12 +1658,12 @@ fig, ax = plt.subplots(
     gridspec_kw=dict(hspace=0.2, wspace=0.3),
 )
 
-labels = ["Edited", "KnownEditing"]
+labels = ["EditedFinal", "KnownEditing"]
 
 sets = [
     set(
         positions_df.loc[
-            positions_df[label], [condition_col, "Chrom", "Position"]
+            (positions_df[label]) & (positions_df["CDS"]), [condition_col, "Chrom", "Position"]
         ].itertuples(index=False)
     )
     for label in labels
@@ -2443,7 +2358,7 @@ fig.write_image(
 
 fig.show()
 
-# %% jupyter={"source_hidden": true}
+# %%
 df = (
     max_distinct_proteins_df.loc[:, ["NumOfProteins"]]
     .sort_values("NumOfProteins")
@@ -3450,10 +3365,10 @@ dispersion_df["HighDispersion"] = dispersion_df["%SolutionsDispersion"] > 1
 
 dispersion_df
 
-# %% jupyter={"source_hidden": true}
+# %%
 # len(dispersion_df.loc[dispersion_df["HighDispersion"]])
 
-# %% jupyter={"source_hidden": true}
+# %%
 # fig = px.scatter(
 #     dispersion_df,
 #     x="MinNumOfProteins",
@@ -3484,7 +3399,7 @@ dispersion_df
 
 # fig.show()
 
-# %% jupyter={"source_hidden": true}
+# %%
 # fig = px.scatter(
 #     dispersion_df.loc[dispersion_df["%SolutionsDispersion"] > 0],
 #     x="NumOfReads",
@@ -3517,7 +3432,7 @@ dispersion_df
 
 # fig.show()
 
-# %% jupyter={"source_hidden": true}
+# %%
 # fig = px.scatter(
 #     dispersion_df.loc[dispersion_df["%SolutionsDispersion"] > 0],
 #     x="MinNumOfProteins",

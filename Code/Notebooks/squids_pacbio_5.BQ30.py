@@ -364,15 +364,22 @@ positions_dfs[0]
 
 
 # %%
-editing_positions_per_sample = [
+cds_editing_positions_per_sample = [
     len(df.loc[(df["Edited"]) & (df["CDS"])]) for df in positions_dfs
 ]
-for x in editing_positions_per_sample:
+for x in cds_editing_positions_per_sample:
+    print(x)
+
+# %%
+all_editing_positions_per_sample = [
+    len(df.loc[(df["Edited"])]) for df in positions_dfs
+]
+for x in all_editing_positions_per_sample:
     print(x)
 
 # %%
 print(
-    f"Average of {sum(editing_positions_per_sample)/len(positions_dfs)} editing sites per sample"
+    f"Average of {sum(cds_editing_positions_per_sample)/len(positions_dfs)} editing sites per sample"
 )
 
 # %%
@@ -395,10 +402,6 @@ within_primers_editing_positions_per_sample = [
 ]
 for x in within_primers_editing_positions_per_sample:
     print(x)
-
-# %%
-
-# %%
 
 # %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"}
 # ## Reads
@@ -2114,6 +2117,9 @@ merged_noise_df.to_csv("NoiseLevels.PacBio.tsv", sep="\t", index=False)
 
 # [len(x) for x in conditions_sets[conditions[0]]]
 
+# %% [markdown]
+# #### All edited sites
+
 # %%
 conditions_labels = {
     condition: ["Edited", "KnownEditing", "InProbRegion"] for condition in conditions
@@ -2142,6 +2148,9 @@ except KeyError:
 
 # conditions_sets
 
+
+# %%
+len(conditions_sets["PCLO"])
 
 # %%
 problamatic_regions_exist = False
@@ -2192,47 +2201,85 @@ plt.savefig("Known vs new editing sites - PacBio.svg", format="svg", dpi=300)
 plt.show()
 
 
-# %%
-ic(38 + 65)
-ic(65 + 8);
+# %% [markdown]
+# #### Edited sites within primers
 
 # %%
+# conditions_labels = {
+#     condition: ["Edited", "KnownEditing", "InProbRegion"] for condition in conditions
+# }
 conditions_labels = {
-    condition: ["Edited", "KnownEditing", "InProbRegion"] for condition in conditions
+    condition: ["Edited", "KnownEditing"] for condition in conditions
 }
 
 conditions_sets = {
     condition: [
-        set(positions_df.loc[positions_df[label], "Position"])
+        set(
+            positions_df.loc[
+                (positions_df[label]) & (positions_df["CDS"]) & (positions_df["Position"] >= primer_for_start) & (positions_df["Position"] + 1 <= primer_rev_end), 
+                "Position"
+            ]
+        )
         for label in conditions_labels[condition]
     ]
-    for positions_df, condition in zip(positions_dfs, conditions)
+    for positions_df, condition, (primer_for_start, primer_rev_end) in zip(positions_dfs, conditions, primers_ranges)
 }
 
+try:
+    conditions_labels["GRIA2"] = conditions_labels["GRIA"]
+    del conditions_labels["GRIA"]
+except KeyError:
+    pass
+
+try:
+    conditions_sets["GRIA2"] = conditions_sets["GRIA"]
+    del conditions_sets["GRIA"]
+except KeyError:
+    pass
+
+# conditions_sets
+
+
+# %%
 problamatic_regions_exist = False
 
+cols = min(facet_col_wrap, len(conditions), 4)
+rows = ceil(len(conditions) / cols)
+
 fig, axs = plt.subplots(
-    ncols=len(conditions), figsize=(5 * len(conditions), 2.5 * len(conditions))
+    nrows=rows,
+    ncols=cols,
+    figsize=(3.5 * cols, 2.5 * rows),
+    constrained_layout=True,
+    gridspec_kw=dict(hspace=0.2, wspace=0.03),
 )
-for condition, ax in zip(conditions, axs):
+
+for condition, ax in zip(conditions, axs.flat):
+    condition = "GRIA2" if condition == "GRIA" else condition
     labels = conditions_labels[condition]
     sets = conditions_sets[condition]
-    if len(sets[2]) == 0:
+    labels[0] = f"De-novo\n({len(sets[0])})"
+    labels[1] = f"Known\n({len(sets[1])})"
+    if len(sets) >= 2:
+        if len(sets) == 3:
+            if len(sets[2]) == 0:
+                sets = sets[:2]
         labels = labels[:2]
-        sets = sets[:2]
         v_func = venn2
     else:
         v_func = venn3
         problamatic_regions_exist = True
     v_func(sets, set_labels=labels, ax=ax)
-    ax.set_title(condition)
+    ax.set_title(condition, fontdict=dict(fontsize=12))
 
-if problamatic_regions_exist:
-    title = "Positions' membership: currently edited, known editing, and probalamtic regions"
-else:
-    title = "Positions' membership: currently edited & known editing"
+fig.suptitle(
+    "Squid's Long-reads",
+    fontsize="xx-large",
+    # y=1.2
+)
 
-fig.suptitle(title)
+plt.savefig("Known vs new editing sites - within primers - PacBio.svg", format="svg", dpi=300)
+
 plt.show()
 
 
