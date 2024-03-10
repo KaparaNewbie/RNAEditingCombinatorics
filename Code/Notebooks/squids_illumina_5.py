@@ -248,6 +248,7 @@ from itertools import chain, combinations, product
 from math import ceil
 from multiprocessing import Pool
 from pathlib import Path
+import subprocess
 
 from scipy import interpolate  # todo unimport this later?
 from scipy.spatial import ConvexHull, convex_hull_plot_2d
@@ -477,9 +478,248 @@ ACCCTGTGGGTTCACATGCAG
 """.split()
 
 # %%
-i = 1
-primer_for, primer_rev = unsorted_primers_for[i], unsorted_primers_rev[i]
-primer_for, primer_rev
+blast_dir = Path("BlastForSquidIlluminaPrimers")
+blast_dir.mkdir(exist_ok=True)
+
+# %%
+for_records = [
+    SeqRecord(Seq(seq), id=f"for_{i}", description="")
+    for i, seq in enumerate(unsorted_primers_for, start=1)
+]
+rev_records = [
+    SeqRecord(Seq(seq), id=f"rev_{i}", description="")
+    for i, seq in enumerate(unsorted_primers_rev, start=1)
+]
+all_records = [for_records, rev_records]
+output_primers_fastas = [Path(blast_dir, f"{orientation}.fa") for orientation in ["for", "rev"]]
+for records, out_fasta in zip(all_records, output_primers_fastas):
+    SeqIO.write(records, out_fasta, "fasta")
+
+# %%
+# build_db_cmd = f"makeblastdb -in {transcriptome_file} -dbtype prot -logfile makeblastdb.log -out {Path(blast_dir, transcriptome_file.name)}"
+build_db_cmd = f"makeblastdb -in {transcriptome_file} -dbtype nucl -logfile makeblastdb.log -out {Path(transcriptome_file).name}"
+subprocess.run(build_db_cmd, shell=True, cwd=blast_dir)
+
+# %% [markdown]
+#   -num_alignments <Integer, >=0>
+#     Number of database sequences to show alignments for
+#     Default = `250'
+#     * Incompatible with:  max_target_seqs
+#     
+#     -max_target_seqs <Integer, >=1>
+#    Maximum number of aligned sequences to keep 
+#     (value of 5 or more is recommended)
+#     Default = `500'
+#      * Incompatible with:  num_descriptions, num_alignments
+
+# %%
+blast_results_files = [Path(blast_dir, f"{orientation}.blast") for orientation in ["for", "rev"]]
+
+# %%
+blast_cols = "qaccver saccver pident qlen length mismatch gapopen qstart qend sstart send sstrand qseq sseq evalue"
+
+# %%
+for output_primers_fasta, blast_results_file in zip(output_primers_fastas, blast_results_files):
+    blast_cmd = (
+        "blastn "
+        "-task blastn-short "
+        f"-query {output_primers_fasta} "
+        f"-db {Path(blast_dir, Path(transcriptome_file).name)} "
+        # "-evalue 1e-6 "
+        "-num_alignments 5 "
+        # "-outfmt 6 qseqid sseqid qstart qend sstart send "
+        f"-outfmt '6 {blast_cols}' "
+        f"-num_threads {threads} "
+        f"-out {blast_results_file}"
+    )
+    ic(blast_cmd)
+    subprocess.run(blast_cmd, shell=True)
+
+# %% [markdown]
+#  * **qaccver** - Query accesion.version
+#  * **saccver** - Subject accession.version
+#  * **pident** - Percentage of identical matches
+#  * **qlen** - Query sequence length
+#  * **length** - Alignment length
+#  * **mismatch** - Number of mismatches
+#  * **gapopen** - Number of gap openings
+#  * **qstart** - Start of alignment in query
+#  * **qend** - End of alignment in query
+#  * **sstart** - Start of alignment in subject
+#  * **send** - End of alignment in subject
+#  * **evalue** - Expect value
+
+# %%
+blast_dfs = [
+    pd.read_table(blast_results_file, names=blast_cols.split())
+    for blast_results_file in blast_results_files
+]
+for blast_df in blast_dfs:
+    blast_df.insert(blast_df.columns.get_loc("saccver")+1, "saccver_in_chroms", blast_df["saccver"].isin(chroms))
+    blast_df["sstrand"] = blast_df["sstrand"].apply(lambda x: "+" if x == "plus" else "-")
+    blast_df[["sstart", "send"]] = blast_df.apply(
+        lambda x: (x["sstart"], x["send"]) if x["sstart"] < x["send"] else (x["send"], x["sstart"]),
+        axis=1,
+        result_type="expand"
+    )
+    blast_df["qstart"] = blast_df["qstart"] - 1
+    blast_df["sstart"] = blast_df["sstart"] - 1
+for_blast_df, rev_blast_df = blast_dfs
+for_blast_df
+
+# %%
+for_blast_df.loc[for_blast_df["sstart"] >= for_blast_df["send"]]
+
+# %%
+# no gap openings, an up to 1 mismatch only
+for_blast_df[["mismatch", "gapopen"]].describe()
+
+# %%
+# for_blast_df.loc[for_blast_df["saccver_in_chroms"]].reset_index(drop=True)
+
+# %%
+# for_blast_df.loc[for_blast_df["qlen"] == for_blast_df["length"]].reset_index(drop=True)
+
+# %%
+# for_blast_df.loc[for_blast_df["mismatch"] != 0].reset_index(drop=True)
+
+# %%
+# for_blast_df.loc[for_blast_df["qlen"] != for_blast_df["length"]].reset_index(drop=True)
+
+# %%
+transcriptome_dict = make_fasta_dict(transcriptome_file)
+
+# %%
+best_for_blast_df = for_blast_df.loc[
+    (for_blast_df["qlen"] == for_blast_df["length"]) 
+    & (for_blast_df["pident"] == 100) 
+    # & (for_blast_df["saccver_in_chroms"])
+].sort_index().reset_index(drop=True)
+best_for_blast_df
+
+# %%
+best_rev_blast_df = rev_blast_df.loc[
+    (rev_blast_df["qlen"] == rev_blast_df["length"]) 
+    & (rev_blast_df["pident"] == 100) 
+    # & (for_blast_df["saccver_in_chroms"])
+].sort_index().reset_index(drop=True)
+best_rev_blast_df
+
+# %%
+# proof that the each for and rev primer where mapped to the same chromosome
+best_for_blast_df["saccver"].eq(best_rev_blast_df["saccver"]).all()
+
+# %%
+# proof that the each for and rev primer where mapped to a different strand
+best_for_blast_df["sstrand"].ne(best_rev_blast_df["sstrand"]).all()
+
+# %%
+for i in best_for_blast_df.index:
+    # ic(i)
+    start = best_for_blast_df.at[i, "sstart"]
+    end = best_for_blast_df.at[i, "send"]
+    # ic(start, end)
+    # ic(seq := transcriptome_dict[best_for_blast_df.at[i, "saccver"]][start:end])
+    seq = transcriptome_dict[best_for_blast_df.at[i, "saccver"]][start:end]
+    if best_for_blast_df.at[i, "sstrand"] == "-":
+        # ic(seq := seq.reverse_complement())
+        seq = seq.reverse_complement()
+    # ic(primer := for_records[i].seq)
+    primer = for_records[i].seq
+    assert seq == primer, i
+
+# %%
+for i in best_rev_blast_df.index:
+    # ic(i)
+    start = best_rev_blast_df.at[i, "sstart"]
+    end = best_rev_blast_df.at[i, "send"]
+    # ic(start, end)
+    # ic(seq := transcriptome_dict[best_rev_blast_df.at[i, "saccver"]][start:end])
+    seq = transcriptome_dict[best_rev_blast_df.at[i, "saccver"]][start:end]
+    if best_rev_blast_df.at[i, "sstrand"] == "-":
+        # ic(seq := seq.reverse_complement())
+        seq = seq.reverse_complement()
+    # ic(primer := rev_records[i].seq)
+    primer = rev_records[i].seq
+    assert seq == primer, i
+
+# %%
+true_for_df = best_for_blast_df.loc[best_for_blast_df["sstrand"] == "+"]
+false_for_df = best_for_blast_df.loc[best_for_blast_df["sstrand"] == "-"]
+true_rev_df = best_rev_blast_df.loc[best_rev_blast_df["sstrand"] == "-"]
+false_rev_df = best_rev_blast_df.loc[best_rev_blast_df["sstrand"] == "+"]
+
+fixed_for_df = pd.concat([true_for_df, false_rev_df]).sort_index()
+fixed_for_df["qaccver"] = fixed_for_df["qaccver"].apply(lambda x: x.replace("rev", "for"))
+fixed_for_df = fixed_for_df.loc[fixed_for_df["saccver_in_chroms"]]
+
+fixed_rev_df = pd.concat([true_rev_df, false_for_df]).sort_index()
+fixed_rev_df["qaccver"] = fixed_rev_df["qaccver"].apply(lambda x: x.replace("for", "rev"))
+fixed_rev_df = fixed_rev_df.loc[fixed_rev_df["saccver_in_chroms"]]
+
+chrom_x = fixed_for_df["saccver"].apply(lambda x: chroms.index(x))
+fixed_for_df["chrom_x"] = chrom_x
+fixed_rev_df["chrom_x"] = chrom_x
+fixed_for_df = fixed_for_df.sort_values("chrom_x").reset_index(drop=True).drop(columns=["chrom_x"])
+fixed_rev_df = fixed_rev_df.sort_values("chrom_x").reset_index(drop=True).drop(columns=["chrom_x"])
+
+fixed_for_df
+
+# %%
+
+# %%
+cds_editing_positions_per_sample = [
+    len(df.loc[(df["Edited"]) & (df["CDS"])]) for df in positions_dfs
+]
+for x in cds_editing_positions_per_sample:
+    print(x)
+
+# %%
+all_editing_positions_per_sample = [
+    len(df.loc[(df["Edited"])]) for df in positions_dfs
+]
+for x in all_editing_positions_per_sample:
+    print(x)
+
+# %%
+print(
+    f"Average of {sum(cds_editing_positions_per_sample)/len(positions_dfs)} editing sites per sample"
+)
+
+# %%
+primers_ranges = []
+for chrom, primer_for_start, primer_rev_end in zip(
+    chroms, 
+    fixed_for_df["sstart"],
+    fixed_rev_df["send"],
+):
+    primers_ranges.append((primer_for_start, primer_rev_end))
+primers_ranges
+
+# %%
+within_primers_editing_positions_per_sample = [
+    len(df.loc[(df["Edited"]) & (df["CDS"]) & (df["Position"] >= primer_for_start) & (df["Position"] + 1 <= primer_rev_end)]) 
+    for df, (primer_for_start, primer_rev_end) in zip(positions_dfs, primers_ranges)
+]
+for x in within_primers_editing_positions_per_sample:
+    print(x)
+
+# %%
+print(
+    f"Average of {sum(within_primers_editing_positions_per_sample)/len(positions_dfs)} editing sites per sample"
+)
+
+# %%
+for x, y in zip(cds_editing_positions_per_sample, within_primers_editing_positions_per_sample):
+    assert x == y
+
+# %%
+
+# %%
+
+# %%
+
+# %%
 
 # %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"}
 # ## Reads
