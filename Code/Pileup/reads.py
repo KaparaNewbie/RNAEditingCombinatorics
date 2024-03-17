@@ -342,14 +342,29 @@ def multisample_positions_to_reads(
     #     .mean()
     # )
 
+    # pooled_transcript_noise = (
+    #     positions_df.loc[
+    #         (positions_df["Noise"] < snp_noise_level) & (positions_df[bh_noisy_col]),
+    #         "Noise",
+    #     ]
+    #     .sort_values(ascending=False)[:top_x_noisy_positions]
+    #     .mean()
+    # )
+
     pooled_transcript_noise = (
         positions_df.loc[
             (positions_df["Noise"] < snp_noise_level) & (positions_df[bh_noisy_col]),
             "Noise",
         ]
         .sort_values(ascending=False)[:top_x_noisy_positions]
-        .mean()
+        .tolist()
     )
+    # if there are less noisy positions than `top_x_noisy_positions`, add zeros accordingly
+    pooled_transcript_noise = pd.Series(
+        pooled_transcript_noise
+        + [0 for _ in range(top_x_noisy_positions - len(pooled_transcript_noise))]
+    )
+    pooled_transcript_noise = pooled_transcript_noise.mean()
 
     if pd.isna(pooled_transcript_noise):
         pooled_transcript_noise = 0
@@ -623,7 +638,7 @@ def multisample_reads_and_unique_reads(
             snp_noise_level,
             top_x_noisy_positions,
             pooled_transcript_noise_threshold,
-            bh_noisy_col
+            bh_noisy_col,
         )
 
         unique_reads_df = multisample_reads_to_unique_reads(reads_df)

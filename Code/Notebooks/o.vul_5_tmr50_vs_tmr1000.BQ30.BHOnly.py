@@ -71,7 +71,9 @@ from EditingUtils.seq import make_fasta_dict
 condition_col = "Transcript"
 
 orfs_bed = "/private7/projects/Combinatorics/O.vulgaris/Annotations/orfs_oct.bed"
-alignment_stats_file = "/private7/projects/Combinatorics/O.vulgaris/Alignment/PRJNA791920/IsoSeq/AggregatedByChromBySampleSummary.tsv"
+# alignment_stats_file = "/private7/projects/Combinatorics/O.vulgaris/Alignment/PRJNA791920/IsoSeq/AggregatedByChromBySampleSummary.tsv"
+alignment_stats_file = "/private7/projects/Combinatorics/O.vulgaris/Alignment/PRJNA791920/IsoSeq.Polished.Unclustered/AggregatedByChromBySampleSummary.tsv"
+
 known_sites_file = (
     "/private7/projects/Combinatorics/O.vulgaris/Annotations/O.vul.EditingSites.csv"
 )
@@ -696,6 +698,7 @@ edited_positions_df = positions_df.loc[
         condition_col,
         "Chrom",
         "Position",
+        "RefBase",
         "TotalCoverage",
         "A",
         "T",
@@ -705,6 +708,9 @@ edited_positions_df = positions_df.loc[
     ],
 ]
 edited_positions_df
+
+# %%
+edited_positions_df.loc[edited_positions_df["RefBase"]=="A"]
 
 # %%
 edited_positions_df["TotalCoverage"].describe()
@@ -1639,6 +1645,70 @@ fig.write_image(
     width=width,
     height=height,
 )
+
+fig.show()
+
+# %% [markdown]
+# ### Machine noise
+
+# %%
+machine_noise_df = positions_df.loc[:, [condition_col, "Chrom", "RefBase", "TotalCoverage", "A", "T", "C", "G"]]
+machine_noise_df["ATCGs"] = machine_noise_df.loc[:, ["A", "T", "C", "G"]].sum(axis=1)
+machine_noise_df["Matches"] = machine_noise_df.apply(
+    lambda x: x[x["RefBase"]],
+    axis=1
+)
+machine_noise_df["Mismatches"] = machine_noise_df.apply(
+    lambda x: x["ATCGs"] - x["Matches"],
+    axis=1
+)
+machine_noise_df
+
+# %%
+pooled_per_chrom_machine_noise_df = machine_noise_df.groupby("Chrom")[["Matches", "Mismatches"]].sum().reset_index()
+pooled_per_chrom_machine_noise_df["%PooledMachineNoise"] = pooled_per_chrom_machine_noise_df.apply(lambda x: 100 * x["Mismatches"] / x["Matches"], axis=1)
+pooled_per_chrom_machine_noise_df = pooled_per_chrom_machine_noise_df.merge(
+        alignment_stats_df.loc[alignment_stats_df["MappedReads"]>=50, ["Chrom"]],
+        on="Chrom",
+        how="right"
+    ).fillna(0.0)
+pooled_per_chrom_machine_noise_df
+
+# %%
+fig = px.histogram(
+    pooled_per_chrom_machine_noise_df,
+    x="%PooledMachineNoise",
+    color_discrete_sequence=["black"],
+    # labels={"% noise": "Per-gene noise level [%]"},
+    log_y=True
+)
+
+# fig.update_xaxes(dtick=1)
+# fig.update_yaxes(dtick=50)
+
+
+width = 500
+height = 650 * 400 / 560
+
+fig.update_layout(
+    #  xaxis_title="Editing frequency",
+    # title="Octopus",
+    # title="Pooled octopus data",
+    # title="Noise level<br><sub>Whole-transcriptome long-reads (octopus)</sub>",
+    title_x=0.15,
+    yaxis_title="Genes",
+    template=template,
+    width=width,
+    height=height,
+    #  showlegend=False
+)
+
+
+# fig.write_image(
+#     "Mean per chrom noise levels - with quartiles - Octopus.svg",
+#     width=width,
+#     height=height,
+# )
 
 fig.show()
 

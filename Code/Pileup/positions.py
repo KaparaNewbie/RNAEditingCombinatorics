@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Union
 from itertools import chain
 from multiprocessing import Pool
-from datetime import datetime
 
 from pybedtools import BedTool
 import numpy as np
@@ -975,7 +974,7 @@ def binom_and_bh_correction_for_noise_all_transcripts(
     bh_rejection_col: str,
 ):
     """
-    Perform binomial test for noise followed by Benjamini-Hochberg correction for all non-adenosines in the 
+    Perform binomial test for noise followed by Benjamini-Hochberg correction for all non-adenosines in the
     transcriptome, and rewrite the updated results to the disk.
 
     Args:
@@ -1390,7 +1389,7 @@ def multisample_pileups_to_positions_part_2(
     bh_noisy_col: str,
 ):
     """
-    The input positions_file is after noise annotation, and the BH correction is added according to the corrected 
+    The input positions_file is after noise annotation, and the BH correction is added according to the corrected
     noise p-value from the `corrected_noise_file`.
     Then, that noise is used to calculate the noise threshold and basic editing status according to it.
 
@@ -1433,13 +1432,22 @@ def multisample_pileups_to_positions_part_2(
             how="left",
         )
     else:
-        positions_df[binom_noise_pval_col] = positions_df[ref_base].apply(
+        # positions_df[binom_noise_pval_col] = positions_df[ref_base].apply(
+        #     lambda x: 1.0 if x != ref_base else np.NaN
+        # )
+        # positions_df[bh_noise_pval_col] = positions_df[ref_base].apply(
+        #     lambda x: 1.0 if x != ref_base else np.NaN
+        # )
+        # positions_df[bh_noisy_col] = positions_df[ref_base].apply(
+        #     lambda x: False if x != ref_base else np.NaN
+        # )
+        positions_df[binom_noise_pval_col] = positions_df["RefBase"].apply(
             lambda x: 1.0 if x != ref_base else np.NaN
         )
-        positions_df[bh_noise_pval_col] = positions_df[ref_base].apply(
+        positions_df[bh_noise_pval_col] = positions_df["RefBase"].apply(
             lambda x: 1.0 if x != ref_base else np.NaN
         )
-        positions_df[bh_noisy_col] = positions_df[ref_base].apply(
+        positions_df[bh_noisy_col] = positions_df["RefBase"].apply(
             lambda x: False if x != ref_base else np.NaN
         )
 
@@ -1457,22 +1465,46 @@ def multisample_pileups_to_positions_part_2(
             f"{removed_positions} extremely- or insignificantly-noisy positions removed"
         )
         # define noise threshold
-        noise_threshold = (
+        # noise_threshold = (
+        #     positions_df["Noise"]
+        #     .sort_values(ascending=False)[:top_x_noisy_positions]
+        #     .mean()
+        # )
+        noise_levels = (
             positions_df["Noise"]
             .sort_values(ascending=False)[:top_x_noisy_positions]
-            .mean()
+            .tolist()
         )
+        # if there are less noisy positions than `top_x_noisy_positions`, add zeros accordingly
+        noise_levels = pd.Series(
+            noise_levels + [0 for _ in range(top_x_noisy_positions - len(noise_levels))]
+        )
+        noise_threshold = noise_levels.mean()
     else:
         # define noise threshold
-        noise_threshold = (
+        # noise_threshold = (
+        #     positions_df.loc[
+        #         (positions_df["Noise"] < snp_noise_level)
+        #         & (positions_df[bh_noisy_col]),
+        #         "Noise",
+        #     ]
+        #     .sort_values(ascending=False)[:top_x_noisy_positions]
+        #     .mean()
+        # )
+        noise_levels = (
             positions_df.loc[
                 (positions_df["Noise"] < snp_noise_level)
                 & (positions_df[bh_noisy_col]),
                 "Noise",
             ]
             .sort_values(ascending=False)[:top_x_noisy_positions]
-            .mean()
+            .tolist()
         )
+        # if there are less noisy positions than `top_x_noisy_positions`, add zeros accordingly
+        noise_levels = pd.Series(
+            noise_levels + [0 for _ in range(top_x_noisy_positions - len(noise_levels))]
+        )
+        noise_threshold = noise_levels.mean()
     if pd.isna(noise_threshold):
         noise_threshold = 0
     noise_threshold *= assurance_factor
@@ -1499,9 +1531,9 @@ def multisample_pileups_to_positions_part_3(
     bh_editing_col: str,
 ):
     """
-    The input positions_file is given after basic editing annoatation, and the BH correction for editing is added 
+    The input positions_file is given after basic editing annoatation, and the BH correction for editing is added
     according to the corrected editing p-value from the `corrected_editing_file`.
-    Then, apply some coverage based filtering, and annotate the final editing status according to the final 
+    Then, apply some coverage based filtering, and annotate the final editing status according to the final
     editing scheme.
     In addition, some verifications are made.
     Finaly, writes the final positions_df to a file, and possibly delete the original pileup files.
@@ -1556,13 +1588,23 @@ def multisample_pileups_to_positions_part_3(
             how="left",
         )
     else:
-        positions_df[binom_editing_pval_col] = positions_df[ref_base].apply(
+        # positions_df[binom_editing_pval_col] = positions_df[ref_base].apply(
+        #     lambda x: 1.0 if x == ref_base else np.NaN
+        # )
+        # positions_df[bh_editing_pval_col] = positions_df[ref_base].apply(
+        #     lambda x: 1.0 if x == ref_base else np.NaN
+        # )
+        # positions_df[bh_editing_col] = positions_df[ref_base].apply(
+        #     lambda x: False if x == ref_base else np.NaN
+        # )
+        # this should probably fix the case of non-refbase positions annotated as significantly edited
+        positions_df[binom_editing_pval_col] = positions_df["RefBase"].apply(
             lambda x: 1.0 if x == ref_base else np.NaN
         )
-        positions_df[bh_editing_pval_col] = positions_df[ref_base].apply(
+        positions_df[bh_editing_pval_col] = positions_df["RefBase"].apply(
             lambda x: 1.0 if x == ref_base else np.NaN
         )
-        positions_df[bh_editing_col] = positions_df[ref_base].apply(
+        positions_df[bh_editing_col] = positions_df["RefBase"].apply(
             lambda x: False if x == ref_base else np.NaN
         )
 
@@ -1909,7 +1951,8 @@ def get_covered_and_uncovered_coding_adenosines_in_transcript(
         )
     )
 
-    # merge the two DataFrames, such that the positions in `all_coding_adenosines_df` will have the P-value from the binomial test,
+    # merge the two DataFrames,
+    # such that the positions in `all_coding_adenosines_df` will have the P-value from the binomial test,
     # as well as the RefBaseCount and AltBaseCount the test was based on
     all_coding_adenosines_df = all_coding_adenosines_df.merge(
         covered_coding_adenosines_positions_df.loc[

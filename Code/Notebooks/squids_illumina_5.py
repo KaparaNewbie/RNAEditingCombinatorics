@@ -666,6 +666,7 @@ fixed_rev_df = fixed_rev_df.sort_values("chrom_x").reset_index(drop=True).drop(c
 fixed_for_df
 
 # %%
+fixed_rev_df
 
 # %%
 cds_editing_positions_per_sample = [
