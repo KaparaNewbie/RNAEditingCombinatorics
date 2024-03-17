@@ -17,5 +17,6 @@ Code/Notebooks/*.png
 Code/Notebooks/MPILEUP/*.svg
 Code/Notebooks/*.tsv
 Code/Notebooks/*.fasta
+Code/Notebooks/Blast*
 LOGS.md
 CloudSetup.md
