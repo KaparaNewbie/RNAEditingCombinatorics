@@ -22,7 +22,7 @@ code_dir = "/private7/projects/Combinatorics/Code"
 # %%
 # %load_ext autoreload
 # %autoreload 2
-# # %autosave 600
+# %autosave 600
 
 # %% papermill={"duration": 2.901153, "end_time": "2022-02-01T09:42:46.125355", "exception": false, "start_time": "2022-02-01T09:42:43.224202", "status": "completed"}
 import sys
@@ -82,7 +82,7 @@ transcriptome_file = (
     "/private7/projects/Combinatorics/O.vulgaris/Annotations/orfs_oct.fa"
 )
 
-main_data_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise/")
+main_data_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BH/")
 
 positions_dir = Path(main_data_dir, "PositionsFiles")
 reads_dir = Path(main_data_dir, "ReadsFiles")
@@ -347,7 +347,7 @@ len(complete_data_df["UniqueReadsFile"])
 # # Data loading - TMR 1000
 
 # %%
-tmr1000_main_data_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BHAfterNoise/")
+tmr1000_main_data_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BH/")
 
 tmr1000_positions_dir = Path(tmr1000_main_data_dir, "PositionsFiles")
 tmr1000_reads_dir = Path(tmr1000_main_data_dir, "ReadsFiles")
@@ -1223,15 +1223,6 @@ avg_editables_aas_per_sample = sum(editable_aas_per_sample) / len(unique_protein
 print(f"Average of {avg_editables_aas_per_sample:.0f} editable AAs per sample")
 
 # %%
-# statistics for num of editable AAs per transcript
-
-editable_aas_per_sample = pd.Series([
-    df.iloc[:, unique_proteins_first_col_pos:].shape[1] for df in unique_proteins_dfs
-])
-
-editable_aas_per_sample.describe()
-
-# %%
 unique_proteins_dfs[0].iloc[:, unique_proteins_first_col_pos:]
 
 # %%
@@ -1446,7 +1437,7 @@ def calc_per_transcript_per_sample_coverage(
     # samples
 ):
     expanded_positions_df = (
-        positions_df.loc[(~positions_df["InProbRegion"]) & (positions_df["CDS"])]
+        positions_df.loc[~positions_df["InProbRegion"]]
         .reset_index(drop=True)
         .drop(
             [

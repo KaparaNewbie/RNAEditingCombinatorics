@@ -82,12 +82,12 @@ transcriptome_file = (
     "/private7/projects/Combinatorics/O.vulgaris/Annotations/orfs_oct.fa"
 )
 
-main_data_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise/")
+main_data_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50/")
 
 positions_dir = Path(main_data_dir, "PositionsFiles")
 reads_dir = Path(main_data_dir, "ReadsFiles")
 proteins_dir = Path(main_data_dir, "ProteinsFiles")
-distinct_proteins_dir = Path(main_data_dir, "DistinctProteins2")
+distinct_proteins_dir = Path(main_data_dir, "DistinctProteins")
 # expression_dir = Path(main_data_dir, "ExpressionLevels")
 
 neural_vs_non_neural_expression_file = Path(
@@ -347,12 +347,12 @@ len(complete_data_df["UniqueReadsFile"])
 # # Data loading - TMR 1000
 
 # %%
-tmr1000_main_data_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BHAfterNoise/")
+tmr1000_main_data_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000/")
 
 tmr1000_positions_dir = Path(tmr1000_main_data_dir, "PositionsFiles")
 tmr1000_reads_dir = Path(tmr1000_main_data_dir, "ReadsFiles")
 tmr1000_proteins_dir = Path(tmr1000_main_data_dir, "ProteinsFiles")
-tmr1000_distinct_proteins_dir = Path(tmr1000_main_data_dir, "DistinctProteins2")
+tmr1000_distinct_proteins_dir = Path(tmr1000_main_data_dir, "DistinctProteins")
 
 # %%
 tmr1000_positions_files = list(tmr1000_positions_dir.glob("*.positions.csv.gz"))
@@ -702,7 +702,7 @@ fig.show()
 # %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"}
 # ## Positions
 
-# %% jupyter={"source_hidden": true}
+# %%
 # positions_dfs = [
 #     pd.read_csv(position_file, sep=sep, dtype={"Reads": str}) for position_file in positions_files
 # ]
@@ -711,12 +711,12 @@ fig.show()
 # positions_dfs[0]
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 # positions_df = pd.concat(positions_dfs, ignore_index=True)
 # # positions_df.insert(positions_df.columns.get_loc("G")+1, "ATCGs", positions_df.loc[:, ["A", "T", "C", "G"]].sum(axis=1))
 # positions_df
 
-# %% jupyter={"source_hidden": true}
+# %%
 # def make_concat_positions_df(positions_files, condition_col, conditions):
 #     positions_dfs = [
 #         pd.read_csv(position_file, sep=sep, dtype={"Reads": str}) for position_file in positions_files
@@ -726,20 +726,20 @@ fig.show()
 #     concat_positions_df = pd.concat(positions_dfs, ignore_index=True)
 #     return concat_positions_df
 
-# %% jupyter={"source_hidden": true}
+# %%
 # concat_positions_df = make_concat_positions_df(positions_files, condition_col, conditions)
 # concat_positions_df
 
-# %% jupyter={"source_hidden": true}
+# %%
 # data_df.loc[data_df["PositionsFile"].isna()]
 
-# %% jupyter={"source_hidden": true}
+# %%
 # possibly_na_positions_files[108]
 
-# %% jupyter={"source_hidden": true}
+# %%
 # pd.notna(possibly_na_positions_files[108])
 
-# %% jupyter={"source_hidden": true}
+# %%
 # all_positions_dfs = [
 #     pd.read_csv(position_file, sep=sep, dtype={"Reads": str}) for position_file in possibly_na_positions_files if pd.notna(position_file)
 # ]
@@ -772,18 +772,17 @@ concat_all_positions_df
 # %%
 # # previoisly edited positions, which are now not considered edited
 # positions_df.loc[
-#     (positions_df["Edited"]) & (~positions_df["EditedFinal"])
+#     (positions_df["Edited"]) & (~positions_df["Edited"])
 # ]
 
 # %%
 concat_all_positions_df.loc[
-    (concat_all_positions_df["NoisyCorrected"].fillna(False))
-    & (concat_all_positions_df["Noise"] <= 0.1)
+    (concat_all_positions_df["Noise"] <= 0.1)
 ]
 
 # %%
 x = concat_all_positions_df.loc[
-    (concat_all_positions_df["NoisyCorrected"].fillna(False)),
+    :,
     "Noise"
 ] * 100
                                    
@@ -799,7 +798,7 @@ fig.show()
 
 # %%
 concat_all_positions_df.loc[
-    concat_all_positions_df["EditedFinal"],
+    concat_all_positions_df["Edited"],
     [
         condition_col,
         "Chrom",
@@ -817,7 +816,7 @@ concat_all_positions_df.loc[
 # %%
 concat_all_positions_df.loc[
     # all edited positions in transcripts whose pooled noise levels is < 6%
-    (concat_all_positions_df["EditedFinal"]) & (concat_all_positions_df["Chrom"].isin(chroms)),
+    (concat_all_positions_df["Edited"]) & (concat_all_positions_df["Chrom"].isin(chroms)),
     [
         condition_col,
         "Chrom",
@@ -834,7 +833,7 @@ concat_all_positions_df.loc[
 
 # %%
 # edited_positions_df = positions_df.loc[
-#     positions_df["EditedFinal"],
+#     positions_df["Edited"],
 #     [
 #         condition_col,
 #         "Chrom",
@@ -981,7 +980,7 @@ concat_all_positions_df.loc[
 # %%
 
 # %%
-# editing_positions_per_sample = [len(df.loc[(df["EditedFinal"])]) for df in positions_dfs]
+# editing_positions_per_sample = [len(df.loc[(df["Edited"])]) for df in positions_dfs]
 # print(
 #     f"Average of {sum(editing_positions_per_sample)/len(positions_dfs)} editing sites per sample"
 # )
@@ -989,7 +988,7 @@ concat_all_positions_df.loc[
 # %%
 # avg editing positions per transcript, considering transcripts whose pooled noise levels is < 6%
 (
-    concat_all_positions_df.loc[(concat_all_positions_df["EditedFinal"]) & (concat_all_positions_df["Chrom"].isin(chroms))]
+    concat_all_positions_df.loc[(concat_all_positions_df["Edited"]) & (concat_all_positions_df["Chrom"].isin(chroms))]
     .groupby("Chrom")
     .size()
     .mean()
@@ -1221,15 +1220,6 @@ editable_aas_per_sample = [
 avg_editables_aas_per_sample = sum(editable_aas_per_sample) / len(unique_proteins_dfs)
 
 print(f"Average of {avg_editables_aas_per_sample:.0f} editable AAs per sample")
-
-# %%
-# statistics for num of editable AAs per transcript
-
-editable_aas_per_sample = pd.Series([
-    df.iloc[:, unique_proteins_first_col_pos:].shape[1] for df in unique_proteins_dfs
-])
-
-editable_aas_per_sample.describe()
 
 # %%
 unique_proteins_dfs[0].iloc[:, unique_proteins_first_col_pos:]
@@ -1817,7 +1807,7 @@ per_sample_editing_index_df
 (
     concat_all_positions_df.loc[
         (concat_all_positions_df["Noise"] <= 0.1)
-            & (concat_all_positions_df["NoisyCorrected"]),
+            # & (concat_all_positions_df["NoisyCorrected"]),
     ]
     .groupby("Chrom")
     .size()
@@ -1833,8 +1823,8 @@ def mean_noise_levels(positions_df, top_x_noisy_positions=3, snp_noise_level=0.1
     #     return 0.0
     noise_levels = (
         positions_df.loc[
-            (positions_df["Noise"] <= snp_noise_level)
-            & (positions_df["NoisyCorrected"]),
+            (positions_df["Noise"] <= snp_noise_level),
+            # & (positions_df["NoisyCorrected"]),
             "Noise",
         ].sort_values(ascending=False)[:top_x_noisy_positions].tolist()
     )
@@ -2058,7 +2048,7 @@ fig, ax = plt.subplots(
     gridspec_kw=dict(hspace=0.2, wspace=0.3),
 )
 
-labels = ["EditedFinal", "KnownEditing"]
+labels = ["Edited", "KnownEditing"]
 
 sets = [
     set(
@@ -2103,7 +2093,7 @@ plt.show()
 # %%
 all_chroms = concat_all_positions_df["Chrom"].unique().size
 chroms_with_new_sites = (
-    concat_all_positions_df.loc[concat_all_positions_df["EditedFinal"] & ~concat_all_positions_df["KnownEditing"], "Chrom"]
+    concat_all_positions_df.loc[concat_all_positions_df["Edited"] & ~concat_all_positions_df["KnownEditing"], "Chrom"]
     .unique()
     .size
 )
@@ -2120,7 +2110,7 @@ f"{100 * chroms_without_new_sites / all_chroms:.2f}%"
 unique_positions_df = (
     concat_all_positions_df.loc[
         # only edited positions in transcripts whose pooled noise levels is < 6%
-        (concat_all_positions_df["EditedFinal"]) & (concat_all_positions_df["Chrom"].isin(chroms)),
+        (concat_all_positions_df["Edited"]) & (concat_all_positions_df["Chrom"].isin(chroms)),
         ["Chrom", "Position"]
     ]
     .drop_duplicates(["Chrom", "Position"], ignore_index=True)
@@ -3335,7 +3325,7 @@ strongly_diversified_per_transcript_per_sample_coverage_dfs = [
 ic(len(strongly_diversified_per_transcript_per_sample_coverage_dfs))
 strongly_diversified_per_transcript_per_sample_coverage_dfs[0]
 
-# %% jupyter={"source_hidden": true}
+# %%
 # cols = min(facet_col_wrap, len(strongly_diversified_num_of_proteins_per_sample_dfs), 3)
 # rows = ceil(len(strongly_diversified_num_of_proteins_per_sample_dfs) / cols)
 # row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[
@@ -3892,10 +3882,10 @@ dispersion_df["HighDispersion"] = dispersion_df["%SolutionsDispersion"] > 1
 
 dispersion_df
 
-# %% jupyter={"source_hidden": true}
+# %%
 # len(dispersion_df.loc[dispersion_df["HighDispersion"]])
 
-# %% jupyter={"source_hidden": true}
+# %%
 # fig = px.scatter(
 #     dispersion_df,
 #     x="MinNumOfProteins",
@@ -3926,7 +3916,7 @@ dispersion_df
 
 # fig.show()
 
-# %% jupyter={"source_hidden": true}
+# %%
 # fig = px.scatter(
 #     dispersion_df.loc[dispersion_df["%SolutionsDispersion"] > 0],
 #     x="NumOfReads",
@@ -3959,7 +3949,7 @@ dispersion_df
 
 # fig.show()
 
-# %% jupyter={"source_hidden": true}
+# %%
 # fig = px.scatter(
 #     dispersion_df.loc[dispersion_df["%SolutionsDispersion"] > 0],
 #     x="MinNumOfProteins",
@@ -4087,7 +4077,7 @@ saved_dispersion_df.insert(0, "Platform", "Whole-transcriptome octopus data")
 saved_dispersion_df.to_csv("Dispersion.Octopus.tsv", sep="\t", index=False)
 saved_dispersion_df
 
-# %% jupyter={"source_hidden": true}
+# %%
 # y_axis_name = "Distinct unique proteins"
 # head_title = "Distinct unique proteins vs. heuristic method"
 

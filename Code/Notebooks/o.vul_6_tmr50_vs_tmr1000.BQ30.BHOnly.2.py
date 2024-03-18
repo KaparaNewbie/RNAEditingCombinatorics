@@ -82,12 +82,12 @@ transcriptome_file = (
     "/private7/projects/Combinatorics/O.vulgaris/Annotations/orfs_oct.fa"
 )
 
-main_data_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise/")
+main_data_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BH.2/")
 
 positions_dir = Path(main_data_dir, "PositionsFiles")
 reads_dir = Path(main_data_dir, "ReadsFiles")
 proteins_dir = Path(main_data_dir, "ProteinsFiles")
-distinct_proteins_dir = Path(main_data_dir, "DistinctProteins2")
+distinct_proteins_dir = Path(main_data_dir, "DistinctProteins")
 # expression_dir = Path(main_data_dir, "ExpressionLevels")
 
 neural_vs_non_neural_expression_file = Path(
@@ -347,12 +347,12 @@ len(complete_data_df["UniqueReadsFile"])
 # # Data loading - TMR 1000
 
 # %%
-tmr1000_main_data_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BHAfterNoise/")
+tmr1000_main_data_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BH.2/")
 
 tmr1000_positions_dir = Path(tmr1000_main_data_dir, "PositionsFiles")
 tmr1000_reads_dir = Path(tmr1000_main_data_dir, "ReadsFiles")
 tmr1000_proteins_dir = Path(tmr1000_main_data_dir, "ProteinsFiles")
-tmr1000_distinct_proteins_dir = Path(tmr1000_main_data_dir, "DistinctProteins2")
+tmr1000_distinct_proteins_dir = Path(tmr1000_main_data_dir, "DistinctProteins")
 
 # %%
 tmr1000_positions_files = list(tmr1000_positions_dir.glob("*.positions.csv.gz"))
@@ -1159,7 +1159,7 @@ unique_proteins_dfs[0]
 unique_proteins_dfs[0].columns
 
 # %%
-unique_proteins_dfs[0].iloc[:, unique_proteins_first_col_pos:]
+unique_proteins_dfs[0].iloc[:, unique_proteins_first_col_pos-1:]
 
 # %%
 # def make_concat_unique_proteins_df(unique_proteins_files, chroms):
@@ -1214,13 +1214,16 @@ expanded_unique_proteins_dfs[0]
 # expanded_unique_proteins_df
 
 # %%
-editable_aas_per_sample = [
-    df.iloc[:, unique_proteins_first_col_pos:].shape[1] for df in unique_proteins_dfs
-]
+unique_proteins_first_col_pos
 
-avg_editables_aas_per_sample = sum(editable_aas_per_sample) / len(unique_proteins_dfs)
+# %%
+# editable_aas_per_sample = [
+#     df.iloc[:, unique_proteins_first_col_pos:].shape[1] for df in unique_proteins_dfs
+# ]
 
-print(f"Average of {avg_editables_aas_per_sample:.0f} editable AAs per sample")
+# avg_editables_aas_per_sample = sum(editable_aas_per_sample) / len(unique_proteins_dfs)
+
+# print(f"Average of {avg_editables_aas_per_sample:.0f} editable AAs per sample")
 
 # %%
 # statistics for num of editable AAs per transcript
