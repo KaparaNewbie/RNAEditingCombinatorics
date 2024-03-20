@@ -798,39 +798,75 @@ fig.update_layout(width=700, height=500, template=template)
 fig.show()
 
 # %%
-concat_all_positions_df.loc[
-    concat_all_positions_df["EditedFinal"],
-    [
-        condition_col,
-        "Chrom",
-        "Position",
-        "RefBase",
-        "TotalCoverage",
-        "A",
-        "T",
-        "C",
-        "G",
-        "EditingFrequency",
-    ],
+test_cols = [
+    condition_col,
+    "Chrom",
+    "Position",
+    "RefBase",
+    "TotalCoverage",
+    "A",
+    "T",
+    "C",
+    "G",
+    "EditingFrequency",
+    "Edited",
+    "EditingCorrectedPVal",
+    "EditedCorrected",
+    "EditedFinal",
+    "Noise",
+    "NoisyCorrected"
 ]
 
 # %%
 concat_all_positions_df.loc[
     # all edited positions in transcripts whose pooled noise levels is < 6%
     (concat_all_positions_df["EditedFinal"]) & (concat_all_positions_df["Chrom"].isin(chroms)),
-    [
-        condition_col,
-        "Chrom",
-        "Position",
-        "RefBase",
-        "TotalCoverage",
-        "A",
-        "T",
-        "C",
-        "G",
-        "EditingFrequency",
-    ],
+    test_cols
 ]
+
+# %%
+concat_all_positions_df.loc[
+    (~concat_all_positions_df["Edited"]) & (concat_all_positions_df["EditedFinal"]), 
+    test_cols
+]
+
+# %%
+concat_all_positions_df.loc[
+    (~concat_all_positions_df["Edited"]) & (concat_all_positions_df["EditedFinal"]) & (concat_all_positions_df["Chrom"].isin(chroms)), 
+    test_cols
+]
+
+# %%
+concat_all_positions_df.loc[concat_all_positions_df["EditedCorrected"].fillna(False), test_cols]
+
+# %%
+concat_all_positions_df.loc[concat_all_positions_df["EditedCorrected"].fillna(False), test_cols]["RefBase"].value_counts()
+
+# %%
+concat_all_positions_df.loc[concat_all_positions_df["EditedFinal"].fillna(False), test_cols]
+
+# %%
+concat_all_positions_df.loc[
+    (concat_all_positions_df["EditedCorrected"].fillna(False)) & (concat_all_positions_df["NoisyCorrected"].fillna(False)),
+    test_cols
+]
+
+# %%
+concat_all_positions_df.loc[concat_all_positions_df["EditedFinal"].fillna(False), test_cols]["RefBase"].value_counts()
+
+# %%
+concat_all_positions_df.loc[
+    (concat_all_positions_df["EditedFinal"].fillna(False)) & (concat_all_positions_df["NoisyCorrected"].fillna(False)),
+    test_cols
+]
+
+# %%
+
+# %%
+
+# %%
+
+# %%
 
 # %%
 # edited_positions_df = positions_df.loc[

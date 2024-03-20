@@ -1431,6 +1431,9 @@ def multisample_pileups_to_positions_part_2(
             on=["Chrom", "Position"],
             how="left",
         )
+        positions_df[bh_noisy_col] = positions_df[bh_noisy_col].fillna(
+            False
+        )  # because all([np.nan]) == True
     else:
         # positions_df[binom_noise_pval_col] = positions_df[ref_base].apply(
         #     lambda x: 1.0 if x != ref_base else np.NaN
@@ -1447,9 +1450,11 @@ def multisample_pileups_to_positions_part_2(
         positions_df[bh_noise_pval_col] = positions_df["RefBase"].apply(
             lambda x: 1.0 if x != ref_base else np.NaN
         )
-        positions_df[bh_noisy_col] = positions_df["RefBase"].apply(
-            lambda x: False if x != ref_base else np.NaN
-        )
+        # positions_df[bh_noisy_col] = positions_df["RefBase"].apply(
+        #     lambda x: False if x != ref_base else np.NaN
+        # )
+        # because all([np.nan]) == True
+        positions_df[bh_noisy_col] = False
 
     #  possibly remove non refbase positions with too-high noise & define noise threshold
     if remove_non_refbase_noisy_positions:
@@ -1587,26 +1592,20 @@ def multisample_pileups_to_positions_part_3(
             on=["Chrom", "Position"],
             how="left",
         )
+        positions_df[bh_editing_col] = positions_df[bh_editing_col].fillna(
+            False
+        )  # because all([np.nan]) == True
     else:
-        # positions_df[binom_editing_pval_col] = positions_df[ref_base].apply(
-        #     lambda x: 1.0 if x == ref_base else np.NaN
-        # )
-        # positions_df[bh_editing_pval_col] = positions_df[ref_base].apply(
-        #     lambda x: 1.0 if x == ref_base else np.NaN
-        # )
-        # positions_df[bh_editing_col] = positions_df[ref_base].apply(
-        #     lambda x: False if x == ref_base else np.NaN
-        # )
-        # this should probably fix the case of non-refbase positions annotated as significantly edited
         positions_df[binom_editing_pval_col] = positions_df["RefBase"].apply(
             lambda x: 1.0 if x == ref_base else np.NaN
         )
         positions_df[bh_editing_pval_col] = positions_df["RefBase"].apply(
             lambda x: 1.0 if x == ref_base else np.NaN
         )
-        positions_df[bh_editing_col] = positions_df["RefBase"].apply(
-            lambda x: False if x == ref_base else np.NaN
-        )
+        # positions_df[bh_editing_col] = positions_df["RefBase"].apply(
+        #     lambda x: False if x == ref_base else np.NaN
+        # )
+        positions_df[bh_editing_col] = False  # because all([np.nan]) == True
 
     # remove positions with insufficient coverage defined by absolute or relative coverage criteria
     # (we can finally do this after BH correction for noise & editing)
@@ -1677,7 +1676,8 @@ def binom_and_bh_correction_for_editing_all_transcripts(
     bh_rejection_col: str,
 ) -> list[pd.DataFrame]:
     """
-    Perform binomial test for editing followed by Benjamini-Hochberg correction for all adenosines in the transcriptome, and rewrite the updated results to the disk.
+    Perform binomial test for editing followed by Benjamini-Hochberg correction for all adenosines in the transcriptome,
+    and rewrite the updated results to the disk.
 
     Args:
         `positions_files` (list[Path]): A list of intermidate positions files, where each file contains positions in a transcript.

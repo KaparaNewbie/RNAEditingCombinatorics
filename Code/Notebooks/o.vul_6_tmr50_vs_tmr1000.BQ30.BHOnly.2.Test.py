@@ -82,7 +82,7 @@ transcriptome_file = (
     "/private7/projects/Combinatorics/O.vulgaris/Annotations/orfs_oct.fa"
 )
 
-main_data_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BH.2/")
+main_data_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BH.2.Test/")
 
 positions_dir = Path(main_data_dir, "PositionsFiles")
 reads_dir = Path(main_data_dir, "ReadsFiles")
@@ -347,7 +347,7 @@ len(complete_data_df["UniqueReadsFile"])
 # # Data loading - TMR 1000
 
 # %%
-tmr1000_main_data_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BH.2/")
+# tmr1000_main_data_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BH.2/")
 
 tmr1000_positions_dir = Path(tmr1000_main_data_dir, "PositionsFiles")
 tmr1000_reads_dir = Path(tmr1000_main_data_dir, "ReadsFiles")
@@ -776,26 +776,6 @@ concat_all_positions_df
 # ]
 
 # %%
-test_cols = [
-    condition_col,
-    "Chrom",
-    "Position",
-    "RefBase",
-    "TotalCoverage",
-    "A",
-    "T",
-    "C",
-    "G",
-    "EditingFrequency",
-    "Edited",
-    "EditingCorrectedPVal",
-    "EditedCorrected",
-    "EditedFinal",
-    "Noise",
-    "NoisyCorrected"
-]
-
-# %%
 concat_all_positions_df.loc[
     (concat_all_positions_df["NoisyCorrected"].fillna(False))
     & (concat_all_positions_df["Noise"] <= 0.1)
@@ -819,198 +799,62 @@ fig.show()
 
 # %%
 concat_all_positions_df.loc[
-    concat_all_positions_df["Edited"],
-    test_cols
-]
-
-# %%
-concat_all_positions_df.loc[
-    (concat_all_positions_df["EditedFinal"]) & (concat_all_positions_df["Chrom"].isin(chroms)),
-    test_cols
+    concat_all_positions_df["EditedFinal"],
 ]
 
 # %%
 concat_all_positions_df.loc[
     # all edited positions in transcripts whose pooled noise levels is < 6%
-    (concat_all_positions_df["EditedFinal"]) & (concat_all_positions_df["Chrom"].isin(chroms)) & (concat_all_positions_df["RefBase"] == "A"),
-    test_cols
-]
-
-# %%
-
-# %%
-concat_all_positions_df.loc[concat_all_positions_df["EditedCorrected"].fillna(False), test_cols]
-
-# %%
-concat_all_positions_df.loc[concat_all_positions_df["EditedCorrected"].fillna(False), test_cols]["RefBase"].value_counts()
-
-# %%
-concat_all_positions_df.loc[concat_all_positions_df["EditedFinal"].fillna(False), test_cols]
-
-# %%
-concat_all_positions_df.loc[concat_all_positions_df["EditedFinal"].fillna(False), test_cols]["RefBase"].value_counts()
-
-# %%
-concat_all_positions_df.loc[
-    (concat_all_positions_df["EditedCorrected"].fillna(False)) & (concat_all_positions_df["NoisyCorrected"].fillna(False)),
-    test_cols
+    (concat_all_positions_df["Edited"]) & (concat_all_positions_df["NoisyCorrected"])
 ]
 
 # %%
 concat_all_positions_df.loc[
-    (concat_all_positions_df["EditedFinal"].fillna(False)) & (concat_all_positions_df["NoisyCorrected"].fillna(False)),
-    test_cols
+    # all edited positions in transcripts whose pooled noise levels is < 6%
+    (concat_all_positions_df["EditedCorrected"]) & (concat_all_positions_df["NoisyCorrected"])
 ]
 
 # %%
 concat_all_positions_df.loc[
-    (concat_all_positions_df["EditedFinal"].fillna(False)) & (concat_all_positions_df["NoisyCorrected"].fillna(False)) & (concat_all_positions_df["Chrom"]=="comp183909_c0_seq7"),
-    test_cols
+    # all edited positions in transcripts whose pooled noise levels is < 6%
+    (concat_all_positions_df["EditedFinal"]) & (concat_all_positions_df["NoisyCorrected"])
 ]
 
 # %%
 concat_all_positions_df.loc[
-    (concat_all_positions_df["EditedFinal"].fillna(False)) & (concat_all_positions_df["Chrom"]=="comp183909_c0_seq7"),
-    test_cols
-]
-
-# %%
-concat_all_positions_df["Edited"].value_counts(dropna=False)
-
-# %%
-comp183313_c0_seq12_df = concat_all_positions_df.loc[
-    (concat_all_positions_df["Chrom"]=="comp183313_c0_seq12"),
-    test_cols
-]
-comp183313_c0_seq12_df["EditedCorrected"] = comp183313_c0_seq12_df["EditedCorrected"].fillna(False)
-
-comp183313_c0_seq12_df
-
-# %%
-comp183313_c0_seq12_df["EditedCorrected"].sum()
-
-# %%
-concat_all_positions_df.loc[
-    (concat_all_positions_df["Chrom"]=="comp183909_c0_seq7"),
-    test_cols
+    # all edited positions in transcripts whose pooled noise levels is < 6%
+    (concat_all_positions_df["EditedFinal"]) & (~concat_all_positions_df["Edited"])
 ]
 
 # %%
 concat_all_positions_df.loc[
-    (concat_all_positions_df["Chrom"]=="comp183909_c0_seq7"),
-    test_cols
-]["EditedCorrected"].value_counts(dropna=False)
+    # all edited positions in transcripts whose pooled noise levels is < 6%
+    (~concat_all_positions_df["EditedFinal"]) & (concat_all_positions_df["Edited"])
+]
 
 # %%
-pd.Series([1, np.nan, None]).fillna(0)
+concat_all_positions_df.loc[
+    # all edited positions in transcripts whose pooled noise levels is < 6%
+    (concat_all_positions_df["EditedFinal"]) & (concat_all_positions_df["Edited"])
+]
 
 # %%
-test_chroms = [
-        "comp183313_c0_seq12",
-        "comp162994_c0_seq1",
-        "comp183909_c0_seq7",
-        "comp181233_c0_seq10",
-        "comp183670_c0_seq3",
-        "comp183256_c0_seq35",
-        "comp183782_c0_seq5",
-        "comp183377_c0_seq11",
-        "comp181723_c2_seq2",
-        "comp169467_c0_seq1",
-        "comp183713_c0_seq9",
-        "comp181924_c0_seq4",
-    ]
-
-# %%
-test_chroms_concat_all_positions_df = concat_all_positions_df.loc[concat_all_positions_df["Chrom"].isin(test_chroms), test_cols]
-test_chroms_concat_all_positions_df
-
-# %%
-test_chroms_concat_all_positions_df.loc[
-    (~test_chroms_concat_all_positions_df["Edited"]) & (test_chroms_concat_all_positions_df["EditedCorrected"])
+concat_all_positions_df.loc[
+    # all edited positions in transcripts whose pooled noise levels is < 6%
+    (concat_all_positions_df["EditedCorrected"])
 ]["RefBase"].value_counts()
 
 # %%
-test_chroms_concat_all_positions_df.loc[
-    test_chroms_concat_all_positions_df["EditedFinal"].fillna(False)
-]
-
-# %%
-test_chroms_concat_all_positions_df.loc[
-    test_chroms_concat_all_positions_df["EditedFinal"].fillna(False)
+concat_all_positions_df.loc[
+    # all edited positions in transcripts whose pooled noise levels is < 6%
+    (concat_all_positions_df["EditedFinal"])
 ]["RefBase"].value_counts()
 
 # %%
-test_chroms_concat_all_positions_df.loc[
-    (test_chroms_concat_all_positions_df["EditedFinal"].fillna(False)) & (test_chroms_concat_all_positions_df["NoisyCorrected"].fillna(False))
-]
-
-# %%
-# some of these transcripts had eventually too-high noise levels and weren't proccessed further into reads, etc.
-noisy_test_chroms = test_chroms_concat_all_positions_df.loc[~test_chroms_concat_all_positions_df["Chrom"].isin(chroms)]["Chrom"].unique().tolist()
-noisy_test_chroms
-
-# %%
-test_chroms_concat_all_positions_df.loc[~test_chroms_concat_all_positions_df["Chrom"].isin(noisy_test_chroms)]
-
-# %%
-basically_edited_test_df = test_chroms_concat_all_positions_df.loc[
-    (test_chroms_concat_all_positions_df["Edited"]) ,
-    test_cols
-]
-basically_edited_test_df
-
-# %%
-basically_edited_test_df["RefBase"].value_counts()
-
-# %%
-possibly_correct_finally_unedited_test_df = test_chroms_concat_all_positions_df.loc[
-    (test_chroms_concat_all_positions_df["Edited"]) & (~test_chroms_concat_all_positions_df["EditedFinal"]),
-    test_cols
-]
-possibly_correct_finally_unedited_test_df
-
-# %%
-possibly_correct_finally_unedited_test_df["RefBase"].value_counts()
-
-# %%
-wrong_finally_edited_test_df = test_chroms_concat_all_positions_df.loc[
-    (~test_chroms_concat_all_positions_df["Edited"]) & (test_chroms_concat_all_positions_df["EditedFinal"]),
-    test_cols
-]
-wrong_finally_edited_test_df
-
-# %%
-wrong_finally_edited_test_df["RefBase"].value_counts()
-
-# %%
-possibly_correct_finally_edited_test_df = test_chroms_concat_all_positions_df.loc[
-    (test_chroms_concat_all_positions_df["Edited"]) & (test_chroms_concat_all_positions_df["EditedFinal"]),
-    test_cols
-]
-possibly_correct_finally_edited_test_df
-
-# %%
-possibly_correct_finally_edited_test_df["RefBase"].value_counts()
-
-# %%
-
-# %%
-
-# %%
-
-# %%
-
-# %%
-
-# %%
-
-# %%
-
-# %%
-
-# %%
-
-# %%
+concat_all_positions_df.loc[
+    # all edited positions in transcripts whose pooled noise levels is < 6%
+    (concat_all_positions_df["EditedFinal"]) & (concat_all_positions_df["Chrom"].isin(chroms))
+]["RefBase"].value_counts()
 
 # %%
 # edited_positions_df = positions_df.loc[
