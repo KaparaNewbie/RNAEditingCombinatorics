@@ -2009,7 +2009,7 @@ directly_given_variables \
 --ends 2999 6294 \
 --strands "+" "+" \
 --names GRIA2 PCLO \
-> D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/degenerate_reads.11.3.2024.out &
+> D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/degenerate_reads.20.3.2024.out &
 ```
 * alu 13
 * 11.3.2024
@@ -2293,8 +2293,7 @@ Code/UnorderedNaNDepletion/expressionlevels.jl \
 ## Illumina (Ruti's Illumina PE READS, take 2 (shortened ids))
 
 
-
-#### Complete run
+### Pileup
 
 ```bash
 nohup python Code/pileup.py \
@@ -2316,10 +2315,31 @@ nohup python Code/pileup.py \
 >> D.pealeii/MpileupAndTranscripts/Illumina/pileup.12.7.22.out & 
 ```
  
+### Degenerate reads
 
-TODO match project behavior to cloud
+```bash
+mkdir D.pealeii/MpileupAndTranscripts/Illumina/DegenerateReads
 
+nohup \
+python Code/Pileup/degenerate_reads.py \
+--transcriptome_file D.pealeii/Annotations/orfs_squ.fa \
+--out_dir D.pealeii/MpileupAndTranscripts/Illumina/DegenerateReads \
+--reads_first_col_pos 6 \
+--postfix_to_remove ".csv" \
+undirectly_given_variables \
+--in_dir D.pealeii/MpileupAndTranscripts/Illumina \
+--cds_regions D.pealeii/Annotations/orfs_squ.bed \
+--postfix_to_find ".reads.csv" \
+--prefix_to_chrom "reads.sorted.aligned.filtered." \
+>  D.pealeii/MpileupAndTranscripts/Illumina/DegenerateReads/degenerate_reads.20.3.2024.out &
 ```
+* alu 13
+* 12032
+
+
+### Distinct proteins
+
+```bash
 INFILES=$(echo D.pealeii/MpileupAndTranscripts/Illumina/*.unique_proteins.csv)
 echo $INFILES
 
@@ -3834,7 +3854,7 @@ undirected_sequencing_data \
 #### Distinct proteins
 
 ```bash
-tmux new -s julia16
+tmux new -s julia17
 
 COMB
 
@@ -3846,7 +3866,7 @@ echo $INFILES
 
 julia \
 --project=. \
---threads 24 --proc 6 \
+--threads 50 --proc 6 \
 Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 --infiles $INFILES \
 --postfix_to_remove .unique_proteins.csv.gz \
@@ -3859,10 +3879,10 @@ Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 --algrepetitions 2 \
 --algs Ascending Descending \
 --run_solve_threaded \
-2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.2/DistinctProteins.regular.13.3.24.log
+2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.2/DistinctProteins.regular.20.3.24.log
 ```
-* alu 16
-* 12:17
+* alu 17
+* 13:13
 
 
 
@@ -3907,7 +3927,7 @@ undirected_sequencing_data \
 
 
 ```bash
-tmux new -s julia16
+tmux new -s julia13
 
 COMB
 
@@ -3932,7 +3952,302 @@ Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 --algrepetitions 2 \
 --algs Ascending Descending \
 --run_solve_threaded \
-2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BHAfterNoise.2/DistinctProteins.regular.13.3.24.log
+2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BHAfterNoise.2/DistinctProteins.regular.20.3.24.log
 ```
-* alu 16
-* 11:49
+* alu 13
+* 12:19
+
+
+
+### total_mapped_reads 50, BQ 30, BH only, AHL, 3
+
+```bash
+mkdir -p O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BH.3
+```
+
+#### Pileup
+
+```bash
+nohup python Code/pileup_with_subparsers.py \
+--transcriptome O.vulgaris/Annotations/orfs_oct.fa \
+--known_editing_sites O.vulgaris/Annotations/O.vul.EditingSites.bed \
+--exclude_flags 2304 \
+--parity SE \
+--min_rq 0.998 \
+--min_bq 30 \
+--out_dir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BH.3 \
+--processes 20 \
+--threads 5 \
+--gz_compression \
+undirected_sequencing_data \
+--alignments_stats_table O.vulgaris/Alignment/PRJNA791920/IsoSeq.Polished.Unclustered/AggregatedByChromBySampleSummary.tsv \
+--total_mapped_reads 50 \
+--alternative_hypothesis larger \
+--final_editing_scheme "BH only" \
+--disregard_alt_base_freq_1 \
+--main_by_chrom_dir O.vulgaris/Alignment/PRJNA791920/IsoSeq.Polished.Unclustered/ByChrom \
+--cds_regions O.vulgaris/Annotations/orfs_oct.bed \
+--samples_table O.vulgaris/Data/PRJNA791920/IsoSeqPolished/samples.csv \
+--min_mapped_reads_per_position 0 \
+> O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BH.3/pileup.21.3.24.out &
+```
+* alu 17
+* 14:55
+
+
+
+
+
+#### Distinct proteins
+
+
+<!-- ```bash
+tmux new -s julia17
+
+COMB
+
+mkdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BH.3/DistinctProteins
+
+INFILES=$(echo O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BH.3/ProteinsFiles/*.unique_proteins.csv.gz)
+
+echo $INFILES
+
+julia \
+--project=. \
+--threads 60 --proc 6 \
+Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .unique_proteins.csv.gz \
+--idcol Protein \
+--firstcolpos 16 \
+--datatype Proteins \
+--outdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BH.3/DistinctProteins \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BH.3/DistinctProteins.regular.19.3.24.log
+```
+* alu 13
+* 14:45 -->
+
+
+
+
+### total_mapped_reads 1000, BQ 30, BH only, AHL, 3
+
+```bash
+mkdir -p O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BH.3
+```
+
+#### Pileup
+
+<!-- ```bash
+nohup python Code/pileup_with_subparsers.py \
+--transcriptome O.vulgaris/Annotations/orfs_oct.fa \
+--known_editing_sites O.vulgaris/Annotations/O.vul.EditingSites.bed \
+--exclude_flags 2304 \
+--parity SE \
+--min_rq 0.998 \
+--min_bq 30 \
+--out_dir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BH.3 \
+--processes 20 \
+--threads 5 \
+--gz_compression \
+undirected_sequencing_data \
+--alignments_stats_table O.vulgaris/Alignment/PRJNA791920/IsoSeq.Polished.Unclustered/AggregatedByChromBySampleSummary.tsv \
+--total_mapped_reads 1000 \
+--alternative_hypothesis larger \
+--final_editing_scheme "BH only" \
+--disregard_alt_base_freq_1 \
+--main_by_chrom_dir O.vulgaris/Alignment/PRJNA791920/IsoSeq.Polished.Unclustered/ByChrom \
+--cds_regions O.vulgaris/Annotations/orfs_oct.bed \
+--samples_table O.vulgaris/Data/PRJNA791920/IsoSeqPolished/samples.csv \
+--min_mapped_reads_per_position 0 \
+>> O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BH.3/pileup.19.3.24.out &
+```
+* alu 13
+* 20:33 -->
+
+
+
+#### Distinct proteins
+
+
+<!-- ```bash
+tmux new -s julia13
+
+COMB
+
+mkdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BH.3/DistinctProteins
+
+INFILES=$(echo O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BH.3/ProteinsFiles/*.unique_proteins.csv.gz)
+
+echo $INFILES
+
+julia \
+--project=. \
+--threads 40 --proc 8 \
+Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .unique_proteins.csv.gz \
+--idcol Protein \
+--firstcolpos 16 \
+--datatype Proteins \
+--outdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BH.3/DistinctProteins \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BH.3/DistinctProteins.regular.19.3.24.log
+```
+* alu 17
+* 20:57 -->
+
+
+
+
+### total_mapped_reads 50, BQ 30, BH after noise, AHL, 3
+
+#### Pileup
+
+```bash
+mkdir -p O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3
+```
+
+```bash
+nohup python Code/pileup_with_subparsers.py \
+--transcriptome O.vulgaris/Annotations/orfs_oct.fa \
+--known_editing_sites O.vulgaris/Annotations/O.vul.EditingSites.bed \
+--exclude_flags 2304 \
+--parity SE \
+--min_rq 0.998 \
+--min_bq 30 \
+--out_dir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3 \
+--processes 20 \
+--threads 5 \
+--gz_compression \
+undirected_sequencing_data \
+--alignments_stats_table O.vulgaris/Alignment/PRJNA791920/IsoSeq.Polished.Unclustered/AggregatedByChromBySampleSummary.tsv \
+--total_mapped_reads 50 \
+--alternative_hypothesis larger \
+--final_editing_scheme "BH after noise thresholding" \
+--disregard_alt_base_freq_1 \
+--main_by_chrom_dir O.vulgaris/Alignment/PRJNA791920/IsoSeq.Polished.Unclustered/ByChrom \
+--cds_regions O.vulgaris/Annotations/orfs_oct.bed \
+--samples_table O.vulgaris/Data/PRJNA791920/IsoSeqPolished/samples.csv \
+--min_mapped_reads_per_position 0 \
+> O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/pileup.21.3.24.out & 
+```
+* alu 13
+* 15:00
+
+
+#### Distinct proteins
+
+<!-- ```bash
+tmux new -s julia17
+
+COMB
+
+mkdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/DistinctProteins
+
+INFILES=$(echo O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/ProteinsFiles/*.unique_proteins.csv.gz)
+
+echo $INFILES
+
+julia \
+--project=. \
+--threads 50 --proc 6 \
+Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .unique_proteins.csv.gz \
+--idcol Protein \
+--firstcolpos 16 \
+--datatype Proteins \
+--outdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/DistinctProteins \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/DistinctProteins.regular.20.3.24.log
+```
+* alu 17
+* 13:13
+ -->
+
+
+
+### total_mapped_reads 1000, BQ 30, BH after noise, AHL, 3
+
+```bash
+mkdir -p O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BHAfterNoise.3
+```
+
+#### Pileup
+
+<!-- ```bash
+nohup python Code/pileup_with_subparsers.py \
+--transcriptome O.vulgaris/Annotations/orfs_oct.fa \
+--known_editing_sites O.vulgaris/Annotations/O.vul.EditingSites.bed \
+--exclude_flags 2304 \
+--parity SE \
+--min_rq 0.998 \
+--min_bq 30 \
+--out_dir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BHAfterNoise.3 \
+--processes 14 \
+--threads 5 \
+--gz_compression \
+undirected_sequencing_data \
+--alignments_stats_table O.vulgaris/Alignment/PRJNA791920/IsoSeq.Polished.Unclustered/AggregatedByChromBySampleSummary.tsv \
+--total_mapped_reads 1000 \
+--alternative_hypothesis larger \
+--final_editing_scheme "BH after noise thresholding" \
+--disregard_alt_base_freq_1 \
+--main_by_chrom_dir O.vulgaris/Alignment/PRJNA791920/IsoSeq.Polished.Unclustered/ByChrom \
+--cds_regions O.vulgaris/Annotations/orfs_oct.bed \
+--samples_table O.vulgaris/Data/PRJNA791920/IsoSeqPolished/samples.csv \
+--min_mapped_reads_per_position 0 \
+> O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BHAfterNoise.3/pileup.20.3.24.out &
+```
+* alu 13
+* 10:32
+* 4134058 -->
+
+
+#### Distinct proteins
+
+
+<!-- ```bash
+tmux new -s julia13
+
+COMB
+
+mkdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BHAfterNoise.3/DistinctProteins
+
+INFILES=$(echo O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BHAfterNoise.3/ProteinsFiles/*.unique_proteins.csv.gz)
+
+echo $INFILES
+
+julia \
+--project=. \
+--threads 24 --proc 6 \
+Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .unique_proteins.csv.gz \
+--idcol Protein \
+--firstcolpos 16 \
+--datatype Proteins \
+--outdir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BHAfterNoise.3/DistinctProteins \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BHAfterNoise.3/DistinctProteins.regular.20.3.24.log
+```
+* alu 13
+* 12:19 -->

@@ -332,15 +332,9 @@ def multisample_positions_to_reads(
     snp_noise_level: float,
     top_x_noisy_positions: int,
     pooled_transcript_noise_threshold: float,
-    bh_noisy_col: str,
+    # bh_noisy_col: str,
 ):
     positions_df = pd.read_csv(positions_file, sep=sep, dtype={"Reads": str})
-
-    # pooled_transcript_noise = (
-    #     positions_df.loc[positions_df["Noise"] < snp_noise_level, "Noise"]
-    #     .sort_values(ascending=False)[:top_x_noisy_positions]
-    #     .mean()
-    # )
 
     # pooled_transcript_noise = (
     #     positions_df.loc[
@@ -348,12 +342,11 @@ def multisample_positions_to_reads(
     #         "Noise",
     #     ]
     #     .sort_values(ascending=False)[:top_x_noisy_positions]
-    #     .mean()
+    #     .tolist()
     # )
-
     pooled_transcript_noise = (
         positions_df.loc[
-            (positions_df["Noise"] < snp_noise_level) & (positions_df[bh_noisy_col]),
+            (positions_df["Noise"] < snp_noise_level) & (positions_df["NoisyFinal"]),
             "Noise",
         ]
         .sort_values(ascending=False)[:top_x_noisy_positions]
@@ -619,7 +612,7 @@ def multisample_reads_and_unique_reads(
     snp_noise_level: float,
     top_x_noisy_positions: int,
     pooled_transcript_noise_threshold: float,
-    bh_noisy_col: str,
+    # bh_noisy_col: str,
     reads_out_file: Union[Path, str, None] = None,
     unique_reads_out_file: Union[Path, str, None] = None,
     sep: str = "\t",
@@ -638,7 +631,7 @@ def multisample_reads_and_unique_reads(
             snp_noise_level,
             top_x_noisy_positions,
             pooled_transcript_noise_threshold,
-            bh_noisy_col,
+            # bh_noisy_col,
         )
 
         unique_reads_df = multisample_reads_to_unique_reads(reads_df)

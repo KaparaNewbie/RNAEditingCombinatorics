@@ -796,6 +796,7 @@ def multisample_pileups_to_positions_all_transcripts(
     binom_editing_pval_col: str = "EditingBinomPVal",
     bh_editing_pval_col: str = "EditingCorrectedPVal",
     bh_editing_col: str = "EditedCorrected",
+    disregard_alt_base_freq_1: bool = True,
 ):
     """
     Read pileup files of reads mapped to a certain transcript from one or more samples into a DataFrame.
@@ -842,6 +843,7 @@ def multisample_pileups_to_positions_all_transcripts(
         `binom_editing_pval_col` (str, optional): The name of the column in the returned DataFrame that will contain the p-value of the binomial test for editing. Defaults to "EditingBinomPVal".
         `bh_editing_pval_col` (str, optional): The name of the column in the returned DataFrame that will contain the corrected p-value for editing after applying the Benjamini-Hochberg procedure. Defaults to "EditingCorrectedPVal".
         `bh_editing_col` (str, optional): The name of the column in the returned DataFrame that will contain the information on whether the corrected editing p-value after applying the Benjamini-Hochberg procedure is significant (i.e., "rejected"). Defaults to "EditedCorrected".
+        `disregard_alt_base_freq_1` (bool, optional): If True, disregard positions with alternative base frequency of 1 from being considered finally noisy or edited. Defaults to True.
     """
 
     cds_regions_df = pd.read_csv(
@@ -907,6 +909,7 @@ def multisample_pileups_to_positions_all_transcripts(
                     binom_noise_pval_col,
                     bh_noise_pval_col,
                     bh_noisy_col,
+                    disregard_alt_base_freq_1,
                 )
                 for positions_file, corrected_noise_file, strand in zip(
                     positions_files,
@@ -949,6 +952,7 @@ def multisample_pileups_to_positions_all_transcripts(
                     binom_editing_pval_col,
                     bh_editing_pval_col,
                     bh_editing_col,
+                    disregard_alt_base_freq_1,
                 )
                 for positions_file, corrected_editing_file, chrom, strand in zip(
                     positions_files,
@@ -1387,6 +1391,7 @@ def multisample_pileups_to_positions_part_2(
     binom_noise_pval_col: str,
     bh_noise_pval_col: str,
     bh_noisy_col: str,
+    disregard_alt_base_freq_1: bool,
 ):
     """
     The input positions_file is after noise annotation, and the BH correction is added according to the corrected
@@ -1406,6 +1411,7 @@ def multisample_pileups_to_positions_part_2(
         `binom_noise_pval_col` (str): The name of the column in the final file that will contain the p-value of the binomial test for noise.
         `bh_noise_pval_col` (str): The name of the column in the final file that will contain the corrected p-value for noise after applying the Benjamini-Hochberg procedure.
         `bh_noisy_col` (str): The name of the column in the final file that will contain the information on whether the corrected noise p-value after applying the Benjamini-Hochberg procedure is significant (i.e., "rejected").
+        `disregard_alt_base_freq_1` (bool): If True, disregard positions with alternative base frequency of 1.0 when considering if a position is noisy.
     """
     ref_base = "A" if strand == "+" else "T"
 
@@ -1434,27 +1440,31 @@ def multisample_pileups_to_positions_part_2(
         positions_df[bh_noisy_col] = positions_df[bh_noisy_col].fillna(
             False
         )  # because all([np.nan]) == True
+
     else:
-        # positions_df[binom_noise_pval_col] = positions_df[ref_base].apply(
-        #     lambda x: 1.0 if x != ref_base else np.NaN
-        # )
-        # positions_df[bh_noise_pval_col] = positions_df[ref_base].apply(
-        #     lambda x: 1.0 if x != ref_base else np.NaN
-        # )
-        # positions_df[bh_noisy_col] = positions_df[ref_base].apply(
-        #     lambda x: False if x != ref_base else np.NaN
-        # )
         positions_df[binom_noise_pval_col] = positions_df["RefBase"].apply(
             lambda x: 1.0 if x != ref_base else np.NaN
         )
         positions_df[bh_noise_pval_col] = positions_df["RefBase"].apply(
             lambda x: 1.0 if x != ref_base else np.NaN
         )
-        # positions_df[bh_noisy_col] = positions_df["RefBase"].apply(
-        #     lambda x: False if x != ref_base else np.NaN
-        # )
         # because all([np.nan]) == True
         positions_df[bh_noisy_col] = False
+
+    positions_df.insert(
+        positions_df.columns.get_loc(bh_noisy_col) + 1,
+        "BelowNoiseFreq1",
+        positions_df["Noise"] < 1,
+    )
+
+    if disregard_alt_base_freq_1:
+        noise_cols = [bh_noisy_col, "BelowNoiseFreq1"]
+    else:
+        noise_cols = [bh_noisy_col]
+
+    annotate_noisy_sites_final_decision(
+        positions_df, positions_df.columns.get_loc("BelowNoiseFreq1") + 1, noise_cols
+    )
 
     #  possibly remove non refbase positions with too-high noise & define noise threshold
     if remove_non_refbase_noisy_positions:
@@ -1462,7 +1472,7 @@ def multisample_pileups_to_positions_part_2(
         positions_before = len(positions_df)
         positions_df = positions_df.loc[
             (positions_df["RefBase"] == ref_base)
-            | ((positions_df["Noise"] < snp_noise_level) & (positions_df[bh_noisy_col]))
+            | ((positions_df["Noise"] < snp_noise_level) & (positions_df["NoisyFinal"]))
         ]
         positions_after = len(positions_df)
         removed_positions = positions_before - positions_after
@@ -1470,11 +1480,6 @@ def multisample_pileups_to_positions_part_2(
             f"{removed_positions} extremely- or insignificantly-noisy positions removed"
         )
         # define noise threshold
-        # noise_threshold = (
-        #     positions_df["Noise"]
-        #     .sort_values(ascending=False)[:top_x_noisy_positions]
-        #     .mean()
-        # )
         noise_levels = (
             positions_df["Noise"]
             .sort_values(ascending=False)[:top_x_noisy_positions]
@@ -1487,19 +1492,10 @@ def multisample_pileups_to_positions_part_2(
         noise_threshold = noise_levels.mean()
     else:
         # define noise threshold
-        # noise_threshold = (
-        #     positions_df.loc[
-        #         (positions_df["Noise"] < snp_noise_level)
-        #         & (positions_df[bh_noisy_col]),
-        #         "Noise",
-        #     ]
-        #     .sort_values(ascending=False)[:top_x_noisy_positions]
-        #     .mean()
-        # )
         noise_levels = (
             positions_df.loc[
                 (positions_df["Noise"] < snp_noise_level)
-                & (positions_df[bh_noisy_col]),
+                & (positions_df["NoisyFinal"]),
                 "Noise",
             ]
             .sort_values(ascending=False)[:top_x_noisy_positions]
@@ -1521,6 +1517,30 @@ def multisample_pileups_to_positions_part_2(
     positions_df.to_csv(positions_file, sep=sep, index=False, na_rep=np.NaN)
 
 
+def annotate_noisy_sites_final_decision(
+    positions_df: pd.DataFrame,
+    new_col_loc: int,
+    noise_cols: list[str],
+) -> None:
+    """
+    Determine the final noise status of each position, based on the agreement between the noise columns
+    `noise_cols`.
+
+    Args:
+        positions_df (pd.DataFrame): The positions dataframe.
+        new_col_loc (int): The location in which to insert the new column.
+        noise_cols (list[str]): The noise columns to consider.
+    """
+    final_noise_status = positions_df.apply(
+        lambda x: all([x[col] for col in noise_cols]), axis=1
+    )
+    positions_df.insert(
+        new_col_loc,
+        "NoisyFinal",
+        final_noise_status,
+    )
+
+
 def multisample_pileups_to_positions_part_3(
     positions_file: Path,
     corrected_editing_file: Path,
@@ -1534,6 +1554,7 @@ def multisample_pileups_to_positions_part_3(
     binom_editing_pval_col: str,
     bh_editing_pval_col: str,
     bh_editing_col: str,
+    disregard_alt_base_freq_1: bool,
 ):
     """
     The input positions_file is given after basic editing annoatation, and the BH correction for editing is added
@@ -1555,6 +1576,7 @@ def multisample_pileups_to_positions_part_3(
         `binom_editing_pval_col` (str): The name of the column in the final file that will contain the p-value of the binomial test for editing.
         `bh_editing_pval_col` (str): The name of the column in the final file that will contain the corrected p-value for editing after applying the Benjamini-Hochberg procedure.
         `bh_editing_col` (str): The name of the column in the final file that will contain the information on whether the corrected editing p-value after applying the Benjamini-Hochberg procedure is significant (i.e., "rejected").
+        `disregard_alt_base_freq_1` (bool): If True, disregard positions with alternative base frequency of 1.0 when considering if a position is edited. This option adds up to the `final_editing_scheme` option.
     """
 
     ref_base = "A" if strand == "+" else "T"
@@ -1602,10 +1624,13 @@ def multisample_pileups_to_positions_part_3(
         positions_df[bh_editing_pval_col] = positions_df["RefBase"].apply(
             lambda x: 1.0 if x == ref_base else np.NaN
         )
-        # positions_df[bh_editing_col] = positions_df["RefBase"].apply(
-        #     lambda x: False if x == ref_base else np.NaN
-        # )
         positions_df[bh_editing_col] = False  # because all([np.nan]) == True
+
+    positions_df.insert(
+        positions_df.columns.get_loc(bh_editing_col) + 1,
+        "BelowEditingFreq1",
+        positions_df["EditingFrequency"] < 1,
+    )
 
     # remove positions with insufficient coverage defined by absolute or relative coverage criteria
     # (we can finally do this after BH correction for noise & editing)
@@ -1641,10 +1666,12 @@ def multisample_pileups_to_positions_part_3(
                 "of mapped bases, reads, and samples."
             )
 
-    # finally, annotate editing based on one of two possible schemes:
+    # finally, annotate editing based on one of two possible basic schemes,
+    # plus the option to ignore alt base freq 1 as SNPs:
     # 1. based on the corrected editing p-values alone
     # 2. based on the corrected editing p-values, and also on the noise threshold (which is also corrected), as defined
     # by the "naive" editing status
+    # 3. by not considering positions with alternative base frequency of 1.0 as edited (this is an additional option)
     if final_editing_scheme == "BH only":
         editing_cols = [bh_editing_col]
     elif final_editing_scheme == "BH after noise thresholding":
@@ -1653,6 +1680,8 @@ def multisample_pileups_to_positions_part_3(
         raise ValueError(
             f"{final_editing_scheme = } is not a valid final_editing_scheme, must be either 'BH only' or 'BH after noise thresholding'"
         )
+    if disregard_alt_base_freq_1:
+        editing_cols.append("BelowEditingFreq1")
     annotate_edited_sites_final_decision(positions_df, bh_editing_col, editing_cols)
 
     positions_df.to_csv(positions_file, sep=sep, index=False, na_rep=np.NaN)

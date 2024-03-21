@@ -31,6 +31,7 @@ from itertools import chain, combinations, product
 from math import ceil
 from multiprocessing import Pool
 from pathlib import Path
+from random import choice
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -313,8 +314,11 @@ complete_data_df
 # complete_data_df[["Chrom"]].to_csv("TMR50.CompleteData.Chroms.tsv", sep="\t", index=False)
 
 # %%
-robo2_index = complete_data_df.loc[complete_data_df["Chrom"] == robo2_chrom].index[0]
-robo2_index
+complete_data_df.loc[complete_data_df["Chrom"] == robo2_chrom]
+
+# %%
+# robo2_index = complete_data_df.loc[complete_data_df["Chrom"] == robo2_chrom].index[0]
+# robo2_index
 
 # %%
 complete_data_df["Strand"].value_counts()
@@ -770,34 +774,6 @@ concat_all_positions_df = make_concat_all_positions_df(possibly_na_positions_fil
 concat_all_positions_df
 
 # %%
-# # previoisly edited positions, which are now not considered edited
-# positions_df.loc[
-#     (positions_df["Edited"]) & (~positions_df["EditedFinal"])
-# ]
-
-# %%
-concat_all_positions_df.loc[
-    (concat_all_positions_df["NoisyCorrected"].fillna(False))
-    & (concat_all_positions_df["Noise"] <= 0.1)
-]
-
-# %%
-x = concat_all_positions_df.loc[
-    (concat_all_positions_df["NoisyCorrected"].fillna(False)),
-    "Noise"
-] * 100
-                                   
-fig = go.Figure()
-fig.add_trace(go.Histogram(x=x, cumulative_enabled=True, 
-                           # histnorm='percent'
-                          ))
-
-fig.update_xaxes(title="Noise [%]")
-fig.update_yaxes(type="log", title="Positions")
-fig.update_layout(width=700, height=500, template=template)
-fig.show()
-
-# %%
 test_cols = [
     condition_col,
     "Chrom",
@@ -819,46 +795,130 @@ test_cols = [
 
 # %%
 concat_all_positions_df.loc[
-    # all edited positions in transcripts whose pooled noise levels is < 6%
-    (concat_all_positions_df["EditedFinal"]) & (concat_all_positions_df["Chrom"].isin(chroms)),
+    (concat_all_positions_df["NoisyCorrected"].fillna(False))
+    & (concat_all_positions_df["Noise"] <= 0.1),
     test_cols
 ]
+
+# %%
+x = concat_all_positions_df.loc[
+    (concat_all_positions_df["NoisyCorrected"].fillna(False)),
+    "Noise"
+] * 100
+                                   
+fig = go.Figure()
+fig.add_trace(go.Histogram(x=x, cumulative_enabled=True, 
+                           # histnorm='percent'
+                          ))
+
+fig.update_xaxes(title="Noise [%]")
+fig.update_yaxes(type="log", title="Positions")
+fig.update_layout(width=700, height=500, template=template)
+fig.show()
+
+# %%
+
+# %%
 
 # %%
 concat_all_positions_df.loc[
-    (~concat_all_positions_df["Edited"]) & (concat_all_positions_df["EditedFinal"]), 
+    concat_all_positions_df["Edited"],
     test_cols
-]
+].shape
 
 # %%
 concat_all_positions_df.loc[
-    (~concat_all_positions_df["Edited"]) & (concat_all_positions_df["EditedFinal"]) & (concat_all_positions_df["Chrom"].isin(chroms)), 
+    concat_all_positions_df["EditedCorrected"],
     test_cols
-]
-
-# %%
-concat_all_positions_df.loc[concat_all_positions_df["EditedCorrected"].fillna(False), test_cols]
-
-# %%
-concat_all_positions_df.loc[concat_all_positions_df["EditedCorrected"].fillna(False), test_cols]["RefBase"].value_counts()
-
-# %%
-concat_all_positions_df.loc[concat_all_positions_df["EditedFinal"].fillna(False), test_cols]
+].shape
 
 # %%
 concat_all_positions_df.loc[
-    (concat_all_positions_df["EditedCorrected"].fillna(False)) & (concat_all_positions_df["NoisyCorrected"].fillna(False)),
+    # all edited positions in all transcripts - including ones whose pooled noise levels is >= 6%
+    (concat_all_positions_df["EditedFinal"]),
     test_cols
-]
+].shape
 
 # %%
-concat_all_positions_df.loc[concat_all_positions_df["EditedFinal"].fillna(False), test_cols]["RefBase"].value_counts()
+
+# %%
+# no overlap between noise and editing positions
+concat_all_positions_df.loc[
+    (
+         (concat_all_positions_df["Edited"])
+        | (concat_all_positions_df["EditedCorrected"])
+        | (concat_all_positions_df["EditedFinal"])
+    )
+    & (concat_all_positions_df["NoisyCorrected"]),
+    test_cols
+].shape
+
+# %%
 
 # %%
 concat_all_positions_df.loc[
-    (concat_all_positions_df["EditedFinal"].fillna(False)) & (concat_all_positions_df["NoisyCorrected"].fillna(False)),
+    concat_all_positions_df["Edited"] 
+    & (concat_all_positions_df["Chrom"].isin(chroms)),
     test_cols
-]
+].shape
+
+# %%
+concat_all_positions_df.loc[
+    concat_all_positions_df["EditedCorrected"]
+    & (concat_all_positions_df["Chrom"].isin(chroms)),
+    test_cols
+].shape
+
+# %%
+len(chroms)
+
+# %%
+concat_all_positions_df.loc[
+    (concat_all_positions_df["Edited"]) 
+    & (~concat_all_positions_df["EditedCorrected"]) 
+    & (concat_all_positions_df["Chrom"].isin(chroms)), 
+    test_cols
+].shape
+
+# %%
+concat_all_positions_df.loc[
+    (~concat_all_positions_df["Edited"]) 
+    & (concat_all_positions_df["EditedCorrected"]) 
+    & (concat_all_positions_df["Chrom"].isin(chroms)), 
+    test_cols
+].shape
+
+# %%
+concat_all_positions_df.loc[
+    (concat_all_positions_df["Edited"]) 
+    & (concat_all_positions_df["EditedCorrected"]) 
+    & (concat_all_positions_df["Chrom"].isin(chroms)), 
+    test_cols
+].shape
+
+# %%
+concat_all_positions_df.loc[
+    (concat_all_positions_df["EditedFinal"]) 
+    & (concat_all_positions_df["Chrom"].isin(chroms)),
+    test_cols
+].shape
+
+# %%
+concat_all_positions_df.loc[
+    (concat_all_positions_df["EditedFinal"]) 
+    & (
+         (~concat_all_positions_df["Edited"]) 
+        | (~concat_all_positions_df["EditedCorrected"]) 
+    )
+    & (concat_all_positions_df["Chrom"].isin(chroms)),
+    test_cols
+].shape
+
+# %%
+
+# %%
+
+# %%
 
 # %%
 
@@ -2005,6 +2065,382 @@ fig.write_image(
 
 fig.show()
 
+
+# %% [markdown]
+# ### Mismatches by type
+
+# %%
+def find_alt_base(ref_base: str, a_count: int, t_count: int, c_count: int, g_count: int):
+    """
+    Find the base with most supporting reads other than `ref_base`.
+    If there are two or more such bases, the function picks one at random.
+    """
+    base_counts_dict = {"A": a_count, "T": t_count, "C": c_count, "G": g_count}
+    alt_bases = set(base_counts_dict) - {ref_base}
+    alt_base_counts_dict = {
+        base: base_count
+        for base, base_count in base_counts_dict.items()
+        if base in alt_bases
+    }
+    max_alt_base_count = max(alt_base_counts_dict.values())
+    max_alt_bases = [
+        base 
+        for base, base_count in alt_base_counts_dict.items()
+        if base_count == max_alt_base_count
+    ]
+    alt_base = choice(max_alt_bases)
+    return alt_base
+
+
+# %%
+def define_mismatch_type(ref_base: str, alt_base: str, strand: str):
+    if strand == "-":
+        opposing_bases = {"A": "T", "T": "A", "C": "G", "G": "C"}
+        ref_base = opposing_bases[ref_base]
+        alt_base = opposing_bases[alt_base]
+    mismatch_type = f"{ref_base}>{alt_base}"
+    return mismatch_type
+
+
+# %%
+def mismatch_frequency(ref_base_count, alt_base_count):
+    return alt_base_count / (ref_base_count + alt_base_count)
+
+
+# %%
+mismatches_df = concat_all_positions_df.loc[
+    :, 
+    [
+        condition_col,
+        "Chrom",
+        "Position",
+        "RefBase",
+        "TotalCoverage",
+        "A",
+        "T",
+        "C",
+        "G",
+        "EditingFrequency",
+        "Edited",
+        # "EditingBinomPVal",
+        # "EditingCorrectedPVal",
+        "EditedCorrected",
+        "EditedFinal",
+        "Noise",
+        "NoisyCorrected"
+    ]
+]
+
+mismatches_df.insert(
+    # mismatches_df.columns.get_loc("G") + 1,
+    mismatches_df.columns.get_loc("RefBase") + 1,
+    "AltBase",
+    mismatches_df.apply(
+        lambda x: find_alt_base(
+            x["RefBase"],
+            x["A"],
+            x["T"],
+            x["C"],
+            x["G"],
+        ),
+        axis=1,
+    )
+)
+
+# no point in keeping positions without mismatches
+mismatches_df.insert(
+    # mismatches_df.columns.get_loc("AltBase") + 1,
+    mismatches_df.columns.get_loc("G") + 1,
+    "AltBaseCount",
+    mismatches_df.apply(
+        lambda x: x[x["AltBase"]],
+        axis=1,
+    )
+)
+mismatches_df = mismatches_df.loc[mismatches_df["AltBaseCount"] > 0]
+# del mismatches_df["AltBaseCount"]
+     
+# annotate mismatch frequency as an alternative and general annotation to `EditingFrequency` and `Noise`
+mismatches_df.insert(
+    mismatches_df.columns.get_loc("G") + 1,
+    "MismatchFrequency",
+    mismatches_df.apply(
+        lambda x: mismatch_frequency(x[x["RefBase"]], x[x["AltBase"]]),
+        axis=1
+    )
+)
+
+# get strand information to define mismatch type on the minus strand
+mismatches_df = mismatches_df.merge(
+    data_df.loc[:, ["Chrom", "Strand"]],
+    how="left"
+)
+mismatches_df.insert(
+    mismatches_df.columns.get_loc("Chrom") + 1,
+    "Strand2",
+    mismatches_df["Strand"]
+)
+del mismatches_df["Strand"]
+mismatches_df = mismatches_df.rename(columns={"Strand2": "Strand"})
+
+mismatches_df.insert(
+    mismatches_df.columns.get_loc("AltBase") + 1,
+    "Mismatch",
+    mismatches_df.apply(lambda x: define_mismatch_type(x["RefBase"], x["AltBase"], x["Strand"]), axis=1)
+)
+
+
+
+mismatches_df
+
+# %%
+true_a2g_mismatches = mismatches_df.loc[
+    (mismatches_df["EditedFinal"]) & (mismatches_df["Mismatch"] == "A>G") & (mismatches_df["Chrom"].isin(chroms))
+]
+true_a2g_mismatches
+
+# %%
+wrong_a2g_mismatches = mismatches_df.loc[
+    (mismatches_df["EditedFinal"]) & (mismatches_df["Mismatch"] != "A>G") & (mismatches_df["Chrom"].isin(chroms))
+]
+wrong_a2g_mismatches
+
+# %%
+len(wrong_a2g_mismatches) / len(true_a2g_mismatches)
+
+# %%
+wrong_a2g_mismatches_per_chrom = wrong_a2g_mismatches.groupby(["Chrom", condition_col]).size().reset_index().rename(columns={0: "WrongEditingSitesPerChrom"}).sort_values("WrongEditingSitesPerChrom", ascending=False)
+wrong_a2g_mismatches_per_chrom
+
+# %%
+wrong_a2g_mismatches_per_chrom["WrongEditingSitesPerChrom"].describe()
+
+# %%
+significant_mismatches_df = mismatches_df.loc[
+    (mismatches_df["Chrom"].isin(chroms)) & 
+    ((mismatches_df["EditedFinal"]) | (mismatches_df["NoisyCorrected"]))
+]
+significant_mismatches_df["MismatchFrequency>10%"] = significant_mismatches_df["MismatchFrequency"] > 0.1
+significant_mismatches_df
+
+# %%
+significant_mismatches_df.loc[]
+
+# %%
+# mismatches_color_sequence = px.colors.qualitative.Set3
+mismatches_color_sequence = px.colors.qualitative.Dark24
+mismatch_dolor_map = {
+    mismatch: color
+    for mismatch, color in zip(significant_mismatches_df["Mismatch"].unique(), mismatches_color_sequence)
+}
+# mismatch_dolor_map
+
+# %%
+fig = px.histogram(
+    significant_mismatches_df,
+    x="Mismatch",
+    # x="MismatchFrequency",
+    # facet_col="EditedFinal",
+    color="Mismatch",
+    color_discrete_map=mismatch_dolor_map,
+    # facet_col_wrap=4,
+    # log_y=True,
+    template=template,
+    title="Number of significant mismatches in transcripts with pooled noise level < 6%"
+)
+
+# Reduce opacity to see both histograms
+# fig.update_traces(opacity=0.75)
+fig.update_layout(
+    width=600, height=500,
+    showlegend=False
+    # barmode='overlay' # Overlay both histograms
+)
+
+fig.show()
+
+# %% jupyter={"source_hidden": true}
+fig = px.histogram(
+    significant_mismatches_df.loc[significant_mismatches_df["MismatchFrequency"] < 1],
+    x="Mismatch",
+    # x="MismatchFrequency",
+    # facet_col="EditedFinal",
+    color="Mismatch",
+    color_discrete_map=mismatch_dolor_map,
+    # facet_col_wrap=4,
+    # log_y=True,
+    template=template,
+    title="Number of significant mismatches in transcripts with pooled noise level < 6%"
+)
+
+# Reduce opacity to see both histograms
+# fig.update_traces(opacity=0.75)
+fig.update_layout(
+    width=600, height=500,
+    showlegend=False
+    # barmode='overlay' # Overlay both histograms
+)
+
+fig.show()
+
+# %%
+fig = px.histogram(
+    significant_mismatches_df,
+    x="Mismatch",
+    # x="MismatchFrequency",
+    facet_col="EditedFinal",
+    color="Mismatch",
+    color_discrete_map=mismatch_dolor_map,
+    # facet_col_wrap=4,
+    # log_y=True,
+    template=template,
+    title="Number of significant mismatches in transcripts with pooled noise level < 6%"
+)
+
+# Reduce opacity to see both histograms
+# fig.update_traces(opacity=0.75)
+fig.update_layout(
+    width=1000, height=500,
+    showlegend=False
+    # barmode='overlay' # Overlay both histograms
+)
+
+fig.show()
+
+# %%
+fig = px.histogram(
+    significant_mismatches_df,
+    x="MismatchFrequency",
+    facet_col="Mismatch",
+    # color="EditedFinal",
+    color="Mismatch",
+    color_discrete_map=mismatch_dolor_map,
+    facet_col_wrap=4,
+    log_y=True,
+    template=template,
+    title="Mismatch frequency distribution of significant mismatches in transcripts with pooled noise level < 6%",
+    # cumulative=True
+)
+
+fig.update_layout(
+    width=1600, height=800,
+    showlegend=False
+)
+
+fig.show()
+
+# %% jupyter={"source_hidden": true}
+# fig = px.histogram(
+#     significant_mismatches_df,
+#     x="MismatchFrequency",
+#     facet_col="EditedFinal",
+#     color="Mismatch",
+#     color_discrete_map=mismatch_dolor_map,
+#     facet_col_wrap=4,
+#     log_y=True,
+#     template=template,
+#     title="Mismatch frequency distribution of significant mismatches in transcripts with pooled noise level < 6%",
+#     # cumulative=True
+# )
+
+# # Reduce opacity to see both histograms
+# fig.update_traces(opacity=0.5)
+# fig.update_layout(
+#     width=1000, height=500,
+#     barmode='overlay' # Overlay both histograms
+# )
+
+# fig.show()
+
+# %%
+fig = px.histogram(
+    significant_mismatches_df,
+    x="MismatchFrequency",
+    facet_col="Mismatch",
+    color="Mismatch",
+    color_discrete_map=mismatch_dolor_map,
+    facet_col_wrap=4,
+    # log_y=True,
+    template=template,
+    title="Cummulative relative mismatch frequency distribution of significant mismatches in transcripts with pooled noise level < 6%",
+    cumulative=True,
+    histnorm='percent'
+)
+
+fig.update_layout(
+    width=1600, height=800,
+    showlegend=False
+)
+
+fig.show()
+
+# %%
+fig = px.histogram(
+    significant_mismatches_df.loc[significant_mismatches_df["EditedFinal"]],
+    x="EditingFrequency",
+    facet_col="Mismatch",
+    color="Mismatch",
+    color_discrete_map=mismatch_dolor_map,
+    # facet_col_wrap=4,
+    log_y=True,
+    template=template,
+    title="Editing frequency distribution of significantly editing sites in transcripts with pooled noise level < 6%"
+)
+
+fig.update_layout(
+    width=1200, height=400,
+    showlegend=False
+)
+
+fig.show()
+
+# %%
+fig = px.scatter(
+    significant_mismatches_df.loc[
+        (significant_mismatches_df["EditedFinal"]) 
+        & (significant_mismatches_df["Mismatch"]!="A>G")
+    ],
+    x="EditingFrequency",
+    y="MismatchFrequency",
+    facet_col="Mismatch",
+    color="Mismatch",
+    color_discrete_map=mismatch_dolor_map,
+    # facet_col_wrap=4,
+    # log_y=True,
+    template=template,
+    title="Editing frequency vs mismatch frequency of `wrong` significantly editing sites<br>in transcripts with pooled noise level < 6%"
+)
+
+fig.update_traces(marker_size=7)
+fig.update_layout(
+    width=800, height=400,
+    showlegend=False
+)
+
+fig.show()
+
+# %%
+fig = px.histogram(
+    wrong_a2g_mismatches_per_chrom,
+    x="WrongEditingSitesPerChrom",
+    # x="MismatchFrequency",
+    # facet_col="EditedFinal",
+    # color="Mismatch",
+    # color_discrete_map=mismatch_dolor_map,
+    # facet_col_wrap=4,
+    log_y=True,
+    template=template,
+    title="Number of wrong A>G mismatches per transcripts with pooled noise<br>level < 6%"
+)
+fig.update_xaxes(dtick=1)
+fig.update_layout(
+    width=700, height=400,
+    showlegend=False
+    # barmode='overlay' # Overlay both histograms
+)
+
+fig.show()
+
 # %% [markdown]
 # ### Machine noise
 
@@ -2094,6 +2530,59 @@ sets = [
             & (concat_all_positions_df["CDS"]) 
             # only transcripts whose pooled noise levels is < 6%
             & (concat_all_positions_df["Chrom"].isin(chroms)), 
+            [condition_col, "Chrom", "Position"]
+        ].itertuples(index=False)
+    )
+    for label in labels
+]
+# labels[0] = f"Edited\n({len(sets[0])})"
+# labels[1] = f"Known editing\n({len(sets[1])})"
+labels[0] = f"De-novo\n({len(sets[0])})"
+labels[1] = f"Known\n({len(sets[1])})"
+
+venn2(sets, set_labels=labels, ax=ax)
+
+fig.suptitle(
+    # "Pooled octopus data",
+    "Whole-transcriptome octopus data",
+    fontsize="xx-large",
+    # y=1.2
+)
+# plt.title("Pooled octopus data", fontsize=16,
+#           # y=1.2
+#          )
+# ax.set_title("Pooled octopus data", fontdict=dict(fontsize=16))
+# # ax.set_title("", fontdict=dict(fontsize=14))
+# # fig.suptitle("Pooled octopus data", fontsize="xx-large", y=1.2)
+# fig.tight_layout()
+
+plt.savefig("Known vs new editing sites - Octopus.svg", format="svg", dpi=300)
+
+plt.show()
+
+# %% jupyter={"source_hidden": true}
+cols = 1
+rows = 1
+
+fig, ax = plt.subplots(
+    # nrows=rows,
+    # ncols=cols,
+    # figsize=(3.5 * cols, 2.5 * rows),
+    figsize=(4.5 * cols, 2.5 * rows),
+    constrained_layout=True,
+    gridspec_kw=dict(hspace=0.2, wspace=0.3),
+)
+
+labels = ["EditedFinal", "KnownEditing"]
+
+sets = [
+    set(
+        concat_all_positions_df.loc[
+            (concat_all_positions_df[label]) 
+            & (concat_all_positions_df["CDS"]) 
+            # only transcripts whose pooled noise levels is < 6%
+            & (concat_all_positions_df["Chrom"].isin(chroms))
+            & (concat_all_positions_df["EditingFrequency"] < 1), 
             [condition_col, "Chrom", "Position"]
         ].itertuples(index=False)
     )

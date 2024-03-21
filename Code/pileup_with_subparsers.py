@@ -90,6 +90,7 @@ def undirected_sequencing_main(
     num_sampled_reads: int,
     seed: int,
     final_editing_scheme: str,
+    disregard_alt_base_freq_1: bool,
     alternative_hypothesis: str,
     # binom_noise_pval_col: str,
     # bh_noise_pval_col: str,
@@ -360,6 +361,7 @@ def undirected_sequencing_main(
         binom_editing_pval_col,
         bh_editing_pval_col,
         bh_editing_col,
+        disregard_alt_base_freq_1,
     )
 
     # the pileup files themsevles were deleted by each processes turning pileup into positions,
@@ -395,7 +397,7 @@ def undirected_sequencing_main(
                     snp_noise_level,
                     top_x_noisy_positions,
                     pooled_transcript_noise_threshold,
-                    bh_noisy_col,
+                    # bh_noisy_col,
                     reads_file,
                     unique_reads_file,
                     out_files_sep,
@@ -1080,6 +1082,14 @@ def define_args() -> argparse.Namespace:
             "The final editing scheme to use. "
             "It can either depend only on corrected editing p-values across the CDS of the whole transcriptome, "
             "or also depend on the noise thresholding (which is corrected for multiple testing in the same manner)."
+        ),
+    )
+    undirected_sequencing_subparser.add_argument(
+        "--disregard_alt_base_freq_1",
+        action="store_true",
+        help=(
+            "Disregarde positions with alt base freq  1 from being considered as noisy or edited. "
+            "This option adds up with the `final_editing_scheme` option."
         ),
     )
     undirected_sequencing_subparser.add_argument(
