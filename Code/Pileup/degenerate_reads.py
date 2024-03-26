@@ -21,9 +21,14 @@ ic.configureOutput(includeContext=True, prefix=ic_prefix)
 
 
 def decode_degenerate_base(
-    degenerate_code: int, original_base_location: int, transcript_seq: Seq
+    degenerate_code: int, original_base_location: int, transcript_seq: Seq, chrom: str
 ):
-    original_base = transcript_seq[original_base_location]
+    try:
+        original_base = transcript_seq[original_base_location]
+    except IndexError as e:
+        raise IndexError(
+            f"IndexError: index {original_base_location} out of range in {chrom} "
+        )
     if original_base != "A":
         return original_base
     if degenerate_code == 0:
@@ -47,7 +52,9 @@ def degenerate_row_to_seqrecord(
 ):
     read_id = degenerate_row.name
     decoded_degenrate_read_bases = [
-        decode_degenerate_base(degenerate_code, original_base_location, transcript_seq)
+        decode_degenerate_base(
+            degenerate_code, original_base_location, transcript_seq, chrom
+        )
         for original_base_location, degenerate_code in degenerate_row.items()
     ]
     read_seq = Seq("".join(decoded_degenrate_read_bases))
@@ -70,8 +77,21 @@ def degenerate_reads_in_sample(
     processes: int,
     transcriptome_dict: dict[str, Seq],
 ):
+    ic(
+        reads_file,
+        chrom,
+        start,
+        end,
+        strand,
+        name,
+        degenerate_reads_out_file,
+        sep,
+        reads_first_col_pos,
+        processes,
+    )
     reads_df = pd.read_csv(reads_file, sep=sep, dtype={"Read": str})
     reads_df = reads_df.set_index("Read")
+    reads_first_col_pos -= 1  # since we used the "Read" column as the index, we need to subtract 1 from reads_first_col_pos
     reads_df = reads_df.iloc[:, reads_first_col_pos:]
     reads_df = reads_df.rename(columns=lambda x: int(x))
 
@@ -85,23 +105,23 @@ def degenerate_reads_in_sample(
     )
     degenerate_reads_df.update(reads_df)
 
-    transcript_seq = transcriptome_dict[chrom][start:end]
+    # transcript_seq = transcriptome_dict[chrom][start:end]
+    transcript_seq = transcriptome_dict[chrom]
+
+    starmap_input = []
+    for x in range(rows):
+        try:
+            degenerate_row = degenerate_reads_df.iloc[x, :]
+            starmap_input.append(
+                (degenerate_row, transcript_seq, chrom, start, end, strand, name)
+            )
+        except IndexError as e:
+            ic(x, rows, degenerate_reads_df.shape)
+            raise e
 
     with Pool(processes=processes) as pool:
         read_records = pool.starmap(
-            func=degenerate_row_to_seqrecord,
-            iterable=[
-                (
-                    degenerate_reads_df.iloc[x, :],
-                    transcript_seq,
-                    chrom,
-                    start,
-                    end,
-                    strand,
-                    name,
-                )
-                for x in range(rows)
-            ],
+            func=degenerate_row_to_seqrecord, iterable=starmap_input
         )
 
     if degenerate_reads_out_file.name.endswith(".gz"):
@@ -130,6 +150,21 @@ def directly_given_variables_main(
     postfix_to_add,
     **kwargs,
 ):
+    ic(
+        reads_files,
+        chroms,
+        starts,
+        ends,
+        strands,
+        names,
+        out_dir,
+        sep,
+        reads_first_col_pos,
+        transcriptome_file,
+        processes,
+        postfix_to_remove,
+        postfix_to_add,
+    )
     transcriptome_dict = make_fasta_dict(transcriptome_file)
     # out_dir = degenerate_reads_out_file.parent
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -144,19 +179,24 @@ def directly_given_variables_main(
             out_dir, Path(reads_file).name.replace(postfix_to_remove, postfix_to_add)
         )
 
-        degenerate_reads_in_sample(
-            reads_file,
-            chrom,
-            start,
-            end,
-            strand,
-            name,
-            degenerate_reads_out_file,
-            sep,
-            reads_first_col_pos,
-            processes,
-            transcriptome_dict,
-        )
+        try:
+            degenerate_reads_in_sample(
+                reads_file,
+                chrom,
+                start,
+                end,
+                strand,
+                name,
+                degenerate_reads_out_file,
+                sep,
+                reads_first_col_pos,
+                processes,
+                transcriptome_dict,
+            )
+        except IndexError as e:
+            ic(e)
+            ic(reads_file, chrom, start, end, strand, name)
+            continue
 
 
 def undirectly_given_variables_main(
@@ -174,7 +214,21 @@ def undirectly_given_variables_main(
     out_dir,
     **kwargs,
 ):
+    ic(
+        cds_regions,
+        sep,
+        in_dir,
+        postfix_to_find,
+        prefix_to_chrom,
+        postfix_to_remove,
+        postfix_to_add,
+        reads_first_col_pos,
+        transcriptome_file,
+        processes,
+        out_dir,
+    )
     reads_files = list(in_dir.glob(f"*{postfix_to_find}"))
+    # ic(reads_files)
     # len(reads_files)
     chroms = [
         reads_file.name.replace(prefix_to_chrom, "").split(".")[0]
@@ -188,6 +242,11 @@ def undirectly_given_variables_main(
     )
     cds_df = cds_df.loc[cds_df["Chrom"].isin(chroms)]
 
+    reads_file_and_chroms_df = pd.DataFrame({"ReadsFile": reads_files, "Chrom": chroms})
+    cds_df = cds_df.merge(reads_file_and_chroms_df, on="Chrom", how="left")
+
+    reads_files = cds_df["ReadsFile"].tolist()
+    chroms = cds_df["Chrom"].tolist()
     starts = cds_df["Start"].tolist()
     ends = cds_df["End"].tolist()
     strands = cds_df["Strand"].tolist()
@@ -231,7 +290,7 @@ def define_args() -> argparse.Namespace:
         "--processes",
         type=int,
         default=6,
-        help="Maximal number of processes to run in parallel. Some memory consuming may use fewer.",
+        help="Maximal number of processes to run in parallel.",
     )
     parser.add_argument(
         "--sep", default="\t", help="Delimiter for input tabular files."
@@ -245,7 +304,7 @@ def define_args() -> argparse.Namespace:
     parser.add_argument(
         "--postfix_to_remove",
         required=True,
-        help="Remove this part for the reads file name and replace it with `--postfix_to_add`.",
+        help="Remove this part from the reads file name and replace it with `--postfix_to_add`.",
     )
     parser.add_argument(
         "--postfix_to_add",
@@ -320,7 +379,7 @@ def define_args() -> argparse.Namespace:
     undirectly_given_variables_subparser.add_argument(
         "--prefix_to_chrom",
         required=True,
-        help="In each reads file name, the chromosome name is after this prefix and before the first dot.",
+        help="In each reads file name, the chromosome name is between this prefix to its left, and the first dot to its right.",
     )
 
     return parser
