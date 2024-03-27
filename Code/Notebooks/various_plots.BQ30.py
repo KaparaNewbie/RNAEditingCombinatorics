@@ -413,7 +413,7 @@ zerolinewidth = 4
 # n_repetitions_colormap(subcolors_discrete_map, "GRIA", 10)
 
 # %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"}
-# # Editing levels in PCLO
+# # Editing levels in PCLO - squid
 
 # %%
 px.colors
@@ -840,6 +840,159 @@ fig.write_image(
 fig.show()
 
 # %%
+# merged_ref_base_positions_df["Position"]
+
+# %%
+fig = make_subplots(
+    rows=2,
+    cols=1,
+    shared_xaxes=True,
+    # subplot_titles=["Known positions", "New positions"],
+    row_titles=["Known<br>positions", "De-novo<br>positions"],
+    x_title="Position",
+    y_title="Editing level in squid's PCLO [%]",
+    # vertical_spacing=0.15,
+    vertical_spacing=0.13,
+)
+
+symbols = ["circle", "square"]
+
+current_study_min_x = end
+current_study_max_x = start
+
+# colors = [
+#     px.colors.qualitative.G10[1],
+#     # px.colors.qualitative.Dark24[13],
+#     # px.colors.qualitative.Set3[11]
+#     px.colors.qualitative.G10[4],
+#     px.colors.qualitative.Vivid[5],
+# ]
+# colors = px.colors.qualitative.Pastel[:3]
+colors = px.colors.qualitative.Pastel[:2] + [px.colors.qualitative.Pastel[4]]
+
+for row in [1, 2]:
+    if row == 1:
+        df = merged_ref_base_positions_df.loc[
+            merged_ref_base_positions_df["Edited_Known"]
+        ]
+    else:
+        df = merged_ref_base_positions_df.loc[
+            ~merged_ref_base_positions_df["Edited_Known"]
+        ]
+
+    for color, editing_percent_col, edited_col, col_suffix in zip(
+        colors,
+        editing_percent_cols,
+        edited_cols,
+        col_suffixes,
+    ):
+        if row == 2 and col_suffix == "Known":
+            continue
+
+        x = df["Position"]
+        y = df[editing_percent_col]
+
+        if col_suffix != "Known":
+            _min_x = min([i for i, j in zip(x, y) if j != 0])
+            current_study_min_x = min(_min_x, current_study_min_x)
+            current_study_max_x = max(max(x), current_study_max_x)
+
+        # mode = markers
+        
+        if row == 1:
+            fig.add_trace(
+                go.Bar(
+                    x=x,
+                    y=y,
+                    # mode="lines+markers",
+                    # mode="markers",
+                    marker=dict(
+                        color=color,
+                        # opacity=0.7,
+                        # size=4,
+                        # size=6,
+                        # line=dict(
+                        #     width=2,
+                        #     color='DarkSlateGrey'
+                        # )
+                    ),
+                    # name=col_suffix,
+                    name=col_suffixes_updated_legend[col_suffix],
+                ),
+                row=row,
+                col=1,
+            )
+        else:
+            fig.add_trace(
+                go.Bar(
+                    x=x,
+                    y=y,
+                    # mode="lines+markers",
+                    # mode="markers",
+                    marker=dict(color=color, 
+                                # opacity=0.7, 
+                                # size=4,
+                                # size=6
+                               ),
+                    showlegend=False,
+                ),
+                row=row,
+                col=1,
+            )
+
+fig.update_xaxes(
+    range=[current_study_min_x, current_study_max_x],
+)
+
+lowest_y_greater_than_0 = (
+    pd.Series(
+        merged_ref_base_positions_df.loc[
+            :, ["%Editing_PacBio", "%Editing_Illumina", "%Editing_Known"]
+        ].values.reshape(-1)
+    )
+    .replace(0, np.NaN)
+    .min()
+)
+
+fig["layout"]["yaxis"].update(
+    range=[0, 100],
+    tick0=0,
+)
+
+fig["layout"]["yaxis2"].update(
+    range=[np.log(lowest_y_greater_than_0) / np.log(10), 2],
+    type="log",
+    tick0=0,
+)
+
+width = 1100
+height = 600
+
+fig.update_layout(
+    template=template,
+    width=width,
+    height=height,
+    legend=dict(
+        orientation="h", 
+        x=0.85,
+        y=0.8,
+        xref="container",
+        yref="container",
+        xanchor="right",
+    ),
+    barmode='overlay', 
+    xaxis={'categoryorder':'category ascending'}
+)
+
+# fig.write_image(
+#     "Comparison of editing levels across platforms and studies in squid’s PCLO - log(y) for new positions.svg",
+#     width=width,
+#     height=height,
+# )
+
+fig.show()
+
+# %%
 editing_percent_cols, edited_cols, col_suffixes,
 
 # %%
@@ -872,7 +1025,7 @@ current_study_min_x, current_study_max_x
 # fig.show()
 
 # %% [markdown]
-# # ADAR motif
+# # ADAR motif - squid
 
 # %%
 condition_col = "Platform"
@@ -1295,7 +1448,7 @@ multiple_logos_from_fasta_files(
 );
 
 # %% [markdown]
-# # Pooled editing levels comparisons
+# # Pooled editing levels comparisons - squid
 
 # %%
 known_sites_file = (
@@ -1835,7 +1988,7 @@ fig.show()
 
 
 # %% [markdown]
-# # Isoforms in 80K coverage
+# # Isoforms in 80K coverage - squid
 
 # %%
 condition_col = "Gene"
@@ -2702,7 +2855,7 @@ fig.show()
 
 
 # %% [markdown]
-# # Combined noise plots for squid
+# # Combined noise plots
 
 # %%
 condition_col = "Gene"
@@ -2748,6 +2901,7 @@ illumina_color_discrete_map = {
 # %%
 illumina_merged_noise_file = "NoiseLevels.Illumina.tsv"
 pacbio_merged_noise_file = "NoiseLevels.PacBio.tsv"
+octopus_noise_file = "Noise.Octopus.tsv"
 
 # %%
 illumina_merged_noise_df = pd.read_table(illumina_merged_noise_file)
@@ -2778,6 +2932,19 @@ pacbio_noise_dfs = [
 pacbio_noise_dfs[0]
 
 # %%
+octopus_noise_df = pd.read_table(octopus_noise_file)
+octopus_noise_df
+
+# %%
+octopus_noise_df.loc[octopus_noise_df["%Noise"] > 0]
+
+# %%
+100 * len(octopus_noise_df.loc[octopus_noise_df["%Noise"] > 0]) / len(octopus_noise_df)
+
+# %%
+octopus_noise_df["%Noise"].describe()
+
+# %%
 platforms_color_map = {
     platform: color_map
     for platform, color_map in zip(
@@ -2802,19 +2969,28 @@ joined_conditions = pacbio_conditions + illumina_conditions
 joined_noise_dfs = pacbio_noise_dfs + illumina_noise_dfs
 
 # %%
-column_widths = [len(conditions) for conditions in [pacbio_conditions, illumina_conditions]]
+len(joined_noise_dfs)
+
+# %%
+max_squid_noise = ceil(max([df["%Noise"].max() for df in joined_noise_dfs]))
+max_octopus_noise = ceil(octopus_noise_df["%Noise"].max())
+max_noise = ic(max([max_squid_noise, max_octopus_noise]))
+
+# %%
+column_widths = [len(pacbio_conditions), len(illumina_conditions), len(illumina_conditions)/2]
+# subplot_titles = ["Squid's Long-reads", "Squids' Short-reads", "Whole-transcriptome octopus data"]
+subplot_titles = ["Squids'<br>Long-reads", "Squids'<br>Short-reads", "Whole-transcriptome<br>octopus data"]
 
 fig = make_subplots(
     rows=1,
-    cols=2,
-    y_title="Per-site noise levels [%]",
-    x_title="Gene",
-    subplot_titles=platforms,
-    shared_yaxes="all",
+    cols=3,
+    # y_title="Dispersion [%]",
+    # x_title="Gene",
+    subplot_titles=subplot_titles,
+    # shared_yaxes="all",
     # shared_xaxes="all",
-    vertical_spacing=0.03,
-    # horizontal_spacing=0.015,
-    horizontal_spacing=0.03,
+    # vertical_spacing=0.04,
+    horizontal_spacing=0.06,
     column_widths=column_widths,
 )
 
@@ -2852,26 +3028,50 @@ for platform, condition, noise_df in zip(
         col=col,
     )
     
+    fig.update_xaxes(row=1, col=col, title_text="Gene", tickangle = 30, tickfont=dict(size=10))
+    fig.update_yaxes(row=1, col=col, range=[0, max_noise])
+    
     # ic(platform, condition)
     # ic(x)
     # ic(y)
     # break
 
-fig.update_xaxes(
-        tickangle = 30, 
-    # title_standoff = 10,
-    tickfont=dict(size=10)
-)    
+fig.update_yaxes(row=1, col=1, title_text="Per-site noise level [%]")
+    
+fig.add_trace(
+        go.Histogram(
+        y=octopus_noise_df["%Noise"],
+        marker_color="black",
+        # opacity=0.5
+    ),
+    row=1,
+    col=3,
+)
+fig.update_xaxes(row=1, col=3, title_text="Genes", type="log")
+fig.update_yaxes(row=1, col=3, title_text="Per-gene noise level [%]", range=[0, max_noise])
+
+    
+# fig.update_xaxes(
+#         tickangle = 30, 
+#     # title_standoff = 10,
+#     tickfont=dict(size=10)
+# )    
 
 # fig.update_yaxes(type="log",
 #                  # range=[np.log10(y_min), np.log10(y_max)], nticks=6
 #                 )
-width = 1000
+width = 1200
 height = 450
+
+fig.update_annotations(
+    # yshift=20, 
+    font_size=14
+)
 
 fig.update_layout(
     title="Noise levels",
     title_x=0.07,
+    title_y=0.95,
     template=template,
     width=width,
     height=height,
@@ -2879,12 +3079,99 @@ fig.update_layout(
 )
 
 fig.write_image(
-    "Per chrom noise levels - PacBio vs. Illumina.svg",
+    "Per chrom noise levels - PacBio vs. Illumina vs. octopus.svg",
     width=width,
     height=height,
 )
 
 fig.show()
+
+
+# %% jupyter={"source_hidden": true}
+# column_widths = [len(conditions) for conditions in [pacbio_conditions, illumina_conditions]]
+
+# fig = make_subplots(
+#     rows=1,
+#     cols=2,
+#     y_title="Per-site noise levels [%]",
+#     x_title="Gene",
+#     subplot_titles=platforms,
+#     shared_yaxes="all",
+#     # shared_xaxes="all",
+#     vertical_spacing=0.03,
+#     # horizontal_spacing=0.015,
+#     horizontal_spacing=0.03,
+#     column_widths=column_widths,
+# )
+
+# for platform, condition, noise_df in zip(
+#     joined_platforms, joined_conditions, joined_noise_dfs
+# ):
+#     x = noise_df[condition_col]
+#     y = noise_df["%Noise"]
+    
+#     color = platforms_color_map[platform][condition]
+#     col = 1 if platform == "Long-reads" else 2
+
+#     fig.add_trace(
+#         go.Violin(
+#             x=x,
+#             y=y,
+#             # mode="markers",
+#             # fillcolor=color,
+#             marker=dict(
+#                 color=color,
+#                 # symbol=platforms_symbols[platform],
+#                 # size=3,
+#                 # opacity=0.3,
+#             ),
+#             # mode="lines",
+#             # line=dict(
+#             #     color=platforms_color_map[platform][condition],
+#             #     dash=platforms_dashes[platform],
+#             #     # size=8,
+#             # ),
+#             # opacity=0.3,
+#             name=condition,
+#         ),
+#         row=1,
+#         col=col,
+#     )
+    
+    
+#     # ic(platform, condition)
+#     # ic(x)
+#     # ic(y)
+#     # break
+
+# fig.update_xaxes(
+#         tickangle = 30, 
+#     # title_standoff = 10,
+#     tickfont=dict(size=10)
+# )    
+
+# # fig.update_yaxes(type="log",
+# #                  # range=[np.log10(y_min), np.log10(y_max)], nticks=6
+# #                 )
+# width = 1000
+# height = 450
+
+# fig.update_layout(
+#     title="Noise levels",
+#     title_x=0.07,
+#     template=template,
+#     width=width,
+#     height=height,
+#     showlegend=False
+# )
+
+# fig.write_image(
+#     "Per chrom noise levels - PacBio vs. Illumina.svg",
+#     width=width,
+#     height=height,
+# )
+
+# fig.show()
 
 
 # %% [markdown]
@@ -3269,6 +3556,9 @@ octopus_dispersion_df = pd.read_table(octopus_dispersion_file)
 octopus_dispersion_df
 
 # %%
+octopus_dispersion_df["%SolutionsDispersion"].describe()
+
+# %%
 octopus_dispersion_df.loc[octopus_dispersion_df["%SolutionsDispersion"] > 0].sort_values("%SolutionsDispersion")
 
 # %%
@@ -3340,57 +3630,58 @@ for col, (dispersion_df, x_title, platform, platform_conditions) in enumerate(zi
             go.Histogram(
                 y=dispersion_df["%SolutionsDispersion"],
                 marker_color="black",
+                # opacity=0.5
             ),
             row=1,
             col=col,
         )
         fig.update_xaxes(row=1, col=col, title_text=x_title, type="log", )
 
-f = fig.full_figure_for_development(warn=False)
-f_data = f.data[-1]
-y = f_data["y"]
-ybins = f_data.ybins
-plotbins = list(
-    np.arange(
-        start=ybins["start"],
-        stop=ybins["end"] + ybins["size"],
-        step=ybins["size"],
-    )
-)
-counts, bins = np.histogram(list(y), bins=plotbins)
-# max_count = max(counts)
-# percent_of_octopus_genes_with_nonzero_dispersion_x = max_count * 0.6 # 1762 - too high
-counts.flatten().sort()
-# percent_of_octopus_genes_with_nonzero_dispersion_x = counts[:2].mean() # 1474 - too high
-max_count_1, max_count_2 = counts[:2]
-percent_of_octopus_genes_with_nonzero_dispersion_x = max_count_2 * 3.5
-# percent_of_octopus_genes_with_nonzero_dispersion_x = np.log10(counts[:2].mean())
-# percent_of_octopus_genes_with_nonzero_dispersion_x = np.log10(max_count_1)
+# f = fig.full_figure_for_development(warn=False)
+# f_data = f.data[-1]
+# y = f_data["y"]
+# ybins = f_data.ybins
+# plotbins = list(
+#     np.arange(
+#         start=ybins["start"],
+#         stop=ybins["end"] + ybins["size"],
+#         step=ybins["size"],
+#     )
+# )
+# counts, bins = np.histogram(list(y), bins=plotbins)
+# # max_count = max(counts)
+# # percent_of_octopus_genes_with_nonzero_dispersion_x = max_count * 0.6 # 1762 - too high
+# counts.flatten().sort()
+# # percent_of_octopus_genes_with_nonzero_dispersion_x = counts[:2].mean() # 1474 - too high
+# max_count_1, max_count_2 = counts[:2]
+# percent_of_octopus_genes_with_nonzero_dispersion_x = max_count_2 * 3.5
+# # percent_of_octopus_genes_with_nonzero_dispersion_x = np.log10(counts[:2].mean())
+# # percent_of_octopus_genes_with_nonzero_dispersion_x = np.log10(max_count_1)
 # ic(percent_of_octopus_genes_with_nonzero_dispersion_x)
 
-text = f"%{100-percent_of_octopus_genes_with_nonzero_dispersion:.1f} of<br>genes<br>"
-# text = f"                         %{100-percent_of_octopus_genes_with_nonzero_dispersion:.1f} of genes"
-fig.add_shape(
-    type="line",
-    x0=0,
-    x1=percent_of_octopus_genes_with_nonzero_dispersion_x,
-    y0=0.5,
-    y1=0.5,
-    line=dict(
-        color="red",
-        width=4,
-        dash="dash",
-    ),
-    opacity=0.5,
-    label=dict(
-        text=text,
-        textposition="end",
-        textangle=12,
-        # font_size=14,
-    ),
-    row=1,
-    col=3
-)
+# text = f"%{100-percent_of_octopus_genes_with_nonzero_dispersion:.1f} of<br>genes<br>"
+# # text = f"                         %{100-percent_of_octopus_genes_with_nonzero_dispersion:.1f} of genes"
+# fig.add_shape(
+#     type="line",
+#     x0=0,
+#     x1=percent_of_octopus_genes_with_nonzero_dispersion_x,
+#     y0=0.5,
+#     y1=0.5,
+#     line=dict(
+#         color="red",
+#         width=4,
+#         dash="dash",
+#     ),
+#     opacity=0.5,
+#     label=dict(
+#         text=text,
+#         textposition="end",
+#         textangle=12,
+#         # font_size=14,
+#     ),
+#     row=1,
+#     col=3
+# )
         
 fig.update_annotations(yshift=20, font_size=14)
 

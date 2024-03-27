@@ -83,7 +83,7 @@ transcriptome_file = (
     "/private7/projects/Combinatorics/O.vulgaris/Annotations/orfs_oct.fa"
 )
 
-main_data_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BH.2/")
+main_data_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BH.3/")
 
 positions_dir = Path(main_data_dir, "PositionsFiles")
 reads_dir = Path(main_data_dir, "ReadsFiles")
@@ -348,7 +348,7 @@ len(complete_data_df["UniqueReadsFile"])
 # # Data loading - TMR 1000
 
 # %%
-tmr1000_main_data_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BH.2/")
+tmr1000_main_data_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BH.3/")
 
 tmr1000_positions_dir = Path(tmr1000_main_data_dir, "PositionsFiles")
 tmr1000_reads_dir = Path(tmr1000_main_data_dir, "ReadsFiles")
@@ -772,13 +772,6 @@ concat_all_positions_df
 
 # %%
 concat_all_positions_df.loc[concat_all_positions_df["Noise"] == 1]
-
-# %%
-ddd = pd.DataFrame({"Name": ["A", "B", "C"], "Noise": [0.3, np.nan, 1]})
-ddd
-
-# %%
-ddd.loc[ddd["Noise"] == 1]
 
 # %%
 test_cols = [
@@ -1922,7 +1915,7 @@ per_sample_editing_index_df
 (
     concat_all_positions_df.loc[
         (concat_all_positions_df["Noise"] <= 0.1)
-            & (concat_all_positions_df["NoisyCorrected"]),
+            & (concat_all_positions_df["NoisyFinal"]),
     ]
     .groupby("Chrom")
     .size()
@@ -1939,7 +1932,7 @@ def mean_noise_levels(positions_df, top_x_noisy_positions=3, snp_noise_level=0.1
     noise_levels = (
         positions_df.loc[
             (positions_df["Noise"] <= snp_noise_level)
-            & (positions_df["NoisyCorrected"]),
+            & (positions_df["NoisyFinal"]),
             "Noise",
         ].sort_values(ascending=False)[:top_x_noisy_positions].tolist()
     )
@@ -1949,9 +1942,6 @@ def mean_noise_levels(positions_df, top_x_noisy_positions=3, snp_noise_level=0.1
     )
     return noise_levels.mean()
 
-
-# %%
-tmr50_alignment_stats_df
 
 # %%
 all_per_chrom_mean_noise_levels =(
@@ -2209,7 +2199,8 @@ mismatches_df = concat_all_positions_df.loc[
         "EditedCorrected",
         "EditedFinal",
         "Noise",
-        "NoisyCorrected"
+        "NoisyCorrected",
+        "NoisyFinal"
     ]
 ]
 
@@ -2296,82 +2287,18 @@ wrong_a2g_mismatches_per_chrom
 wrong_a2g_mismatches_per_chrom["WrongEditingSitesPerChrom"].describe()
 
 # %%
-positions_dir
-
-# %%
-corrected_editing_files = list(positions_dir.glob("*.CorrectedEditing.csv.gz"))
-corrected_editing_dfs = [
-    pd.read_table(corrected_editing_file)
-    for corrected_editing_file in corrected_editing_files
-]
-corrected_editing_dfs[0]
-
-# %%
-concat_corrected_editing_df = pd.concat(corrected_editing_dfs).reset_index(drop=True)
-concat_corrected_editing_df = concat_corrected_editing_df.loc[concat_corrected_editing_df["EditedCorrected"]]
-concat_corrected_editing_df = concat_corrected_editing_df.sort_values("EditingBinomPVal", ascending=False).reset_index(drop=True)
-concat_corrected_editing_df
-
-# %%
-concat_corrected_editing_df.loc[concat_corrected_editing_df["AltBaseCount"] == 1]
-
-# %%
-100 * 86_000 / 2_600_000
-
-# %%
 significant_mismatches_df = mismatches_df.loc[
     (mismatches_df["Chrom"].isin(chroms)) & 
-    ((mismatches_df["EditedFinal"]) | (mismatches_df["NoisyCorrected"]))
+    ((mismatches_df["EditedFinal"]) | (mismatches_df["NoisyFinal"]))
 ]
-significant_mismatches_df.insert(
-    significant_mismatches_df.columns.get_loc("G") + 1,
-    "AltBaseCount",
-    significant_mismatches_df.apply(
-        lambda x: x[x["AltBase"]],
-        axis=1,
-    )
-)
 
 significant_mismatches_df
 
 # %%
-fig = px.histogram(
-    significant_mismatches_df.loc[significant_mismatches_df["MismatchFrequency"] < 1],
-    x="Mismatch",
-    # x="MismatchFrequency",
-    # facet_col="EditedFinal",
-    color="Mismatch",
-    color_discrete_map=mismatch_dolor_map,
-    # facet_col_wrap=4,
-    # log_y=True,
-    template=template,
-    title="Number of significant mismatches in transcripts with pooled noise level < 6%"
-)
-
-# Reduce opacity to see both histograms
-# fig.update_traces(opacity=0.75)
-fig.update_layout(
-    width=600, height=500,
-    showlegend=False
-    # barmode='overlay' # Overlay both histograms
-)
-
-fig.show()
-
-# %%
 significant_mismatches_df.loc[
-    (significant_mismatches_df["NoisyCorrected"])
-    # & (significant_mismatches_df["AltBaseCount"] == 1)
+    (significant_mismatches_df["EditingFrequency"] == 1) |
+    (significant_mismatches_df["Noise"] == 1)
 ]
-
-# %%
-significant_mismatches_df.loc[
-    (significant_mismatches_df["NoisyCorrected"])
-    & (significant_mismatches_df["AltBaseCount"] == 1)
-]
-
-# %%
-100 * 5830 / 148_615
 
 # %%
 # mismatches_color_sequence = px.colors.qualitative.Set3
@@ -2407,119 +2334,7 @@ fig.update_layout(
 fig.show()
 
 # %%
-fig = px.histogram(
-    significant_mismatches_df.loc[significant_mismatches_df["MismatchFrequency"] < 1],
-    x="Mismatch",
-    # x="MismatchFrequency",
-    # facet_col="EditedFinal",
-    color="Mismatch",
-    color_discrete_map=mismatch_dolor_map,
-    # facet_col_wrap=4,
-    # log_y=True,
-    template=template,
-    title="Number of significant mismatches in transcripts with pooled noise level < 6%"
-)
-
-# Reduce opacity to see both histograms
-# fig.update_traces(opacity=0.75)
-fig.update_layout(
-    width=600, height=500,
-    showlegend=False
-    # barmode='overlay' # Overlay both histograms
-)
-
-fig.show()
-
-# %%
-fig = px.histogram(
-    significant_mismatches_df.loc[significant_mismatches_df["MismatchFrequency"] < 1],
-    x="Mismatch",
-    # x="MismatchFrequency",
-    facet_col="EditedFinal",
-    color="Mismatch",
-    color_discrete_map=mismatch_dolor_map,
-    # facet_col_wrap=4,
-    # log_y=True,
-    template=template,
-    title="Number of significant mismatches in transcripts with pooled noise level < 6%"
-)
-
-# Reduce opacity to see both histograms
-# fig.update_traces(opacity=0.75)
-fig.update_layout(
-    width=1000, height=500,
-    showlegend=False
-    # barmode='overlay' # Overlay both histograms
-)
-
-fig.show()
-
-# %%
-fig = px.histogram(
-    significant_mismatches_df,
-    x="MismatchFrequency",
-    facet_col="Mismatch",
-    # color="EditedFinal",
-    color="Mismatch",
-    color_discrete_map=mismatch_dolor_map,
-    facet_col_wrap=4,
-    log_y=True,
-    template=template,
-    title="Mismatch frequency distribution of significant mismatches in transcripts with pooled noise level < 6%",
-    # cumulative=True
-)
-
-fig.update_layout(
-    width=1600, height=800,
-    showlegend=False
-)
-
-fig.show()
-
-# %%
-# fig = px.histogram(
-#     significant_mismatches_df,
-#     x="MismatchFrequency",
-#     facet_col="EditedFinal",
-#     color="Mismatch",
-#     color_discrete_map=mismatch_dolor_map,
-#     facet_col_wrap=4,
-#     log_y=True,
-#     template=template,
-#     title="Mismatch frequency distribution of significant mismatches in transcripts with pooled noise level < 6%",
-#     # cumulative=True
-# )
-
-# # Reduce opacity to see both histograms
-# fig.update_traces(opacity=0.5)
-# fig.update_layout(
-#     width=1000, height=500,
-#     barmode='overlay' # Overlay both histograms
-# )
-
-# fig.show()
-
-# %%
-fig = px.histogram(
-    significant_mismatches_df,
-    x="MismatchFrequency",
-    facet_col="Mismatch",
-    color="Mismatch",
-    color_discrete_map=mismatch_dolor_map,
-    facet_col_wrap=4,
-    # log_y=True,
-    template=template,
-    title="Cummulative relative mismatch frequency distribution of significant mismatches in transcripts with pooled noise level < 6%",
-    cumulative=True,
-    # histnorm='percent'
-)
-
-fig.update_layout(
-    width=1600, height=800,
-    showlegend=False
-)
-
-fig.show()
+100 * 35_394 / (35_394 + 5_629)
 
 # %%
 fig = px.histogram(
@@ -2542,32 +2357,6 @@ fig.update_layout(
 )
 
 fig.show()
-
-# %%
-fig = px.histogram(
-    significant_mismatches_df.loc[significant_mismatches_df["EditedFinal"]],
-    x="EditingFrequency",
-    facet_col="Mismatch",
-    color="Mismatch",
-    color_discrete_map=mismatch_dolor_map,
-    # facet_col_wrap=4,
-    log_y=True,
-    template=template,
-    title="Editing frequency distribution of significantly editing sites in transcripts with pooled noise level < 6%"
-)
-
-fig.update_layout(
-    width=1200, height=400,
-    showlegend=False
-)
-
-fig.show()
-
-# %%
-significant_mismatches_df.loc[
-        (significant_mismatches_df["EditedFinal"]) 
-        & (significant_mismatches_df["Mismatch"]!="A>G")
-    ]
 
 # %%
 fig = px.scatter(
@@ -2671,59 +2460,6 @@ plt.savefig("Known vs new editing sites - Octopus.svg", format="svg", dpi=300)
 
 plt.show()
 
-# %% jupyter={"source_hidden": true}
-cols = 1
-rows = 1
-
-fig, ax = plt.subplots(
-    # nrows=rows,
-    # ncols=cols,
-    # figsize=(3.5 * cols, 2.5 * rows),
-    figsize=(4.5 * cols, 2.5 * rows),
-    constrained_layout=True,
-    gridspec_kw=dict(hspace=0.2, wspace=0.3),
-)
-
-labels = ["EditedFinal", "KnownEditing"]
-
-sets = [
-    set(
-        concat_all_positions_df.loc[
-            (concat_all_positions_df[label]) 
-            & (concat_all_positions_df["CDS"]) 
-            # only transcripts whose pooled noise levels is < 6%
-            & (concat_all_positions_df["Chrom"].isin(chroms))
-            & (concat_all_positions_df["EditingFrequency"] < 1), 
-            [condition_col, "Chrom", "Position"]
-        ].itertuples(index=False)
-    )
-    for label in labels
-]
-# labels[0] = f"Edited\n({len(sets[0])})"
-# labels[1] = f"Known editing\n({len(sets[1])})"
-labels[0] = f"De-novo\n({len(sets[0])})"
-labels[1] = f"Known\n({len(sets[1])})"
-
-venn2(sets, set_labels=labels, ax=ax)
-
-fig.suptitle(
-    # "Pooled octopus data",
-    "Whole-transcriptome octopus data",
-    fontsize="xx-large",
-    # y=1.2
-)
-# plt.title("Pooled octopus data", fontsize=16,
-#           # y=1.2
-#          )
-# ax.set_title("Pooled octopus data", fontdict=dict(fontsize=16))
-# # ax.set_title("", fontdict=dict(fontsize=14))
-# # fig.suptitle("Pooled octopus data", fontsize="xx-large", y=1.2)
-# fig.tight_layout()
-
-plt.savefig("Known vs new editing sites - Octopus.svg", format="svg", dpi=300)
-
-plt.show()
-
 # %% [markdown]
 # Finding the number of genes/transcripts with no known editing sites
 
@@ -2793,7 +2529,6 @@ fasta_files = [editing_sites_bedtool.seqfn]
 main_title = "Whole-transcriptome octopus data"
 sub_titles = [""]
 
-# %%
 out_file = Path("ADAR motif of pooled editing sites - Octopus.svg")
 
 # %%
@@ -4795,7 +4530,7 @@ saved_dispersion_df
 # fig.show()
 
 
-# %% [markdown]
+# %% [markdown] toc-hr-collapsed=true
 # ## Expression levels
 
 # %% [markdown]

@@ -492,6 +492,16 @@ proteins_dfs[0]
 proteins_dfs[1]
 
 # %%
+for proteins_df in proteins_dfs:
+    mean_edited_aas = proteins_df["MinNonSyns"].mean()
+    print(mean_edited_aas)
+
+# %%
+for proteins_df in proteins_dfs:
+    mean_edited_aas = proteins_df["MinNonSyns"].mean()
+    print(mean_edited_aas)
+
+# %%
 # edited_proteins_dfs = [
 #     proteins_df.loc[proteins_df[proteins_editing_col] > 0]
 #     for proteins_df in proteins_dfs

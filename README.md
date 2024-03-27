@@ -2014,6 +2014,12 @@ directly_given_variables \
 * alu 13
 * 11.3.2024
 
+```bash
+cd D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30
+
+tar cvf Squid.DegenerateLongReads.tar *.reads.degenerate.fa.gz
+```
+
 ### Distinct proteins
 
 #### Regular
@@ -2326,16 +2332,22 @@ python Code/Pileup/degenerate_reads.py \
 --out_dir D.pealeii/MpileupAndTranscripts/Illumina/DegenerateReads \
 --reads_first_col_pos 6 \
 --postfix_to_remove ".csv" \
+--processes 30 \
 undirectly_given_variables \
 --in_dir D.pealeii/MpileupAndTranscripts/Illumina \
 --cds_regions D.pealeii/Annotations/orfs_squ.bed \
 --postfix_to_find ".reads.csv" \
 --prefix_to_chrom "reads.sorted.aligned.filtered." \
->  D.pealeii/MpileupAndTranscripts/Illumina/DegenerateReads/degenerate_reads.20.3.2024.out &
+>  D.pealeii/MpileupAndTranscripts/Illumina/DegenerateReads/degenerate_reads.25.3.2024.out &
 ```
-* alu 13
-* 12032
+* alu 15
+* 16:25
 
+```bash
+cd D.pealeii/MpileupAndTranscripts/Illumina/DegenerateReads
+
+tar cvf Squid.DegenerateShortReads.tar *.reads.degenerate.fa.gz
+```
 
 ### Distinct proteins
 
@@ -4001,7 +4013,7 @@ undirected_sequencing_data \
 #### Distinct proteins
 
 
-<!-- ```bash
+```bash
 tmux new -s julia17
 
 COMB
@@ -4014,7 +4026,7 @@ echo $INFILES
 
 julia \
 --project=. \
---threads 60 --proc 6 \
+--threads 50 --proc 8 \
 Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 --infiles $INFILES \
 --postfix_to_remove .unique_proteins.csv.gz \
@@ -4027,10 +4039,10 @@ Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 --algrepetitions 2 \
 --algs Ascending Descending \
 --run_solve_threaded \
-2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BH.3/DistinctProteins.regular.19.3.24.log
+2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BH.3/DistinctProteins.regular.21.3.24.log
 ```
-* alu 13
-* 14:45 -->
+* alu 17
+* 21:42
 
 
 
@@ -4043,7 +4055,7 @@ mkdir -p O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustere
 
 #### Pileup
 
-<!-- ```bash
+```bash
 nohup python Code/pileup_with_subparsers.py \
 --transcriptome O.vulgaris/Annotations/orfs_oct.fa \
 --known_editing_sites O.vulgaris/Annotations/O.vul.EditingSites.bed \
@@ -4065,18 +4077,18 @@ undirected_sequencing_data \
 --cds_regions O.vulgaris/Annotations/orfs_oct.bed \
 --samples_table O.vulgaris/Data/PRJNA791920/IsoSeqPolished/samples.csv \
 --min_mapped_reads_per_position 0 \
->> O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BH.3/pileup.19.3.24.out &
+> O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BH.3/pileup.25.3.24.out &
 ```
 * alu 13
-* 20:33 -->
+* 10:00
 
 
 
 #### Distinct proteins
 
 
-<!-- ```bash
-tmux new -s julia13
+```bash
+tmux new -s julia17
 
 COMB
 
@@ -4101,10 +4113,10 @@ Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 --algrepetitions 2 \
 --algs Ascending Descending \
 --run_solve_threaded \
-2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BH.3/DistinctProteins.regular.19.3.24.log
+2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BH.3/DistinctProteins.regular.25.3.24.log
 ```
 * alu 17
-* 20:57 -->
+* 11:42
 
 
 
@@ -4147,8 +4159,8 @@ undirected_sequencing_data \
 
 #### Distinct proteins
 
-<!-- ```bash
-tmux new -s julia17
+```bash
+tmux new -s julia13
 
 COMB
 
@@ -4160,7 +4172,7 @@ echo $INFILES
 
 julia \
 --project=. \
---threads 50 --proc 6 \
+--threads 40 --proc 6 \
 Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 --infiles $INFILES \
 --postfix_to_remove .unique_proteins.csv.gz \
@@ -4173,11 +4185,11 @@ Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 --algrepetitions 2 \
 --algs Ascending Descending \
 --run_solve_threaded \
-2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/DistinctProteins.regular.20.3.24.log
+2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/DistinctProteins.regular.21.3.24.log
 ```
-* alu 17
-* 13:13
- -->
+* alu 13
+* 21:42
+
 
 
 
@@ -4189,7 +4201,7 @@ mkdir -p O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustere
 
 #### Pileup
 
-<!-- ```bash
+```bash
 nohup python Code/pileup_with_subparsers.py \
 --transcriptome O.vulgaris/Annotations/orfs_oct.fa \
 --known_editing_sites O.vulgaris/Annotations/O.vul.EditingSites.bed \
@@ -4198,7 +4210,7 @@ nohup python Code/pileup_with_subparsers.py \
 --min_rq 0.998 \
 --min_bq 30 \
 --out_dir O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BHAfterNoise.3 \
---processes 14 \
+--processes 20 \
 --threads 5 \
 --gz_compression \
 undirected_sequencing_data \
@@ -4211,17 +4223,16 @@ undirected_sequencing_data \
 --cds_regions O.vulgaris/Annotations/orfs_oct.bed \
 --samples_table O.vulgaris/Data/PRJNA791920/IsoSeqPolished/samples.csv \
 --min_mapped_reads_per_position 0 \
-> O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BHAfterNoise.3/pileup.20.3.24.out &
+> O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BHAfterNoise.3/pileup.25.3.24.out &
 ```
 * alu 13
-* 10:32
-* 4134058 -->
+* 10:01
 
 
 #### Distinct proteins
 
 
-<!-- ```bash
+```bash
 tmux new -s julia13
 
 COMB
@@ -4247,7 +4258,7 @@ Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 --algrepetitions 2 \
 --algs Ascending Descending \
 --run_solve_threaded \
-2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BHAfterNoise.3/DistinctProteins.regular.20.3.24.log
+2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BHAfterNoise.3/DistinctProteins.regular.25.3.24.log
 ```
 * alu 13
-* 12:19 -->
+* 11:43
