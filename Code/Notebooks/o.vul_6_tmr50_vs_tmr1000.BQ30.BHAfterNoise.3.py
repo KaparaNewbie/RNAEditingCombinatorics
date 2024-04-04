@@ -83,7 +83,9 @@ transcriptome_file = (
     "/private7/projects/Combinatorics/O.vulgaris/Annotations/orfs_oct.fa"
 )
 
-main_data_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/")
+main_data_dir = Path(
+    "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/"
+)
 
 positions_dir = Path(main_data_dir, "PositionsFiles")
 reads_dir = Path(main_data_dir, "ReadsFiles")
@@ -147,11 +149,15 @@ alignment_stats_df = pd.read_csv(alignment_stats_file, sep="\t")
 alignment_stats_df
 
 # %%
-tmr50_alignment_stats_df = alignment_stats_df.loc[alignment_stats_df["MappedReads"] >= 50]
+tmr50_alignment_stats_df = alignment_stats_df.loc[
+    alignment_stats_df["MappedReads"] >= 50
+]
 tmr50_alignment_stats_df
 
 # %%
-tmr1000_alignment_stats_df = alignment_stats_df.loc[alignment_stats_df["MappedReads"] >= 1000]
+tmr1000_alignment_stats_df = alignment_stats_df.loc[
+    alignment_stats_df["MappedReads"] >= 1000
+]
 tmr1000_alignment_stats_df
 
 # %%
@@ -171,7 +177,9 @@ positions_data_df = pd.DataFrame(
 positions_data_df
 
 # %%
-tmr50_alignment_stats_df.loc[~tmr50_alignment_stats_df["Chrom"].isin(positions_data_df["Chrom"])]
+tmr50_alignment_stats_df.loc[
+    ~tmr50_alignment_stats_df["Chrom"].isin(positions_data_df["Chrom"])
+]
 
 # %%
 
@@ -262,8 +270,9 @@ distinct_proteins_data_df = pd.DataFrame(
 # )
 
 proteins_data_df = (
-    proteins_data_df.merge(unique_proteins_data_df, on="Chrom", how="left")
-    .merge(distinct_proteins_data_df, on="Chrom", how="left")
+    proteins_data_df.merge(unique_proteins_data_df, on="Chrom", how="left").merge(
+        distinct_proteins_data_df, on="Chrom", how="left"
+    )
     # .merge(expression_data_df, on="Chrom", how="left")
 )
 
@@ -277,7 +286,7 @@ data_df = (
     .merge(reads_data_df, on="Chrom", how="left")
     .merge(proteins_data_df, on="Chrom", how="left")
 )
-
+# data_df = data_df.loc[data_df["Chrom"].isin(tmr50_alignment_stats_df["Chrom"])].reset_index(drop=True)
 data_df
 
 # %%
@@ -303,7 +312,9 @@ possibly_na_distinct_unique_proteins_files = data_df["DistinctProteinsFile"].tol
 
 # %%
 # complete_data_df = data_df.loc[data_df["ExpressionFile"].notna()].reset_index(drop=True)
-complete_data_df = data_df.loc[data_df["DistinctProteinsFile"].notna()].reset_index(drop=True)
+complete_data_df = data_df.loc[data_df["DistinctProteinsFile"].notna()].reset_index(
+    drop=True
+)
 
 # complete_data_df = complete_data_df.drop_duplicates(
 #     "Name", keep=False, ignore_index=True
@@ -347,11 +358,16 @@ len(data_df["UniqueReadsFile"])
 # %%
 len(complete_data_df["UniqueReadsFile"])
 
+# %%
+100 * len(chroms) / len(possibly_na_chroms)
+
 # %% [markdown]
 # # Data loading - TMR 1000
 
 # %%
-tmr1000_main_data_dir = Path("/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BHAfterNoise.3/")
+tmr1000_main_data_dir = Path(
+    "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BHAfterNoise.3/"
+)
 
 tmr1000_positions_dir = Path(tmr1000_main_data_dir, "PositionsFiles")
 tmr1000_reads_dir = Path(tmr1000_main_data_dir, "ReadsFiles")
@@ -508,8 +524,12 @@ tmr1000_possibly_na_positions_files = tmr1000_data_df["PositionsFile"].tolist()
 tmr1000_possibly_na_reads_files = tmr1000_data_df["ReadsFile"].tolist()
 tmr1000_possibly_na_unique_reads_files = tmr1000_data_df["UniqueReadsFile"].tolist()
 tmr1000_possibly_na_proteins_files = tmr1000_data_df["ProteinsFile"].tolist()
-tmr1000_possibly_na_unique_proteins_files = tmr1000_data_df["UniqueProteinsFile"].tolist()
-tmr1000_possibly_na_distinct_unique_proteins_files = tmr1000_data_df["DistinctProteinsFile"].tolist()
+tmr1000_possibly_na_unique_proteins_files = tmr1000_data_df[
+    "UniqueProteinsFile"
+].tolist()
+tmr1000_possibly_na_distinct_unique_proteins_files = tmr1000_data_df[
+    "DistinctProteinsFile"
+].tolist()
 # expression_files = complete_data_df["ExpressionFile"].tolist()
 
 # %%
@@ -569,6 +589,18 @@ def two_subcolors_from_hex(hex_color, d_r=4, d_g=20, d_b=22, scale_1=1, scale_2=
 
 # %%
 sample_to_tissue_dict
+
+# %%
+tissues_order = [
+    "Axial nerve cord",
+    "Frontal & vertical lobe",
+    "Pedunculate & olfactory lobe",
+    "Stellate g. & visceral g.",
+    "Sucker",
+    "Retina & optic lobe",
+    "Non-neuronal tissues mix",
+]
+tissue_to_legendrank = {tissue: x for x, tissue in enumerate(tissues_order, start=1)}
 
 # %% papermill={"duration": 0.054755, "end_time": "2022-02-01T09:42:46.304499", "exception": false, "start_time": "2022-02-01T09:42:46.249744", "status": "completed"}
 # # plotly consts
@@ -757,21 +789,54 @@ fig.show()
 # all_positions_df
 
 # %%
-def make_concat_all_positions_df(possibly_na_positions_files, condition_col, conditions):
-    all_positions_dfs = [
-        pd.read_csv(position_file, sep=sep, dtype={"Reads": str}) 
-        for position_file in possibly_na_positions_files 
-        if pd.notna(position_file)
-    ]
-    for positions_df, condition in zip(all_positions_dfs, possibly_na_conditions):
+pd.isna(np.nan)
+
+
+# %%
+def make_concat_all_positions_df(
+    possibly_na_positions_files, condition_col, possibly_na_conditions
+):
+    # all_positions_dfs = [
+    #     pd.read_csv(position_file, sep=sep, dtype={"Reads": str})
+    #     for position_file in possibly_na_positions_files
+    #     if pd.notna(position_file)
+    # ]
+    # for positions_df, condition, position_file in zip(all_positions_dfs, possibly_na_conditions, possibly_na_positions_files):
+    #     if pd.notna(position_file):
+    #     positions_df.insert(0, condition_col, condition)
+    
+    all_positions_dfs = []
+    for position_file, condition in zip(possibly_na_positions_files, possibly_na_conditions):
+        if pd.isna(position_file):
+            continue
+        positions_df = pd.read_csv(position_file, sep=sep, dtype={"Reads": str})
         positions_df.insert(0, condition_col, condition)
+        all_positions_dfs.append(positions_df)
+    
     concat_all_positions_df = pd.concat(all_positions_dfs, ignore_index=True)
     return concat_all_positions_df
 
 
 # %%
-concat_all_positions_df = make_concat_all_positions_df(possibly_na_positions_files, condition_col, conditions)
+concat_all_positions_df = make_concat_all_positions_df(
+    possibly_na_positions_files, condition_col, possibly_na_conditions
+)
 concat_all_positions_df
+
+# %%
+transcript_and_chrom_from_positions_df = concat_all_positions_df.loc[:, ["Chrom", "Transcript"]].drop_duplicates()
+transcript_and_chrom_from_positions_df = transcript_and_chrom_from_positions_df.merge(
+    orfs_df.loc[:, ["Chrom", "Name"]].rename(columns={"Name": "RealTranscript"}),
+    on="Chrom",
+    how="left",
+)
+transcript_and_chrom_from_positions_df
+
+# %%
+transcript_and_chrom_from_positions_df.drop_duplicates("Chrom")
+
+# %%
+transcript_and_chrom_from_positions_df.loc[transcript_and_chrom_from_positions_df["Transcript"] != transcript_and_chrom_from_positions_df["RealTranscript"]]
 
 # %%
 test_cols = [
@@ -790,26 +855,32 @@ test_cols = [
     "EditedCorrected",
     "EditedFinal",
     "Noise",
-    "NoisyCorrected"
+    "NoisyCorrected",
 ]
 
 # %%
 concat_all_positions_df.loc[
     (concat_all_positions_df["NoisyCorrected"].fillna(False))
     & (concat_all_positions_df["Noise"] <= 0.1),
-    test_cols
+    test_cols,
 ]
 
 # %%
-x = concat_all_positions_df.loc[
-    (concat_all_positions_df["NoisyCorrected"].fillna(False)),
-    "Noise"
-] * 100
-                                   
+x = (
+    concat_all_positions_df.loc[
+        (concat_all_positions_df["NoisyCorrected"].fillna(False)), "Noise"
+    ]
+    * 100
+)
+
 fig = go.Figure()
-fig.add_trace(go.Histogram(x=x, cumulative_enabled=True, 
-                           # histnorm='percent'
-                          ))
+fig.add_trace(
+    go.Histogram(
+        x=x,
+        cumulative_enabled=True,
+        # histnorm='percent'
+    )
+)
 
 fig.update_xaxes(title="Noise [%]")
 fig.update_yaxes(type="log", title="Positions")
@@ -821,22 +892,16 @@ fig.show()
 # %%
 
 # %%
-concat_all_positions_df.loc[
-    concat_all_positions_df["Edited"],
-    test_cols
-].shape
+concat_all_positions_df.loc[concat_all_positions_df["Edited"], test_cols].shape
 
 # %%
-concat_all_positions_df.loc[
-    concat_all_positions_df["EditedCorrected"],
-    test_cols
-].shape
+concat_all_positions_df.loc[concat_all_positions_df["EditedCorrected"], test_cols].shape
 
 # %%
 concat_all_positions_df.loc[
     # all edited positions in all transcripts - including ones whose pooled noise levels is >= 6%
     (concat_all_positions_df["EditedFinal"]),
-    test_cols
+    test_cols,
 ].shape
 
 # %%
@@ -845,28 +910,27 @@ concat_all_positions_df.loc[
 # no overlap between noise and editing positions
 concat_all_positions_df.loc[
     (
-         (concat_all_positions_df["Edited"])
+        (concat_all_positions_df["Edited"])
         | (concat_all_positions_df["EditedCorrected"])
         | (concat_all_positions_df["EditedFinal"])
     )
     & (concat_all_positions_df["NoisyCorrected"]),
-    test_cols
+    test_cols,
 ].shape
 
 # %%
 
 # %%
 concat_all_positions_df.loc[
-    concat_all_positions_df["Edited"] 
-    & (concat_all_positions_df["Chrom"].isin(chroms)),
-    test_cols
+    concat_all_positions_df["Edited"] & (concat_all_positions_df["Chrom"].isin(chroms)),
+    test_cols,
 ].shape
 
 # %%
 concat_all_positions_df.loc[
     concat_all_positions_df["EditedCorrected"]
     & (concat_all_positions_df["Chrom"].isin(chroms)),
-    test_cols
+    test_cols,
 ].shape
 
 # %%
@@ -874,44 +938,44 @@ len(chroms)
 
 # %%
 concat_all_positions_df.loc[
-    (concat_all_positions_df["Edited"]) 
-    & (~concat_all_positions_df["EditedCorrected"]) 
-    & (concat_all_positions_df["Chrom"].isin(chroms)), 
-    test_cols
-].shape
-
-# %%
-concat_all_positions_df.loc[
-    (~concat_all_positions_df["Edited"]) 
-    & (concat_all_positions_df["EditedCorrected"]) 
-    & (concat_all_positions_df["Chrom"].isin(chroms)), 
-    test_cols
-].shape
-
-# %%
-concat_all_positions_df.loc[
-    (concat_all_positions_df["Edited"]) 
-    & (concat_all_positions_df["EditedCorrected"]) 
-    & (concat_all_positions_df["Chrom"].isin(chroms)), 
-    test_cols
-].shape
-
-# %%
-concat_all_positions_df.loc[
-    (concat_all_positions_df["EditedFinal"]) 
+    (concat_all_positions_df["Edited"])
+    & (~concat_all_positions_df["EditedCorrected"])
     & (concat_all_positions_df["Chrom"].isin(chroms)),
-    test_cols
+    test_cols,
 ].shape
 
 # %%
 concat_all_positions_df.loc[
-    (concat_all_positions_df["EditedFinal"]) 
+    (~concat_all_positions_df["Edited"])
+    & (concat_all_positions_df["EditedCorrected"])
+    & (concat_all_positions_df["Chrom"].isin(chroms)),
+    test_cols,
+].shape
+
+# %%
+concat_all_positions_df.loc[
+    (concat_all_positions_df["Edited"])
+    & (concat_all_positions_df["EditedCorrected"])
+    & (concat_all_positions_df["Chrom"].isin(chroms)),
+    test_cols,
+].shape
+
+# %%
+concat_all_positions_df.loc[
+    (concat_all_positions_df["EditedFinal"])
+    & (concat_all_positions_df["Chrom"].isin(chroms)),
+    test_cols,
+].shape
+
+# %%
+concat_all_positions_df.loc[
+    (concat_all_positions_df["EditedFinal"])
     & (
-         (~concat_all_positions_df["Edited"]) 
-        | (~concat_all_positions_df["EditedCorrected"]) 
+        (~concat_all_positions_df["Edited"])
+        | (~concat_all_positions_df["EditedCorrected"])
     )
     & (concat_all_positions_df["Chrom"].isin(chroms)),
-    test_cols
+    test_cols,
 ].shape
 
 # %%
@@ -1085,31 +1149,55 @@ concat_all_positions_df.loc[
 # %%
 # avg editing positions per transcript, considering transcripts whose pooled noise levels is < 6%
 (
-    concat_all_positions_df.loc[(concat_all_positions_df["EditedFinal"]) & (concat_all_positions_df["Chrom"].isin(chroms))]
+    concat_all_positions_df.loc[
+        (concat_all_positions_df["EditedFinal"])
+        & (concat_all_positions_df["Chrom"].isin(chroms))
+    ]
     .groupby("Chrom")
     .size()
     .mean()
     .round(2)
-    
 )
 
 
 # %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"}
 # ## Reads
 
-# %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"} jp-MarkdownHeadingCollapsed=true
+# %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"}
 # ### All
 
 # %% [markdown]
 # That is, all filtered reads.
 
 # %% papermill={"duration": 1.204258, "end_time": "2022-02-01T09:42:47.668206", "exception": false, "start_time": "2022-02-01T09:42:46.463948", "status": "completed"}
-# reads_dfs = [pd.read_csv(reads_file, sep=sep, dtype={"Read": str}) for reads_file in reads_files]
+# reads_dfs = [
+#     pd.read_csv(reads_file, sep=sep, dtype={"Read": str}) for reads_file in reads_files
+# ]
 # reads_dfs[0]
 
 
 # %%
 # reads_dfs[1]
+
+# %%
+import subprocess
+
+
+def count_lines_in_file(file, cat_cmd="zcat"):
+    cmd = f"{cat_cmd} {file} | wc -l"
+    clean_str_output = (
+        subprocess.run(cmd, shell=True, capture_output=True)
+        .stdout.decode()
+        .removesuffix("\n")
+    )
+    return int(clean_str_output)
+
+
+# %%
+num_of_reads_in_reads_files = [
+    count_lines_in_file(reads_file) - 1 for reads_file in reads_files
+]
+num_of_reads_in_reads_files[:3]
 
 # %%
 # len(reads_dfs[0])
@@ -1131,7 +1219,8 @@ concat_all_positions_df.loc[
 
 # %% papermill={"duration": 0.126539, "end_time": "2022-02-01T09:42:47.923363", "exception": false, "start_time": "2022-02-01T09:42:47.796824", "status": "completed"}
 unique_reads_dfs = [
-    pd.read_csv(unique_reads_file, sep=sep, dtype={"UniqueRead": str, "Reads": str}) for unique_reads_file in unique_reads_files
+    pd.read_csv(unique_reads_file, sep=sep, dtype={"UniqueRead": str, "Reads": str})
+    for unique_reads_file in unique_reads_files
 ]
 for chrom, unique_reads_df in zip(chroms, unique_reads_dfs):
     unique_reads_df.insert(0, "Chrom", chrom)
@@ -1142,9 +1231,55 @@ unique_reads_dfs[0]
 unique_reads_dfs[0].columns
 
 # %%
+
+# %%
+
+# %%
+num_of_reads = []  # summed from unique reads
+num_of_mapped_reads = []  # according to the alignment stats
+for chrom, unique_reads_df in zip(chroms, unique_reads_dfs):
+    num_of_reads.append(unique_reads_df["NumOfReads"].sum())
+    num_of_mapped_reads.append(
+        tmr50_alignment_stats_df.loc[
+            tmr50_alignment_stats_df["Chrom"] == chrom, "MappedReads"
+        ].values[0]
+    )
+num_of_reads_comparison_df = pd.DataFrame(
+    {
+        "AllMappedReads": num_of_mapped_reads,
+        "ReadsInReadsFiles": num_of_reads_in_reads_files,
+        "ReadsInUniqueReadsFiles": num_of_reads,
+    }
+)
+num_of_reads_comparison_df["Diff"] = num_of_reads_comparison_df["AllMappedReads"].sub(
+    num_of_reads_comparison_df["ReadsInUniqueReadsFiles"]
+)
+num_of_reads_comparison_df["%Decrease"] = (
+    100
+    * num_of_reads_comparison_df["Diff"]
+    / num_of_reads_comparison_df["AllMappedReads"]
+)
+num_of_reads_comparison_df
+
+# %%
+num_of_reads_comparison_df["ReadsInReadsFiles"].sub(
+    num_of_reads_comparison_df["ReadsInUniqueReadsFiles"]
+).describe()
+
+# %%
+num_of_reads_comparison_df["Diff"].describe()
+
+# %%
+num_of_reads_comparison_df["%Decrease"].describe()
+
+# %%
+
+# %%
+
+# %%
 # def make_concat_unique_reads_df(unique_reads_files, chroms):
 #     unique_reads_dfs = [
-#         pd.read_csv(unique_reads_file, sep=sep, dtype={"UniqueRead": str, "Reads": str}) 
+#         pd.read_csv(unique_reads_file, sep=sep, dtype={"UniqueRead": str, "Reads": str})
 #         for unique_reads_file in unique_reads_files
 #     ]
 #     for chrom, unique_reads_df in zip(chroms, unique_reads_dfs):
@@ -1353,7 +1488,12 @@ unique_proteins_dfs[1].iloc[:, unique_proteins_first_col_pos:]
 # ### Distinct unique proteins
 
 # %%
-assert len(conditions) == len(chroms) == len(distinct_unique_proteins_files) == len(unique_reads_dfs)
+assert (
+    len(conditions)
+    == len(chroms)
+    == len(distinct_unique_proteins_files)
+    == len(unique_reads_dfs)
+)
 
 distinct_unique_proteins_dfs = []
 
@@ -1371,6 +1511,11 @@ for condition, chrom, distinct_unique_proteins_file, unique_reads_df in zip(
         ).astype(int),
     )
     distinct_unique_proteins_df.insert(0, "Chrom", chrom)
+    distinct_unique_proteins_df.insert(
+        distinct_unique_proteins_df.columns.get_loc("AvailableReads") + 1,
+        "NumOfAvailableReads",
+        distinct_unique_proteins_df["AvailableReads"].str.split(",").str.len(),
+    )
     distinct_unique_proteins_dfs.append(distinct_unique_proteins_df)
 
 distinct_unique_proteins_df = (
@@ -1391,6 +1536,17 @@ distinct_unique_proteins_df = distinct_unique_proteins_df.sort_values(
 
 distinct_unique_proteins_df
 
+
+# %%
+distinct_unique_proteins_df.loc[
+    distinct_unique_proteins_df["NumOfReads"]
+    != distinct_unique_proteins_df["NumOfAvailableReads"]
+]
+
+# %%
+distinct_unique_proteins_df["NumOfReads"].sub(
+    distinct_unique_proteins_df["NumOfAvailableReads"]
+).describe()
 
 # %%
 # complete_data_df.loc[
@@ -1468,7 +1624,12 @@ distinct_unique_proteins_df
 # ### Distinct unique proteins - TMR 1000
 
 # %%
-assert len(tmr1000_conditions) == len(tmr1000_chroms) == len(tmr1000_distinct_proteins_files) == len(tmr1000_unique_reads_dfs)
+assert (
+    len(tmr1000_conditions)
+    == len(tmr1000_chroms)
+    == len(tmr1000_distinct_proteins_files)
+    == len(tmr1000_unique_reads_dfs)
+)
 
 tmr1000_distinct_unique_proteins_dfs = []
 for condition, chrom, distinct_unique_proteins_file, unique_reads_df in zip(
@@ -1572,12 +1733,17 @@ def calc_per_transcript_per_sample_coverage(
 
 
 # %%
-def calc_per_transcript_per_sample_coverage_dfs(concat_all_positions_df, possibly_na_positions_files, possibly_na_chroms, samples_and_tissues_df, processes=4):
+def calc_per_transcript_per_sample_coverage_dfs(
+    concat_all_positions_df,
+    possibly_na_positions_files,
+    possibly_na_chroms,
+    samples_and_tissues_df,
+    processes=4,
+):
     positions_dfs = [
         concat_all_positions_df.loc[concat_all_positions_df["Chrom"] == chrom]
         for position_file, chrom in zip(possibly_na_positions_files, possibly_na_chroms)
         if pd.notna(position_file)
-        
     ]
     with Pool(processes=processes) as pool:
         per_transcript_per_sample_coverage_dfs = pool.starmap(
@@ -1587,12 +1753,14 @@ def calc_per_transcript_per_sample_coverage_dfs(concat_all_positions_df, possibl
             ],
         )
     return per_transcript_per_sample_coverage_dfs
-    
 
 
 # %%
 per_transcript_per_sample_coverage_dfs = calc_per_transcript_per_sample_coverage_dfs(
-    concat_all_positions_df, possibly_na_positions_files, possibly_na_chroms, samples_and_tissues_df
+    concat_all_positions_df,
+    possibly_na_positions_files,
+    possibly_na_chroms,
+    samples_and_tissues_df,
 )
 per_transcript_per_sample_coverage_dfs[0]
 
@@ -1644,7 +1812,9 @@ def editing_index_per_transcript(positions_df, strand):
     ref_base = "A" if strand == "+" else "T"
     alt_base = "G" if strand == "+" else "C"
     all_refbase_positions_df = positions_df.loc[
-        (positions_df["RefBase"] == ref_base) & (~positions_df["InProbRegion"]) & (positions_df["CDS"])
+        (positions_df["RefBase"] == ref_base)
+        & (~positions_df["InProbRegion"])
+        & (positions_df["CDS"])
     ]
     num_of_all_editable_adenosines = all_refbase_positions_df["TotalCoverage"].sum()
     num_of_edited_adenosines = all_refbase_positions_df[alt_base].sum()
@@ -1652,49 +1822,51 @@ def editing_index_per_transcript(positions_df, strand):
     return editing_index
 
 
-def make_one_input(concat_all_positions_df, chrom, strand): 
-        return concat_all_positions_df.loc[concat_all_positions_df["Chrom"] == chrom], strand
+def make_one_input(concat_all_positions_df, chrom, strand):
+    return (
+        concat_all_positions_df.loc[concat_all_positions_df["Chrom"] == chrom],
+        strand,
+    )
 
-    
+
 def make_editing_index_per_transcript_inputs(concat_all_positions_df, chroms, strands):
-    
-    concat_all_positions_df = concat_all_positions_df.loc[concat_all_positions_df["Chrom"].isin(chroms)]
-    
+    concat_all_positions_df = concat_all_positions_df.loc[
+        concat_all_positions_df["Chrom"].isin(chroms)
+    ]
+
     editing_index_per_transcript_inputs = [
         (concat_all_positions_df.loc[concat_all_positions_df["Chrom"] == chrom], strand)
         for chrom, strand in zip(chroms, strands)
     ]
-    
+
     # editing_index_per_transcript_inputs = [
     #     x
     #     for x in editing_index_per_transcript_inputs
     #     if pd.notna(x)
     # ]
-    
+
     return editing_index_per_transcript_inputs
 
 
-def calc_per_transcript_editing_index_df(concat_all_positions_df, chroms, strands, processes=4):
-    
-#     # todo comment out - this is for testing
-#     chroms, strands = chroms[:100], strands[:100]
-    
+def calc_per_transcript_editing_index_df(
+    concat_all_positions_df, chroms, strands, processes=4
+):
+    #     # todo comment out - this is for testing
+    #     chroms, strands = chroms[:100], strands[:100]
+
     editing_index_per_transcript_inputs = make_editing_index_per_transcript_inputs(
         concat_all_positions_df, chroms, strands
     )
-    
+
     with Pool(processes=processes) as pool:
         per_transcript_editing_indices = pool.starmap(
             func=editing_index_per_transcript,
             iterable=editing_index_per_transcript_inputs,
         )
     per_transcript_editing_index_df = pd.DataFrame(
-        {
-            "Chrom": chroms,
-            "EditingIndex": per_transcript_editing_indices
-        }
+        {"Chrom": chroms, "EditingIndex": per_transcript_editing_indices}
     )
-    
+
     return per_transcript_editing_index_df
 
 
@@ -1749,7 +1921,9 @@ def calc_per_transcript_per_sample_a_and_g_counts(positions_df, strand, samples)
 
     expanded_all_refbase_positions_df = (
         positions_df.loc[
-            (positions_df["RefBase"] == ref_base) & (~positions_df["InProbRegion"]) & (positions_df["CDS"])
+            (positions_df["RefBase"] == ref_base)
+            & (~positions_df["InProbRegion"])
+            & (positions_df["CDS"])
         ]
         .reset_index(drop=True)
         .drop(
@@ -1842,15 +2016,18 @@ def calc_all_per_sample_a_and_g_counts(positions_dfs, strands, samples, processe
 
 
 # %%
-def calc_per_sample_editing_index_df(concat_all_positions_df, chroms, strands, samples, processes=1):
-    
-    concat_all_positions_df = concat_all_positions_df.loc[concat_all_positions_df["Chrom"].isin(chroms)]
-    
+def calc_per_sample_editing_index_df(
+    concat_all_positions_df, chroms, strands, samples, processes=1
+):
+    concat_all_positions_df = concat_all_positions_df.loc[
+        concat_all_positions_df["Chrom"].isin(chroms)
+    ]
+
     positions_dfs = [
         concat_all_positions_df.loc[concat_all_positions_df["Chrom"] == chrom]
         for chrom in chroms
     ]
-    
+
     all_per_sample_a_and_g_counts = calc_all_per_sample_a_and_g_counts(
         positions_dfs, strands, samples, processes
     )
@@ -1858,16 +2035,16 @@ def calc_per_sample_editing_index_df(concat_all_positions_df, chroms, strands, s
         100 * g_count / (a_count + g_count)
         for a_count, g_count in all_per_sample_a_and_g_counts
     ]
-    
+
     per_sample_editing_index_df = pd.DataFrame(
         {"Sample": samples, "EditingIndex": per_sample_editing_index}
     )
-    
+
     return per_sample_editing_index_df
 
 
 # %%
-# %%time 
+# %%time
 
 per_sample_editing_index_df = calc_per_sample_editing_index_df(
     concat_all_positions_df, chroms, strands, samples, processes=8
@@ -1881,13 +2058,13 @@ per_sample_editing_index_df
 (
     concat_all_positions_df.loc[
         (concat_all_positions_df["Noise"] <= 0.1)
-            & (concat_all_positions_df["NoisyFinal"]),
+        & (concat_all_positions_df["NoisyFinal"]),
     ]
     .groupby("Chrom")
     .size()
     .reset_index()
-    .rename(columns={0: "NoisePositions"})
-    ["NoisePositions"].describe()
+    .rename(columns={0: "NoisePositions"})["NoisePositions"]
+    .describe()
 )
 
 
@@ -1897,10 +2074,11 @@ def mean_noise_levels(positions_df, top_x_noisy_positions=3, snp_noise_level=0.1
     #     return 0.0
     noise_levels = (
         positions_df.loc[
-            (positions_df["Noise"] <= snp_noise_level)
-            & (positions_df["NoisyFinal"]),
+            (positions_df["Noise"] <= snp_noise_level) & (positions_df["NoisyFinal"]),
             "Noise",
-        ].sort_values(ascending=False)[:top_x_noisy_positions].tolist()
+        ]
+        .sort_values(ascending=False)[:top_x_noisy_positions]
+        .tolist()
     )
     # if there are less noisy positions than `top_x_noisy_positions`, add zeros accordingly
     noise_levels = pd.Series(
@@ -1910,29 +2088,33 @@ def mean_noise_levels(positions_df, top_x_noisy_positions=3, snp_noise_level=0.1
 
 
 # %%
-all_per_chrom_mean_noise_levels =(
+all_per_chrom_mean_noise_levels = (
     concat_all_positions_df
     # .groupby(["Transcript", "Chrom"])
     .groupby("Chrom")
     .apply(mean_noise_levels)
     .reset_index()
     .rename(columns={0: "Noise"})
-    .merge(
-        tmr50_alignment_stats_df.loc[:, ["Chrom"]],
-        on="Chrom",
-        how="right"
-    )
+    .merge(tmr50_alignment_stats_df.loc[:, ["Chrom"]], on="Chrom", how="right")
     .fillna(0.0)
     .sort_values(["Chrom", "Noise"])
 )
-all_per_chrom_mean_noise_levels["%Noise"] = 100 * all_per_chrom_mean_noise_levels["Noise"]
+all_per_chrom_mean_noise_levels["%Noise"] = (
+    100 * all_per_chrom_mean_noise_levels["Noise"]
+)
 all_per_chrom_mean_noise_levels
 
 # %%
-saved_per_chrom_mean_noise_levels_df = all_per_chrom_mean_noise_levels.merge(orfs_df[["Chrom", "Name"]], how="left")
-saved_per_chrom_mean_noise_levels_df.insert(1, "Gene", saved_per_chrom_mean_noise_levels_df["Name"])
+saved_per_chrom_mean_noise_levels_df = all_per_chrom_mean_noise_levels.merge(
+    orfs_df[["Chrom", "Name"]], how="left"
+)
+saved_per_chrom_mean_noise_levels_df.insert(
+    1, "Gene", saved_per_chrom_mean_noise_levels_df["Name"]
+)
 del saved_per_chrom_mean_noise_levels_df["Name"]
-saved_per_chrom_mean_noise_levels_df.insert(0, "Platform", "Whole-transcriptome octopus data")
+saved_per_chrom_mean_noise_levels_df.insert(
+    0, "Platform", "Whole-transcriptome octopus data"
+)
 saved_per_chrom_mean_noise_levels_df.to_csv("Noise.Octopus.tsv", sep="\t", index=False)
 saved_per_chrom_mean_noise_levels_df
 
@@ -1963,7 +2145,7 @@ fig = px.histogram(
     color_discrete_sequence=["black"],
     labels={"%Noise": "Per-gene noise level [%]"},
     log_y=True,
-    opacity=0.5
+    opacity=0.5,
 )
 
 f = fig.full_figure_for_development(warn=False)
@@ -1983,8 +2165,8 @@ max_noise_quartiles_y = max_count * 0.8
 for i, (quartile, noise_quartile) in enumerate(zip(quartiles, all_noise_quartiles)):
     try:
         # no point in plotting two lines very close to each other - the next one should suffice
-        ic(all_noise_quartiles[i], all_noise_quartiles[i+1])
-        if np.isclose(all_noise_quartiles[i], all_noise_quartiles[i+1]):
+        ic(all_noise_quartiles[i], all_noise_quartiles[i + 1])
+        if np.isclose(all_noise_quartiles[i], all_noise_quartiles[i + 1]):
             continue
     except IndexError:
         # if this is the last line to plot
@@ -2046,7 +2228,9 @@ fig.show()
 # ### Mismatches by type
 
 # %%
-def find_alt_base(ref_base: str, a_count: int, t_count: int, c_count: int, g_count: int):
+def find_alt_base(
+    ref_base: str, a_count: int, t_count: int, c_count: int, g_count: int
+):
     """
     Find the base with most supporting reads other than `ref_base`.
     If there are two or more such bases, the function picks one at random.
@@ -2060,7 +2244,7 @@ def find_alt_base(ref_base: str, a_count: int, t_count: int, c_count: int, g_cou
     }
     max_alt_base_count = max(alt_base_counts_dict.values())
     max_alt_bases = [
-        base 
+        base
         for base, base_count in alt_base_counts_dict.items()
         if base_count == max_alt_base_count
     ]
@@ -2085,7 +2269,7 @@ def mismatch_frequency(ref_base_count, alt_base_count):
 
 # %%
 mismatches_df = concat_all_positions_df.loc[
-    :, 
+    :,
     [
         condition_col,
         "Chrom",
@@ -2104,8 +2288,8 @@ mismatches_df = concat_all_positions_df.loc[
         "EditedFinal",
         "Noise",
         "NoisyCorrected",
-        "NoisyFinal"
-    ]
+        "NoisyFinal",
+    ],
 ]
 
 mismatches_df.insert(
@@ -2121,7 +2305,7 @@ mismatches_df.insert(
             x["G"],
         ),
         axis=1,
-    )
+    ),
 )
 
 # no point in keeping positions without mismatches
@@ -2132,30 +2316,24 @@ mismatches_df.insert(
     mismatches_df.apply(
         lambda x: x[x["AltBase"]],
         axis=1,
-    )
+    ),
 )
 mismatches_df = mismatches_df.loc[mismatches_df["AltBaseCount"] > 0]
 # del mismatches_df["AltBaseCount"]
-     
+
 # annotate mismatch frequency as an alternative and general annotation to `EditingFrequency` and `Noise`
 mismatches_df.insert(
     mismatches_df.columns.get_loc("G") + 1,
     "MismatchFrequency",
     mismatches_df.apply(
-        lambda x: mismatch_frequency(x[x["RefBase"]], x[x["AltBase"]]),
-        axis=1
-    )
+        lambda x: mismatch_frequency(x[x["RefBase"]], x[x["AltBase"]]), axis=1
+    ),
 )
 
 # get strand information to define mismatch type on the minus strand
-mismatches_df = mismatches_df.merge(
-    data_df.loc[:, ["Chrom", "Strand"]],
-    how="left"
-)
+mismatches_df = mismatches_df.merge(data_df.loc[:, ["Chrom", "Strand"]], how="left")
 mismatches_df.insert(
-    mismatches_df.columns.get_loc("Chrom") + 1,
-    "Strand2",
-    mismatches_df["Strand"]
+    mismatches_df.columns.get_loc("Chrom") + 1, "Strand2", mismatches_df["Strand"]
 )
 del mismatches_df["Strand"]
 mismatches_df = mismatches_df.rename(columns={"Strand2": "Strand"})
@@ -2163,20 +2341,26 @@ mismatches_df = mismatches_df.rename(columns={"Strand2": "Strand"})
 mismatches_df.insert(
     mismatches_df.columns.get_loc("AltBase") + 1,
     "Mismatch",
-    mismatches_df.apply(lambda x: define_mismatch_type(x["RefBase"], x["AltBase"], x["Strand"]), axis=1)
+    mismatches_df.apply(
+        lambda x: define_mismatch_type(x["RefBase"], x["AltBase"], x["Strand"]), axis=1
+    ),
 )
 
 mismatches_df
 
 # %%
 true_a2g_mismatches = mismatches_df.loc[
-    (mismatches_df["EditedFinal"]) & (mismatches_df["Mismatch"] == "A>G") & (mismatches_df["Chrom"].isin(chroms))
+    (mismatches_df["EditedFinal"])
+    & (mismatches_df["Mismatch"] == "A>G")
+    & (mismatches_df["Chrom"].isin(chroms))
 ]
 true_a2g_mismatches
 
 # %%
 wrong_a2g_mismatches = mismatches_df.loc[
-    (mismatches_df["EditedFinal"]) & (mismatches_df["Mismatch"] != "A>G") & (mismatches_df["Chrom"].isin(chroms))
+    (mismatches_df["EditedFinal"])
+    & (mismatches_df["Mismatch"] != "A>G")
+    & (mismatches_df["Chrom"].isin(chroms))
 ]
 wrong_a2g_mismatches
 
@@ -2184,7 +2368,13 @@ wrong_a2g_mismatches
 len(wrong_a2g_mismatches) / len(true_a2g_mismatches)
 
 # %%
-wrong_a2g_mismatches_per_chrom = wrong_a2g_mismatches.groupby(["Chrom", condition_col]).size().reset_index().rename(columns={0: "WrongEditingSitesPerChrom"}).sort_values("WrongEditingSitesPerChrom", ascending=False)
+wrong_a2g_mismatches_per_chrom = (
+    wrong_a2g_mismatches.groupby(["Chrom", condition_col])
+    .size()
+    .reset_index()
+    .rename(columns={0: "WrongEditingSitesPerChrom"})
+    .sort_values("WrongEditingSitesPerChrom", ascending=False)
+)
 wrong_a2g_mismatches_per_chrom
 
 # %%
@@ -2192,16 +2382,16 @@ wrong_a2g_mismatches_per_chrom["WrongEditingSitesPerChrom"].describe()
 
 # %%
 significant_mismatches_df = mismatches_df.loc[
-    (mismatches_df["Chrom"].isin(chroms)) & 
-    ((mismatches_df["EditedFinal"]) | (mismatches_df["NoisyFinal"]))
+    (mismatches_df["Chrom"].isin(chroms))
+    & ((mismatches_df["EditedFinal"]) | (mismatches_df["NoisyFinal"]))
 ]
 # significant_mismatches_df["MismatchFrequency>10%"] = significant_mismatches_df["MismatchFrequency"] > 0.1
 significant_mismatches_df
 
 # %%
 significant_mismatches_df.loc[
-    (significant_mismatches_df["EditingFrequency"] == 1) |
-    (significant_mismatches_df["Noise"] == 1)
+    (significant_mismatches_df["EditingFrequency"] == 1)
+    | (significant_mismatches_df["Noise"] == 1)
 ]
 
 # %%
@@ -2209,7 +2399,9 @@ significant_mismatches_df.loc[
 mismatches_color_sequence = px.colors.qualitative.Dark24
 mismatch_dolor_map = {
     mismatch: color
-    for mismatch, color in zip(significant_mismatches_df["Mismatch"].unique(), mismatches_color_sequence)
+    for mismatch, color in zip(
+        significant_mismatches_df["Mismatch"].unique(), mismatches_color_sequence
+    )
 }
 # mismatch_dolor_map
 
@@ -2224,13 +2416,14 @@ fig = px.histogram(
     # facet_col_wrap=4,
     # log_y=True,
     template=template,
-    title="Number of significant mismatches in transcripts with pooled noise level < 6%"
+    title="Number of significant mismatches in transcripts with pooled noise level < 6%",
 )
 
 # Reduce opacity to see both histograms
 # fig.update_traces(opacity=0.75)
 fig.update_layout(
-    width=600, height=500,
+    width=600,
+    height=500,
     showlegend=False
     # barmode='overlay' # Overlay both histograms
 )
@@ -2249,21 +2442,18 @@ fig = px.histogram(
     template=template,
     title="Cummulative relative mismatch frequency distribution of significant mismatches in transcripts with pooled noise level < 6%",
     cumulative=True,
-    histnorm='percent'
+    histnorm="percent",
 )
 
-fig.update_layout(
-    width=1600, height=800,
-    showlegend=False
-)
+fig.update_layout(width=1600, height=800, showlegend=False)
 
 fig.show()
 
 # %%
 fig = px.scatter(
     significant_mismatches_df.loc[
-        (significant_mismatches_df["EditedFinal"]) 
-        & (significant_mismatches_df["Mismatch"]!="A>G")
+        (significant_mismatches_df["EditedFinal"])
+        & (significant_mismatches_df["Mismatch"] != "A>G")
     ],
     x="EditingFrequency",
     y="MismatchFrequency",
@@ -2273,14 +2463,11 @@ fig = px.scatter(
     # facet_col_wrap=4,
     # log_y=True,
     template=template,
-    title="Editing frequency vs mismatch frequency of `wrong` significantly editing sites<br>in transcripts with pooled noise level < 6%"
+    title="Editing frequency vs mismatch frequency of `wrong` significantly editing sites<br>in transcripts with pooled noise level < 6%",
 )
 
 fig.update_traces(marker_size=7)
-fig.update_layout(
-    width=800, height=400,
-    showlegend=False
-)
+fig.update_layout(width=800, height=400, showlegend=False)
 
 fig.show()
 
@@ -2295,11 +2482,12 @@ fig = px.histogram(
     # facet_col_wrap=4,
     log_y=True,
     template=template,
-    title="Number of wrong A>G mismatches per transcripts with pooled noise<br>level < 6%"
+    title="Number of wrong A>G mismatches per transcripts with pooled noise<br>level < 6%",
 )
 fig.update_xaxes(dtick=1)
 fig.update_layout(
-    width=700, height=400,
+    width=700,
+    height=400,
     showlegend=False
     # barmode='overlay' # Overlay both histograms
 )
@@ -2310,26 +2498,32 @@ fig.show()
 # ### Machine noise
 
 # %%
-all_machine_noise_df = concat_all_positions_df.loc[:, [condition_col, "Chrom", "RefBase", "TotalCoverage", "A", "T", "C", "G"]]
-all_machine_noise_df["ATCGs"] = all_machine_noise_df.loc[:, ["A", "T", "C", "G"]].sum(axis=1)
-all_machine_noise_df["Matches"] = all_machine_noise_df.apply(
-    lambda x: x[x["RefBase"]],
+all_machine_noise_df = concat_all_positions_df.loc[
+    :, [condition_col, "Chrom", "RefBase", "TotalCoverage", "A", "T", "C", "G"]
+]
+all_machine_noise_df["ATCGs"] = all_machine_noise_df.loc[:, ["A", "T", "C", "G"]].sum(
     axis=1
 )
+all_machine_noise_df["Matches"] = all_machine_noise_df.apply(
+    lambda x: x[x["RefBase"]], axis=1
+)
 all_machine_noise_df["Mismatches"] = all_machine_noise_df.apply(
-    lambda x: x["ATCGs"] - x["Matches"],
-    axis=1
+    lambda x: x["ATCGs"] - x["Matches"], axis=1
 )
 all_machine_noise_df
 
 # %%
-all_pooled_per_chrom_machine_noise_df = all_machine_noise_df.groupby("Chrom")[["Matches", "Mismatches"]].sum().reset_index()
-all_pooled_per_chrom_machine_noise_df["%PooledMachineNoise"] = all_pooled_per_chrom_machine_noise_df.apply(lambda x: 100 * x["Mismatches"] / x["Matches"], axis=1)
+all_pooled_per_chrom_machine_noise_df = (
+    all_machine_noise_df.groupby("Chrom")[["Matches", "Mismatches"]].sum().reset_index()
+)
+all_pooled_per_chrom_machine_noise_df[
+    "%PooledMachineNoise"
+] = all_pooled_per_chrom_machine_noise_df.apply(
+    lambda x: 100 * x["Mismatches"] / x["Matches"], axis=1
+)
 all_pooled_per_chrom_machine_noise_df = all_pooled_per_chrom_machine_noise_df.merge(
-        tmr50_alignment_stats_df.loc[:, ["Chrom"]],
-        on="Chrom",
-        how="right"
-    ).fillna(0.0)
+    tmr50_alignment_stats_df.loc[:, ["Chrom"]], on="Chrom", how="right"
+).fillna(0.0)
 all_pooled_per_chrom_machine_noise_df
 
 # %%
@@ -2338,7 +2532,7 @@ fig = px.histogram(
     x="%PooledMachineNoise",
     color_discrete_sequence=["black"],
     # labels={"% noise": "Per-gene noise level [%]"},
-    log_y=True
+    log_y=True,
 )
 
 # fig.update_xaxes(dtick=1)
@@ -2391,11 +2585,10 @@ labels = ["EditedFinal", "KnownEditing"]
 sets = [
     set(
         concat_all_positions_df.loc[
-            (concat_all_positions_df[label]) 
-            & (concat_all_positions_df["CDS"]) 
+            (concat_all_positions_df[label]) & (concat_all_positions_df["CDS"])
             # only transcripts whose pooled noise levels is < 6%
-            & (concat_all_positions_df["Chrom"].isin(chroms)), 
-            [condition_col, "Chrom", "Position"]
+            & (concat_all_positions_df["Chrom"].isin(chroms)),
+            [condition_col, "Chrom", "Position"],
         ].itertuples(index=False)
     )
     for label in labels
@@ -2431,7 +2624,11 @@ plt.show()
 # %%
 all_chroms = concat_all_positions_df["Chrom"].unique().size
 chroms_with_new_sites = (
-    concat_all_positions_df.loc[concat_all_positions_df["EditedFinal"] & ~concat_all_positions_df["KnownEditing"], "Chrom"]
+    concat_all_positions_df.loc[
+        (concat_all_positions_df["EditedFinal"])
+        & (~concat_all_positions_df["KnownEditing"]),
+        "Chrom",
+    ]
     .unique()
     .size
 )
@@ -2441,6 +2638,40 @@ chroms_without_new_sites
 # %%
 f"{100 * chroms_without_new_sites / all_chroms:.2f}%"
 
+# %%
+(
+    concat_all_positions_df.loc[
+        (concat_all_positions_df["EditedFinal"])
+        & (~concat_all_positions_df["KnownEditing"])
+        & (concat_all_positions_df["Chrom"].isin(chroms)),
+        "Chrom",
+    ]
+    .unique()
+    .size
+)
+
+# %%
+num_of_chroms_with_editing_sites = len(chroms)
+
+num_of_chroms_with_new_sites = (
+    concat_all_positions_df.loc[
+        (concat_all_positions_df["EditedFinal"])
+        & (~concat_all_positions_df["KnownEditing"])
+        & (concat_all_positions_df["Chrom"].isin(chroms)),
+        "Chrom",
+    ]
+    .unique()
+    .size
+)
+
+num_of_chroms_without_new_sites = (
+    num_of_chroms_with_editing_sites - num_of_chroms_with_new_sites
+)
+num_of_chroms_without_new_sites
+
+# %%
+100 * num_of_chroms_without_new_sites / num_of_chroms_with_editing_sites
+
 # %% [markdown]
 # ### ADAR motif
 
@@ -2448,8 +2679,9 @@ f"{100 * chroms_without_new_sites / all_chroms:.2f}%"
 unique_positions_df = (
     concat_all_positions_df.loc[
         # only edited positions in transcripts whose pooled noise levels is < 6%
-        (concat_all_positions_df["EditedFinal"]) & (concat_all_positions_df["Chrom"].isin(chroms)),
-        ["Chrom", "Position"]
+        (concat_all_positions_df["EditedFinal"])
+        & (concat_all_positions_df["Chrom"].isin(chroms)),
+        ["Chrom", "Position"],
     ]
     .drop_duplicates(["Chrom", "Position"], ignore_index=True)
     .merge(
@@ -2498,13 +2730,7 @@ out_file = Path("ADAR motif of pooled editing sites - Octopus.svg")
 
 # %%
 multiple_logos_from_fasta_files(
-    fasta_files,
-    main_title,
-    sub_titles,
-    out_file,
-    width=0.33*14,
-    height=4,
-    dpi=300
+    fasta_files, main_title, sub_titles, out_file, width=0.33 * 14, height=4, dpi=300
 );
 
 # %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"}
@@ -2630,16 +2856,16 @@ max_distinct_proteins_df["NumOfProteins"] = max_distinct_proteins_df[
     "NumOfProteins"
 ].fillna(1)
 
-max_distinct_proteins_df["NumOfReads"] = max_distinct_proteins_df.apply(
-    lambda x: x["NumOfReads"] if not pd.isna(x["NumOfReads"]) else x["MappedReads"],
-    axis=1,
-)
+# max_distinct_proteins_df["NumOfReads"] = max_distinct_proteins_df.apply(
+#     lambda x: x["NumOfReads"] if not pd.isna(x["NumOfReads"]) else x["MappedReads"],
+#     axis=1,
+# )
 
-# max_distinct_proteins_df = max_distinct_proteins_df.dropna().reset_index(drop=True)
+# # max_distinct_proteins_df = max_distinct_proteins_df.dropna().reset_index(drop=True)
 
-max_distinct_proteins_df["DistinctProteins/Reads"] = (
-    max_distinct_proteins_df["NumOfProteins"] / max_distinct_proteins_df["NumOfReads"]
-)
+# max_distinct_proteins_df["DistinctProteins/Reads"] = (
+#     max_distinct_proteins_df["NumOfProteins"] / max_distinct_proteins_df["NumOfReads"]
+# )
 
 max_distinct_proteins_df = max_distinct_proteins_df.merge(
     neural_vs_non_neural_expression_df.loc[:, ["OvulChrom", "IsNeural"]].rename(
@@ -2662,10 +2888,29 @@ max_distinct_proteins_df = max_distinct_proteins_df.sort_values(
 max_distinct_proteins_df
 
 # %%
+max_distinct_proteins_df.loc[
+    max_distinct_proteins_df["MappedReads"]
+    < max_distinct_proteins_df["NumOfAvailableReads"]
+]
+
+# %%
+max_distinct_proteins_df.loc[
+    max_distinct_proteins_df["MappedReads"]
+    > max_distinct_proteins_df["NumOfAvailableReads"]
+]
+
+# %%
+max_distinct_proteins_df["MappedReads"].sub(
+    max_distinct_proteins_df["NumOfAvailableReads"]
+).describe()
+
+# %%
 max_distinct_proteins_df.loc[max_distinct_proteins_df["Chrom"] == robo2_chrom]
 
 # %%
 max_distinct_proteins_df["NumOfProteins"].mean()
+
+# %%
 
 # %%
 # number of chroms with only 1 distinct protein
@@ -2696,6 +2941,52 @@ max_distinct_proteins_df.loc[max_distinct_proteins_df["NumOfProteins"] >= 50].sh
 100 * max_distinct_proteins_df.loc[
     max_distinct_proteins_df["NumOfProteins"] >= 50
 ].shape[0] / max_distinct_proteins_df.shape[0]
+
+# %%
+
+# %%
+# number of chroms with only 1 distinct protein, considering chroms with editing (below 6% noise)
+max_distinct_proteins_df.loc[
+    (max_distinct_proteins_df["NumOfProteins"] == 1)
+    & (max_distinct_proteins_df["Chrom"].isin(chroms))
+].shape[0]
+
+# %%
+# % of chroms with only 1 distinct protein, considering chroms with editing (below 6% noise)
+100 * max_distinct_proteins_df.loc[
+    (max_distinct_proteins_df["NumOfProteins"] == 1)
+    & (max_distinct_proteins_df["Chrom"].isin(chroms))
+].shape[0] / len(chroms)
+
+# %%
+# number of chroms with at least 5 distinct proteins, considering chroms with editing (below 6% noise)
+max_distinct_proteins_df.loc[
+    (max_distinct_proteins_df["NumOfProteins"] >= 5)
+    & (max_distinct_proteins_df["Chrom"].isin(chroms))
+].shape[0]
+
+# %%
+# % of chroms with at least 5 distinct proteins, considering chroms with editing (below 6% noise)
+100 * max_distinct_proteins_df.loc[
+    (max_distinct_proteins_df["NumOfProteins"] >= 5)
+    & (max_distinct_proteins_df["Chrom"].isin(chroms))
+].shape[0] / len(chroms)
+
+# %%
+# number of chroms with at least 50 distinct proteins, considering chroms with editing (below 6% noise)
+max_distinct_proteins_df.loc[
+    (max_distinct_proteins_df["NumOfProteins"] >= 50)
+    & (max_distinct_proteins_df["Chrom"].isin(chroms))
+].shape[0]
+
+# %%
+# % of chroms with at least 50 distinct proteins, considering chroms with editing (below 6% noise)
+100 * max_distinct_proteins_df.loc[
+    (max_distinct_proteins_df["NumOfProteins"] >= 50)
+    & (max_distinct_proteins_df["Chrom"].isin(chroms))
+].shape[0] / len(chroms)
+
+# %%
 
 # %%
 max_distinct_proteins_df["IsNeural"].value_counts()
@@ -2735,19 +3026,19 @@ tmr1000_max_distinct_proteins_df["NumOfProteins"] = tmr1000_max_distinct_protein
     "NumOfProteins"
 ].fillna(1)
 
-tmr1000_max_distinct_proteins_df["NumOfReads"] = tmr1000_max_distinct_proteins_df.apply(
-    lambda x: x["NumOfReads"] if not pd.isna(x["NumOfReads"]) else x["MappedReads"],
-    axis=1,
-)
-
-# tmr1000_max_distinct_proteins_df = (
-#     tmr1000_max_distinct_proteins_df.dropna().reset_index(drop=True)
+# tmr1000_max_distinct_proteins_df["NumOfReads"] = tmr1000_max_distinct_proteins_df.apply(
+#     lambda x: x["NumOfReads"] if not pd.isna(x["NumOfReads"]) else x["MappedReads"],
+#     axis=1,
 # )
 
-tmr1000_max_distinct_proteins_df["DistinctProteins/Reads"] = (
-    tmr1000_max_distinct_proteins_df["NumOfProteins"]
-    / tmr1000_max_distinct_proteins_df["NumOfReads"]
-)
+# # tmr1000_max_distinct_proteins_df = (
+# #     tmr1000_max_distinct_proteins_df.dropna().reset_index(drop=True)
+# # )
+
+# tmr1000_max_distinct_proteins_df["DistinctProteins/Reads"] = (
+#     tmr1000_max_distinct_proteins_df["NumOfProteins"]
+#     / tmr1000_max_distinct_proteins_df["NumOfReads"]
+# )
 
 tmr1000_max_distinct_proteins_df = tmr1000_max_distinct_proteins_df.merge(
     neural_vs_non_neural_expression_df.loc[:, ["OvulChrom", "IsNeural"]].rename(
@@ -2790,6 +3081,39 @@ tmr1000_max_distinct_proteins_df.loc[
 100 * tmr1000_max_distinct_proteins_df.loc[
     tmr1000_max_distinct_proteins_df["NumOfProteins"] >= 50
 ].shape[0] / tmr1000_max_distinct_proteins_df.shape[0]
+
+# %%
+len
+
+# %%
+# number of chroms with at least 5 distinct proteins, considering chroms with editing (below 6% noise)
+tmr1000_max_distinct_proteins_df.loc[
+    (tmr1000_max_distinct_proteins_df["NumOfProteins"] >= 5)
+    & (tmr1000_max_distinct_proteins_df["Chrom"].isin(tmr1000_chroms))
+].shape[0]
+
+# %%
+# % of chroms with at least 5 distinct proteins, considering chroms with editing (below 6% noise)
+100 * tmr1000_max_distinct_proteins_df.loc[
+    (tmr1000_max_distinct_proteins_df["NumOfProteins"] >= 5)
+    & (tmr1000_max_distinct_proteins_df["Chrom"].isin(tmr1000_chroms))
+].shape[0] / len(tmr1000_chroms)
+
+# %%
+# number of chroms with at least 50 distinct proteins, considering chroms with editing (below 6% noise)
+tmr1000_max_distinct_proteins_df.loc[
+    (tmr1000_max_distinct_proteins_df["NumOfProteins"] >= 50)
+    & (tmr1000_max_distinct_proteins_df["Chrom"].isin(tmr1000_chroms))
+].shape[0]
+
+# %%
+# % of chroms with at least 50 distinct proteins, considering chroms with editing (below 6% noise)
+100 * tmr1000_max_distinct_proteins_df.loc[
+    (tmr1000_max_distinct_proteins_df["NumOfProteins"] >= 50)
+    & (tmr1000_max_distinct_proteins_df["Chrom"].isin(tmr1000_chroms))
+].shape[0] / len(tmr1000_chroms)
+
+# %%
 
 # %%
 df = (
@@ -3112,25 +3436,24 @@ fig.update_layout(
     # legend_font=dict(size=10),
     # legend_grouptitlefont=dict(size=12),
     # showlegend=False,
-#     legend={
-#             # "title": "By country",
-#             # "xref": "container",
-#             # "yref": "container",
-#          "xref": "paper",
-#             "yref": "paper",
-#             "y": 0.9,
-#             # "bgcolor": "Orange",
-#         },
-#         legend1={
-#             # "title": "By continent",
-#             # "xref": "container",
-#             # "yref": "container",
-#              "xref": "paper",
-#             "yref": "paper",
-#             "y": 0.5,
-#             # "bgcolor": "Gold",
-
-#         },
+    #     legend={
+    #             # "title": "By country",
+    #             # "xref": "container",
+    #             # "yref": "container",
+    #          "xref": "paper",
+    #             "yref": "paper",
+    #             "y": 0.9,
+    #             # "bgcolor": "Orange",
+    #         },
+    #         legend1={
+    #             # "title": "By continent",
+    #             # "xref": "container",
+    #             # "yref": "container",
+    #              "xref": "paper",
+    #             "yref": "paper",
+    #             "y": 0.5,
+    #             # "bgcolor": "Gold",
+    #         },
 )
 
 fig.write_image(
@@ -3485,18 +3808,14 @@ strongly_diversified_transcripts = strongly_diversified_max_distinct_proteins_df
 ].to_list()
 
 # %%
-expanded_unique_proteins_dfs[0]
-
-# %%
 expanded_max_distinct_proteins_df = max_distinct_proteins_df.copy()
 expanded_max_distinct_proteins_df["Proteins"] = expanded_max_distinct_proteins_df[
     "Proteins"
 ].str.split(",")
-expanded_max_distinct_proteins_df = expanded_max_distinct_proteins_df.explode(
-    "Proteins"
-).reset_index(drop=True)
-expanded_max_distinct_proteins_df = expanded_max_distinct_proteins_df.rename(
-    columns={"Proteins": "Protein"}
+expanded_max_distinct_proteins_df = (
+    expanded_max_distinct_proteins_df.explode("Proteins")
+    .reset_index(drop=True)
+    .rename(columns={"Proteins": "Protein"})
 )
 expanded_max_distinct_proteins_df = expanded_max_distinct_proteins_df.drop(
     [
@@ -3505,72 +3824,86 @@ expanded_max_distinct_proteins_df = expanded_max_distinct_proteins_df.drop(
         "MappedReads",
         "Samples",
         "MappedReadsPerSample",
-        "DistinctProteins/Reads",
+        "AvailableReads",
+        "NumOfAvailableReads",
+        # "DistinctProteins/Reads",
     ],
     axis=1,
 )
 
 # expanded_max_distinct_proteins_df
 
-expanded_max_distinct_proteins_dfs = [
-    expanded_max_distinct_proteins_df.loc[
-        expanded_max_distinct_proteins_df["Chrom"] == chrom
-    ]
-    .merge(
-        expanded_unique_proteins_df, on=["Chrom", "Transcript", "Protein"], how="left"
+strongly_diversified_expanded_max_distinct_proteins_dfs = [
+    (
+        expanded_max_distinct_proteins_df.loc[
+            expanded_max_distinct_proteins_df["Chrom"] == chrom
+        ]
+        .merge(
+            expanded_unique_proteins_df,
+            on=["Chrom", "Transcript", "Protein"],
+            how="left",
+        )
+        .merge(samples_and_tissues_df, on="Sample", how="left")
     )
-    .merge(samples_and_tissues_df, on="Sample", how="left")
     for chrom, expanded_unique_proteins_df in zip(chroms, expanded_unique_proteins_dfs)
+    if chrom in strongly_diversified_chroms
 ]
 
 del expanded_max_distinct_proteins_df
 
-for expanded_max_distinct_proteins_df in expanded_max_distinct_proteins_dfs:
-    expanded_max_distinct_proteins_df.rename(
+for (
+    strongly_diversified_expanded_max_distinct_proteins_df
+) in strongly_diversified_expanded_max_distinct_proteins_dfs:
+    strongly_diversified_expanded_max_distinct_proteins_df.rename(
         columns={"Sample": "Sample2", "Protein": "Protein2", "Tissue": "Tissue2"},
         inplace=True,
     )
-    expanded_max_distinct_proteins_df.insert(
-        2, "Sample", expanded_max_distinct_proteins_df["Sample2"]
+    strongly_diversified_expanded_max_distinct_proteins_df.insert(
+        2, "Sample", strongly_diversified_expanded_max_distinct_proteins_df["Sample2"]
     )
-    expanded_max_distinct_proteins_df.insert(
-        3, "Tissue", expanded_max_distinct_proteins_df["Tissue2"]
+    strongly_diversified_expanded_max_distinct_proteins_df.insert(
+        3, "Tissue", strongly_diversified_expanded_max_distinct_proteins_df["Tissue2"]
     )
-    expanded_max_distinct_proteins_df.insert(
-        4, "Protein", expanded_max_distinct_proteins_df["Protein2"]
+    strongly_diversified_expanded_max_distinct_proteins_df.insert(
+        4, "Protein", strongly_diversified_expanded_max_distinct_proteins_df["Protein2"]
     )
-    expanded_max_distinct_proteins_df.drop(
+    strongly_diversified_expanded_max_distinct_proteins_df.drop(
         ["Sample2", "Tissue2", "Protein2"], axis=1, inplace=True
     )
 
-expanded_max_distinct_proteins_dfs[1]
-
-# %%
-strongly_diversified_expanded_max_distinct_proteins_dfs = [
-    expanded_max_distinct_proteins_df
-    for expanded_max_distinct_proteins_df, chrom in zip(
-        expanded_max_distinct_proteins_dfs, chroms
-    )
-    if chrom in strongly_diversified_chroms
+# expanded_max_distinct_proteins_dfs[1]
+strongly_diversified_expanded_max_distinct_proteins_dfs[0].loc[
+    :, :"MaxNonSynsFrequency"
 ]
 
-strongly_diversified_expanded_max_distinct_proteins_dfs[0]
+# %%
+strongly_diversified_expanded_max_distinct_proteins_dfs[0]["Protein"].unique().size
+
+# %%
+strongly_diversified_transcripts
+
+# %%
+# for strongly_diversified_expanded_max_distinct_proteins_df in strongly_diversified_expanded_max_distinct_proteins_dfs:
+#     print(strongly_diversified_expanded_max_distinct_proteins_df.loc[:3, :"KnownSites"])
 
 # %%
 strongly_diversified_num_of_proteins_per_sample_dfs = []
 
 for (
     strongly_diversified_expanded_max_distinct_proteins_df,
-    num_of_unique_proteins,
+    # num_of_unique_proteins,
 ) in zip(
     strongly_diversified_expanded_max_distinct_proteins_dfs,
-    strongly_diversified_max_num_of_proteins,
+    # strongly_diversified_max_num_of_proteins,
 ):
     gb = strongly_diversified_expanded_max_distinct_proteins_df.groupby(
-        ["Sample", "Tissue"]
+        ["Chrom", "Transcript", "Sample", "Tissue"]
     )
 
     df = gb.apply(len).reset_index().rename(columns={0: "NumOfProteins"})
+    
+    num_of_unique_proteins = strongly_diversified_expanded_max_distinct_proteins_df["Protein"].unique().size
+    
     df2 = (
         gb.apply(lambda x: 100 * len(x) / num_of_unique_proteins)
         .reset_index()
@@ -3582,158 +3915,121 @@ for (
 
 strongly_diversified_num_of_proteins_per_sample_dfs[0]
 
+# %% jupyter={"source_hidden": true}
+# total_non_unique_proteins_per_strongly_diversified_chroms = [
+#     len(strongly_diversified_expanded_max_distinct_proteins_df)
+#     for strongly_diversified_expanded_max_distinct_proteins_df in strongly_diversified_expanded_max_distinct_proteins_dfs
+# ]
+# total_non_unique_proteins_per_strongly_diversified_chroms
+
+# %% jupyter={"source_hidden": true}
+# total_non_unique_proteins_per_strongly_diversified_chroms_2 = [
+#     strongly_diversified_num_of_proteins_per_sample_df["NumOfProteins"].sum()
+#     for strongly_diversified_num_of_proteins_per_sample_df in strongly_diversified_num_of_proteins_per_sample_dfs
+# ]
+# total_non_unique_proteins_per_strongly_diversified_chroms_2
+
+# %% jupyter={"source_hidden": true}
+# strongly_diversified_max_num_of_proteins
+
 # %%
 len(per_transcript_per_sample_coverage_dfs)
 
 # %%
-# strongly_diversified_per_transcript_per_sample_coverage_dfs = [
-#     df
-#     for df, chrom in zip(per_transcript_per_sample_coverage_dfs, chroms)
-#     if chrom in strongly_diversified_chroms
-# ]
-# ic(len(strongly_diversified_per_transcript_per_sample_coverage_dfs))
-# strongly_diversified_per_transcript_per_sample_coverage_dfs[0]
+len(possibly_na_chroms)
+
+# %%
+len(possibly_na_positions_files)
+
+# %%
+strongly_diversified_per_transcript_per_sample_coverage_dfs[0]["Chrom"].iloc[0]
 
 # %%
 strongly_diversified_per_transcript_per_sample_coverage_dfs = [
     df
-    for df, chrom, position_file in zip(per_transcript_per_sample_coverage_dfs, possibly_na_chroms, possibly_na_positions_files)
-    if chrom in strongly_diversified_chroms and pd.notna(position_file)
+    for df in per_transcript_per_sample_coverage_dfs
+    if df["Chrom"].iloc[0] in strongly_diversified_chroms
 ]
 ic(len(strongly_diversified_per_transcript_per_sample_coverage_dfs))
 strongly_diversified_per_transcript_per_sample_coverage_dfs[0]
 
-# %% jupyter={"source_hidden": true}
-# cols = min(facet_col_wrap, len(strongly_diversified_num_of_proteins_per_sample_dfs), 3)
-# rows = ceil(len(strongly_diversified_num_of_proteins_per_sample_dfs) / cols)
-# row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[
-#     : len(strongly_diversified_num_of_proteins_per_sample_dfs)
-# ]
+# %%
+concat_strongly_diversified_per_transcript_per_sample_coverage_df = pd.concat(strongly_diversified_per_transcript_per_sample_coverage_dfs)
+concat_strongly_diversified_per_transcript_per_sample_coverage_df
 
-# x_title = "Tissue"
-# y_title = "Mapped reads"
-# # title_text = "Distribution of min & max estimates of non-syn substitutions per read"
+# %%
+strongly_diversified_num_of_reads_and_proteins_per_sample_dfs = []
+for strongly_diversified_num_of_proteins_per_sample_df in strongly_diversified_num_of_proteins_per_sample_dfs:
+    strongly_diversified_num_of_reads_and_proteins_per_sample_df = strongly_diversified_num_of_proteins_per_sample_df.merge(
+        concat_strongly_diversified_per_transcript_per_sample_coverage_df,
+        on=["Chrom", "Transcript", "Sample", "Tissue"],
+        how="left"
+    )
+    assert strongly_diversified_num_of_reads_and_proteins_per_sample_df["NumOfReads"].ge(strongly_diversified_num_of_reads_and_proteins_per_sample_df["NumOfProteins"]).all()
+    strongly_diversified_num_of_reads_and_proteins_per_sample_df["NumOfReads/NumOfProteins"] = strongly_diversified_num_of_reads_and_proteins_per_sample_df["NumOfReads"] / strongly_diversified_num_of_reads_and_proteins_per_sample_df["NumOfProteins"]
+    strongly_diversified_num_of_reads_and_proteins_per_sample_dfs.append(strongly_diversified_num_of_reads_and_proteins_per_sample_df)
+concat_strongly_diversified_num_of_reads_and_proteins_per_sample_df = pd.concat(strongly_diversified_num_of_reads_and_proteins_per_sample_dfs)
+concat_strongly_diversified_num_of_reads_and_proteins_per_sample_df
 
-# # subplot_titles = strongly_diversified_chroms
-# subplot_titles = [
-#     f"{transcript.split('_')[0]}<br><sub>({chrom})</sub>"
-#     for transcript, chrom in zip(
-#         strongly_diversified_transcripts, strongly_diversified_chroms
-#     )
-# ]
+# %%
+fig = px.box(
+    concat_strongly_diversified_num_of_reads_and_proteins_per_sample_df,
+    x="Tissue",
+    y="NumOfProteins",
+    color="Tissue",
+    color_discrete_map=tissues_color_discrete_map,
+    points="all",
+    category_orders={"Tissue": tissues_order}
+)
+fig.update_layout(
+    width=900,
+    height=500,
+    template=template,
+    showlegend=False
+)
+fig.show()
 
-# tissues_order = [
-#     "Axial nerve cord",
-#     "Frontal & vertical lobe",
-#     "Pedunculate & olfactory lobe",
-#     "Stellate g. & visceral g.",
-#     "Sucker",
-#     "Retina & optic lobe",
-#     "Non-neuronal tissues mix",
-# ]
-# tissue_to_legendrank = {tissue: x for x, tissue in enumerate(tissues_order, start=1)}
+# %%
+fig = px.box(
+    concat_strongly_diversified_num_of_reads_and_proteins_per_sample_df,
+    x="Tissue",
+    y="NumOfReads/NumOfProteins",
+    color="Tissue",
+    color_discrete_map=tissues_color_discrete_map,
+    points="all",
+    category_orders={"Tissue": tissues_order}
+)
+fig.update_yaxes(
+    range=[0, concat_strongly_diversified_num_of_reads_and_proteins_per_sample_df["NumOfReads/NumOfProteins"].max()*1.4], 
+    tick0=0, dtick=1,    
+    zeroline=True, zerolinewidth=2
+)
+fig.update_layout(
+    width=900,
+    height=500,
+    template=template,
+    showlegend=False
+)
 
-# fig = make_subplots(
-#     rows=rows,
-#     cols=cols,
-#     subplot_titles=subplot_titles,
-#     shared_yaxes=True,
-#     x_title=x_title,
-#     y_title=y_title,
-#     vertical_spacing=0.12,
-# )
+fig.show()
 
-# max_y = 0
-# legend_constructed = False
+# %%
+concat_strongly_diversified_num_of_reads_and_proteins_per_sample_df["NumOfReads"].max()
 
-# for (
-#     (row, col),
-#     strongly_diversified_per_transcript_per_sample_coverage_df,
-#     strongly_diversified_max_num_of_protein,
-# ) in zip(
-#     row_col_iter,
-#     strongly_diversified_per_transcript_per_sample_coverage_dfs,
-#     strongly_diversified_max_num_of_proteins,
-# ):
-#     _tissues = strongly_diversified_num_of_proteins_per_sample_df["Tissue"]
+# %%
+concat_strongly_diversified_num_of_reads_and_proteins_per_sample_df["NumOfProteins"].max()
 
-#     for tissue in _tissues:
-
-#         x = [tissue]
-#         y = strongly_diversified_per_transcript_per_sample_coverage_df.loc[
-#             strongly_diversified_per_transcript_per_sample_coverage_df["Tissue"] == tissue,
-#             "NumOfReads",
-#         ]
-
-#         max_y = max(max_y, y.max())
-
-#         if not legend_constructed:
-#             fig.add_trace(
-#                 go.Bar(
-#                     x=x,
-#                     y=y,
-#                     marker_color=tissues_color_discrete_map[tissue],
-#                     name=tissue,
-#                     legendrank=tissue_to_legendrank[tissue],
-#                 ),
-#                 row=row,
-#                 col=col,
-#             )
-#         else:
-#             fig.add_trace(
-#                 go.Bar(
-#                     x=x,
-#                     y=y,
-#                     marker_color=tissues_color_discrete_map[tissue],
-#                     # name=tissue,
-#                     showlegend=False,
-#                 ),
-#                 row=row,
-#                 col=col,
-#             )
-
-#     legend_constructed = True
-
-
-# # fig.update_xaxes(tickangle=45, automargin=True)
-
-# fig.update_xaxes(
-#     showticklabels=False,  # Hide x axis ticks
-#     categoryorder="array",
-#     categoryarray=tissues_order,
-# )
-# fig.update_yaxes(
-#     range=[0, max_y * 1.1],
-#     # range=[0, 0.5+np.log(max_y)/np.log(10)],
-#     # type="log"
-# )
-
-# width = 1000
-# height = 800
-
-
-# fig.update_layout(
-#     template=template,
-#     title_text="Octopus",
-#     title_x=0.1,
-#     title_y=0.97,
-#     # showlegend=False,
-#     legend_title_text="Tissue",
-#     width=width,
-#     height=height,
-# )
-
-# # fig.write_image(
-# #     f"{title_text} - PacBio.svg",
-# #     width=max(350 * cols, 800),
-# #     height=max(200 * rows, 300),
-# # )
-
-# fig.show()
-
+# %%
+strongly_diversified_chroms
 
 # %%
 strongly_diversified_max_num_of_proteins
+
+# %%
+strongly_diversified_transcripts 
+
+# %%
+ceil(300)
 
 # %%
 cols = min(facet_col_wrap, len(strongly_diversified_num_of_proteins_per_sample_dfs), 3)
@@ -3745,15 +4041,6 @@ row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[
 x_title = "Coverage"
 y_title = "Distinct protein isoforms"
 
-# title_text = "Distribution of min & max estimates of non-syn substitutions per read"
-
-
-# subplot_titles = [
-#     f"{transcript.split('_')[0]}<br><sub>Pooled distinct proteins = {int(total_pooled_isoforms)}</sub>"
-#     for transcript, total_pooled_isoforms in zip(
-#         strongly_diversified_transcripts, strongly_diversified_max_num_of_proteins
-#     )
-# ]
 
 subplot_titles = [
     f"{transcript.split('_')[0]} ({int(total_pooled_isoforms)})"
@@ -3762,16 +4049,7 @@ subplot_titles = [
     )
 ]
 
-tissues_order = [
-    "Axial nerve cord",
-    "Frontal & vertical lobe",
-    "Pedunculate & olfactory lobe",
-    "Stellate g. & visceral g.",
-    "Sucker",
-    "Retina & optic lobe",
-    "Non-neuronal tissues mix",
-]
-tissue_to_legendrank = {tissue: x for x, tissue in enumerate(tissues_order, start=1)}
+
 
 fig = make_subplots(
     rows=rows,
@@ -3790,29 +4068,31 @@ legend_constructed = False
 
 for (
     (row, col),
-    strongly_diversified_num_of_proteins_per_sample_df,
+    strongly_diversified_chrom,
     strongly_diversified_max_num_of_protein,
-    strongly_diversified_per_transcript_per_sample_coverage_df,
 ) in zip(
     row_col_iter,
-    strongly_diversified_num_of_proteins_per_sample_dfs,
+    strongly_diversified_chroms,
     strongly_diversified_max_num_of_proteins,
-    strongly_diversified_per_transcript_per_sample_coverage_dfs,
 ):
-    _tissues = strongly_diversified_num_of_proteins_per_sample_df["Tissue"]
+    strongly_diversified_num_of_reads_and_proteins_per_sample_df = concat_strongly_diversified_num_of_reads_and_proteins_per_sample_df.loc[
+        concat_strongly_diversified_num_of_reads_and_proteins_per_sample_df["Chrom"] == strongly_diversified_chrom
+    ]
+    
+    _tissues = strongly_diversified_num_of_reads_and_proteins_per_sample_df["Tissue"]
 
     for tissue in _tissues:
         try:
-            x = strongly_diversified_per_transcript_per_sample_coverage_df.loc[
-                strongly_diversified_per_transcript_per_sample_coverage_df["Tissue"]
+            x = strongly_diversified_num_of_reads_and_proteins_per_sample_df.loc[
+                strongly_diversified_num_of_reads_and_proteins_per_sample_df["Tissue"]
                 == tissue,
                 "NumOfReads",
             ]
         except KeyError:
             x = [0]
 
-        y = strongly_diversified_num_of_proteins_per_sample_df.loc[
-            strongly_diversified_num_of_proteins_per_sample_df["Tissue"] == tissue,
+        y = strongly_diversified_num_of_reads_and_proteins_per_sample_df.loc[
+            strongly_diversified_num_of_reads_and_proteins_per_sample_df["Tissue"] == tissue,
             "NumOfProteins",
         ]
         # ic(samp)
@@ -3854,11 +4134,16 @@ for (
 
 # fig.update_xaxes(tickangle=45, automargin=True)
 
+max_x_y = ceil(max(max_x, max_y)) * 1.05
+
 fig.update_xaxes(
     # showticklabels=False,  # Hide x axis ticks
     # categoryorder="array",
     # categoryarray=tissues_order,
-    range=[0, max_x * 1.1]
+    # range=[0, max_x * 1.1],
+    range=[0, max_x_y],
+    tick0=0,
+    # dtick=50
 )
 # fig.update_yaxes(
 #     range=[0, max_y * 1.1],
@@ -3867,7 +4152,10 @@ fig.update_xaxes(
 # )
 fig.update_yaxes(
     # title_text=primary_y_title,
-    range=[0, max_y * 1.1],
+    # range=[0, max_y * 1.1],
+    range=[0, max_x_y],
+    tick0=0,
+    # dtick=50
     # secondary_y=False
 )
 # fig.update_yaxes(
@@ -3879,7 +4167,7 @@ fig.update_yaxes(
 width = 950
 height = 800
 
-fig.update_traces(opacity=0.7, marker_size=6)
+fig.update_traces(opacity=0.7, marker_size=8)
 
 fig.update_layout(
     template=template,
@@ -3900,6 +4188,183 @@ fig.write_image(
 )
 
 fig.show()
+
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+# cols = min(facet_col_wrap, len(strongly_diversified_num_of_proteins_per_sample_dfs), 3)
+# rows = ceil(len(strongly_diversified_num_of_proteins_per_sample_dfs) / cols)
+# row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[
+#     : len(strongly_diversified_num_of_proteins_per_sample_dfs)
+# ]
+
+# x_title = "Coverage"
+# y_title = "Distinct protein isoforms"
+
+# # title_text = "Distribution of min & max estimates of non-syn substitutions per read"
+
+
+# # subplot_titles = [
+# #     f"{transcript.split('_')[0]}<br><sub>Pooled distinct proteins = {int(total_pooled_isoforms)}</sub>"
+# #     for transcript, total_pooled_isoforms in zip(
+# #         strongly_diversified_transcripts, strongly_diversified_max_num_of_proteins
+# #     )
+# # ]
+
+# subplot_titles = [
+#     f"{transcript.split('_')[0]} ({int(total_pooled_isoforms)})"
+#     for transcript, total_pooled_isoforms in zip(
+#         strongly_diversified_transcripts, strongly_diversified_max_num_of_proteins
+#     )
+# ]
+
+# tissues_order = [
+#     "Axial nerve cord",
+#     "Frontal & vertical lobe",
+#     "Pedunculate & olfactory lobe",
+#     "Stellate g. & visceral g.",
+#     "Sucker",
+#     "Retina & optic lobe",
+#     "Non-neuronal tissues mix",
+# ]
+# tissue_to_legendrank = {tissue: x for x, tissue in enumerate(tissues_order, start=1)}
+
+# fig = make_subplots(
+#     rows=rows,
+#     cols=cols,
+#     subplot_titles=subplot_titles,
+#     shared_yaxes=True,
+#     x_title=x_title,
+#     y_title=y_title,
+#     vertical_spacing=0.12,
+#     # horizontal_spacing=0.2,
+# )
+
+# max_x = 0
+# max_y = 0
+# legend_constructed = False
+
+# for (
+#     (row, col),
+#     strongly_diversified_num_of_proteins_per_sample_df,
+#     strongly_diversified_max_num_of_protein,
+#     strongly_diversified_per_transcript_per_sample_coverage_df,
+# ) in zip(
+#     row_col_iter,
+#     strongly_diversified_num_of_proteins_per_sample_dfs,
+#     strongly_diversified_max_num_of_proteins,
+#     strongly_diversified_per_transcript_per_sample_coverage_dfs,
+# ):
+#     _tissues = strongly_diversified_num_of_proteins_per_sample_df["Tissue"]
+
+#     for tissue in _tissues:
+#         try:
+#             x = strongly_diversified_per_transcript_per_sample_coverage_df.loc[
+#                 strongly_diversified_per_transcript_per_sample_coverage_df["Tissue"]
+#                 == tissue,
+#                 "NumOfReads",
+#             ]
+#         except KeyError:
+#             x = [0]
+
+#         y = strongly_diversified_num_of_proteins_per_sample_df.loc[
+#             strongly_diversified_num_of_proteins_per_sample_df["Tissue"] == tissue,
+#             "NumOfProteins",
+#         ]
+#         # ic(samp)
+
+#         max_x = max(max_x, x.max())
+#         max_y = max(max_y, y.max())
+
+#         if not legend_constructed:
+#             fig.add_trace(
+#                 go.Scatter(
+#                     x=x,
+#                     y=y,
+#                     marker_color=tissues_color_discrete_map[tissue],
+#                     name=tissue,
+#                     legendrank=tissue_to_legendrank[tissue],
+#                     # marker_pattern_shape="/",
+#                     mode="markers",
+#                 ),
+#                 row=row,
+#                 col=col,
+#             )
+#         else:
+#             fig.add_trace(
+#                 go.Scatter(
+#                     x=x,
+#                     y=y,
+#                     marker_color=tissues_color_discrete_map[tissue],
+#                     # name=tissue,
+#                     showlegend=False,
+#                     # marker_pattern_shape="/",
+#                     mode="markers",
+#                 ),
+#                 row=row,
+#                 col=col,
+#             )
+
+#     legend_constructed = True
+
+
+# # fig.update_xaxes(tickangle=45, automargin=True)
+
+# fig.update_xaxes(
+#     # showticklabels=False,  # Hide x axis ticks
+#     # categoryorder="array",
+#     # categoryarray=tissues_order,
+#     range=[0, max_x * 1.1]
+# )
+# # fig.update_yaxes(
+# #     range=[0, max_y * 1.1],
+# #     # range=[0, 0.5+np.log(max_y)/np.log(10)],
+# #     # type="log"
+# # )
+# fig.update_yaxes(
+#     # title_text=primary_y_title,
+#     range=[0, max_y * 1.1],
+#     # secondary_y=False
+# )
+# # fig.update_yaxes(
+# #     title_text=secondary_y_title,
+# #     range=[0, max_y_2 * 1.1],
+# #     secondary_y=True
+# # )
+
+# width = 950
+# height = 800
+
+# fig.update_traces(opacity=0.7, marker_size=6)
+
+# fig.update_layout(
+#     template=template,
+#     # title_text="Octopus",
+#     # title_x=0.1,
+#     # title_y=0.97,
+#     # showlegend=False,
+#     legend_title_text="Tissue",
+#     width=width,
+#     height=height,
+#     # barmode="overlay",
+# )
+
+# fig.write_image(
+#     "Distinct proteins vs coverage per 9 strong transcripts - Octopus.svg",
+#     width=width,
+#     height=height,
+# )
+
+# fig.show()
 
 
 # %% [markdown]
@@ -4296,12 +4761,11 @@ fig = go.Figure(
 )
 
 # fig.update_xaxes(title="% dispersion<br><sub>100 * (max - min) / max</sub>")
-fig.update_yaxes(title="Dispersion [%]", 
-                 # type="log"
-                )
-fig.update_xaxes(title="Genes", 
-                 type="log"
-                )
+fig.update_yaxes(
+    title="Dispersion [%]",
+    # type="log"
+)
+fig.update_xaxes(title="Genes", type="log")
 
 fig.update_layout(
     # showlegend=False,
@@ -4317,7 +4781,12 @@ fig.update_layout(
 fig.show()
 
 # %%
-grouped_dispersion_df = dispersion_df.groupby("%SolutionsDispersion").size().reset_index().rename(columns={0: "Genes"})
+grouped_dispersion_df = (
+    dispersion_df.groupby("%SolutionsDispersion")
+    .size()
+    .reset_index()
+    .rename(columns={0: "Genes"})
+)
 grouped_dispersion_df
 
 # %%
@@ -4332,9 +4801,9 @@ fig = go.Figure(
 # fig.update_xaxes(title="% dispersion<br><sub>100 * (max - min) / max</sub>")
 fig.update_xaxes(title="Genes", type="log")
 fig.update_yaxes(
-    title="Dispersion [%]", 
+    title="Dispersion [%]",
     # type="log"
-                )
+)
 
 fig.update_layout(
     # showlegend=False,

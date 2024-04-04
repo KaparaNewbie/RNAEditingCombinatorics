@@ -329,7 +329,7 @@ known_non_syns_df
 
 # %%
 known_non_syns_per_chrom_df = (
-    known_non_syns_df.groupby("Chrom")["NonSyn"]
+    known_non_syns_df.groupby(["Chrom", "SwissProt"])["NonSyn"]
     .count()
     .reset_index()
     .rename(columns={"NonSyn": "NonSyns"})
@@ -338,7 +338,10 @@ known_non_syns_per_chrom_df = (
 known_non_syns_per_chrom_df
 
 # %%
-known_non_syns_per_chrom_df.loc[known_non_syns_per_chrom_df["NonSyns"] >= 102]
+known_non_syns_per_chrom_df.loc[known_non_syns_per_chrom_df["NonSyns"] >= 100]
+
+# %%
+known_non_syns_per_chrom_df.loc[known_non_syns_per_chrom_df["NonSyns"] >= 100].to_csv("ChromsWithAtLeast100NonSyns.Squid.tsv", index=False, sep="\t")
 
 # %%
 fig = px.histogram(
@@ -490,11 +493,6 @@ proteins_dfs[0]
 
 # %%
 proteins_dfs[1]
-
-# %%
-for proteins_df in proteins_dfs:
-    mean_edited_aas = proteins_df["MinNonSyns"].mean()
-    print(mean_edited_aas)
 
 # %%
 for proteins_df in proteins_dfs:
@@ -700,6 +698,7 @@ distinct_unique_proteins_df
 
 
 # %%
+distinct_unique_proteins_df.loc[distinct_unique_proteins_df["NumOfProteins"] > ]
 
 # %%
 # unique_edited_proteins_dfs[0].columns[:unique_proteins_first_col_pos]
@@ -3868,7 +3867,7 @@ min_max_fraction_1_distinct_prots_df.to_csv("Dispersion.PacBio.tsv", sep="\t", i
 # fig.show()
 
 
-# %% [markdown]
+# %% [markdown] toc-hr-collapsed=true
 # #### Jaccard (overlap of solutions)
 
 # %%
@@ -4625,7 +4624,7 @@ for expression_file in expression_files:
 expression_dfs[0]
 
 # %%
-expression_dfs[0].iloc[[0, 1]]
+expression_dfs[0].columns
 
 
 # %%
@@ -4648,7 +4647,7 @@ def find_rand_maximal_solution(
     return rand_maximal_solution
 
 
-# %%
+# %% jupyter={"source_hidden": true}
 # def make_percentile_df(
 #     expression_df,
 #     first_percentile=10,
@@ -4772,7 +4771,7 @@ maximal_solutions = [
 ]
 maximal_solutions
 
-# %%
+# %% jupyter={"source_hidden": true}
 # percentile_dfs = [
 #     make_percentile_df(
 #         expression_df.loc[expression_df["#Solution"] == maximal_solution].reset_index(
@@ -4814,6 +4813,16 @@ for assignment_df in assignment_dfs:
     ].cumsum()
 
 assignment_dfs[0]
+
+# %%
+assignment_dfs[0].columns
+
+# %%
+avg_of_min_estimate_of_non_syns_per_isoforms = [
+    assignment_df["MinNonSyns"].mean()
+    for assignment_df in assignment_dfs
+]
+avg_of_min_estimate_of_non_syns_per_isoforms
 
 # %%
 # maximal_dfs = [
@@ -8830,6 +8839,9 @@ non_syns_per_read_df
 
 # %%
 non_syns_per_read_df["MinNonSyns"].sum() / len(non_syns_per_read_df)
+
+# %%
+non_syns_per_read_df.groupby(condition_col)["MinNonSyns"].mean()
 
 # %%
 # Distribution of min & max estimates of non-syn substitutions per *read*

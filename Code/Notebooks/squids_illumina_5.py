@@ -2721,7 +2721,7 @@ fig.write_image(
 fig.show()
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 # fig = px.bar(
 #     mean_distinct_proteins_df,
 #     x=condition_col,
@@ -2750,7 +2750,7 @@ fig.show()
 # fig.show()
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 # distinct_proteins_per_mapped_reads_df = distinct_unique_proteins_df.copy()
 # distinct_proteins_per_mapped_reads_df = distinct_proteins_per_mapped_reads_df.loc[
 #     distinct_proteins_per_mapped_reads_df["Algorithm"] == "Descending"
@@ -2774,7 +2774,7 @@ fig.show()
 # distinct_proteins_per_mapped_reads_df
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 # mean_distinct_proteins_per_mapped_reads_df = pd.DataFrame(
 #     {
 #         condition_col: conditions,
@@ -2805,7 +2805,7 @@ fig.show()
 
 # mean_distinct_proteins_per_mapped_reads_df
 
-# %% jupyter={"source_hidden": true}
+# %%
 # fig = go.Figure()
 
 # for condition in conditions:
@@ -2866,7 +2866,7 @@ fig.show()
 # fig.show()
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 # fig = px.bar(
 #     mean_distinct_proteins_per_mapped_reads_df,
 #     x=condition_col,
@@ -2889,7 +2889,7 @@ fig.show()
 # fig.show()
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 # fig = px.violin(
 #     distinct_proteins_per_mapped_reads_df,
 #     x=condition_col,
@@ -2913,11 +2913,11 @@ fig.show()
 # fig.show()
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 # distinct_unique_proteins_df["NumOfProteins"].max()
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 # condition = conditions[0]
 # df = distinct_unique_proteins_df.loc[
 #     distinct_unique_proteins_df[condition_col] == condition
@@ -2927,16 +2927,16 @@ fig.show()
 # x_fraction_mean
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 # y_fraction_mean = grouped_df["NumOfProteins"].mean().reset_index()
 # y_fraction_mean
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 # x_fraction_mean.merge(y_fraction_mean, on="Fraction")
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 # x_axis_name = "Reads"
 # y_axis_name = "Distinct unique proteins"
 # head_title = (
@@ -3076,7 +3076,7 @@ fig.show()
 # fig.show()
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 # x_axis_name = "Mapped reads"
 # y_axis_name = "Distinct proteins"
 # head_title = (
@@ -5347,7 +5347,7 @@ def find_rand_maximal_solution(
     return rand_maximal_solution
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 # def make_percentile_df(
 #     expression_df,
 #     first_percentile=10,
@@ -5471,7 +5471,7 @@ maximal_solutions = [
 ]
 maximal_solutions
 
-# %% jupyter={"source_hidden": true}
+# %%
 # percentile_dfs = [
 #     make_percentile_df(
 #         expression_df.loc[expression_df["#Solution"] == maximal_solution].reset_index(
@@ -5513,6 +5513,13 @@ for assignment_df in assignment_dfs:
     ].cumsum()
 
 assignment_dfs[0]
+
+# %%
+avg_of_min_estimate_of_non_syns_per_isoforms = [
+    assignment_df["MinNonSyns"].mean()
+    for assignment_df in assignment_dfs
+]
+avg_of_min_estimate_of_non_syns_per_isoforms
 
 # %%
 
@@ -5616,7 +5623,7 @@ fig.write_image(
 
 fig.show()
 
-# %% jupyter={"source_hidden": true}
+# %%
 # x_axis_name = "Distinct protein rank"
 # y_axis_name = "Cummulative relative<br>expression (%)"
 # head_title = "Weighted cummulative expression vs. distinct protein rank"
@@ -5725,7 +5732,7 @@ fig.show()
 
 # fig.show()
 
-# %% jupyter={"source_hidden": true}
+# %%
 # cols = min(facet_col_wrap, len(conditions), 4)
 # rows = ceil(len(conditions) / cols)
 # row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
@@ -7909,7 +7916,7 @@ fig.show()
 # %% [markdown]
 # ##### Shannon's entropy
 
-# %% jupyter={"source_hidden": true}
+# %%
 # def calc_data_entropy(max_sol_exp_df, prcnt_equal_exp_col, prcnt_weighted_exp_col):
 #     def _calc_data_entropy(prcnt_exp_col):
 #         p = max_sol_exp_df[prcnt_exp_col] / 100
@@ -7922,13 +7929,13 @@ fig.show()
 
 #     return s_data_equal_exp, s_data_weighted_exp
 
-# %% jupyter={"source_hidden": true}
+# %%
 # def calc_hypothetical_entropy(max_sol_exp_df, first_col_pos):
 #     p = max_sol_exp_df.iloc[:, first_col_pos:].apply(np.mean)
 #     s_hypo = sum(-p * np.log2(p) - (1 - p) * np.log2((1 - p)))
 #     return s_hypo
 
-# %% jupyter={"source_hidden": true}
+# %%
 # def calc_entropies(
 #     max_sol_exp_df,
 #     first_col_pos,
@@ -7941,7 +7948,7 @@ fig.show()
 #     s_hypo = calc_hypothetical_entropy(max_sol_exp_df, first_col_pos)
 #     return s_data_equal_exp, s_data_weighted_exp, s_hypo
 
-# %% jupyter={"source_hidden": true}
+# %%
 # max_sol_exp_dfs = [
 #     prepare_ml_input_df(
 #         max_sol_df,
@@ -8489,7 +8496,7 @@ fig.show()
 # fig.show()
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 # cols = min(facet_col_wrap, len(conditions), 5)
 # rows = ceil(len(conditions) / cols)
 # row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
@@ -8643,6 +8650,12 @@ non_syns_per_read_df
 
 # %%
 non_syns_per_read_df["MinNonSyns"].sum() / len(non_syns_per_read_df)
+
+# %%
+non_syns_per_read_df.groupby(condition_col)["MinNonSyns"].mean()
+
+# %%
+non_syns_per_read_df.groupby(condition_col)["MinNonSyns"].mean().sum()
 
 # %%
 # Distribution of min & max estimates of non-syn substitutions per *read*

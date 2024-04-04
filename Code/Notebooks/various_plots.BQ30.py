@@ -527,6 +527,17 @@ editing_freq_cols = [f"EditingFrequency_{col_suffix}" for col_suffix in col_suff
 editing_percent_cols = [f"%Editing_{col_suffix}" for col_suffix in col_suffixes]
 edited_cols = [f"Edited_{col_suffix}" for col_suffix in col_suffixes]
 
+
+# %%
+def current_study_min_max_positions(merged_ref_base_positions_df):
+    currently_edited_positions = merged_ref_base_positions_df.loc[
+        (merged_ref_base_positions_df["Edited_PacBio"]) | (merged_ref_base_positions_df["Edited_Illumina"]),
+    ].sort_values("Position")["Position"]
+    min_position = currently_edited_positions.iloc[0]
+    max_position = currently_edited_positions.iloc[-1]
+    return min_position, max_position
+
+
 # %%
 merged_ref_base_positions_df = (
     ref_base_positions_dfs[0]
@@ -566,13 +577,24 @@ merged_ref_base_positions_df = merged_ref_base_positions_df.sort_values(
     ["Chrom", "Position"]
 ).reset_index(drop=True)
 
+current_study_min_x, current_study_max_x = current_study_min_max_positions(merged_ref_base_positions_df)
+merged_ref_base_positions_df = merged_ref_base_positions_df.loc[
+    (merged_ref_base_positions_df["Position"] >= current_study_min_x) &
+    (merged_ref_base_positions_df["Position"] <= current_study_max_x)
+]
+merged_ref_base_positions_df = merged_ref_base_positions_df.loc[
+    (merged_ref_base_positions_df["Edited_PacBio"]) |
+    (merged_ref_base_positions_df["Edited_Illumina"]) |
+    (merged_ref_base_positions_df["Edited_Known"])
+]
+
 merged_ref_base_positions_df
 
 # %%
 col_suffixes_updated_legend = {
     "PacBio": "Long-reads",
     "Illumina": "Short-reads",
-    "Known": "Known (Short-reads)  ",
+    "Known": "Known (Short-reads)    ",
 }
 
 # %%
@@ -589,9 +611,6 @@ fig = make_subplots(
 )
 
 symbols = ["circle", "square"]
-
-current_study_min_x = end
-current_study_max_x = start
 
 for row in [1, 2]:
     if row == 1:
@@ -614,11 +633,6 @@ for row in [1, 2]:
 
         x = df["Position"]
         y = df[editing_percent_col]
-
-        if col_suffix != "Known":
-            _min_x = min([i for i, j in zip(x, y) if j != 0])
-            current_study_min_x = min(_min_x, current_study_min_x)
-            current_study_max_x = max(max(x), current_study_max_x)
 
         if row == 1:
             fig.add_trace(
@@ -654,9 +668,9 @@ for row in [1, 2]:
                 col=1,
             )
 
-fig.update_xaxes(
-    range=[current_study_min_x, current_study_max_x],
-)
+# fig.update_xaxes(
+#     range=[current_study_min_x, current_study_max_x],
+# )
 
 # custom_tick_labels = ['0', '1', '2', '3', '4', '5']
 # fig.update_xaxes(ticktext=custom_tick_labels)
@@ -706,8 +720,10 @@ fig = make_subplots(
 
 symbols = ["circle", "square"]
 
-current_study_min_x = end
-current_study_max_x = start
+# current_study_min_x = end
+# current_study_max_x = start
+
+# current_study_min_x, current_study_max_x = current_study_min_max_positions(merged_ref_base_positions_df)
 
 # colors = [
 #     px.colors.qualitative.G10[1],
@@ -740,13 +756,6 @@ for row in [1, 2]:
 
         x = df["Position"]
         y = df[editing_percent_col]
-
-        if col_suffix != "Known":
-            _min_x = min([i for i, j in zip(x, y) if j != 0])
-            current_study_min_x = min(_min_x, current_study_min_x)
-            current_study_max_x = max(max(x), current_study_max_x)
-
-        # mode = markers
         
         if row == 1:
             fig.add_trace(
@@ -757,7 +766,7 @@ for row in [1, 2]:
                     mode="markers",
                     marker=dict(
                         color=color,
-                        # opacity=0.7,
+                        opacity=0.7,
                         # size=4,
                         size=6,
                         # line=dict(
@@ -779,7 +788,7 @@ for row in [1, 2]:
                     # mode="lines+markers",
                     mode="markers",
                     marker=dict(color=color, 
-                                # opacity=0.7, 
+                                opacity=0.7, 
                                 # size=4,
                                 size=6
                                ),
@@ -789,9 +798,9 @@ for row in [1, 2]:
                 col=1,
             )
 
-fig.update_xaxes(
-    range=[current_study_min_x, current_study_max_x],
-)
+# fig.update_xaxes(
+#     range=[current_study_min_x, current_study_max_x],
+# )
 
 lowest_y_greater_than_0 = (
     pd.Series(
@@ -823,7 +832,7 @@ fig.update_layout(
     height=height,
     legend=dict(
         orientation="h", 
-        x=0.85,
+        x=0.83,
         y=0.8,
         xref="container",
         yref="container",
@@ -840,13 +849,18 @@ fig.write_image(
 fig.show()
 
 # %%
-# merged_ref_base_positions_df["Position"]
+cat_merged_ref_base_positions_df = merged_ref_base_positions_df.copy()
+cat_merged_ref_base_positions_df["Position"] = cat_merged_ref_base_positions_df["Position"].astype(str)
+cat_merged_ref_base_positions_df
+
+# %%
+# cat_merged_ref_base_positions_df["Position"].astype(int).sort_values().astype(str).tolist()
 
 # %%
 fig = make_subplots(
     rows=2,
     cols=1,
-    shared_xaxes=True,
+    shared_xaxes="all",
     # subplot_titles=["Known positions", "New positions"],
     row_titles=["Known<br>positions", "De-novo<br>positions"],
     x_title="Position",
@@ -855,10 +869,10 @@ fig = make_subplots(
     vertical_spacing=0.13,
 )
 
-symbols = ["circle", "square"]
+# current_study_min_x = end
+# current_study_max_x = start
 
-current_study_min_x = end
-current_study_max_x = start
+
 
 # colors = [
 #     px.colors.qualitative.G10[1],
@@ -872,12 +886,12 @@ colors = px.colors.qualitative.Pastel[:2] + [px.colors.qualitative.Pastel[4]]
 
 for row in [1, 2]:
     if row == 1:
-        df = merged_ref_base_positions_df.loc[
-            merged_ref_base_positions_df["Edited_Known"]
+        df = cat_merged_ref_base_positions_df.loc[
+            cat_merged_ref_base_positions_df["Edited_Known"]
         ]
     else:
-        df = merged_ref_base_positions_df.loc[
-            ~merged_ref_base_positions_df["Edited_Known"]
+        df = cat_merged_ref_base_positions_df.loc[
+            ~cat_merged_ref_base_positions_df["Edited_Known"]
         ]
 
     for color, editing_percent_col, edited_col, col_suffix in zip(
@@ -892,25 +906,14 @@ for row in [1, 2]:
         x = df["Position"]
         y = df[editing_percent_col]
 
-        if col_suffix != "Known":
-            _min_x = min([i for i, j in zip(x, y) if j != 0])
-            current_study_min_x = min(_min_x, current_study_min_x)
-            current_study_max_x = max(max(x), current_study_max_x)
-
-        # mode = markers
-        
         if row == 1:
             fig.add_trace(
                 go.Bar(
                     x=x,
                     y=y,
-                    # mode="lines+markers",
-                    # mode="markers",
                     marker=dict(
                         color=color,
-                        # opacity=0.7,
-                        # size=4,
-                        # size=6,
+                        opacity=0.7,
                         # line=dict(
                         #     width=2,
                         #     color='DarkSlateGrey'
@@ -927,12 +930,8 @@ for row in [1, 2]:
                 go.Bar(
                     x=x,
                     y=y,
-                    # mode="lines+markers",
-                    # mode="markers",
                     marker=dict(color=color, 
-                                # opacity=0.7, 
-                                # size=4,
-                                # size=6
+                                opacity=0.7,
                                ),
                     showlegend=False,
                 ),
@@ -940,13 +939,18 @@ for row in [1, 2]:
                 col=1,
             )
 
+# ic(current_study_min_x, current_study_max_x)
+
 fig.update_xaxes(
-    range=[current_study_min_x, current_study_max_x],
+    type='category',
+    title_standoff = 70,
+    automargin=False
+    # range=[current_study_min_x, current_study_max_x],
 )
 
 lowest_y_greater_than_0 = (
     pd.Series(
-        merged_ref_base_positions_df.loc[
+        cat_merged_ref_base_positions_df.loc[
             :, ["%Editing_PacBio", "%Editing_Illumina", "%Editing_Known"]
         ].values.reshape(-1)
     )
@@ -957,6 +961,7 @@ lowest_y_greater_than_0 = (
 fig["layout"]["yaxis"].update(
     range=[0, 100],
     tick0=0,
+    dtick=20
 )
 
 fig["layout"]["yaxis2"].update(
@@ -965,8 +970,13 @@ fig["layout"]["yaxis2"].update(
     tick0=0,
 )
 
-width = 1100
-height = 600
+width = 1400
+height = width * 500 / 1100
+
+fig.update_annotations(
+    font_size=14,
+    # yshift=-50, 
+)
 
 fig.update_layout(
     template=template,
@@ -981,7 +991,12 @@ fig.update_layout(
         xanchor="right",
     ),
     barmode='overlay', 
-    xaxis={'categoryorder':'category ascending'}
+    xaxis={
+        'categoryorder':'array', 
+        'categoryarray':cat_merged_ref_base_positions_df["Position"].astype(int).sort_values().astype(str).tolist()
+    },
+    bargap=0
+    
 )
 
 # fig.write_image(
