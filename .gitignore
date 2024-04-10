@@ -19,4 +19,5 @@ Code/Notebooks/*.tsv
 Code/Notebooks/*.fasta
 Code/Notebooks/Blast*
 LOGS.md
+LOGS.2.md
 CloudSetup.md
