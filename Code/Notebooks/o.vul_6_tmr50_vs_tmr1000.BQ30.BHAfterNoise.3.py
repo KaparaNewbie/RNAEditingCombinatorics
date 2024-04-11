@@ -2992,7 +2992,7 @@ max_distinct_proteins_df.loc[
 max_distinct_proteins_df["IsNeural"].value_counts()
 
 # %%
-max_distinct_proteins_df["IsNeural"].value_counts(normalize=True).mul(100).round(2)
+max_distinct_proteins_df["IsNeural"].value_counts(normalize=True).mul(100).round(1)
 
 # %%
 fig = px.histogram(max_distinct_proteins_df, x="IsNeural", log_y=True)

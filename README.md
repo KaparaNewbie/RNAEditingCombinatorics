@@ -1,15 +1,25 @@
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+An accompanying repo to the paper:
 
-TODO add a brief explanation about the project.
+_**A-to-I editing generates unparalleled complexity in the neural proteome of cephalopods**_
+
+_Kobi Shapira, Ruti Balter, Joshua J C Rosenthal, Erez Y. Levanon & Eli Eisenberg_
 
 
 <br>
 
 <p align="center">
-    <img src="octopus_with_tentacles_made_from_dna_strands_mixing_test_tubes_in_the_lab.png"  width="300" height="300">
+    <img src="ReadmeImages/readme_image_1.jpeg"  width="300" height="300" align="left">
+    <img src="ReadmeImages/readme_image_2.jpeg"  width="300" height="300">
+    <img src="ReadmeImages/readme_image_3.jpeg"  width="300" height="300" align="right">
 </p>
 
+<br>
 
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
+# Getting help
+
+If you need help of any kind (e.g., running one or more of the following scripts, understanding the various file formats, etc.), feel free to open a new issue.
 
 
 # Setup
@@ -605,7 +615,7 @@ nohup python Code/pileup.py \
  
 ### Distinct proteins
 
-:warning: Pay attention: running the s
+:warning: **Pay attention!** Running the distinct proteins & expression levels simulations for some of these Illumina transcripts will require a computer with **~2TB of memory**.
 
 #### Finding isoforms
 
@@ -838,5 +848,14 @@ Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 --run_solve_threaded \
 2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BHAfterNoise.3/DistinctProteins.regular.log
 ```
-* alu 13
-* 11:43
+
+# Notebooks
+
+Finally, to analyze and visualize the data you'll need the following notebooks:
+1. `Code/Notebooks/test_mapped_bam_parsing.ipynb`
+2. `Code/Notebooks/squids_pacbio_5.BQ30.ipynb`
+3. `Code/Notebooks/squids_illumina_5.ipynb`
+4. `Code/Notebooks/o.vul_6_tmr50_vs_tmr1000.BQ30.BHAfterNoise.3.ipynb`
+5. `Code/Notebooks/various_plots.BQ30.ipynb` (this last notebook depends on the output of notebooks 2-4)
+
+Do note that some of paths appearing in the notebooks might be slightly different compared to those in this readme file.

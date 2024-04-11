@@ -1,0 +1,3 @@
+Sample,Gene,Region,Start,End,Strand,Path,ProbRegionsBED
+GRIA-CNS-RESUB.C0x1291,GRIA,comp141693_c0_seq1,170,2999,+,D.pealeii/Alignment/BestN1/GRIA-CNS-RESUB.C0x1291.aligned.sorted.bam,
+PCLO-CNS-RESUB.C0x1291,PCLO,comp141882_c0_seq14,0,6294,+,D.pealeii/Alignment/BestN1/PCLO-CNS-RESUB.C0x1291.aligned.sorted.bam,

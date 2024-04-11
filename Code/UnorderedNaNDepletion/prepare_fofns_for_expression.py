@@ -66,17 +66,18 @@ out_dir = out_dir if out_dir is not None else distinct_proteins_dir
 distinct_proteins_files = list(
     distinct_proteins_dir.glob(f"*{distinct_proteins_postfix}")
 )
+chroms_names = [
+    distinct_proteins_file.name.split(".")[0]
+    for distinct_proteins_file in distinct_proteins_files
+]
 unique_proteins_files = [
     Path(
         proteins_dir,
-        f"{proteins_prefix}{distinct_proteins_files.name.split('.')[0]}.unique_proteins.csv{proteins_postfix}",
+        f"{proteins_prefix}{chrom}.unique_proteins.csv{proteins_postfix}",
     )
-    for distinct_proteins_files in distinct_proteins_files
+    for chrom in chroms_names
 ]
-chroms_names = [
-    distinct_proteins_files.name.split(".")[0]
-    for distinct_proteins_files in distinct_proteins_files
-]
+
 
 distinct_proteins_list = Path(out_dir, "DistinctProteinsForExpressionLevels.txt")
 unique_proteins_list = Path(out_dir, "UniqueProteinsForExpressionLevels.txt")
