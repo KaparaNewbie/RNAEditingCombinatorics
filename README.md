@@ -36,6 +36,17 @@ _Kobi Shapira, Ruti Balter, Joshua J C Rosenthal, Erez Y. Levanon & Eli Eisenber
 
 <br>
 
+
+<p align="center">
+  <img src="ReadmeImages/readme_image_1.jpeg" width="30%">
+&nbsp; &nbsp; 
+  <img src="ReadmeImages/readme_image_2.jpeg" width="30%">
+  &nbsp; &nbsp; 
+  <img src="ReadmeImages/readme_image_3.jpeg" width="30%">
+</p>
+
+<br>
+
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 <br>
