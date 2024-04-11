@@ -5,7 +5,7 @@ _**A-to-I editing generates unparalleled complexity in the neural proteome of ce
 _Kobi Shapira, Ruti Balter, Joshua J C Rosenthal, Erez Y. Levanon & Eli Eisenberg_
 
 
-<br>
+<!-- <br>
 
 <p align="center">
     <img src="ReadmeImages/readme_image_1.jpeg"  width="300" height="300" align="left">
@@ -13,9 +13,32 @@ _Kobi Shapira, Ruti Balter, Joshua J C Rosenthal, Erez Y. Levanon & Eli Eisenber
     <img src="ReadmeImages/readme_image_3.jpeg"  width="300" height="300" align="right">
 </p>
 
+<br> -->
+
+
+<!-- <p align="center">
+    <img src="ReadmeImages/readme_image_1.jpeg"  width="170" height="170" align="left">
+    <img src="ReadmeImages/readme_image_2.jpeg"  width="170" height="170">
+    <img src="ReadmeImages/readme_image_3.jpeg"  width="170" height="170" align="right">
+</p> -->
+
+<br>
+
+<p align="center">
+    <table>
+    <tr>
+        <td><img src="ReadmeImages/readme_image_1.jpeg" width=200 height=200></td>
+        <td><img src="ReadmeImages/readme_image_2.jpeg" width=200 height=200></td>
+        <td><img src="ReadmeImages/readme_image_3.jpeg" width=200 height=200></td>
+    </tr>
+    </table>
+</p>
+
 <br>
 
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
+<br>
 
 # Getting help
 
