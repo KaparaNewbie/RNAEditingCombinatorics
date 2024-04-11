@@ -1,6 +1,8 @@
 An accompanying repo to the paper:
 
-<span style="font-size:2em;">A-to-I editing generates unparalleled complexity in the neural proteome of cephalopods</span>
+<!-- <span style="font-size:2em;">A-to-I editing generates unparalleled complexity in the neural proteome of cephalopods</span> -->
+
+_**A-to-I editing generates unparalleled complexity in the neural proteome of cephalopods**_
 
 _Kobi Shapira, Ruti Balter, Joshua J C Rosenthal, Erez Y. Levanon & Eli Eisenberg_
 
