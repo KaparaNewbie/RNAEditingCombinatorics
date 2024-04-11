@@ -1,41 +1,10 @@
 An accompanying repo to the paper:
 
-_**A-to-I editing generates unparalleled complexity in the neural proteome of cephalopods**_
+<span style="font-size:2em;">A-to-I editing generates unparalleled complexity in the neural proteome of cephalopods</span>
 
 _Kobi Shapira, Ruti Balter, Joshua J C Rosenthal, Erez Y. Levanon & Eli Eisenberg_
 
-
-<!-- <br>
-
-<p align="center">
-    <img src="ReadmeImages/readme_image_1.jpeg"  width="300" height="300" align="left">
-    <img src="ReadmeImages/readme_image_2.jpeg"  width="300" height="300">
-    <img src="ReadmeImages/readme_image_3.jpeg"  width="300" height="300" align="right">
-</p>
-
-<br> -->
-
-
-<!-- <p align="center">
-    <img src="ReadmeImages/readme_image_1.jpeg"  width="170" height="170" align="left">
-    <img src="ReadmeImages/readme_image_2.jpeg"  width="170" height="170">
-    <img src="ReadmeImages/readme_image_3.jpeg"  width="170" height="170" align="right">
-</p> -->
-
 <br>
-
-<p align="center">
-    <table>
-    <tr>
-        <td><img src="ReadmeImages/readme_image_1.jpeg" width=200 height=200></td>
-        <td><img src="ReadmeImages/readme_image_2.jpeg" width=200 height=200></td>
-        <td><img src="ReadmeImages/readme_image_3.jpeg" width=200 height=200></td>
-    </tr>
-    </table>
-</p>
-
-<br>
-
 
 <p align="left">
   <img src="ReadmeImages/readme_image_1.jpeg" width="30%">
