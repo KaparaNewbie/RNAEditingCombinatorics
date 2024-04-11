@@ -37,7 +37,7 @@ _Kobi Shapira, Ruti Balter, Joshua J C Rosenthal, Erez Y. Levanon & Eli Eisenber
 <br>
 
 
-<p align="center">
+<p align="left">
   <img src="ReadmeImages/readme_image_1.jpeg" width="30%">
 &nbsp; &nbsp; 
   <img src="ReadmeImages/readme_image_2.jpeg" width="30%">
