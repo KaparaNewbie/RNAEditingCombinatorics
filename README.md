@@ -330,16 +330,6 @@ whole_transcriptome_isoseq \
 
 # Editing detection & distinct proteins finding
 
-Post-processing aligned reads:
-* For each file, keep only reads mapped to the relevant region (`comp141693_c0_seq1` for `GRIA`, `comp141882_c0_seq14` for `PCLO`).
-* Moreover, keep only reads with sufficient length?
-* Chimeric alignments? (Are there any in `pbmm2`?)
-* Keep only primary mappings?
-
-BAMs -> edited transcripts:
-* [Samtools' mpileup](http://www.htslib.org/doc/samtools-mpileup.html) with `--output-QNAME` such that each each base will be annotated with its read name, which will then allow us to aggregate edited bases per read.
-
-
 ## PacBio
 
 ### Pileup
@@ -670,6 +660,7 @@ Code/UnorderedNaNDepletion/expressionlevels.jl \
 --fractions 0.2 0.4 0.6 0.8 1.0 \
 --outdir D.pealeii/MpileupAndTranscripts/Illumina \
 > D.pealeii/MpileupAndTranscripts/Illumina/expressionlevels.out &
+``` 
 
 ## Illumina - 80k sampled reads per transcript
 
@@ -738,9 +729,7 @@ Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 
 ```bash
 mkdir -p O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3
-```
 
-```bash
 nohup python Code/pileup_with_subparsers.py \
 --transcriptome O.vulgaris/Annotations/orfs_oct.fa \
 --known_editing_sites O.vulgaris/Annotations/O.vul.EditingSites.bed \
