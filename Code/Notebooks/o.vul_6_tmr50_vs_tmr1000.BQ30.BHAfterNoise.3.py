@@ -2122,9 +2122,6 @@ saved_per_chrom_mean_noise_levels_df
 # per_chrom_mean_noise_levels["%Noise"].describe()
 
 # %%
-all_per_chrom_mean_noise_levels["%Noise"].describe()
-
-# %%
 # described_noise_df = per_chrom_mean_noise_levels["%Noise"].describe()
 # quartiles = ["25%", "50%", "75%"]
 # noise_quartiles = described_noise_df.loc[quartiles].values
@@ -2132,6 +2129,15 @@ all_per_chrom_mean_noise_levels["%Noise"].describe()
 
 # %%
 all_described_noise_df = all_per_chrom_mean_noise_levels["%Noise"].describe()
+all_described_noise_df.round(1)
+
+# %%
+round(1.2)
+
+# %%
+round(scipy.stats.iqr(all_per_chrom_mean_noise_levels["%Noise"]), 1)
+
+# %%
 quartiles = ["25%", "50%", "75%"]
 all_noise_quartiles = all_described_noise_df.loc[quartiles].values
 all_noise_quartiles
@@ -3126,6 +3132,8 @@ df["CummulativeTranscripts"] = df["CummulativeTranscripts"][::-1].values
 x = df["NumOfProteins"]
 y = df["CummulativeTranscripts"]
 x_mean = x.mean()
+x_std = x.std()
+ic(x_std)
 x_mean_closest = x.iloc[(x - x_mean).abs().argsort()[:1]]
 x_mean_closest_k = x_mean_closest.index.values[0]
 if x_mean == x_mean_closest.values[0]:
@@ -3150,6 +3158,8 @@ tmr1000_df["CummulativeTranscripts"] = tmr1000_df["CummulativeTranscripts"][::-1
 tmr1000_x = tmr1000_df["NumOfProteins"]
 tmr1000_y = tmr1000_df["CummulativeTranscripts"]
 tmr1000_x_mean = tmr1000_x.mean()
+tmr1000_x_std = tmr1000_x.std()
+ic(tmr1000_x_std)
 tmr1000_x_mean_closest = tmr1000_x.iloc[
     (tmr1000_x - tmr1000_x_mean).abs().argsort()[:1]
 ]
@@ -3254,6 +3264,10 @@ fig.add_trace(
         showlegend=False,
         # text=f"{x_mean:.0f} distinct proteins<br>(avg)",
         text=f"{x_mean:.0f} distinct<br>proteins<br>(avg)",
+        # text=f"{x_mean:.0f} distinct<br>proteins<br>(avg, STD = {x_std:.0f})",
+        # text=f"{x_mean:.0f} ± {x_std:.0f}<br>distinct proteins",
+        
+        
         textposition="bottom left",
         textfont=dict(color=tmr50_all_color, size=11),
     ),
@@ -3301,6 +3315,8 @@ fig.add_trace(
         ),
         showlegend=False,
         text=f"{tmr1000_x_mean:.0f} distinct proteins<br>(avg)",
+        # text=f"{tmr1000_x_mean:.0f} distinct proteins<br>(avg, STD = {tmr1000_x_std:.0f})",
+        # text=f"{tmr1000_x_mean:.0f} ± {tmr1000_x_std:.0f}<br>distinct proteins",
         textposition="top right",
         textfont=dict(color="green", size=11),
     ),
@@ -4626,7 +4642,13 @@ dispersion_df["HighDispersion"] = dispersion_df["%SolutionsDispersion"] > 1
 dispersion_df
 
 # %%
-dispersion_df["%SolutionsDispersion"].describe()
+dispersion_df["%SolutionsDispersion"].describe().round(1)
+
+# %%
+scipy.stats.iqr(dispersion_df["%SolutionsDispersion"])
+
+# %%
+round(scipy.stats.iqr(dispersion_df["%SolutionsDispersion"]), 2)
 
 # %%
 # len(dispersion_df.loc[dispersion_df["HighDispersion"]])

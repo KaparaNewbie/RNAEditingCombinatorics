@@ -47,6 +47,7 @@ from matplotlib_venn import venn2, venn3
 from plotly.subplots import make_subplots
 from scipy import interpolate  # todo unimport this later?
 from scipy.spatial import ConvexHull, convex_hull_plot_2d
+from scipy.stats import iqr
 from sklearn import linear_model
 from sklearn.cluster import HDBSCAN, MiniBatchKMeans
 from sklearn.decomposition import PCA
@@ -424,21 +425,38 @@ reads_dfs[0]
 reads_dfs[0]["EditedPositions"].mean()
 
 # %%
-for reads_df in reads_dfs:
+for condition, reads_df in zip(conditions, reads_dfs):
     mean_edited_positions = reads_df["EditedPositions"].mean()
-    print(mean_edited_positions)
+    std_of_edited_positions = reads_df["EditedPositions"].std()
+    ic(condition, mean_edited_positions, std_of_edited_positions)
 
 # %%
-ambigous_positions_in_reads_df = reads_df = pd.concat(
+ambigous_positions_in_reads_df = pd.concat(
     [reads_df["AmbigousPositions"] for reads_df in reads_dfs], ignore_index=True
 )
 ambigous_positions_in_reads_df
 
 # %%
+fig = px.histogram(
+    ambigous_positions_in_reads_df
+)
+fig.show()
+
+# %%
+# % of reads with at least 1 ambigous position
 100 * ambigous_positions_in_reads_df.gt(0).sum() / len(ambigous_positions_in_reads_df)
 
 # %%
 ambigous_positions_in_reads_df.mean()
+
+# %%
+ambigous_positions_in_reads_df.std()
+
+# %%
+ambigous_positions_in_reads_df.median()
+
+# %%
+iqr(ambigous_positions_in_reads_df)
 
 # %%
 # edited_reads_dfs = [
@@ -8686,141 +8704,6 @@ fig.show()
 # ## Distribution of non-syns
 
 # %%
-# cols = min(facet_col_wrap, len(conditions), 4)
-# rows = ceil(len(conditions) / cols)
-# row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
-
-# x_title = "Non-syn mutations per protein"
-# y_title = "Proteins"
-# title_text = "Distribution of min & max estimates of non-syn mutations per protein"
-
-# fig = make_subplots(
-#     rows=rows,
-#     cols=cols,
-#     subplot_titles=conditions,
-#     shared_yaxes=True,
-#     x_title=x_title,
-#     y_title=y_title,
-# )
-
-# min_x = None
-# max_x = 0
-# max_y = 0
-
-# col_names = ["MinNonSyns", "MaxNonSyns"]
-# estimate_names = ["Min", "Max"]
-
-# for (row, col), condition, proteins_df in zip(row_col_iter, conditions, proteins_dfs):
-
-#     for i, (col_name, estimate_name) in enumerate(zip(col_names, estimate_names)):
-
-#         x = proteins_df[col_name]
-
-#         fig.add_trace(
-#             go.Histogram(
-#                 x=x,
-#                 marker_color=subcolors_discrete_map[condition][i],
-#                 name=f"{condition}, {estimate_name}",
-#             ),
-#             row=row,
-#             col=col,
-#         )
-
-#         min_x = min(min_x, x.min()) if min_x else x.min()
-#         max_x = max(max_x, x.max())
-#         # max_y = max(max_y, len(x))
-
-# # add mean lines + text (and also keep track of max_y)
-
-# f = fig.full_figure_for_development(warn=False)
-# data_traces = {}
-# for condition in conditions:
-#     for estimate_name in estimate_names:
-#         name = f"{condition}, {estimate_name}"
-#         for data in f.data:
-#             if data.name == name:
-#                 data_traces[name] = data
-#                 continue
-# for (row, col), condition in zip(row_col_iter, conditions):
-#     for estimate_name in estimate_names:
-#         name = f"{condition}, {estimate_name}"
-#         data = data_traces[name]
-#         x = data.x
-#         xbins = f.data[0].xbins
-#         plotbins = list(
-#             np.arange(
-#                 start=xbins["start"],
-#                 stop=xbins["end"] + xbins["size"],
-#                 step=xbins["size"],
-#             )
-#         )
-#         counts, bins = np.histogram(list(x), bins=plotbins)
-#         max_count = max(counts)
-#         max_y = max(max_y, max_count)
-#         x_mean = np.mean(x)
-#         fig.add_trace(
-#             go.Scatter(
-#                 x=[x_mean, x_mean, x_mean],
-#                 y=[0, max_count, max_count * 1.1],
-#                 mode="lines+text",
-#                 line=dict(
-#                     color="white",
-#                     dash="dash",
-#                     width=4,
-#                 ),
-#                 text=["", "", f"{x_mean:.0f}"],
-#                 textposition="top center",
-#                 textfont=dict(size=10),
-#             ),
-#             row=row,
-#             col=col,
-#         )
-
-# ic(max_y)
-
-# # add legends
-
-# for (row, col), condition in zip(row_col_iter, conditions):
-#     for i, (col_name, estimate_name) in enumerate(zip(col_names, estimate_names)):
-#         fig.add_trace(
-#             go.Scatter(
-#                 x=[0.75 * max_x],
-#                 # y=[(0.13 * max_y) - (1_000 * i)],
-#                 y=[(0.7 * max_y) - (1_000 * i)],
-#                 mode="markers+text",
-#                 marker=dict(
-#                     color=subcolors_discrete_map[condition][i],
-#                     size=9,
-#                     # opacity=0.7,
-#                     symbol="square",
-#                     # line=dict(width=0),
-#                 ),
-#                 text=estimate_name,
-#                 textposition="middle right",
-#                 textfont=dict(size=9),
-#             ),
-#             row=row,
-#             col=col,
-#         )
-
-# fig.update_layout(
-#     template=template,
-#     barmode="overlay",  # Overlay both histograms
-#     title_text=title_text,
-#     title_y=0.95,
-#     showlegend=False,
-#     height=max(200 * rows, 300),
-#     width=max(350 * cols, 800),
-# )
-
-# fig.update_traces(opacity=0.75)  # Reduce opacity to see both histograms
-# fig.update_xaxes(range=[min_x * 0.9, max_x * 1.1])
-# fig.update_yaxes(range=[0, max_y * 1.2])
-
-# fig.show()
-
-
-# %%
 non_syns_per_read_dfs = []
 
 for proteins_df in proteins_dfs:
@@ -8838,10 +8721,16 @@ non_syns_per_read_df = pd.concat(non_syns_per_read_dfs, ignore_index=True)
 non_syns_per_read_df
 
 # %%
-non_syns_per_read_df["MinNonSyns"].sum() / len(non_syns_per_read_df)
+non_syns_per_read_df["MinNonSyns"].mean()
+
+# %%
+non_syns_per_read_df["MinNonSyns"].std()
 
 # %%
 non_syns_per_read_df.groupby(condition_col)["MinNonSyns"].mean()
+
+# %%
+non_syns_per_read_df.groupby(condition_col)["MinNonSyns"].std()
 
 # %%
 # Distribution of min & max estimates of non-syn substitutions per *read*
@@ -8928,6 +8817,7 @@ for (row, col), condition in zip(row_col_iter, fixed_conditions):
         max_count = max(counts)
         max_y = max(max_y, max_count)
         x_mean = np.mean(x)
+        x_std = np.std(x)
         fig.add_trace(
             go.Scatter(
                 x=[x_mean, x_mean, x_mean],
@@ -8939,7 +8829,8 @@ for (row, col), condition in zip(row_col_iter, fixed_conditions):
                     dash="dot",
                     width=4,
                 ),
-                text=["", "", f"{x_mean:.0f}"],
+                # text=["", "", f"{x_mean:.0f}"],
+                text=["", "", f"{x_mean:.0f}±{x_std:.0f}"],
                 textposition="top center",
                 textfont=dict(size=10),
             ),
@@ -8975,8 +8866,12 @@ for (row, col), condition in zip(row_col_iter, conditions):
         )
 
 fig.update_traces(opacity=0.75)  # Reduce opacity to see both histograms
-fig.update_xaxes(range=[min_x * 0.9, max_x * 1.1])
+# fig.update_xaxes(range=[min_x * 0.9, max_x * 1.1])
+fig.update_xaxes(range=[0, max_x])
 fig.update_yaxes(range=[0, max_y * 1.2])
+
+width = max(350 * cols, 800)
+height = max(230 * rows, 330)
 
 fig.update_layout(
     template=template,
@@ -8985,14 +8880,14 @@ fig.update_layout(
     title_x=0.1,
     # title_y=0.95,
     showlegend=False,
-    height=max(200 * rows, 300),
-    width=max(350 * cols, 800),
+    height=height,
+    width=width,
 )
 
 fig.write_image(
     f"{title_text} - PacBio.svg",
-    width=max(350 * cols, 800),
-    height=max(200 * rows, 300),
+    height=height,
+    width=width,
 )
 
 fig.show()

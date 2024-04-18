@@ -1829,6 +1829,15 @@ assert len(both_df) + len(edited_df) + len(known_editing_df) == len(all_df)
 
 
 # %%
+len(both_df)
+
+# %%
+len(edited_df)
+
+# %%
+len(known_editing_df)
+
+# %%
 # edited_df["Transcript-Platform"] = edited_df["Transcript-Platform"].apply(
 #     lambda x: "GRIA2-PacBio" if x == "GRIA-PacBio" else x
 # )

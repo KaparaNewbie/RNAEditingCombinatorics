@@ -29,6 +29,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pysam
 from icecream import ic
+import scipy.stats
 
 # %%
 # plotly consts
@@ -101,6 +102,29 @@ dfs = [
 df = pd.concat(dfs).reset_index(drop=True)
 
 df
+
+# %%
+df["ReadQuality"].mean().round(4)
+
+# %%
+df["ReadQuality"].median().round(4)
+
+# %%
+pd.Series([scipy.stats.iqr(df["ReadQuality"])]).round(4)
+
+# %%
+df.groupby(condition_col)["ReadQuality"].mean().round(4)
+
+# %%
+df.groupby(condition_col)["ReadQuality"].median().round(4)
+
+# %%
+# IQR of reads with quality score >= 0.998
+df.groupby(condition_col)["ReadQuality"].apply(lambda x: scipy.stats.iqr(x)).round(4)
+
+# %%
+# % of reads with quality score >= 0.998
+100 - df.groupby(condition_col)["ReadQuality"].apply(lambda x: scipy.stats.percentileofscore(x, 0.998, kind="strict"))
 
 # %%
 # reads w/o any deletion event
@@ -192,6 +216,30 @@ fig.show()
 
 # %%
 df
+
+# %%
+df.groupby(condition_col)["ReadLen"].median().round(1)
+
+# %%
+df.groupby(condition_col)["ReadLen"].apply(lambda x: scipy.stats.iqr(x)).round(1)
+
+# %%
+100 * df["ReadLen"][df["ReadLen"] >= 3000].size / df["ReadLen"].size
+
+# %%
+df.ht
+
+# %%
+df["ReadLen"].mean()
+
+# %%
+df["ReadLen"].std()
+
+# %%
+df["ReadLen"].median()
+
+# %%
+scipy.stats.iqr(df["ReadLen"])
 
 # %%
 fig = px.histogram(
