@@ -2138,6 +2138,12 @@ round(1.2)
 round(scipy.stats.iqr(all_per_chrom_mean_noise_levels["%Noise"]), 1)
 
 # %%
+np.percentile(all_per_chrom_mean_noise_levels["%Noise"], [25, 75])
+
+# %%
+np.round(np.percentile(all_per_chrom_mean_noise_levels["%Noise"], [25, 75]), 1)
+
+# %%
 quartiles = ["25%", "50%", "75%"]
 all_noise_quartiles = all_described_noise_df.loc[quartiles].values
 all_noise_quartiles
@@ -4649,6 +4655,19 @@ scipy.stats.iqr(dispersion_df["%SolutionsDispersion"])
 
 # %%
 round(scipy.stats.iqr(dispersion_df["%SolutionsDispersion"]), 2)
+
+# %%
+np.percentile(dispersion_df["%SolutionsDispersion"], [25, 75])
+
+# %%
+np.round(np.percentile(dispersion_df["%SolutionsDispersion"], [25, 75]), 1)
+
+# %%
+dispersion_df["%SolutionsDispersion"].size
+
+# %%
+# percent_of_octopus_genes_with_nonzero_dispersion
+np.round(100 * len(dispersion_df.loc[dispersion_df["%SolutionsDispersion"] > 0]) / len(dispersion_df), 1)
 
 # %%
 # len(dispersion_df.loc[dispersion_df["HighDispersion"]])

@@ -440,6 +440,7 @@ ambigous_positions_in_reads_df
 fig = px.histogram(
     ambigous_positions_in_reads_df
 )
+fig.update_layout(width=600, height=350, template=template)
 fig.show()
 
 # %%
@@ -457,6 +458,9 @@ ambigous_positions_in_reads_df.median()
 
 # %%
 iqr(ambigous_positions_in_reads_df)
+
+# %%
+np.percentile(ambigous_positions_in_reads_df, [25, 75])
 
 # %%
 # edited_reads_dfs = [

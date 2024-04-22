@@ -783,6 +783,9 @@ ambigous_positions_in_reads_df.median()
 iqr(ambigous_positions_in_reads_df)
 
 # %%
+np.percentile(ambigous_positions_in_reads_df, [25, 75])
+
+# %%
 
 # %%
 # edited_reads_dfs = [

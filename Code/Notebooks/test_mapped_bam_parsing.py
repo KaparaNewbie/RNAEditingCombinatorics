@@ -24,6 +24,7 @@ conditions = ["GRIA2", "PCLO"]
 # %%
 # from pathlib import Path
 import pandas as pd
+import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -110,6 +111,14 @@ df["ReadQuality"].mean().round(4)
 df["ReadQuality"].median().round(4)
 
 # %%
+
+# %%
+np.round(np.percentile(df["ReadQuality"], [25, 75]), 4)
+
+# %%
+0.9999 - 0.9986
+
+# %%
 pd.Series([scipy.stats.iqr(df["ReadQuality"])]).round(4)
 
 # %%
@@ -121,6 +130,10 @@ df.groupby(condition_col)["ReadQuality"].median().round(4)
 # %%
 # IQR of reads with quality score >= 0.998
 df.groupby(condition_col)["ReadQuality"].apply(lambda x: scipy.stats.iqr(x)).round(4)
+
+# %%
+# IQR of reads with quality score >= 0.998
+df.groupby(condition_col).apply(lambda x: np.round(np.percentile(x["ReadQuality"], [25, 75]), 4))
 
 # %%
 # % of reads with quality score >= 0.998
@@ -222,6 +235,12 @@ df.groupby(condition_col)["ReadLen"].median().round(1)
 
 # %%
 df.groupby(condition_col)["ReadLen"].apply(lambda x: scipy.stats.iqr(x)).round(1)
+
+# %%
+# IQR of reads with quality score >= 0.998
+df.groupby(condition_col).apply(lambda x: np.round(np.percentile(x["ReadLen"], [25, 75]), 1))
+
+# %%
 
 # %%
 100 * df["ReadLen"][df["ReadLen"] >= 3000].size / df["ReadLen"].size
