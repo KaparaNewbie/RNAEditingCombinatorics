@@ -21,6 +21,7 @@ Code/Notebooks/Blast*
 LOGS.md
 LOGS.2.md
 CloudSetup.md
-Demo
+Demo/*
 !Demo/DEMO.md
-!Demo/Data/Raw/PCLO-CNS-RESUB.C0x1291.subreads.bam
+!Demo/PCLO-CNS-RESUB.C0x1291.ccs.bam
+!Demo/DataTable.Squid.LongReads.Demo.csv

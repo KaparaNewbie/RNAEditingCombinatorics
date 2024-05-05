@@ -619,6 +619,8 @@ def directed_sequencing_main(
             ],
         )
 
+    # return # todo - remove - for debugging
+
     compression_postfix = ".gz" if gz_compression else ""
 
     # 5 - pileup files -> positions dfs

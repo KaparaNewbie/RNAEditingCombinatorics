@@ -970,6 +970,8 @@ def pacbio_main(
     threads: int,
     samtools_path: Path,
     multiqc_path: Path,
+    include_flags: Union[int, str, None],
+    exclude_flags: Union[int, str, None],
     **kwargs,
 ):
     preset = "CCS"
@@ -996,6 +998,9 @@ def pacbio_main(
     )
 
     interfix = ".aligned.sorted"
+    gene_regions = None
+    separate_by_chrom = False
+    seperate_by_gene = False
 
     with Pool(processes=processes) as pool:
         pool.starmap(
@@ -1015,7 +1020,11 @@ def pacbio_main(
                     out_dir,
                     sample_name,
                     interfix,
-                    False,
+                    gene_regions,
+                    include_flags,
+                    exclude_flags,
+                    separate_by_chrom,
+                    seperate_by_gene,
                 )
                 for in_file, sample_name in zip(in_files, samples_names)
             ],
@@ -1060,13 +1069,15 @@ def define_args() -> argparse.Namespace:
     parser.add_argument(
         "--samtools_path",
         type=expanded_path_from_str,
-        default=Path("~/anaconda3/envs/combinatorics/bin/samtools").expanduser(),
+        # default=Path("~/anaconda3/envs/combinatorics/bin/samtools").expanduser(),
+        default=Path("samtools"),
         help="Samtools executable.",
     )
     parser.add_argument(
         "--multiqc_path",
         type=expanded_path_from_str,
-        default=Path("~/anaconda3/envs/combinatorics/bin/multiqc").expanduser(),
+        # default=Path("~/anaconda3/envs/combinatorics/bin/multiqc").expanduser(),
+        default=Path("multiqc"),
         help="MultiQC executable.",
     )
     parser.add_argument(
@@ -1102,7 +1113,8 @@ def define_args() -> argparse.Namespace:
     pacbio_parser.add_argument(
         "--pbmm2_path",
         type=expanded_path_from_str,
-        default=Path("~/anaconda3/envs/pacbiocomb/bin/pbmm2").expanduser(),
+        # default=Path("~/anaconda3/envs/pacbiocomb/bin/pbmm2").expanduser(),
+        default=Path("pbmm2"),
         help="Note it should match `--pb_conda_env`.",
     )
     pacbio_parser.add_argument(
@@ -1111,13 +1123,27 @@ def define_args() -> argparse.Namespace:
         default=1,
         help="Output at maximum N alignments for each read, 0 means no maximum.",
     )
+    pacbio_parser.add_argument(
+        "--include_flags",
+        default=None,
+        type=int,
+        help="Use only reads with this flag.",
+    )
+    pacbio_parser.add_argument(
+        "--exclude_flags",
+        default=None,
+        type=int,
+        help="Exclude reads with this flag.",
+    )
 
     # pacbio isoseq args
 
     pacbio_isoseq_undirected_seq_parser = subparsers.add_parser(
         "whole_transcriptome_isoseq", help="Whole-transcriptome IsoSeq reads help"
     )
-    pacbio_isoseq_undirected_seq_parser.set_defaults(func=whole_transcriptome_isoseq_main)
+    pacbio_isoseq_undirected_seq_parser.set_defaults(
+        func=whole_transcriptome_isoseq_main
+    )
 
     pacbio_isoseq_undirected_seq_parser.add_argument(
         "--postfix",
@@ -1137,7 +1163,8 @@ def define_args() -> argparse.Namespace:
     pacbio_isoseq_undirected_seq_parser.add_argument(
         "--pbmm2_path",
         type=expanded_path_from_str,
-        default=Path("~/anaconda3/envs/pacbiocomb/bin/pbmm2").expanduser(),
+        # default=Path("~/anaconda3/envs/pacbiocomb/bin/pbmm2").expanduser(),
+        default=Path("pbmm2"),
         help="Note it should match `--pb_conda_env`.",
     )
     pacbio_isoseq_undirected_seq_parser.add_argument(
@@ -1187,7 +1214,8 @@ def define_args() -> argparse.Namespace:
     illumina_parser.add_argument(
         "--bwa_path",
         type=expanded_path_from_str,
-        default=Path("~/anaconda3/envs/combinatorics/bin/bwa-mem2").expanduser(),
+        # default=Path("~/anaconda3/envs/combinatorics/bin/bwa-mem2").expanduser(),
+        default=Path("bwa-mem2"),
         help="BWA mem2 executable.",
     )
     illumina_parser.add_argument(

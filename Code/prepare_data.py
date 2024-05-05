@@ -980,7 +980,8 @@ def define_args() -> argparse.ArgumentParser:
     parser.add_argument(
         "--fastqc_path",
         type=expanded_path_from_str,
-        default=Path("~/anaconda3/envs/combinatorics/bin/fastqc").expanduser(),
+        # default=Path("~/anaconda3/envs/combinatorics/bin/fastqc").expanduser(),
+        default=Path("fastqc"),
         help="FastQC executable.",
     )
     parser.add_argument(
@@ -1022,25 +1023,29 @@ def define_args() -> argparse.ArgumentParser:
     pacbio_parser.add_argument(
         "--ccs_path",
         type=expanded_path_from_str,
-        default=Path("~/anaconda3/envs/pacbiocomb/bin/ccs").expanduser(),
+        # default=Path("~/anaconda3/envs/pacbiocomb/bin/ccs").expanduser(),
+        default=Path("ccs"),
         help="Note it should match `--pb_conda_env`.",
     )
     pacbio_parser.add_argument(
         "--extracthifi_path",
         type=expanded_path_from_str,
-        default=Path("~/anaconda3/envs/pacbiocomb/bin/extracthifi").expanduser(),
+        # default=Path("~/anaconda3/envs/pacbiocomb/bin/extracthifi").expanduser(),
+        default=Path("extracthifi"),
         help="Note it should match `--pb_conda_env`.",
     )
     pacbio_parser.add_argument(
         "--pbindex_path",
         type=expanded_path_from_str,
-        default=Path("~/anaconda3/envs/pacbiocomb/bin/pbindex").expanduser(),
+        # default=Path("~/anaconda3/envs/pacbiocomb/bin/pbindex").expanduser(),
+        default=Path("pbindex"),
         help="Note it should match `--pb_conda_env`.",
     )
     pacbio_parser.add_argument(
         "--pbmarkdup_path",
         type=expanded_path_from_str,
-        default=Path("~/anaconda3/envs/pacbiocomb/bin/pbmarkdup").expanduser(),
+        # default=Path("~/anaconda3/envs/pacbiocomb/bin/pbmarkdup").expanduser(),
+        default=Path("pbmarkdup"),
         help="Note it should match `--pb_conda_env`.",
     )
     pacbio_parser.add_argument(
@@ -1087,7 +1092,8 @@ def define_args() -> argparse.ArgumentParser:
     pacbio_preprocessed_isoseq_parser.add_argument(
         "--trimmomatic_path",
         type=expanded_path_from_str,
-        default=Path("~/anaconda3/envs/combinatorics/bin/trimmomatic").expanduser(),
+        # default=Path("~/anaconda3/envs/combinatorics/bin/trimmomatic").expanduser(),
+        default=Path("trimmomatic"),
         help="Trimmomatic executable.",
     )
     pacbio_preprocessed_isoseq_parser.add_argument(
@@ -1122,7 +1128,8 @@ def define_args() -> argparse.ArgumentParser:
     pacbio_polished_ccs_isoseq_parser.add_argument(
         "--pbindex_path",
         type=expanded_path_from_str,
-        default=Path("~/anaconda3/envs/pacbiocomb/bin/pbindex").expanduser(),
+        # default=Path("~/anaconda3/envs/pacbiocomb/bin/pbindex").expanduser(),
+        default=Path("pbindex"),
         help="Note it should match `--pb_conda_env`.",
     )
     pacbio_polished_ccs_isoseq_parser.add_argument(
@@ -1176,7 +1183,8 @@ def define_args() -> argparse.ArgumentParser:
     illumina_parser.add_argument(
         "--prinseq_lite_path",
         type=expanded_path_from_str,
-        default=Path("~/anaconda3/envs/combinatorics/bin/prinseq-lite.pl").expanduser(),
+        # default=Path("~/anaconda3/envs/combinatorics/bin/prinseq-lite.pl").expanduser(),
+        default=Path("printseq-lite.pl"),
         help="Prinseq-lite executable.",
     )
     illumina_parser.add_argument(
@@ -1207,7 +1215,8 @@ def define_args() -> argparse.ArgumentParser:
     illumina_parser.add_argument(
         "--trimmomatic_path",
         type=expanded_path_from_str,
-        default=Path("~/anaconda3/envs/combinatorics/bin/trimmomatic").expanduser(),
+        # default=Path("~/anaconda3/envs/combinatorics/bin/trimmomatic").expanduser(),
+        default=Path("trimmomatic"),
         help="Trimmomatic executable.",
     )
     illumina_parser.add_argument(

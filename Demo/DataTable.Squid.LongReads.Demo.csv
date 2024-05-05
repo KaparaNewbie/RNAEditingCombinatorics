@@ -1,0 +1,2 @@
+Sample,Gene,Region,Start,End,Strand,Path,ProbRegionsBED
+PCLO-CNS-RESUB.C0x1291,PCLO,comp141882_c0_seq14,0,6294,+,Demo/PCLO-CNS-RESUB.C0x1291.aligned.sorted.bam,

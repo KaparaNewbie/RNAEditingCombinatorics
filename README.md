@@ -49,7 +49,7 @@ conda activate combinatorics  # test successful creation
 conda env create -f pacbiocomb.yml
 conda activate pacbiocomb  # test successful creation
 ```
-
+Creating the first of these may take a few hours if you are using a (relatively) old conda installation, so make sure to update it and make use of the new mamba solver.
 
 3. Easily change into the working path & activate conda on the fly
 
@@ -82,6 +82,14 @@ pkg> activate .
 pkg> instantiate
 exit()
 ```
+
+
+# Demo
+
+
+To make sure thing are set up correctly, you can try running the demo which captures many of the capabilities of the code in the repository.
+After completting the setup section, you'll also need to get the latest squid annotation (see below).
+Then, follow the instructions at `Demo/DEMO.MD`.
 
 # Data & annotations
 
@@ -143,6 +151,7 @@ wget https://www.tau.ac.il/~elieis/squid/editing_sites.xlsx
 
 COMB
 ```
+
 
 
 
