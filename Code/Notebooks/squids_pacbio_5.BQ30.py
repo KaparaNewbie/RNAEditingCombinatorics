@@ -39,7 +39,7 @@ import plotly.colors as pc
 import plotly.express as px
 import plotly.graph_objects as go
 import scipy.stats
-from statsmodels.stats.multitest import multipletests
+from statsmodels.stats.multitest import multipletests, fdrcorrection
 import seaborn as sns
 import umap
 from icecream import ic
@@ -720,7 +720,7 @@ distinct_unique_proteins_df
 
 
 # %%
-distinct_unique_proteins_df.loc[distinct_unique_proteins_df["NumOfProteins"] > ]
+# distinct_unique_proteins_df.loc[distinct_unique_proteins_df["NumOfProteins"] > ]
 
 # %%
 # unique_edited_proteins_dfs[0].columns[:unique_proteins_first_col_pos]
@@ -3889,7 +3889,7 @@ min_max_fraction_1_distinct_prots_df.to_csv("Dispersion.PacBio.tsv", sep="\t", i
 # fig.show()
 
 
-# %% [markdown] toc-hr-collapsed=true
+# %% [markdown] toc-hr-collapsed=true jp-MarkdownHeadingCollapsed=true
 # #### Jaccard (overlap of solutions)
 
 # %%
@@ -4669,7 +4669,7 @@ def find_rand_maximal_solution(
     return rand_maximal_solution
 
 
-# %% jupyter={"source_hidden": true}
+# %%
 # def make_percentile_df(
 #     expression_df,
 #     first_percentile=10,
@@ -4793,7 +4793,7 @@ maximal_solutions = [
 ]
 maximal_solutions
 
-# %% jupyter={"source_hidden": true}
+# %%
 # percentile_dfs = [
 #     make_percentile_df(
 #         expression_df.loc[expression_df["#Solution"] == maximal_solution].reset_index(
@@ -8497,6 +8497,102 @@ fig.write_image(
 )
 
 fig.show()
+
+# %% [markdown]
+# ##### Num. of editing sites in rare vs. common isoforms
+
+# %%
+for assignment_df in assignment_dfs:
+    assignment_df["300 most expressed"] = assignment_df.index < 300
+    assignment_df["1000 least expressed"] = assignment_df.index >= assignment_df.shape[0] - 1000
+merged_assignment_df = pd.concat(assignment_dfs).reset_index(drop=True)
+merged_assignment_df = merged_assignment_df.loc[merged_assignment_df["300 most expressed"] | merged_assignment_df["1000 least expressed"]]
+merged_assignment_df["Abundancy"] = merged_assignment_df["300 most expressed"].apply(lambda x: "300 most expressed" if x else "1000 least expressed")
+merged_assignment_df
+
+# %%
+assert merged_assignment_df.loc[merged_assignment_df["300 most expressed"]].shape[0] == len(conditions) * 300
+assert merged_assignment_df.loc[merged_assignment_df["1000 least expressed"]].shape[0] == len(conditions) * 1000
+assert merged_assignment_df.loc[merged_assignment_df["300 most expressed"] & merged_assignment_df["1000 least expressed"]].empty
+
+
+# %%
+def mannwhitneyu_between_rare_to_abundant(gdf):
+    x = gdf.loc[gdf["300 most expressed"], "EditedPositions"]
+    y = gdf.loc[gdf["1000 least expressed"], "EditedPositions"]
+    res = scipy.stats.mannwhitneyu(x, y)
+    return pd.Series([res.statistic, res.pvalue])
+
+
+# %%
+es_in_rare_vs_abundant_isoforms_df = (
+    merged_assignment_df.groupby(condition_col)
+    .apply(mannwhitneyu_between_rare_to_abundant)
+    .rename(columns={0: "MannwhitneyuStatistic", 1: "MannwhitneyuPV"})
+)
+# rejected, adjusted = fdrcorrection(es_in_rare_vs_abundant_isoforms_df["MannwhitneyuPV"])
+# es_in_rare_vs_abundant_isoforms_df["RejectedAdjustdedPV"] = rejected
+# es_in_rare_vs_abundant_isoforms_df["AdjustdedPV"] = adjusted
+
+es_in_rare_vs_abundant_isoforms_df
+
+# %%
+merged_assignment_df.groupby([condition_col, "Abundancy"])["EditedPositions"].agg(["mean", "median"])
+
+# %%
+cols = min(5, len(conditions))
+rows = ceil(len(conditions) / cols)
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
+
+fig = make_subplots(
+    rows=rows,
+    cols=cols,
+    vertical_spacing=0.8/rows,
+    subplot_titles=fixed_conditions,
+    shared_yaxes="all",
+    # x_title="Abundancy",
+    y_title="Edited positions in originally-<br>supporting reads",
+)
+
+for condition, (row, col) in zip(conditions, row_col_iter):
+    fig.add_trace(
+        go.Violin(
+            x=merged_assignment_df.loc[
+                merged_assignment_df[condition_col] == condition, "Abundancy"
+            ].str.replace(" ", "<br>"),
+            y=merged_assignment_df.loc[
+                merged_assignment_df[condition_col] == condition, "EditedPositions"
+            ],
+            line_color=color_discrete_map[condition],
+            fillcolor="white",
+            box_visible=True,
+            meanline_visible=True,
+            # points="all",
+            # pointpos=0,
+            # jitter=0.05
+        ),
+        row=row,
+        col=col
+        # col=1,
+    )
+# fig.update_yaxes(zerolinewidth=zerolinewidth, tickmode="linear", tick0=0, dtick=0.2)
+
+fig.update_layout(
+    template=template,
+    showlegend=False,
+    # title_text="Pearson correlation between editing sites to number of sites edited in each read",
+    # height=250 * rows,
+    width=900,
+    height=400,
+)
+
+
+fig.show()
+
+# %%
+merged_assignment_df.loc[
+                merged_assignment_df[condition_col] == "GRIA", "Abundancy"
+            ].str.replace(" ", "<br>")
 
 # %% [markdown] toc-hr-collapsed=true
 # ## Editing in reads

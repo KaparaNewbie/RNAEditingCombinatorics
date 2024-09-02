@@ -242,25 +242,21 @@ len(positions_files)
 # %autoreload 2
 
 # %% papermill={"duration": 2.901153, "end_time": "2022-02-01T09:42:46.125355", "exception": false, "start_time": "2022-02-01T09:42:43.224202", "status": "completed"}
+import subprocess
 import sys
 from functools import reduce
 from itertools import chain, combinations, product
 from math import ceil
 from multiprocessing import Pool
 from pathlib import Path
-import subprocess
 
-from scipy import interpolate  # todo unimport this later?
-from scipy.spatial import ConvexHull, convex_hull_plot_2d
-import scipy.stats
-from scipy.stats import iqr
-from statsmodels.stats.multitest import multipletests
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import plotly.colors as pc
 import plotly.express as px
 import plotly.graph_objects as go
+import scipy.stats
 import seaborn as sns
 import umap
 from Bio import SeqIO
@@ -269,12 +265,17 @@ from Bio.SeqRecord import SeqRecord
 from icecream import ic
 from matplotlib_venn import venn2, venn3
 from plotly.subplots import make_subplots
+from statsmodels.stats.multitest import multipletests, fdrcorrection
+from scipy import interpolate  # todo unimport this later?
+from scipy.spatial import ConvexHull, convex_hull_plot_2d
+from scipy.stats import iqr
 from sklearn import linear_model
 from sklearn.cluster import HDBSCAN, MiniBatchKMeans
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.metrics import mean_squared_error, r2_score, silhouette_score
 from sklearn.preprocessing import StandardScaler
+from statsmodels.stats.multitest import multipletests
 
 sys.path.append(str(Path(code_dir).absolute()))
 from Alignment.alignment_utils import (
@@ -492,7 +493,9 @@ rev_records = [
     for i, seq in enumerate(unsorted_primers_rev, start=1)
 ]
 all_records = [for_records, rev_records]
-output_primers_fastas = [Path(blast_dir, f"{orientation}.fa") for orientation in ["for", "rev"]]
+output_primers_fastas = [
+    Path(blast_dir, f"{orientation}.fa") for orientation in ["for", "rev"]
+]
 for records, out_fasta in zip(all_records, output_primers_fastas):
     SeqIO.write(records, out_fasta, "fasta")
 
@@ -514,13 +517,17 @@ subprocess.run(build_db_cmd, shell=True, cwd=blast_dir)
 #      * Incompatible with:  num_descriptions, num_alignments
 
 # %%
-blast_results_files = [Path(blast_dir, f"{orientation}.blast") for orientation in ["for", "rev"]]
+blast_results_files = [
+    Path(blast_dir, f"{orientation}.blast") for orientation in ["for", "rev"]
+]
 
 # %%
 blast_cols = "qaccver saccver pident qlen length mismatch gapopen qstart qend sstart send sstrand qseq sseq evalue"
 
 # %%
-for output_primers_fasta, blast_results_file in zip(output_primers_fastas, blast_results_files):
+for output_primers_fasta, blast_results_file in zip(
+    output_primers_fastas, blast_results_files
+):
     blast_cmd = (
         "blastn "
         "-task blastn-short "
@@ -556,12 +563,20 @@ blast_dfs = [
     for blast_results_file in blast_results_files
 ]
 for blast_df in blast_dfs:
-    blast_df.insert(blast_df.columns.get_loc("saccver")+1, "saccver_in_chroms", blast_df["saccver"].isin(chroms))
-    blast_df["sstrand"] = blast_df["sstrand"].apply(lambda x: "+" if x == "plus" else "-")
+    blast_df.insert(
+        blast_df.columns.get_loc("saccver") + 1,
+        "saccver_in_chroms",
+        blast_df["saccver"].isin(chroms),
+    )
+    blast_df["sstrand"] = blast_df["sstrand"].apply(
+        lambda x: "+" if x == "plus" else "-"
+    )
     blast_df[["sstart", "send"]] = blast_df.apply(
-        lambda x: (x["sstart"], x["send"]) if x["sstart"] < x["send"] else (x["send"], x["sstart"]),
+        lambda x: (x["sstart"], x["send"])
+        if x["sstart"] < x["send"]
+        else (x["send"], x["sstart"]),
         axis=1,
-        result_type="expand"
+        result_type="expand",
     )
     blast_df["qstart"] = blast_df["qstart"] - 1
     blast_df["sstart"] = blast_df["sstart"] - 1
@@ -591,19 +606,27 @@ for_blast_df[["mismatch", "gapopen"]].describe()
 transcriptome_dict = make_fasta_dict(transcriptome_file)
 
 # %%
-best_for_blast_df = for_blast_df.loc[
-    (for_blast_df["qlen"] == for_blast_df["length"]) 
-    & (for_blast_df["pident"] == 100) 
-    # & (for_blast_df["saccver_in_chroms"])
-].sort_index().reset_index(drop=True)
+best_for_blast_df = (
+    for_blast_df.loc[
+        (for_blast_df["qlen"] == for_blast_df["length"])
+        & (for_blast_df["pident"] == 100)
+        # & (for_blast_df["saccver_in_chroms"])
+    ]
+    .sort_index()
+    .reset_index(drop=True)
+)
 best_for_blast_df
 
 # %%
-best_rev_blast_df = rev_blast_df.loc[
-    (rev_blast_df["qlen"] == rev_blast_df["length"]) 
-    & (rev_blast_df["pident"] == 100) 
-    # & (for_blast_df["saccver_in_chroms"])
-].sort_index().reset_index(drop=True)
+best_rev_blast_df = (
+    rev_blast_df.loc[
+        (rev_blast_df["qlen"] == rev_blast_df["length"])
+        & (rev_blast_df["pident"] == 100)
+        # & (for_blast_df["saccver_in_chroms"])
+    ]
+    .sort_index()
+    .reset_index(drop=True)
+)
 best_rev_blast_df
 
 # %%
@@ -651,18 +674,26 @@ true_rev_df = best_rev_blast_df.loc[best_rev_blast_df["sstrand"] == "-"]
 false_rev_df = best_rev_blast_df.loc[best_rev_blast_df["sstrand"] == "+"]
 
 fixed_for_df = pd.concat([true_for_df, false_rev_df]).sort_index()
-fixed_for_df["qaccver"] = fixed_for_df["qaccver"].apply(lambda x: x.replace("rev", "for"))
+fixed_for_df["qaccver"] = fixed_for_df["qaccver"].apply(
+    lambda x: x.replace("rev", "for")
+)
 fixed_for_df = fixed_for_df.loc[fixed_for_df["saccver_in_chroms"]]
 
 fixed_rev_df = pd.concat([true_rev_df, false_for_df]).sort_index()
-fixed_rev_df["qaccver"] = fixed_rev_df["qaccver"].apply(lambda x: x.replace("for", "rev"))
+fixed_rev_df["qaccver"] = fixed_rev_df["qaccver"].apply(
+    lambda x: x.replace("for", "rev")
+)
 fixed_rev_df = fixed_rev_df.loc[fixed_rev_df["saccver_in_chroms"]]
 
 chrom_x = fixed_for_df["saccver"].apply(lambda x: chroms.index(x))
 fixed_for_df["chrom_x"] = chrom_x
 fixed_rev_df["chrom_x"] = chrom_x
-fixed_for_df = fixed_for_df.sort_values("chrom_x").reset_index(drop=True).drop(columns=["chrom_x"])
-fixed_rev_df = fixed_rev_df.sort_values("chrom_x").reset_index(drop=True).drop(columns=["chrom_x"])
+fixed_for_df = (
+    fixed_for_df.sort_values("chrom_x").reset_index(drop=True).drop(columns=["chrom_x"])
+)
+fixed_rev_df = (
+    fixed_rev_df.sort_values("chrom_x").reset_index(drop=True).drop(columns=["chrom_x"])
+)
 
 fixed_for_df
 
@@ -677,9 +708,7 @@ for x in cds_editing_positions_per_sample:
     print(x)
 
 # %%
-all_editing_positions_per_sample = [
-    len(df.loc[(df["Edited"])]) for df in positions_dfs
-]
+all_editing_positions_per_sample = [len(df.loc[(df["Edited"])]) for df in positions_dfs]
 for x in all_editing_positions_per_sample:
     print(x)
 
@@ -691,7 +720,7 @@ print(
 # %%
 primers_ranges = []
 for chrom, primer_for_start, primer_rev_end in zip(
-    chroms, 
+    chroms,
     fixed_for_df["sstart"],
     fixed_rev_df["send"],
 ):
@@ -700,7 +729,14 @@ primers_ranges
 
 # %%
 within_primers_editing_positions_per_sample = [
-    len(df.loc[(df["Edited"]) & (df["CDS"]) & (df["Position"] >= primer_for_start) & (df["Position"] + 1 <= primer_rev_end)]) 
+    len(
+        df.loc[
+            (df["Edited"])
+            & (df["CDS"])
+            & (df["Position"] >= primer_for_start)
+            & (df["Position"] + 1 <= primer_rev_end)
+        ]
+    )
     for df, (primer_for_start, primer_rev_end) in zip(positions_dfs, primers_ranges)
 ]
 for x in within_primers_editing_positions_per_sample:
@@ -712,7 +748,9 @@ print(
 )
 
 # %%
-for x, y in zip(cds_editing_positions_per_sample, within_primers_editing_positions_per_sample):
+for x, y in zip(
+    cds_editing_positions_per_sample, within_primers_editing_positions_per_sample
+):
     assert x == y
 
 # %%
@@ -761,9 +799,7 @@ ambigous_positions_in_reads_df = pd.concat(
 ambigous_positions_in_reads_df
 
 # %%
-fig = px.histogram(
-    ambigous_positions_in_reads_df
-)
+fig = px.histogram(ambigous_positions_in_reads_df)
 fig.show()
 
 # %%
@@ -1619,9 +1655,7 @@ def make_corrected_corrs_df(sites_df):
 
 
 # %%
-def get_symmetric_r_matrices(
-    corrected_corrs_df
-):
+def get_symmetric_r_matrices(corrected_corrs_df):
     sites = sorted(
         list(set(corrected_corrs_df["Site1"]) | set(corrected_corrs_df["Site2"]))
     )
@@ -1646,7 +1680,7 @@ def get_symmetric_r_matrices(
     symmetric_rs = np.triu(symmetric_rs)
     # Make the matrix symmetric
     symmetric_rs = symmetric_rs + symmetric_rs.T - np.diag(symmetric_rs.diagonal())
-    
+
     return symmetric_rs
 
 
@@ -1736,8 +1770,7 @@ bonferroni_acceptions_matrices = [
 
 # %%
 basic_masks = [
-    np.triu(np.ones_like(corr, dtype=bool))
-    for corr in corrected_corrs_matrices
+    np.triu(np.ones_like(corr, dtype=bool)) for corr in corrected_corrs_matrices
 ]
 
 fdr_by_masks = [
@@ -1747,16 +1780,22 @@ fdr_by_masks = [
 
 bonferroni_masks = [
     basic_mask | symmetric_acception
-    for basic_mask, symmetric_acception in zip(basic_masks, bonferroni_acceptions_matrices)
+    for basic_mask, symmetric_acception in zip(
+        basic_masks, bonferroni_acceptions_matrices
+    )
 ]
 
 # %%
 
 # %%
-pclo_masked_bonferroni_corr = np.ma.masked_array(corrected_corrs_matrices[13], mask=bonferroni_masks[13], fill_value=np.nan).filled()
-    
+pclo_masked_bonferroni_corr = np.ma.masked_array(
+    corrected_corrs_matrices[13], mask=bonferroni_masks[13], fill_value=np.nan
+).filled()
+
 pclo_masked_bonferroni_corr_df = pd.DataFrame(pclo_masked_bonferroni_corr)
-pclo_masked_bonferroni_corr_df.to_csv("PCLOMaskedBonferroniCorr.Illumina.tsv", index=False, sep="\t")
+pclo_masked_bonferroni_corr_df.to_csv(
+    "PCLOMaskedBonferroniCorr.Illumina.tsv", index=False, sep="\t"
+)
 
 pclo_masked_bonferroni_corr_df
 
@@ -1765,11 +1804,13 @@ pclo_masked_bonferroni_corr_df
 # cmap=sns.color_palette("vlag", as_cmap=True)
 # cmap=sns.color_palette("PiYG", as_cmap=True)
 # cmap=sns.color_palette("Spectral", as_cmap=True)
-cmap=sns.color_palette("coolwarm_r", as_cmap=True)
+cmap = sns.color_palette("coolwarm_r", as_cmap=True)
 # cmap=sns.color_palette("coolwarm", as_cmap=True)
 
 # %%
-for condition, corr, mask in zip(shortened_conditions, corrected_corrs_matrices, bonferroni_masks):
+for condition, corr, mask in zip(
+    shortened_conditions, corrected_corrs_matrices, bonferroni_masks
+):
     fig, ax = plt.subplots(figsize=(11, 9))
 
     # Draw the heatmap with the mask and correct aspect ratio
@@ -1785,17 +1826,13 @@ for condition, corr, mask in zip(shortened_conditions, corrected_corrs_matrices,
         cbar_kws={"shrink": 0.5},
         # vmin=vmin, vmax=vmax,
     )
-    
+
     if condition == "PCLO":
-            title = (
-                f"Pearson's r between editing sites in squid's Short-reads {condition}"
-            )
-            plt.title(title)
-            fig.savefig(f"{title}.svg", dpi=300);
-    
-    title = (
-        f"Pearson's r between editing sites in squid's Short-reads {condition}\n\n(Bonferroni corrected pvals)"
-    )
+        title = f"Pearson's r between editing sites in squid's Short-reads {condition}"
+        plt.title(title)
+        fig.savefig(f"{title}.svg", dpi=300)
+
+    title = f"Pearson's r between editing sites in squid's Short-reads {condition}\n\n(Bonferroni corrected pvals)"
     plt.title(title)
 
 # %%
@@ -1815,7 +1852,7 @@ for condition, corr, mask in zip(shortened_conditions, corrected_corrs_matrices,
 #         cbar_kws={"shrink": 0.5},
 #         # vmin=vmin, vmax=vmax,
 #     )
-    
+
 #     title = (
 #         f"Pearson's r between editing sites in squid's Short-reads {condition}\n\n(Benjamini/Yekutieli corrected pvals)"
 #     )
@@ -1908,24 +1945,20 @@ def calc_normalized_mi(df, pos_1, pos_2):
 mi_dfs = []
 
 for df, condition in zip(reads_w_nan_dfs, conditions):
-    
     # TODO uncomment later
     if "PCLO" not in condition:
         continue
-    
+
     df = df.iloc[:, reads_first_col_pos:]
 
     positions_couples = list(combinations(df.columns, 2))
 
-#     with Pool(processes=min(threads, 4)) as pool:
-#         mis = pool.starmap(
-#             func=calc_normalized_mi,
-#             iterable=[(df, pos_1, pos_2) for pos_1, pos_2 in positions_couples],
-#         )
-    mis = [
-        calc_normalized_mi(df, pos_1, pos_2)
-        for pos_1, pos_2 in positions_couples
-    ]
+    #     with Pool(processes=min(threads, 4)) as pool:
+    #         mis = pool.starmap(
+    #             func=calc_normalized_mi,
+    #             iterable=[(df, pos_1, pos_2) for pos_1, pos_2 in positions_couples],
+    #         )
+    mis = [calc_normalized_mi(df, pos_1, pos_2) for pos_1, pos_2 in positions_couples]
 
     mi_df = pd.DataFrame(
         {
@@ -2013,7 +2046,9 @@ symmetric_pclo_mi_df = get_symmetric_mi_df(
 # %%
 symmetric_pclo_mi_matrix = symmetric_pclo_mi_df.values
 mask = np.triu(np.ones_like(symmetric_pclo_mi_matrix, dtype=bool))
-pclo_masked_symmetric_mi_matrix = np.ma.masked_array(symmetric_pclo_mi_matrix, mask=mask, fill_value=np.nan).filled()
+pclo_masked_symmetric_mi_matrix = np.ma.masked_array(
+    symmetric_pclo_mi_matrix, mask=mask, fill_value=np.nan
+).filled()
 
 pclo_masked_symmetric_mi_df = pd.DataFrame(pclo_masked_symmetric_mi_matrix)
 pclo_masked_symmetric_mi_df.to_csv("PCLOMaskedMI.Illumina.tsv", index=False, sep="\t")
@@ -2050,7 +2085,6 @@ sns.heatmap(
     # vmin=0, vmax=1
     # vmin=vmin, vmax=vmax,
 )
-
 
 
 title = f"Normalized mutual information between editing sites in squid's Short-reads {shortened_conditions[pclo_index]}"
@@ -3318,7 +3352,9 @@ fig = make_subplots(
 first_data_trace = True
 
 # Add traces
-for col, (condition, shortened_condition) in enumerate(zip(conditions, shortened_conditions), start=1):
+for col, (condition, shortened_condition) in enumerate(
+    zip(conditions, shortened_conditions), start=1
+):
     df = distinct_unique_proteins_df.loc[
         distinct_unique_proteins_df[condition_col] == condition
     ]
@@ -4134,7 +4170,9 @@ fig.show()
 
 # %%
 min_max_fraction_1_distinct_prots_df.insert(0, "Platform", "Short-reads")
-min_max_fraction_1_distinct_prots_df.to_csv("Dispersion.Illumina.tsv", sep="\t", index=False)
+min_max_fraction_1_distinct_prots_df.to_csv(
+    "Dispersion.Illumina.tsv", sep="\t", index=False
+)
 
 # %%
 # fig = go.Figure(data=[go.Histogram(x=min_max_fraction_1_distinct_prots_df["%SolutionsDispersion"])])
@@ -5550,8 +5588,7 @@ assignment_dfs[0]
 
 # %%
 avg_of_min_estimate_of_non_syns_per_isoforms = [
-    assignment_df["MinNonSyns"].mean()
-    for assignment_df in assignment_dfs
+    assignment_df["MinNonSyns"].mean() for assignment_df in assignment_dfs
 ]
 avg_of_min_estimate_of_non_syns_per_isoforms
 
@@ -6722,32 +6759,31 @@ def run_hdbscan(
 ):
     rng = np.random.RandomState(seed)
 
-#     conditions_hdbscan_labels = [
-#         HDBSCAN(
-#             min_samples=min_samples,
-#             min_cluster_size=min_cluster_size,
-#         ).fit_predict(weighted_conditions_umap.values)
-#         for weighted_conditions_umap in weighted_conditions_umaps
-#     ]
+    #     conditions_hdbscan_labels = [
+    #         HDBSCAN(
+    #             min_samples=min_samples,
+    #             min_cluster_size=min_cluster_size,
+    #         ).fit_predict(weighted_conditions_umap.values)
+    #         for weighted_conditions_umap in weighted_conditions_umaps
+    #     ]
 
-#     return conditions_hdbscan_labels
+    #     return conditions_hdbscan_labels
 
     conditions_hdbscan_labels = []
     conditions_medoids = []
-    
+
     for weighted_conditions_umap in weighted_conditions_umaps:
-        
         hdb = HDBSCAN(
             min_samples=min_samples,
             min_cluster_size=min_cluster_size,
-            store_centers="medoid"
+            store_centers="medoid",
         )
         hdb.fit(weighted_conditions_umap.values)
         labels = hdb.labels_
         medoids = hdb.medoids_
         conditions_hdbscan_labels.append(labels)
         conditions_medoids.append(medoids)
-        
+
     return conditions_hdbscan_labels, conditions_medoids
 
 
@@ -7652,7 +7688,9 @@ weighted_conditions_umaps, weighted_conditions_umap_Xs = run_umaps(
 weighted_conditions_umaps[0]
 
 # %%
-conditions_hdbscan_labels, conditions_medoids = run_hdbscan(weighted_conditions_umaps, seed=seed)
+conditions_hdbscan_labels, conditions_medoids = run_hdbscan(
+    weighted_conditions_umaps, seed=seed
+)
 
 [set(labels) for labels in conditions_hdbscan_labels]
 
@@ -7667,7 +7705,7 @@ hdbscan_labels_color_map = {
     label: color
     for label, color in zip(
         hdbscan_labels_dict.values(),
-        px.colors.qualitative.Light24 + px.colors.qualitative.Dark24
+        px.colors.qualitative.Light24 + px.colors.qualitative.Dark24,
     )
 }
 # hdbscan_labels_color_map
@@ -7687,14 +7725,7 @@ fig = make_subplots(
     subplot_titles=shortened_conditions,
     x_title="UMAP 1",
     y_title="UMAP 2",
-    insets=[
-        {
-            "cell": (row, col),
-            "l": 0.85,
-            "b": 0.85
-        }
-        for row, col in row_col_iter
-    ],
+    insets=[{"cell": (row, col), "l": 0.85, "b": 0.85} for row, col in row_col_iter],
 )
 
 # fig.layout
@@ -7723,66 +7754,70 @@ for (
     y = values[:, 1]
 
     formatted_labels = [hdbscan_labels_dict[label] for label in hdbscan_labels]
-    
+
     # plot all points
-    
+
     colors = [hdbscan_labels_color_map[label] for label in formatted_labels]
 
     fig.add_trace(
-            go.Scattergl(
-                x=x,
-                y=y,
-                mode="markers",
-                marker=dict(
-                    color=colors,
-                    size=1,
-                    line=dict(
-                        width=0,
-                        # color="black"
-                    ),
-                    opacity=0.3,
+        go.Scattergl(
+            x=x,
+            y=y,
+            mode="markers",
+            marker=dict(
+                color=colors,
+                size=1,
+                line=dict(
+                    width=0,
+                    # color="black"
                 ),
+                opacity=0.3,
             ),
-            row=row,
-            col=col,
-        )
-    
+        ),
+        row=row,
+        col=col,
+    )
+
     # plot labels' perimeters & labels numbers, located at the medoids
-    
+
     unique_formatted_labels = set(formatted_labels)
     if "*" in unique_formatted_labels:
         # first "*" and then the rest of the labels
-        sorted_unique_formatted_labels = ["*"] + sorted(list(unique_formatted_labels - {"*"}))
+        sorted_unique_formatted_labels = ["*"] + sorted(
+            list(unique_formatted_labels - {"*"})
+        )
     else:
         sorted_unique_formatted_labels = sorted(list(unique_formatted_labels))
 
     for i, unique_label in enumerate(sorted_unique_formatted_labels):
-        
         # don't plot perimiter of unclustered proteins
         if unique_label == "*":
             continue
 
         color = hdbscan_labels_color_map[unique_label]
-        
+
         # plot labels' perimeters
-        
-        rows_belong_to_unique_label = [label == unique_label for label in formatted_labels]
+
+        rows_belong_to_unique_label = [
+            label == unique_label for label in formatted_labels
+        ]
 
         unique_label_x = x[rows_belong_to_unique_label]
         unique_label_y = y[rows_belong_to_unique_label]
 
-        points = np.array([[i,  j] for i, j in zip(unique_label_x, unique_label_y)])
+        points = np.array([[i, j] for i, j in zip(unique_label_x, unique_label_y)])
         hull = ConvexHull(points)
 
         for simplex in hull.simplices:
-
             fig.add_trace(
                 go.Scattergl(
                     x=points[simplex, 0],
                     y=points[simplex, 1],
                     # mode='lines+markers',
-                    mode='lines',
-                    line=dict(color=color, width=2, dash="dash") if unique_label == "*" else dict(color=color, width=2),
+                    mode="lines",
+                    line=dict(color=color, width=2, dash="dash")
+                    if unique_label == "*"
+                    else dict(color=color, width=2),
                     # marker=dict(
                     #     color=color,
                     #     size=4,
@@ -7792,14 +7827,14 @@ for (
                 row=row,
                 col=col,
             )
-        
+
         # plot labels numbers, located at the medoids (only for clustered labels)
-        
+
         if i == 0:
             continue
         j = i - 1
         medoid_x, medoid_y = medoids[j, 0], medoids[j, 1]
-        
+
         fig.add_trace(
             go.Scattergl(
                 x=[medoid_x],
@@ -7814,7 +7849,7 @@ for (
             ),
             row=row,
             col=col,
-            )
+        )
 
 # fig.update_xaxes(range=[min_x, max_x])
 
@@ -7854,7 +7889,6 @@ fig = make_subplots(
     y_title="Cummulative relative expression (%)",
     shared_xaxes="all",
     shared_yaxes="all",
-
 )
 
 # fig.layout
@@ -7876,23 +7910,27 @@ for (
     weighted_exp_umap_input_dfs,
 ):
     formatted_labels = [hdbscan_labels_dict[label] for label in hdbscan_labels]
-    
+
     # plot the summed relative expression levels of hdbcsan groups as an inset plot
-    
+
     # copy the relative expression col into a new df
     relative_expression_df = weighted_exp_umap_input_df.loc[:, ["%RelativeExpression"]]
     # add HDBSCAN labels to allow summing the relative expression levels of each such group
     relative_expression_df["HDBSCAN labels"] = hdbscan_labels
-    hdbscan_groups_summed_expression_df = relative_expression_df.groupby("HDBSCAN labels").sum().reset_index()
+    hdbscan_groups_summed_expression_df = (
+        relative_expression_df.groupby("HDBSCAN labels").sum().reset_index()
+    )
     # format hdbscan clusters' names
-    hdbscan_groups_summed_expression_df["HDBSCAN labels"] = hdbscan_groups_summed_expression_df["HDBSCAN labels"].apply(
+    hdbscan_groups_summed_expression_df[
+        "HDBSCAN labels"
+    ] = hdbscan_groups_summed_expression_df["HDBSCAN labels"].apply(
         lambda x: hdbscan_labels_dict[x]
     )
-    
+
     x = hdbscan_groups_summed_expression_df["HDBSCAN labels"]
     y = hdbscan_groups_summed_expression_df["%RelativeExpression"]
     colors = [hdbscan_labels_color_map[label] for label in x]
-    
+
     fig.add_trace(
         go.Bar(
             x=x,
@@ -7908,18 +7946,18 @@ for (
             # width=1
         ),
         row=row,
-        col=col
+        col=col,
     )
 
 # width = 1300
 # height = 1100
 width = 1100
-height = 1100*1100/1300
+height = 1100 * 1100 / 1300
 
 # fig.update_traces(textfont_size=4)
 
 fig.update_xaxes(
-    # tickangle=0, 
+    # tickangle=0,
     # tickfont=dict(size=7),
     # title="HDBSCAN<br>labels",
     # title_font_size=8,
@@ -7927,7 +7965,7 @@ fig.update_xaxes(
     # automargin=True,
     tickmode="array",
     ticktext=list(hdbscan_labels_dict.values()),
-    type="category"
+    type="category",
 )
 
 fig.update_layout(
@@ -7941,7 +7979,9 @@ fig.update_layout(
 )
 
 fig.write_image(
-    "Cummulative expression vs HDBSCAN labeling - Illumina.svg", width=width, height=height
+    "Cummulative expression vs HDBSCAN labeling - Illumina.svg",
+    width=width,
+    height=height,
 )
 
 fig.show()
@@ -8191,8 +8231,7 @@ fig.add_trace(
 
 fig.update_yaxes(title_text="Entropy")
 fig.update_xaxes(
-    title="Gene",
-    tickfont=dict(size=10)
+    title="Gene", tickfont=dict(size=10)
 )  # https://plotly.com/python/axes/#set-axis-label-rotation-and-font
 
 # fig.update_traces(
@@ -8230,6 +8269,110 @@ fig.write_image(
     width=width,
     height=height,
 )
+
+fig.show()
+
+# %% [markdown]
+# ##### Num. of editing sites in rare vs. common isoforms
+
+# %%
+for assignment_df in assignment_dfs:
+    assignment_df["300 most expressed"] = assignment_df.index < 300
+    assignment_df["1000 least expressed"] = assignment_df.index >= assignment_df.shape[0] - 1000
+merged_assignment_df = pd.concat(assignment_dfs).reset_index(drop=True)
+merged_assignment_df = merged_assignment_df.loc[merged_assignment_df["300 most expressed"] | merged_assignment_df["1000 least expressed"]]
+merged_assignment_df["Abundancy"] = merged_assignment_df["300 most expressed"].apply(lambda x: "300 most expressed" if x else "1000 least expressed")
+merged_assignment_df
+
+# %%
+assert merged_assignment_df.loc[merged_assignment_df["300 most expressed"]].shape[0] == len(conditions) * 300
+assert merged_assignment_df.loc[merged_assignment_df["1000 least expressed"]].shape[0] == len(conditions) * 1000
+assert merged_assignment_df.loc[merged_assignment_df["300 most expressed"] & merged_assignment_df["1000 least expressed"]].empty
+
+
+# %%
+def mannwhitneyu_between_rare_to_abundant(gdf):
+    x = gdf.loc[gdf["300 most expressed"], "EditedPositions"]
+    y = gdf.loc[gdf["1000 least expressed"], "EditedPositions"]
+    res = scipy.stats.mannwhitneyu(x, y)
+    return pd.Series([res.statistic, res.pvalue])
+
+
+# %%
+es_in_rare_vs_abundant_isoforms_df = (
+    merged_assignment_df.groupby(condition_col)
+    .apply(mannwhitneyu_between_rare_to_abundant)
+    .rename(columns={0: "MannwhitneyuStatistic", 1: "MannwhitneyuPV"})
+)
+rejected, adjusted = fdrcorrection(es_in_rare_vs_abundant_isoforms_df["MannwhitneyuPV"])
+es_in_rare_vs_abundant_isoforms_df["RejectedAdjustdedPV"] = rejected
+es_in_rare_vs_abundant_isoforms_df["AdjustdedPV"] = adjusted
+
+es_in_rare_vs_abundant_isoforms_df
+
+# %%
+merged_assignment_df.groupby([condition_col, "Abundancy"])["EditedPositions"].agg(["mean", "median"])
+
+# %%
+# ?make_subplots
+
+# %%
+# cols = min(4, len(conditions))
+cols = min(5, len(conditions))
+rows = ceil(len(conditions) / cols)
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
+
+fig = make_subplots(
+    rows=rows,
+    cols=cols,
+    # vertical_spacing=0.7/rows,
+    # horizontal_spacing=0.1/cols,
+    subplot_titles=shortened_conditions,
+    shared_yaxes="all",
+    # x_title="Abundancy",
+    y_title="Edited positions in originally-supporting reads",
+)
+
+for condition, (row, col) in zip(conditions, row_col_iter):
+    fig.add_trace(
+        go.Violin(
+            x=merged_assignment_df.loc[
+                merged_assignment_df[condition_col] == condition, "Abundancy"
+            ].str.replace(" ", "<br>"),
+            y=merged_assignment_df.loc[
+                merged_assignment_df[condition_col] == condition, "EditedPositions"
+            ],
+            line_color=color_discrete_map[condition],
+            fillcolor="white",
+            box_visible=True,
+            meanline_visible=True,
+            # points="all",
+            # pointpos=0,
+            # jitter=0.05
+        ),
+        row=row,
+        col=col
+        # col=1,
+    )
+# fig.update_yaxes(zerolinewidth=zerolinewidth, tickmode="linear", tick0=0, dtick=0.2)
+
+fig.update_xaxes(
+        # tickangle = 90,
+        # title_text = "Month",
+        # title_font = {"size": 20},
+        title_standoff = 50)
+
+fig.update_layout(
+    template=template,
+    showlegend=False,
+    # title_text="Pearson correlation between editing sites to number of sites edited in each read",
+    # height=250 * rows,
+    # width=1400,
+    # height=1400,
+    width=1200,
+    height=900,
+)
+
 
 fig.show()
 
@@ -8616,7 +8759,7 @@ fig.update_yaxes(range=[0, max_y * 1.3])
 
 width = max(350 * cols, 800)
 height = max(230 * rows, 330)
-        
+
 fig.update_layout(
     template=template,
     barmode="overlay",  # Overlay both histograms

@@ -223,6 +223,212 @@ python Code/orfs_fasta_to_bed.py \
 --out_bed O.vulgaris/Annotations/orfs_oct.bed
 ```
 
+Creating a GTF from the ORFs bed file to allow for single-cell analysis:
+
+<!-- ```bash
+# get the chosen AGAT container version
+docker pull quay.io/biocontainers/agat:0.8.0--pl5262hdfd78af_0
+
+
+
+# use an AGAT's tool e.g. agat_convert_sp_gxf2gxf.pl
+docker run \
+-u $(id -u ${USER}):$(id -g ${USER}) \
+-v O.vulgaris/Annotations:/dir \
+"quay.io/biocontainers/agat:0.8.0--pl5262hdfd78af_0" \
+agat_convert_bed2gff.pl \
+--bed /dir/orfs_oct.bed \
+-o O.vulgaris/Annotations/orfs_oct.gff
+
+
+
+cd O.vulgaris/Annotations
+
+docker run \
+-u $(id -u ${USER}):$(id -g ${USER}) \
+-v $PWD:/dir \
+"quay.io/biocontainers/agat:0.8.0--pl5262hdfd78af_0" \
+agat_convert_bed2gff.pl \
+--bed /dir/orfs_oct.bed \
+-o /dir/orfs_oct.gff
+
+
+# docker run \
+# -u $(id -u ${USER}):$(id -g ${USER}) \
+# -v $PWD:/dir \
+# -i \
+# "quay.io/biocontainers/agat:0.8.0--pl5262hdfd78af_0"
+``` -->
+
+
+```python
+from pathlib import Path
+
+import pandas as pd
+from Bio import SeqIO
+
+in_fasta = Path("O.vulgaris/Annotations/orfs_oct.fa")
+out_bed = Path("O.vulgaris/Annotations/oct.bed") # a bed file of the complete transcriptome
+
+records = SeqIO.parse(in_fasta, "fasta")
+
+transcripts = []
+transcripts_starts = []
+transcripts_ends = []
+names = []
+strands = []
+
+orfs_starts = []
+orfs_ends = []
+
+for record in records:
+    description = record.description.split("\t")
+    
+    transcript_start = 0
+    transcript_end = len(record.seq)
+    transcript_name = description[-1].split()[0].split("|")[-1]
+    strand_index = description.index("Strand") + 1
+    strand = description[strand_index]
+    
+    orf_start_index = description.index("OrfStart") + 1
+    orf_end_index = description.index("OrfEnd") + 1
+    orf_start = int(description[orf_start_index]) - 1
+    orf_end = int(description[orf_end_index])
+    
+    transcripts.append(record.id)
+    transcripts_starts.append(transcript_start)
+    transcripts_ends.append(transcript_end)
+    names.append(transcript_name)
+    strands.append(strand)
+
+    orfs_starts.append(orf_start)
+    orfs_ends.append(orf_end)
+
+transcripts_strands_df = pd.DataFrame(
+    {
+        "Chrom": transcripts,
+        "Start": transcripts_starts,
+        "End": transcripts_ends,
+        "Name": names,
+        "Strand": strands,
+        "ThickStart": orfs_starts,
+        "ThickEnd": orfs_ends,
+        "itemRgb": ".",
+        "blockCount": 1,
+        "blockStarts": 0,
+    }
+)
+transcripts_strands_df = transcripts_strands_df.sort_values(["Chrom", "Start"])
+transcripts_strands_df.insert(
+    transcripts_strands_df.columns.get_loc("Strand"), "Score", "."
+)
+transcripts_strands_df.insert(
+    transcripts_strands_df.columns.get_loc("blockCount") + 1, "BlockSizes", transcripts_strands_df["ThickEnd"] - transcripts_strands_df["ThickStart"]
+)
+
+transcripts_strands_df.to_csv(out_bed, sep="\t", index=False, header=False)
+```
+
+
+```bash
+cd O.vulgaris/Annotations
+
+docker run \
+-u $(id -u ${USER}):$(id -g ${USER}) \
+-v $PWD:/dir \
+"quay.io/biocontainers/agat:0.8.0--pl5262hdfd78af_0" \
+agat_convert_bed2gff.pl \
+--bed /dir/oct.bed \
+--primary_tag mRNA \
+-o /dir/oct.gff
+
+docker run \
+-u $(id -u ${USER}):$(id -g ${USER}) \
+-v $PWD:/dir \
+"quay.io/biocontainers/agat:0.8.0--pl5262hdfd78af_0" \
+agat_convert_sp_gff2gtf.pl \
+--gff /dir/oct.gff \
+-o /dir/oct.gtf
+```
+
+<!-- 
+```python
+import pandas as pd
+import numpy as np
+
+gff_cols = ["seqid", "source", "type", "start", "end", "score", "strand", "phase", "attributes"]
+gff_file = "/private7/projects/Combinatorics/O.vulgaris/Annotations/oct.gff"
+gff_df = pd.read_csv(gff_file, sep='\t', comment='#', names=gff_cols)
+
+# gff_df["attributes"] = gff_df["attributes"].apply(lambda x: dict([y.split("=") for y in x.split(";")]))
+# gff_df["ID"] = gff_df["attributes"].apply(lambda x: x.get("ID"))
+# gff_df["Parent"] = gff_df["attributes"].apply(lambda x: x.get("Parent", np.nan))
+
+mrna_df = gff_df.loc[gff_df["type"] == "mRNA"]
+cds_df = gff_df.loc[gff_df["type"] == "CDS"]
+
+mrna_with_no_cds_df = mrna_df.loc[~mrna_df["seqid"].isin(cds_df["seqid"])]
+``` -->
+
+
+
+
+<!-- ```bash
+cd O.vulgaris/Annotations
+
+docker run \
+-u $(id -u ${USER}):$(id -g ${USER}) \
+-v $PWD:/dir \
+"quay.io/biocontainers/agat:0.8.0--pl5262hdfd78af_0" \
+agat_convert_bed2gff.pl \
+--bed /dir/oct.bed \
+--primary_tag mRNA \
+-o /dir/oct.mRNA.gff
+
+docker run \
+-u $(id -u ${USER}):$(id -g ${USER}) \
+-v $PWD:/dir \
+"quay.io/biocontainers/agat:0.8.0--pl5262hdfd78af_0" \
+agat_convert_bed2gff.pl \
+--bed /dir/orfs_oct.bed \
+--primary_tag CDS \
+-o /dir/orfs_oct.CDS.gff
+
+
+docker run \
+-u $(id -u ${USER}):$(id -g ${USER}) \
+-v $PWD:/dir \
+"quay.io/biocontainers/agat:0.8.0--pl5262hdfd78af_0" \
+agat_sp_merge_annotations.pl \
+-h
+
+docker run \
+-u $(id -u ${USER}):$(id -g ${USER}) \
+-v $PWD:/dir \
+"quay.io/biocontainers/agat:0.8.0--pl5262hdfd78af_0" \
+agat_sp_merge_annotations.pl \
+-gff /dir/oct.mRNA.gff \
+-gff /dir/orfs_oct.CDS.gff \
+-o /dir/orfs_oct.gff
+
+# verify 1 feature per transcript
+tail -n +2 oct.mRNA.gff | cut -f 1 | sort | uniq -c | awk '{$1=$1;print}' | cut -f 1 -d " " | sort | uniq
+tail -n +2 orfs_oct.CDS.gff | cut -f 1 | sort | uniq -c | awk '{$1=$1;print}' | cut -f 1 -d " " | sort | uniq
+
+bedtools sort -i orfs_oct.gff > orfs_oct.sorted.gff
+
+docker run \
+-u $(id -u ${USER}):$(id -g ${USER}) \
+-v $PWD:/dir \
+"quay.io/biocontainers/agat:0.8.0--pl5262hdfd78af_0" \
+agat_gff3sort.pl \
+-gff /dir/oct.mRNA.gff \
+-gff /dir/orfs_oct.CDS.gff \
+-o /dir/orfs_oct.gff
+ --precise test.gff
+``` -->
+
+
 
 ## O.vulgaris Iso-Seq data
 
@@ -317,6 +523,38 @@ illumina \
 --separate_by_chrom \
 > D.pealeii/Alignment/Illumina/align.out &
 ```
+
+### Squid short reads - With duplicates
+
+```bash
+mkdir -p D.pealeii/Alignment/Illumina.WithDup
+
+nohup \
+python Code/align.py \
+--genome D.pealeii/Annotations/orfs_squ.fa \
+--in_dir D.pealeii/Data/RutisReads/Trimmed \
+--out_dir D.pealeii/Alignment/Illumina.WithDup \
+--threads 20 \
+illumina \
+--postfix ".good.fastq.gz" \
+--require_flags 3 \
+--exclude_flags 2304 \
+--separate_by_chrom \
+> D.pealeii/Alignment/Illumina.WithDup/align.30.5.24.out &
+
+# nohup \
+# python Code/align.py \
+# --genome D.pealeii/Annotations/orfs_squ.fa \
+# --in_dir D.pealeii/Data/Illumina/Trimmed \
+# --out_dir D.pealeii/Alignment/Illumina.WithDup \
+# --threads 40 \
+# illumina \
+# --require_flags 3 \
+# --exclude_flags 2304 \
+# --separate_by_chrom \
+# > D.pealeii/Alignment/Illumina.WithDup/align.out &
+```
+* alu 15
 
 ### O. vulgaris
 
@@ -728,6 +966,90 @@ Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 --run_solve_threaded \
 2>&1 | tee D.pealeii/MpileupAndTranscripts/Illumina80K/DistinctProteins.regular.log
 ```
+
+
+## Illumina - with duplicates
+
+### Pileup
+
+```bash
+mkdir D.pealeii/MpileupAndTranscripts/Illumina.WithDup
+
+nohup python Code/pileup_with_subparsers.py \
+--transcriptome D.pealeii/Annotations/orfs_squ.fa \
+--known_editing_sites D.pealeii/Annotations/D.pea.EditingSites.bed \
+--include_flags 3 \
+--exclude_flags 2304 \
+--top_x_noisy_positions 3 \
+--assurance_factor 1.5 \
+--min_percent_of_max_coverage 0.1 \
+--snp_noise_level 0.1 \
+--min_bq 30 \
+--parity PE \
+--out_dir D.pealeii/MpileupAndTranscripts/Illumina.WithDup \
+--processes 5 \
+--threads 5 \
+--keep_pileup_files \
+--gz_compression \
+directed_sequencing_data \
+--data_table Code/Alignment/DataTable.Squid.ShortReads.WithDuplicates.csv \
+>> D.pealeii/MpileupAndTranscripts/Illumina.WithDup/pileup_with_subparsers.30.5.24.out & 
+```
+* alu 15
+
+### Distinct proteins
+
+:warning: **Pay attention!** Running the distinct proteins & expression levels simulations for some of these Illumina transcripts will require a computer with **~2TB of memory**.
+
+#### Finding isoforms
+
+```bash
+INFILES=$(echo D.pealeii/MpileupAndTranscripts/Illumina/*.unique_proteins.csv)
+
+JULIA_PROJECT=.
+
+nohup julia \
+--threads 50 --proc 3 \
+Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--prefix_to_remove reads.sorted.aligned.filtered. \
+--postfix_to_remove .unique_proteins.csv \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--outdir D.pealeii/MpileupAndTranscripts/Illumina \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+> D.pealeii/MpileupAndTranscripts/Illumina/maximal_independent_set_5.Proteins.out &
+```
+
+#### Calculating expression levels
+
+```bash
+python \
+Code/UnorderedNaNDepletion/prepare_fofns_for_expression.py \
+--proteins_dir D.pealeii/MpileupAndTranscripts/Illumina \
+--proteins_prefix "reads.sorted.aligned.filtered."
+
+DISTINCTFILES=$(cat D.pealeii/MpileupAndTranscripts/Illumina/DistinctProteinsForExpressionLevels.txt)
+ALLROTSFILES=$(cat D.pealeii/MpileupAndTranscripts/Illumina/UniqueProteinsForExpressionLevels.txt)
+SAMPLESNAMES=$(cat D.pealeii/MpileupAndTranscripts/Illumina/ChromsNamesForExpressionLevels.txt)
+
+nohup \
+julia \
+--project=. \
+--threads 40 \
+Code/UnorderedNaNDepletion/expressionlevels.jl \
+--distinctfiles $DISTINCTFILES \
+--allprotsfiles $ALLROTSFILES \
+--samplenames $SAMPLESNAMES \
+--fractions 0.2 0.4 0.6 0.8 1.0 \
+--outdir D.pealeii/MpileupAndTranscripts/Illumina \
+> D.pealeii/MpileupAndTranscripts/Illumina/expressionlevels.out &
+``` 
 
 
 ## O.vul polished IsoSeq data
