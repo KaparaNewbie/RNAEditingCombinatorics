@@ -5,6 +5,8 @@ from typing import Union
 from itertools import chain
 from multiprocessing import Pool
 
+# from copy import deepcopy
+
 from pybedtools import BedTool
 import numpy as np
 import pandas as pd
@@ -370,6 +372,226 @@ def annotate_edited_sites(
         i in edited_positions.loc[edited_positions].index for i in positions_df.index
     ]
     positions_df.insert(positions_df.columns.get_loc("Position") + 1, "Edited", edited)
+
+
+def simulate_complete_and_corresponding_partially_unknown_positions_dfs(
+    chrom: str,
+    n_reads: int,
+    known_editing_freqs: list[float],
+    adenosine_positions: list[int],
+    unknown_probability: float,
+    snp_noise_level: float,
+    top_x_noisy_positions: int,
+    assurance_factor: float,
+    known_sites_file: Union[Path, str, None] = None,
+    complete_positions_out_file: Union[Path, str, None] = None,
+    partially_unkown_positions_out_file: Union[Path, str, None] = None,
+    out_files_sep: str = "\t",
+    denovo_detection: bool = False,
+):
+    complete_positions_df, partially_unkown_positions_df = (
+        simulate_complete_and_corresponding_partially_unknown_basic_positions_df(
+            chrom,
+            n_reads,
+            known_editing_freqs,
+            adenosine_positions,
+            unknown_probability,
+        )
+    )
+
+    finalize_basic_simulated_positions_df(
+        complete_positions_df,
+        snp_noise_level,
+        top_x_noisy_positions,
+        assurance_factor,
+        known_sites_file=known_sites_file,
+        positions_out_file=complete_positions_out_file,
+        out_files_sep=out_files_sep,
+        denovo_detection=denovo_detection,
+    )
+
+    finalize_basic_simulated_positions_df(
+        partially_unkown_positions_df,
+        snp_noise_level,
+        top_x_noisy_positions,
+        assurance_factor,
+        known_sites_file=known_sites_file,
+        positions_out_file=partially_unkown_positions_out_file,
+        out_files_sep=out_files_sep,
+        denovo_detection=denovo_detection,
+    )
+
+
+def simulate_complete_and_corresponding_partially_unknown_basic_positions_df(
+    chrom: str,
+    n_reads: int,
+    known_editing_freqs: list[float],
+    adenosine_positions: list[int],
+    unknown_probability: float,
+) -> pd.DataFrame:
+    k_sites = len(known_editing_freqs)
+    # Generate the boolean array
+    complete_editing_status = np.random.rand(n_reads, k_sites) < known_editing_freqs
+    # Convert the boolean array to int
+    complete_editing_status = complete_editing_status.astype(int)
+    complete_editing_status_df = pd.DataFrame(
+        complete_editing_status, columns=adenosine_positions
+    )
+    # editing_status_df.sum()
+    mapped_bases = (
+        complete_editing_status_df.replace({0: ".", 1: "G"}).apply("".join).values
+    )
+    phred_scores = ["?" * n_reads for _ in range(k_sites)]
+    reads = [",".join([str(i) for i in range(n_reads)]) for _ in range(k_sites)]
+    complete_positions_df = pd.DataFrame(
+        {
+            "Chrom": chrom,
+            "Position": adenosine_positions,
+            "RefBase": "A",
+            "TotalCoverage": n_reads,
+            "MappedBases": mapped_bases,
+            "Phred": phred_scores,
+            "Reads": reads,
+        }
+    )
+
+    assert (
+        complete_positions_df["TotalCoverage"]
+        .eq(complete_positions_df["MappedBases"].apply(len))
+        .all()
+    )
+
+    unknown_mask = np.random.rand(n_reads, k_sites) < unknown_probability
+    partially_unknown_editing_status_df = complete_editing_status_df.mask(
+        unknown_mask, other=-1
+    )
+    partially_unknown_total_coverage = partially_unknown_editing_status_df.ne(-1).sum()
+    partially_unkown_mapped_bases = (
+        partially_unknown_editing_status_df.replace({0: ".", 1: "G", -1: ""})
+        .apply("".join)
+        .values
+    )
+    partially_unkown_phred_scores = [
+        "?" * tot_cov for tot_cov in partially_unknown_total_coverage.values
+    ]
+    partially_unknown_as_nan_editing_status_df = (
+        partially_unknown_editing_status_df.replace(-1, np.NaN)
+    )
+    partially_unkown_reads = [
+        ",".join(
+            partially_unknown_as_nan_editing_status_df[position]
+            .dropna()
+            .index.astype(str)
+        )
+        for position in adenosine_positions
+    ]
+    partially_unkown_positions_df = pd.DataFrame(
+        {
+            "Chrom": chrom,
+            "Position": adenosine_positions,
+            "RefBase": "A",
+            "TotalCoverage": partially_unknown_total_coverage,
+            "MappedBases": partially_unkown_mapped_bases,
+            "Phred": partially_unkown_phred_scores,
+            "Reads": partially_unkown_reads,
+        }
+    )
+
+    assert (
+        partially_unkown_positions_df["TotalCoverage"]
+        .eq(partially_unkown_positions_df["MappedBases"].apply(len))
+        .all()
+    )
+    assert (
+        partially_unkown_positions_df["TotalCoverage"]
+        .eq(partially_unkown_positions_df["Phred"].apply(len))
+        .all()
+    )
+    assert (
+        partially_unkown_positions_df["Reads"]
+        .str.split(",")
+        .apply(len)
+        .eq(partially_unkown_positions_df["TotalCoverage"])
+        .all()
+    )
+
+    return complete_positions_df, partially_unkown_positions_df
+
+
+def finalize_basic_simulated_positions_df(
+    positions_df: pd.DataFrame,
+    # min_percent_of_max_coverage: float,
+    snp_noise_level: float,
+    top_x_noisy_positions: int,
+    assurance_factor: float,
+    known_sites_file: Union[Path, str, None] = None,
+    # cds_regions_file: Union[Path, str, None] = None,
+    positions_out_file: Union[Path, str, None] = None,
+    out_files_sep: str = "\t",
+    denovo_detection: bool = False,
+):
+    strand = "+"
+    remove_non_refbase_noisy_positions = False
+
+    # # remove positions with insufficient coverage
+    # max_coverage = positions_df["TotalCoverage"].max()
+    # required_coverage = max_coverage * min_percent_of_max_coverage
+    # positions_df = positions_df.loc[positions_df["TotalCoverage"] >= required_coverage]
+
+    annotate_prolamatic_sites(positions_df, strand, problamatic_regions_file=None)
+    annotate_known_sites(positions_df, strand, known_sites_file)
+    annotate_coding_sites(positions_df, strand, cds_regions_file=None)
+    annotate_base_counts(positions_df)
+    annotate_noise(positions_df, strand)
+
+    ref_base = "A" if strand == "+" else "T"
+
+    if remove_non_refbase_noisy_positions:
+        # remove non refbase positions with too-high noise
+        positions_before = len(positions_df)
+        positions_df = positions_df.loc[
+            (positions_df["RefBase"] == ref_base)
+            | (positions_df["Noise"] < snp_noise_level)
+        ]
+        positions_after = len(positions_df)
+        removed_positions = positions_before - positions_after
+        print(f"{removed_positions} extremely noisy positions removed")
+
+        # same as `positions_df["Noise"].max()` if `top_x_noise_samples == 1`
+        # noise_threshold = positions_df.loc[positions_df["RefBase"] != "A", "Noise"].sort_values(ascending=False)[:top_x_noisy_positions].mean()
+        noise_threshold = (
+            positions_df["Noise"]
+            .sort_values(ascending=False)[:top_x_noisy_positions]
+            .mean()
+        )
+    else:
+        noise_threshold = (
+            positions_df.loc[positions_df["Noise"] < snp_noise_level, "Noise"]
+            .sort_values(ascending=False)[:top_x_noisy_positions]
+            .mean()
+        )
+    noise_threshold *= assurance_factor
+    if pd.isna(noise_threshold):
+        noise_threshold = 0
+    annotate_editing_frequency_per_position(positions_df, strand)
+    annotate_edited_sites(positions_df, strand, noise_threshold, denovo_detection)
+
+    # # verify that noise is only applied to non ref_base positions, and vice versa for editing frequency
+    # non_ref_base_edit_freq = positions_df.loc[
+    #     positions_df["RefBase"] != ref_base, "EditingFrequency"
+    # ].unique()
+    # assert len(non_ref_base_edit_freq) == 1 and np.isnan(non_ref_base_edit_freq[0])
+    # ref_base_noise = positions_df.loc[
+    #     positions_df["RefBase"] == ref_base, "Noise"
+    # ].unique()
+    # assert len(ref_base_noise) == 1 and np.isnan(ref_base_noise[0])
+
+    if positions_out_file:
+        positions_df.to_csv(
+            positions_out_file, sep=out_files_sep, index=False, na_rep=np.NaN
+        )
+
+    # return positions_df
 
 
 def pileup_to_positions(

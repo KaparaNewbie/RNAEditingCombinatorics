@@ -13,11 +13,16 @@ from pathlib import Path
 from typing import Union
 from collections import defaultdict
 import subprocess
+import sys
+
+code_dir = "/private7/projects/Combinatorics/Code"
+sys.path.append(str(Path(code_dir).absolute()))
 
 import pandas as pd
 import numpy as np
 from pybedtools import BedTool
 from icecream import ic
+
 
 from General.argparse_utils import abs_path_from_str, expanded_path_from_str
 from Alignment.alignment_utils import filter_bam_by_read_quality, sample_bam
@@ -26,6 +31,7 @@ from Pileup.positions import (
     pileup_to_positions,
     # multisample_pileups_to_positions_old,
     multisample_pileups_to_positions_all_transcripts,
+    simulate_complete_and_corresponding_partially_unknown_positions_dfs,
 )
 from Pileup.reads import reads_and_unique_reads, multisample_reads_and_unique_reads
 from Pileup.proteins import (
@@ -458,6 +464,124 @@ def undirected_sequencing_main(
                 )
             ],
         )
+
+
+def simulate_complete_and_corresponding_partially_unknown_main(
+    # *,
+    transcriptome: Path,
+    chrom: str,
+    orf_start: int,
+    orf_end: int,
+    strand: str,
+    n_reads: int,
+    known_editing_freqs: list[float],
+    adenosine_positions: list[int],
+    unknown_probability: float,
+    snp_noise_level: float,
+    top_x_noisy_positions: int,
+    assurance_factor: float,
+    out_dir: Union[Path, str],
+    known_sites_file: Union[Path, str, None] = None,
+    out_files_sep: str = "\t",
+    denovo_detection: bool = False,
+    group_col: str = "Gene",
+    common_output_prefix: str = "",
+):
+    if strand != "+":
+        raise ValueError("Only positive strand is supported for this simulation")
+    parity = "SE"
+
+    complete_positions_out_file = Path(
+        out_dir, f"{common_output_prefix}Complete.Positions.tsv"
+    )
+    complete_reads_file = Path(out_dir, f"{common_output_prefix}Complete.Reads.tsv")
+    complete_unique_reads_file = Path(
+        out_dir, f"{common_output_prefix}Complete.UniqueReads.tsv"
+    )
+    complete_proteins_file = Path(
+        out_dir, f"{common_output_prefix}Complete.Proteins.tsv"
+    )
+    complete_unique_proteins_file = Path(
+        out_dir, f"{common_output_prefix}Complete.UniqueProteins.tsv"
+    )
+
+    partially_unkown_positions_out_file = Path(
+        out_dir, f"{common_output_prefix}PartiallyUnknown.Positions.tsv"
+    )
+    partially_unkown_reads_file = Path(
+        out_dir, f"{common_output_prefix}PartiallyUnknown.Reads.tsv"
+    )
+    partially_unkown_unique_reads_file = Path(
+        out_dir, f"{common_output_prefix}PartiallyUnknown.UniqueReads.tsv"
+    )
+    partially_unkown_proteins_file = Path(
+        out_dir, f"{common_output_prefix}PartiallyUnknown.Proteins.tsv"
+    )
+    partially_unkown_unique_proteins_file = Path(
+        out_dir, f"{common_output_prefix}PartiallyUnknown.UniqueProteins.tsv"
+    )
+
+    simulate_complete_and_corresponding_partially_unknown_positions_dfs(
+        chrom,
+        n_reads,
+        known_editing_freqs,
+        adenosine_positions,
+        unknown_probability,
+        snp_noise_level,
+        top_x_noisy_positions,
+        assurance_factor,
+        known_sites_file=known_sites_file,
+        complete_positions_out_file=complete_positions_out_file,
+        partially_unkown_positions_out_file=partially_unkown_positions_out_file,
+        denovo_detection=denovo_detection,
+        out_files_sep=out_files_sep,
+    )
+
+    reads_and_unique_reads(
+        complete_positions_out_file,
+        strand,
+        group_col,
+        "Complete",
+        parity,
+        complete_reads_file,
+        complete_unique_reads_file,
+        out_files_sep,
+    )
+    reads_and_unique_reads(
+        partially_unkown_positions_out_file,
+        strand,
+        group_col,
+        "PartiallyUnknown",
+        parity,
+        partially_unkown_reads_file,
+        partially_unkown_unique_reads_file,
+        out_files_sep,
+    )
+
+    proteins_and_unique_proteins(
+        complete_unique_reads_file,
+        chrom,
+        orf_start,
+        orf_end,
+        strand,
+        transcriptome,
+        group_col,
+        complete_proteins_file,
+        complete_unique_proteins_file,
+        out_files_sep,
+    )
+    proteins_and_unique_proteins(
+        partially_unkown_unique_reads_file,
+        chrom,
+        orf_start,
+        orf_end,
+        strand,
+        transcriptome,
+        group_col,
+        partially_unkown_proteins_file,
+        partially_unkown_unique_proteins_file,
+        out_files_sep,
+    )
 
 
 def directed_sequencing_main(
@@ -910,6 +1034,18 @@ def define_args() -> argparse.Namespace:
         type=int,
         help="Subsampling seed used to influence which subset of reads is kept.",
     )
+
+    # simulate_complete_and_corresponding_partially_unkown_subparser = subparsers.add_parser(
+    #     "simulate_complete_and_corresponding_partially_unkown_data",
+    #     # help="Original use of this program by suplying a data table",
+    # )
+    # simulate_complete_and_corresponding_partially_unkown_subparser.set_defaults(
+    #     func=simulate_complete_and_corresponding_partially_unknown_main
+    # )
+
+    # simulate_complete_and_corresponding_partially_unkown_subparser.add_argument(
+    #     "--group_col", default="Gene"
+    # )
 
     directed_sequencing_subparser = subparsers.add_parser(
         "directed_sequencing_data",

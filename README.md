@@ -216,7 +216,8 @@ Code/parse_known_sites.py \
 --editing_sites_excel_file O.vulgaris/Annotations/editing_sites.xlsx \
 --sheet_name "O.vul Editing sites" \
 --out_csv_file O.vulgaris/Annotations/O.vul.EditingSites.csv \
---out_bed_file O.vulgaris/Annotations/O.vul.EditingSites.bed
+--out_bed_file O.vulgaris/Annotations/O.vul.EditingSites.bed \
+--ignore_score
 
 python Code/orfs_fasta_to_bed.py \
 --in_fasta O.vulgaris/Annotations/orfs_oct.fa \
@@ -628,7 +629,7 @@ INFILES=$(echo D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/*.u
 julia \
 --project=. \
 --threads 40 --proc 6 \
-Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+Code/Simulations/maximal_independent_set_5.jl \
 --infiles $INFILES \
 --postfix_to_remove .C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
 --idcol Protein \
@@ -658,7 +659,7 @@ nohup \
 julia \
 --project=. \
 --threads 30 \
-Code/UnorderedNaNDepletion/expressionlevels.jl \
+Code/Simulations/expressionlevels.jl \
 --distinctfiles $DISTINCTFILES \
 --allprotsfiles $ALLROTSFILES \
 --samplenames $SAMPLESNAMES \
@@ -676,7 +677,7 @@ INFILES=$(echo D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/*.u
 julia \
 --project=. \
 --threads 40 --proc 6 \
-Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+Code/Simulations/maximal_independent_set_5.jl \
 --infiles $INFILES \
 --postfix_to_remove .C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
 --postfix_to_add .Fraction0_1 \
@@ -707,7 +708,7 @@ nohup \
 julia \
 --project=. \
 --threads 40 \
-Code/UnorderedNaNDepletion/expressionlevels.jl \
+Code/Simulations/expressionlevels.jl \
 --distinctfiles $DISTINCTFILES \
 --allprotsfiles $ALLROTSFILES \
 --samplenames $SAMPLESNAMES \
@@ -727,7 +728,7 @@ INFILES=$(echo D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/*.u
 julia \
 --project=. \
 --threads 40 --proc 6 \
-Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+Code/Simulations/maximal_independent_set_5.jl \
 --infiles $INFILES \
 --postfix_to_remove .C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
 --postfix_to_add .AAgroupsMiyata1979 \
@@ -763,7 +764,7 @@ nohup \
 julia \
 --project=. \
 --threads 20 \
-Code/UnorderedNaNDepletion/expressionlevels.jl \
+Code/Simulations/expressionlevels.jl \
 --distinctfiles $DISTINCTFILES \
 --allprotsfiles $ALLROTSFILES \
 --samplenames $SAMPLESNAMES \
@@ -783,7 +784,7 @@ INFILES=$(echo D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/*.u
 julia \
 --project=. \
 --threads 40 --proc 6 \
-Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+Code/Simulations/maximal_independent_set_5.jl \
 --infiles $INFILES \
 --postfix_to_remove .C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
 --postfix_to_add .GRANTHAM1974-100 \
@@ -819,7 +820,7 @@ nohup \
 julia \
 --project=. \
 --threads 40 \
-Code/UnorderedNaNDepletion/expressionlevels.jl \
+Code/Simulations/expressionlevels.jl \
 --distinctfiles $DISTINCTFILES \
 --allprotsfiles $ALLROTSFILES \
 --samplenames $SAMPLESNAMES \
@@ -868,7 +869,7 @@ JULIA_PROJECT=.
 
 nohup julia \
 --threads 50 --proc 3 \
-Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+Code/Simulations/maximal_independent_set_5.jl \
 --infiles $INFILES \
 --prefix_to_remove reads.sorted.aligned.filtered. \
 --postfix_to_remove .unique_proteins.csv \
@@ -888,7 +889,7 @@ Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 
 ```bash
 python \
-Code/UnorderedNaNDepletion/prepare_fofns_for_expression.py \
+Code/Simulations/prepare_fofns_for_expression.py \
 --proteins_dir D.pealeii/MpileupAndTranscripts/Illumina \
 --proteins_prefix "reads.sorted.aligned.filtered."
 
@@ -900,7 +901,7 @@ nohup \
 julia \
 --project=. \
 --threads 40 \
-Code/UnorderedNaNDepletion/expressionlevels.jl \
+Code/Simulations/expressionlevels.jl \
 --distinctfiles $DISTINCTFILES \
 --allprotsfiles $ALLROTSFILES \
 --samplenames $SAMPLESNAMES \
@@ -951,7 +952,7 @@ INFILES=$(echo D.pealeii/MpileupAndTranscripts/Illumina80K/*.unique_proteins.csv
 julia \
 --project=. \
 --threads 60 --proc 10 \
-Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+Code/Simulations/maximal_independent_set_5.jl \
 --infiles $INFILES \
 --prefix_to_remove reads.sorted.aligned.filtered. \
 --postfix_to_remove .unique_proteins.csv.gz \
@@ -1010,7 +1011,7 @@ JULIA_PROJECT=.
 
 nohup julia \
 --threads 50 --proc 3 \
-Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+Code/Simulations/maximal_independent_set_5.jl \
 --infiles $INFILES \
 --prefix_to_remove reads.sorted.aligned.filtered. \
 --postfix_to_remove .unique_proteins.csv \
@@ -1030,7 +1031,7 @@ Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 
 ```bash
 python \
-Code/UnorderedNaNDepletion/prepare_fofns_for_expression.py \
+Code/Simulations/prepare_fofns_for_expression.py \
 --proteins_dir D.pealeii/MpileupAndTranscripts/Illumina \
 --proteins_prefix "reads.sorted.aligned.filtered."
 
@@ -1042,7 +1043,7 @@ nohup \
 julia \
 --project=. \
 --threads 40 \
-Code/UnorderedNaNDepletion/expressionlevels.jl \
+Code/Simulations/expressionlevels.jl \
 --distinctfiles $DISTINCTFILES \
 --allprotsfiles $ALLROTSFILES \
 --samplenames $SAMPLESNAMES \
@@ -1098,7 +1099,7 @@ INFILES=$(echo O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Uncl
 julia \
 --project=. \
 --threads 40 --proc 6 \
-Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+Code/Simulations/maximal_independent_set_5.jl \
 --infiles $INFILES \
 --postfix_to_remove .unique_proteins.csv.gz \
 --idcol Protein \
@@ -1159,7 +1160,7 @@ INFILES=$(echo O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Uncl
 julia \
 --project=. \
 --threads 24 --proc 6 \
-Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
+Code/Simulations/maximal_independent_set_5.jl \
 --infiles $INFILES \
 --postfix_to_remove .unique_proteins.csv.gz \
 --idcol Protein \
@@ -1172,6 +1173,68 @@ Code/UnorderedNaNDepletion/maximal_independent_set_5.jl \
 --algs Ascending Descending \
 --run_solve_threaded \
 2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BHAfterNoise.3/DistinctProteins.regular.log
+```
+
+# Simulations
+
+## Unfinished editing isoforms
+
+`Code/Simulations/unifinished_editing_isoforms.jl`
+
+## Empirical graph assessment
+
+``````bash
+COMB
+
+mkdir -p Simulations/GraphAssessment
+
+# python \
+# Code/parse_known_sites.py \
+# --editing_sites_excel_file O.vulgaris/Annotations/editing_sites.xlsx \
+# --sheet_name "O.vul Editing sites" \
+# --out_csv_file Simulations/GraphAssessment/O.vul.EditingSites.csv \
+# --out_bed_file Simulations/GraphAssessment/O.vul.EditingSites.bed
+
+# nohup python Code/pileup_with_subparsers.py \
+# --transcriptome D.pealeii/Annotations/orfs_squ.fa \
+# --known_editing_sites D.pealeii/Annotations/D.pea.EditingSites.bed \
+# --parity SE \
+# --out_dir Simulations/GraphAssessment \
+# simulate_complete_and_corresponding_partially_unkown_data \
+# directed_sequencing_data \
+# --data_table Code/Alignment/DataTable.Squid.LongReads.csv \
+# > D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/pileup.out &
+
+python Code/empirical_graph_assessment.py
+```
+
+```bash
+INFILES=$(echo Simulations/GraphAssessment/*.UniqueProteins.tsv)
+
+julia \
+--project=. \
+--threads 30 --proc 6 \
+Code/Simulations/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .UniqueProteins.tsv \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--outdir Simulations/GraphAssessment \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee Simulations/GraphAssessment/DistinctProteins.regular.log
+```
+
+```bash
+cut -f 1-5 /private7/projects/Combinatorics/Simulations/GraphAssessment/Complete.DistinctUniqueProteins.05.09.2024-15:06:52.csv | less
+
+
+cut -f 1-5 /private7/projects/Combinatorics/Simulations/GraphAssessment/Complete.DistinctUniqueProteins.05.09.2024-15:06:52.csv | tail
+cut -f 1-5 /private7/projects/Combinatorics/Simulations/GraphAssessment/PartiallyUnknown.DistinctUniqueProteins.05.09.2024-15:07:03.csv | tail
 ```
 
 # Notebooks
