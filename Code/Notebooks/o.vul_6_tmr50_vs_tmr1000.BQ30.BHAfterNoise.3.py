@@ -3487,6 +3487,389 @@ fig.write_image(
 fig.show()
 
 # %%
+# version with only top panel for a conferenct
+
+font_size = 24
+
+df = (
+    max_distinct_proteins_df.loc[:, ["NumOfProteins"]]
+    .sort_values("NumOfProteins")
+    .reset_index(drop=True)
+)
+df["CummulativeTranscripts"] = 100 * (df.index + 1) / len(df)
+df["CummulativeTranscripts"] = df["CummulativeTranscripts"][::-1].values
+x = df["NumOfProteins"]
+y = df["CummulativeTranscripts"]
+x_mean = x.mean()
+x_std = x.std()
+ic(x_std)
+x_mean_closest = x.iloc[(x - x_mean).abs().argsort()[:1]]
+x_mean_closest_k = x_mean_closest.index.values[0]
+if x_mean == x_mean_closest.values[0]:
+    y_mean = y.iloc[x_mean_closest_k]
+else:
+    if x_mean < x_mean_closest.values[0]:
+        i = x_mean_closest_k - 1
+        j = x_mean_closest_k + 1
+    else:
+        i = x_mean_closest_k
+        j = x_mean_closest_k + 2
+    y_mean = np.interp(x_mean, x.iloc[i:j], y.iloc[i:j])
+df = df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
+
+tmr1000_df = (
+    tmr1000_max_distinct_proteins_df.loc[:, ["NumOfProteins"]]
+    .sort_values("NumOfProteins")
+    .reset_index(drop=True)
+)
+tmr1000_df["CummulativeTranscripts"] = 100 * (tmr1000_df.index + 1) / len(tmr1000_df)
+tmr1000_df["CummulativeTranscripts"] = tmr1000_df["CummulativeTranscripts"][::-1].values
+tmr1000_x = tmr1000_df["NumOfProteins"]
+tmr1000_y = tmr1000_df["CummulativeTranscripts"]
+tmr1000_x_mean = tmr1000_x.mean()
+tmr1000_x_std = tmr1000_x.std()
+ic(tmr1000_x_std)
+tmr1000_x_mean_closest = tmr1000_x.iloc[
+    (tmr1000_x - tmr1000_x_mean).abs().argsort()[:1]
+]
+tmr1000_x_mean_closest_k = tmr1000_x_mean_closest.index.values[0]
+if tmr1000_x_mean == tmr1000_x_mean_closest.values[0]:
+    tmr1000_y_mean = tmr1000_y.iloc[tmr1000_x_mean_closest_k]
+else:
+    if tmr1000_x_mean < tmr1000_x_mean_closest.values[0]:
+        i = tmr1000_x_mean_closest_k - 1
+        j = tmr1000_x_mean_closest_k + 1
+    else:
+        i = tmr1000_x_mean_closest_k
+        j = tmr1000_x_mean_closest_k + 2
+    tmr1000_y_mean = np.interp(tmr1000_x_mean, tmr1000_x.iloc[i:j], tmr1000_y.iloc[i:j])
+tmr1000_df = tmr1000_df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
+
+neural_conditions = ["Yes", "No", "Missing"]
+neural_trace_names = ["Neural", "Non-neural", "Missing"]
+neural_color_discrete_map = {
+    "Yes": "red",
+    "No": "rgb(0,170,255)",  # kind of azure
+    "Missing": "rgb(192,192,192)",  # kind of terminal grey
+}
+neural_dfs = []
+for neural_condition in neural_conditions:
+    neural_df = (
+        max_distinct_proteins_df.loc[
+            max_distinct_proteins_df["IsNeural"] == neural_condition, ["NumOfProteins"]
+        ]
+        .sort_values("NumOfProteins")
+        .reset_index(drop=True)
+    )
+    neural_df["CummulativeTranscripts"] = 100 * (neural_df.index + 1) / len(neural_df)
+    neural_df["CummulativeTranscripts"] = neural_df["CummulativeTranscripts"][
+        ::-1
+    ].values
+    neural_df = neural_df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
+    neural_dfs.append(neural_df)
+
+y_min = 1
+
+tmr50_legendtitle = "50 reads"
+tmr1000_legendtitle = "1000 reads"
+legend_title_text = "Minimum coverage per gene      "
+
+marker_size = 4
+
+fig = make_subplots(
+    # rows=2,
+    rows=1,
+    cols=1,
+    # x_title="Distinct proteins per gene",
+    x_title="Distinct protein isoforms per gene",
+    y_title="% of genes",
+    shared_yaxes=True,
+    shared_xaxes=True,
+    # vertical_spacing=facet_row_spacing / 2.5,
+    # horizontal_spacing=facet_col_spacing * 1.5,
+    vertical_spacing=0.05,
+    # horizontal_spacing=0.025,
+)
+
+# tmr50
+
+x = df["NumOfProteins"]
+y = df["CummulativeTranscripts"]
+
+y_min = min(y_min, y.min())
+
+tmr50_all_color = "purple"
+
+fig.add_trace(
+    go.Scatter(
+        x=x,
+        y=y,
+        mode="lines+markers",
+        marker=dict(color=tmr50_all_color, size=marker_size),
+        line=dict(color=tmr50_all_color, dash="dash"),
+        # name="All",
+        # legendgroup=tmr50_legendtitle,  # this can be any string
+        # legendgrouptitle_text=tmr50_legendtitle,
+        name=">= 50 reads",
+        legend="legend",
+    ),
+    row=1,
+    col=1,
+)
+
+
+fig.add_trace(
+    go.Scatter(
+        x=[x_mean],
+        y=[y_mean],
+        mode="markers+text",
+        marker=dict(
+            color=tmr50_all_color,
+            size=marker_size * 2.5,
+            # line=dict(
+            #     color="yellow",
+            #     width=3
+            # )
+        ),
+        showlegend=False,
+        # text=f"{x_mean:.0f} distinct proteins<br>(avg)",
+        text=f"{x_mean:.0f} distinct<br>proteins<br>(avg)",
+        # text=f"{x_mean:.0f} distinct<br>proteins<br>(avg, STD = {x_std:.0f})",
+        # text=f"{x_mean:.0f} ± {x_std:.0f}<br>distinct proteins",
+
+        textposition="bottom left",
+        textfont=dict(
+            color=tmr50_all_color,
+            # size=11
+            size=0.7*font_size
+        ),
+    ),
+    row=1,
+    col=1,
+)
+
+# tmr1000
+
+x = tmr1000_df["NumOfProteins"]
+y = tmr1000_df["CummulativeTranscripts"]
+
+y_min = min(y_min, y.min())
+
+fig.add_trace(
+    go.Scatter(
+        x=x,
+        y=y,
+        mode="lines+markers",
+        marker=dict(color="green", size=marker_size),
+        line=dict(color="green", dash="dash"),
+        # name="All",
+        # legendgroup=tmr1000_legendtitle,  # this can be any string
+        # legendgrouptitle_text=tmr1000_legendtitle,
+        name=">= 1000 reads   ",
+        legend="legend",
+    ),
+    row=1,
+    col=1,
+)
+
+
+fig.add_trace(
+    go.Scatter(
+        x=[tmr1000_x_mean],
+        y=[tmr1000_y_mean],
+        mode="markers+text",
+        marker=dict(
+            color="green",
+            size=marker_size * 2.5,
+            # line=dict(
+            #     color="yellow",
+            #     width=3
+            # )
+        ),
+        showlegend=False,
+        text=f"{tmr1000_x_mean:.0f} distinct proteins<br>(avg)",
+        # text=f"{tmr1000_x_mean:.0f} distinct proteins<br>(avg, STD = {tmr1000_x_std:.0f})",
+        # text=f"{tmr1000_x_mean:.0f} ± {tmr1000_x_std:.0f}<br>distinct proteins",
+        textposition="top right",
+        textfont=dict(
+            color="green",
+            # size=11
+            size=0.7*font_size
+        ),
+    ),
+    row=1,
+    col=1,
+)
+
+fig.add_shape(
+    type="rect",
+    x0=1,
+    y0=0,
+    x1=5,
+    y1=100,
+    line=dict(
+        # color="RoyalBlue",
+        width=0,
+    ),
+    # fillcolor="LightSkyBlue",
+    fillcolor="orange",
+    opacity=0.2,
+    row=1,
+    col=1,
+)
+
+fig.add_shape(
+    type="rect",
+    x0=5,
+    y0=0,
+    x1=50,
+    y1=100,
+    line=dict(
+        # color="RoyalBlue",
+        width=0,
+    ),
+    fillcolor="LightSkyBlue",
+    # fillcolor="orange",
+    # fillcolor="red",
+    opacity=0.2,
+    row=1,
+    col=1,
+)
+
+fig.add_trace(
+    go.Scatter(
+        x=[2.25, 17],
+        # y=[80, 85],
+        y=[0.3, 0.3],
+        text=[
+            "~5 isoforms<br>per gene<br>due to<br>alternative<br>splicing",
+            #   "Alternative splicing:<br>an average of ~5 isoforms per gene",
+            "~50 distinct<br>polypeptides<br>per gene",
+        ],
+        mode="text",
+        # textfont=dict(size=11),
+        textfont=dict(size=0.7*font_size),
+        showlegend=False,
+    ),
+    row=1,
+    col=1,
+)
+
+# for neural_condition, neural_trace_name, neural_df in zip(
+#     neural_conditions, neural_trace_names, neural_dfs
+# ):
+#     if neural_condition == "Missing":
+#         continue
+#     x = neural_df["NumOfProteins"]
+#     y = neural_df["CummulativeTranscripts"]
+#     color = neural_color_discrete_map[neural_condition]
+
+#     fig.add_trace(
+#         go.Scatter(
+#             x=x,
+#             y=y,
+#             mode="lines+markers",
+#             marker=dict(color=color, size=marker_size),
+#             line=dict(color=color, dash="dash", width=0.5),
+#             name=neural_trace_name,
+#             # legendgroup=tmr50_legendtitle,  # this can be any string
+#             # legendgrouptitle_text=tmr50_legendtitle,
+#             legend="legend1",
+#         ),
+#         # row=1, col=2
+#         row=2,
+#         col=1,
+#     )
+
+#     y_min = min(y_min, y.min())
+
+
+# x = max_distinct_proteins_df.loc[
+#     max_distinct_proteins_df["IsNeural"] == "Yes", "NumOfProteins"
+# ]
+# y = max_distinct_proteins_df.loc[
+#     max_distinct_proteins_df["IsNeural"] == "No", "NumOfProteins"
+# ]
+# statistic, pv = scipy.stats.mannwhitneyu(x, y)
+
+# fig.add_annotation(
+#     x=np.log(10) / np.log(10),
+#     y=np.log(1) / np.log(10),
+#     xref="x",
+#     yref="y",
+#     text=f"<b>Mann-Whitney U between<br>neural to non-neural genes</b><br>p-val = {pv:.2e}<br>statistic = {statistic:.2g}",
+#     bgcolor="white",
+#     borderpad=4,
+#     font=dict(size=11),
+#     opacity=0.8,
+#     showarrow=False,
+#     row=2,
+#     col=1,
+# )
+
+fig.update_xaxes(
+    type="log",
+    tickfont=dict(size=0.7*font_size),
+)
+fig.update_yaxes(
+    type="log",
+    # range=[-2, 2.2]
+    range=[np.log(y_min) * 1.1 / np.log(10), 2.2],
+    tickfont=dict(size=0.7*font_size),
+)
+
+fig.update_annotations(font_size=font_size)
+
+width = 800
+height = 600
+
+fig.update_layout(
+    # xaxis_title="Distinct proteins per transcript",
+    # yaxis_title="% of transcripts",
+    # title="Pooled octopus data",
+    legend_font=dict(size=0.7*font_size),
+    # title="Whole-transcriptome octopus data",
+    title=dict(
+        text="Whole-transcriptome octopus data",
+        font=dict(size=font_size) 
+    ),
+    title_x=0.15,
+    template=template,
+    width=width,
+    height=height,
+    # legend_title_text=legend_title_text,
+    # legend_font=dict(size=10),
+    # legend_grouptitlefont=dict(size=12),
+    # showlegend=False,
+    #     legend={
+    #             # "title": "By country",
+    #             # "xref": "container",
+    #             # "yref": "container",
+    #          "xref": "paper",
+    #             "yref": "paper",
+    #             "y": 0.9,
+    #             # "bgcolor": "Orange",
+    #         },
+    #         legend1={
+    #             # "title": "By continent",
+    #             # "xref": "container",
+    #             # "yref": "container",
+    #              "xref": "paper",
+    #             "yref": "paper",
+    #             "y": 0.5,
+    #             # "bgcolor": "Gold",
+    #         },
+)
+
+# fig.write_image(
+#     "Distinct proteins per gene vs. % of genes - log(y) - Octopus.svg",
+#     width=width,
+#     height=height,
+# )
+
+fig.show()
+
+# %%
 df = (
     max_distinct_proteins_df.loc[:, ["NumOfProteins"]]
     .sort_values("NumOfProteins")

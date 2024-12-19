@@ -1205,18 +1205,23 @@ mkdir -p Simulations/GraphAssessment
 # --data_table Code/Alignment/DataTable.Squid.LongReads.csv \
 # > D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/pileup.out &
 
-python Code/empirical_graph_assessment.py
+nohup \
+python Code/empirical_graph_assessment.py \
+> Simulations/GraphAssessment/log.11.12.24.out &
 ```
 
 ```bash
-INFILES=$(echo Simulations/GraphAssessment/*.UniqueProteins.tsv)
+tmux new -s comb18
+COMB
+
+INFILES=$(echo Simulations/GraphAssessment/*.UniqueProteins.tsv.gz)
 
 julia \
 --project=. \
---threads 30 --proc 6 \
+--threads 40 --proc 8 \
 Code/Simulations/maximal_independent_set_5.jl \
 --infiles $INFILES \
---postfix_to_remove .UniqueProteins.tsv \
+--postfix_to_remove .UniqueProteins.tsv.gz \
 --idcol Protein \
 --firstcolpos 15 \
 --datatype Proteins \
@@ -1226,8 +1231,15 @@ Code/Simulations/maximal_independent_set_5.jl \
 --algrepetitions 2 \
 --algs Ascending Descending \
 --run_solve_threaded \
-2>&1 | tee Simulations/GraphAssessment/DistinctProteins.regular.log
+2>&1 | tee Simulations/GraphAssessment/DistinctProteins.regular.12.12.log
 ```
+* alu 18
+* 12.12.2024
+* 23:16
+
+ls -l Simulations/GraphAssessment/*.UniqueProteins.tsv.gz | wc -l # 180 files
+ls -l Simulations/GraphAssessment/*.DistinctUniqueProteins.* | wc -l # 180 files
+
 
 ```bash
 cut -f 1-5 /private7/projects/Combinatorics/Simulations/GraphAssessment/Complete.DistinctUniqueProteins.05.09.2024-15:06:52.csv | less

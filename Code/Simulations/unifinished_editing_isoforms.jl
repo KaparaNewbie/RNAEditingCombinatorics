@@ -15,12 +15,12 @@ readremains(readremovalprob) = rand() > readremovalprob
 Remove reads from the vector `remainingreads` with probability `readremovalprob`.
 """
 function removereads(remainingreads, readremovalprob)
-    remainingindices = [readremains(readremovalprob) for _ ∈ eachindex(remainingreads)]
-    return remainingreads[remainingindices]
+	remainingindices = [readremains(readremovalprob) for _ ∈ eachindex(remainingreads)]
+	return remainingreads[remainingindices]
 end
 
 function calctotaleditingfreq(M)
-    return sum(M) / length(M)
+	return sum(M) / length(M)
 end
 
 # meaneditingfreq(M) = mean(sum(M, dims=2) / size(M, 2))
@@ -29,8 +29,8 @@ end
 edit(editingprob) = rand() <= editingprob
 
 function editrow!(row, editingprob)
-    editedrow = [edit(editingprob) for _ ∈ eachindex(row)]
-    setindex!(row, row .| editedrow, eachindex(row))
+	editedrow = [edit(editingprob) for _ ∈ eachindex(row)]
+	setindex!(row, row .| editedrow, eachindex(row))
 end
 
 
@@ -38,75 +38,75 @@ end
 Mask the lower triangular part of a matrix `A` with NaNs.
 """
 function mask_tril_with_nan(A)
-    Avals = []
-    d = 1
-    for i in 1:size(A, 1)
-        for j in 1:size(A, 2)
-            # println("i = $i, j = $j, d = $d")
-            x = A[i, j]
-            if j >= i
-                x = NaN
-            end
-            push!(Avals, x)
-        end
-        d += 1
-    end
-    return reshape(Avals, size(A, 1), size(A, 2))
+	Avals = []
+	d = 1
+	for i in 1:size(A, 1)
+		for j in 1:size(A, 2)
+			# println("i = $i, j = $j, d = $d")
+			x = A[i, j]
+			if j >= i
+				x = NaN
+			end
+			push!(Avals, x)
+		end
+		d += 1
+	end
+	return reshape(Avals, size(A, 1), size(A, 2))
 end
 
 
 function simulate(N, K, editingprob, readremovalprob, maxeditfreq)
-    M = simulatereads(N, K)
-    remainingreads = collect(1:N)
-    totaleditfreq = calctotaleditingfreq(M)
-    # editingfreq = meaneditingfreq(M)
-    # step = 0
-    while length(remainingreads) > 0 && totaleditfreq < maxeditfreq
-    # while length(remainingreads) > 0 && editingfreq < maxeditfreq
-        # step = step + 1
-        Threads.@threads for i ∈ remainingreads
-            row = view(M, i, :)
-            editrow!(row, editingprob)
-        end
-        remainingreads = removereads(remainingreads, readremovalprob)
-        totaleditfreq = calctotaleditingfreq(M)
-        # editingfreq = meaneditingfreq(M)
-    end
+	M = simulatereads(N, K)
+	remainingreads = collect(1:N)
+	totaleditfreq = calctotaleditingfreq(M)
+	# editingfreq = meaneditingfreq(M)
+	# step = 0
+	while length(remainingreads) > 0 && totaleditfreq < maxeditfreq
+		# while length(remainingreads) > 0 && editingfreq < maxeditfreq
+		# step = step + 1
+		Threads.@threads for i ∈ remainingreads
+			row = view(M, i, :)
+			editrow!(row, editingprob)
+		end
+		remainingreads = removereads(remainingreads, readremovalprob)
+		totaleditfreq = calctotaleditingfreq(M)
+		# editingfreq = meaneditingfreq(M)
+	end
 
-    cors = cor(M)
-    return cors
+	cors = cor(M)
+	return cors
 end
 
 function simulate(N, K, editingprob, readremovalprob, mask = true)
-    M = simulatereads(N, K)
-    remainingreads = collect(1:N)
-    # totaleditfreq = calctotaleditingfreq(M)
-    # editingfreq = meaneditingfreq(M)
-    # step = 0
-    while length(remainingreads) > 0
-    # while length(remainingreads) > 0 && editingfreq < maxeditfreq
-        # step = step + 1
-        Threads.@threads for i ∈ remainingreads
-            row = view(M, i, :)
-            editrow!(row, editingprob)
-        end
-        remainingreads = removereads(remainingreads, readremovalprob)
-        # totaleditfreq = calctotaleditingfreq(M)
-        # editingfreq = meaneditingfreq(M)
-    end
+	M = simulatereads(N, K)
+	remainingreads = collect(1:N)
+	# totaleditfreq = calctotaleditingfreq(M)
+	# editingfreq = meaneditingfreq(M)
+	# step = 0
+	while length(remainingreads) > 0
+		# while length(remainingreads) > 0 && editingfreq < maxeditfreq
+		# step = step + 1
+		Threads.@threads for i ∈ remainingreads
+			row = view(M, i, :)
+			editrow!(row, editingprob)
+		end
+		remainingreads = removereads(remainingreads, readremovalprob)
+		# totaleditfreq = calctotaleditingfreq(M)
+		# editingfreq = meaneditingfreq(M)
+	end
 
-    cors = cor(M)
-    # if mask
-    #     cors = mask_tril_with_nan(cors)
-    # end
-    return cors
+	cors = cor(M)
+	# if mask
+	#     cors = mask_tril_with_nan(cors)
+	# end
+	return cors
 end
 
 
 
 settitle(editingprob, readremovalprob) = "edit site = $(Int(100*editingprob))%\nremove read = $(Int(100*readremovalprob))%"
 settitle(editingprob, readremovalprob, i, j) = "$(settitle(editingprob, readremovalprob))\ni = $i, j = $j"
-settitle(editingprob, readremovalprob, expectedcor::Float64, ndigits::Int=3) = "$(settitle(editingprob, readremovalprob))\nexpected cor = $(round(expectedcor; digits=ndigits))"
+settitle(editingprob, readremovalprob, expectedcor::Float64, ndigits::Int = 3) = "$(settitle(editingprob, readremovalprob))\nexpected cor = $(round(expectedcor; digits=ndigits))"
 
 
 intifpossible(x) = isinteger(x) ? Int(x) : x
@@ -122,20 +122,21 @@ intifpossible(x) = isinteger(x) ? Int(x) : x
 # title1 = "edit site = $(Int(100*editingprob))%\nremove read = $(Int(100*readremovalprob))%"
 
 function settitle3(editingprob, readremovalprob)
-    editingprob = intifpossible(100 * editingprob)
-    readremovalprob = intifpossible(100 * readremovalprob)
-    title = "edit site = $(editingprob)%\nremove read = $(readremovalprob)%"
+	editingprob = intifpossible(100 * editingprob)
+	readremovalprob = intifpossible(100 * readremovalprob)
+	title = "edit site = $(editingprob)%\nremove read = $(readremovalprob)%"
 end
 
 
-function settitle3(editingprob, readremovalprob, expectedcor::Float64, ndigits::Int=3)
-    title = "$(settitle2(editingprob, readremovalprob))\nexpected cor = $(round(expectedcor; digits=ndigits))"
+function settitle3(editingprob, readremovalprob, expectedcor::Float64, ndigits::Int = 3)
+	# title = "$(settitle2(editingprob, readremovalprob))\nexpected cor = $(round(expectedcor; digits=ndigits))"
+	title = "$(settitle3(editingprob, readremovalprob))\nexpected cor = $(round(expectedcor; digits=ndigits))"
 end
 
 
 
 # expectedcor(readremovalprob, editingprob) = editingprob / (readremovalprob + 2 * editingprob)
-expectedcor(readremovalprob, editingprob) =  editingprob / (2 * editingprob + readremovalprob)
+expectedcor(readremovalprob, editingprob) = editingprob / (2 * editingprob + readremovalprob)
 expectedcor(0.003, 0.001)
 # 3/7
 
@@ -146,132 +147,240 @@ K = 10 # number of editing sites per read
 
 
 
-editingprobs = [0.01, 0.02, 0.03] # chance of a site being edited at each step
-readremovalprobs = [0.01, 0.02, 0.03] # chance of a read being removed from the simulation at each step
-# editingprobs = [0.001, 0.002, 0.003] # chance of a site being edited at each step
-# readremovalprobs = [0.001, 0.002, 0.003] # chance of a read being removed from the simulation at each step
-# maxeditfreqs = [0.1, 0.5, 0.9] # maximum fraction of edited sites across all reads and sites
+# plot correlation with heatmaps - old
 
+# editingprobs = [0.01, 0.02, 0.03] # chance of a site being edited at each step
+# readremovalprobs = [0.01, 0.02, 0.03] # chance of a read being removed from the simulation at each step
+# # editingprobs = [0.001, 0.002, 0.003] # chance of a site being edited at each step
+# # readremovalprobs = [0.001, 0.002, 0.003] # chance of a read being removed from the simulation at each step
+# # maxeditfreqs = [0.1, 0.5, 0.9] # maximum fraction of edited sites across all reads and sites
+
+
+# # corsdict = Dict(
+# #     (editingprob, readremovalprob, maxeditfreq) => simulate(N, K, editingprob, readremovalprob, maxeditfreq) 
+# #     for editingprob in editingprobs, readremovalprob in readremovalprobs, maxeditfreq in maxeditfreqs
+# # )
 
 # corsdict = Dict(
-#     (editingprob, readremovalprob, maxeditfreq) => simulate(N, K, editingprob, readremovalprob, maxeditfreq) 
-#     for editingprob in editingprobs, readremovalprob in readremovalprobs, maxeditfreq in maxeditfreqs
+# 	(editingprob, readremovalprob) => simulate(N, K, editingprob, readremovalprob)
+# 	for editingprob in editingprobs, readremovalprob in readremovalprobs
+# )
+# # corsdict[(0.01, 0.03)]
+# # corsdict[(0.03, 0.01)]
+# maskedcorsdict = Dict(
+# 	(editingprob, readremovalprob) => mask_tril_with_nan(corsdict[(editingprob, readremovalprob)])
+# 	for (editingprob, readremovalprob) in keys(corsdict)
 # )
 
-corsdict = Dict(
-    (editingprob, readremovalprob) => simulate(N, K, editingprob, readremovalprob) 
-    for editingprob in editingprobs, readremovalprob in readremovalprobs
-)
-# corsdict[(0.01, 0.03)]
-# corsdict[(0.03, 0.01)]
-maskedcorsdict = Dict(
-    (editingprob, readremovalprob) => mask_tril_with_nan(corsdict[(editingprob, readremovalprob)])
-    for (editingprob, readremovalprob) in keys(corsdict)
-)
 
+# abs_min = minimum(x -> minimum(filter(!isnan, x)), values(maskedcorsdict))
+# abs_max = maximum(x -> maximum(filter(!isnan, x)), values(maskedcorsdict))
+# # abs_min = floor(abs_min, digits = 1)
+# # abs_max = ceil(abs_max, digits = 1)
+# joint_limits = (abs_min, abs_max)
 
-abs_min = minimum(x -> minimum(filter(!isnan, x)), values(maskedcorsdict))
-abs_max = maximum(x -> maximum(filter(!isnan, x)), values(maskedcorsdict))
-# abs_min = floor(abs_min, digits = 1)
-# abs_max = ceil(abs_max, digits = 1)
-joint_limits = (abs_min, abs_max)
+# xs = ys = collect(1:K)
 
-xs = ys = collect(1:K)
+# # colormap = cgrad(:Spectral, 20, categorical = true)
+# colormap = cgrad(:Spectral)
 
-# colormap = cgrad(:Spectral, 20, categorical = true)
-colormap = cgrad(:Spectral,)
-
-fig = Figure(size = (600, 600))
-for (i, editingprob) in enumerate(editingprobs)
-    xaxisdetails = i == length(editingprobs)
-    for (j, readremovalprob) in enumerate(readremovalprobs)
-        z = maskedcorsdict[(editingprob, readremovalprob)]
-        title = settitle(editingprob, readremovalprob)
-        yaxisdetails = j == 1
-        ax = Axis(
-            fig[i, j], 
-            subtitle = title, 
-            xticksvisible = xaxisdetails, xticklabelsvisible = xaxisdetails,
-            yticksvisible = yaxisdetails, yticklabelsvisible = yaxisdetails
-        )
-        heatmap!(ax, xs, ys, z,  colorrange = joint_limits, colormap = colormap)
-        hidedecorations!(ax, label = false, ticklabels = false, ticks = false, minorticks = false)
-    end
-end
-Label(fig[end+1, :], "Site")  # a axis title
-Label(fig[begin:end-1, 0], "Site", rotation = pi/2)  # y axis title
-Colorbar(
-    fig[begin:end-1, end+1], 
-    limits = joint_limits, 
-    label = "Pearson's r", 
-    colormap = colormap
-)
-fig
+# fig = Figure(size = (600, 600))
+# for (i, editingprob) in enumerate(editingprobs)
+# 	xaxisdetails = i == length(editingprobs)
+# 	for (j, readremovalprob) in enumerate(readremovalprobs)
+# 		z = maskedcorsdict[(editingprob, readremovalprob)]
+# 		title = settitle(editingprob, readremovalprob)
+# 		yaxisdetails = j == 1
+# 		ax = Axis(
+# 			fig[i, j],
+# 			subtitle = title,
+# 			xticksvisible = xaxisdetails, xticklabelsvisible = xaxisdetails,
+# 			yticksvisible = yaxisdetails, yticklabelsvisible = yaxisdetails,
+# 		)
+# 		heatmap!(ax, xs, ys, z, colorrange = joint_limits, colormap = colormap)
+# 		hidedecorations!(ax, label = false, ticklabels = false, ticks = false, minorticks = false)
+# 	end
+# end
+# Label(fig[end+1, :], "Site")  # a axis title
+# Label(fig[begin:end-1, 0], "Site", rotation = pi / 2)  # y axis title
+# Colorbar(
+# 	fig[begin:end-1, end+1],
+# 	limits = joint_limits,
+# 	label = "Pearson's r",
+# 	colormap = colormap,
+# )
+# fig
 
 
 
 
-
+# plot correlation with histograms - final
 
 editingprobs = [0.001, 0.002, 0.003] # chance of a site being edited at each step
 readremovalprobs = [0.001, 0.002, 0.003] # chance of a read being removed from the simulation at each step
 corsdict = Dict(
-    (editingprob, readremovalprob) => simulate(N, K, editingprob, readremovalprob) 
-    for editingprob in editingprobs, readremovalprob in readremovalprobs
+	(editingprob, readremovalprob) => simulate(N, K, editingprob, readremovalprob)
+	for editingprob in editingprobs, readremovalprob in readremovalprobs
 )
 maskedcorsdict = Dict(
-    (editingprob, readremovalprob) => mask_tril_with_nan(corsdict[(editingprob, readremovalprob)])
-    for (editingprob, readremovalprob) in keys(corsdict)
+	(editingprob, readremovalprob) => mask_tril_with_nan(corsdict[(editingprob, readremovalprob)])
+	for (editingprob, readremovalprob) in keys(corsdict)
 )
 
 
+## old plot version
+
+# abs_min_x = minimum(x -> minimum(filter(!isnan, x)), values(maskedcorsdict))
+# abs_max_x = maximum(x -> maximum(filter(!isnan, x)), values(maskedcorsdict))
+
+# # fig = Figure(size = (600, 600))
+# fig = Figure(size = (800, 800))
+# limits = (abs_min_x, abs_max_x, nothing, nothing) # (xlow, xhigh, ylow, yhigh)
+# axes = []
+# for (i, editingprob) in enumerate(editingprobs)
+# 	# xaxisdetails = i == length(editingprobs)
+# 	# rowslabel = "edit site = $(intifpossible(100 * editingprob))%"
+# 	for (j, readremovalprob) in enumerate(readremovalprobs)
+# 		yaxisdetails = j == 1
+# 		z = maskedcorsdict[(editingprob, readremovalprob)]
+# 		z = filter(!isnan, z)
+# 		# title = settitle(editingprob, readremovalprob)
+# 		expected = expectedcor(readremovalprob, editingprob)
+# 		title = settitle3(editingprob, readremovalprob)
+# 		# title = settitle3(editingprob, readremovalprob, expected, 2)
+# 		# yaxisdetails = j == 1
+# 		ax = Axis(
+# 			fig[i, j],
+# 			subtitle = title,
+# 			limits = limits,
+# 			# xticksvisible = xaxisdetails, xticklabelsvisible = xaxisdetails,
+# 			# yticksvisible = yaxisdetails, yticklabelsvisible = yaxisdetails
+# 		)
+# 		push!(axes, ax)
+# 		hist!(
+# 			ax, z;
+# 			# label = title
+# 		)
+# 		linestyle = (:dot, :dense)
+# 		lines!(ax, [expected, expected], [0, 8]; color = :red, linewidth = 1.5, linestyle = linestyle, transparency = true)
+# 		d = 0.13
+# 		# x = expected < mean([abs_min_x, abs_max_x]) ? abs_max_x - d : abs_min_x + d
+# 		# if expected < mean([abs_min_x, abs_max_x])
+# 		#     x = abs_max_x - d
+# 		#     # x = abs_max_x 
+# 		#     align = (:right, :center)
+# 		# else
+# 		#     x = abs_min_x + d
+# 		#     # x = abs_min_x 
+# 		#     align = (:left, :center)
+# 		# end
+# 		if expected < mean([abs_min_x, abs_max_x])
+# 			x = abs_max_x - d
+# 			# x = abs_max_x 
+# 			align = (:left, :center)
+# 		else
+# 			x = abs_min_x + d
+# 			# x = abs_min_x 
+# 			align = (:right, :center)
+# 		end
+# 		y = 7
+# 		println("$i, $j, $x, $y, $expected, $align")
+# 		# align = (:center, :center)
+# 		text!(
+# 			ax, x, y;
+# 			# text = "expected\ncor = $(round(expected; digits=3))",
+# 			# text = "expected =\n$(round(expected; digits=3))",
+# 			text = "expected = $(round(expected; digits=3))",
+# 			fontsize = 10, color = :red,
+# 			align = align,
+# 		)
+# 	end
+# end
+# linkxaxes!(axes...)
+# linkyaxes!(axes...)
+# Label(fig[end+1, :], "Pearson's r")  # a axis title
+# Label(fig[begin:end-1, 0], "Sites", rotation = pi / 2)  # y axis title
+# fig
+
+
+
+
+## new plot version
+
+
+
+
+abs_min_x = minimum(x -> minimum(filter(!isnan, x)), values(maskedcorsdict)) - 0.1
+abs_max_x = maximum(x -> maximum(filter(!isnan, x)), values(maskedcorsdict)) + 0.1
+
+# collect(round(abs_min_x; digits=1):0.1:round(abs_max_x; digits=1))
+xticks = collect(round(abs_min_x; digits = 1):0.05:round(abs_max_x; digits = 1))
+xtickslabels = string.(xticks)
 
 
 fig = Figure(size = (600, 600))
-abs_min = minimum(x -> minimum(filter(!isnan, x)), values(maskedcorsdict))
-abs_max = maximum(x -> maximum(filter(!isnan, x)), values(maskedcorsdict))
-# abs_min_floor = floor(abs_min, digits = 1)
-# abs_max_ceil = ceil(abs_max, digits = 1)
-# limits = (abs_min_floor, abs_max_ceil, nothing, nothing)
-limits = (abs_min, abs_max, nothing, nothing)
+limits = (abs_min_x, abs_max_x, nothing, nothing) # (xlow, xhigh, ylow, yhigh)
 axes = []
 for (i, editingprob) in enumerate(editingprobs)
-    # xaxisdetails = i == length(editingprobs)
-    # rowslabel = "edit site = $(intifpossible(100 * editingprob))%"
-    for (j, readremovalprob) in enumerate(readremovalprobs)
-        yaxisdetails = j == 1
-        z = maskedcorsdict[(editingprob, readremovalprob)]
-        z = filter(!isnan, z)
-        # title = settitle(editingprob, readremovalprob)
-        expected = expectedcor(readremovalprob, editingprob)
-        title = settitle3(editingprob, readremovalprob, expected, 2)
-        # title = "edit site = $(Int(100*editingprob))%\nremove read = $(Int(100*readremovalprob))%\nexpected cor = $(round(expectedcor; digits=ndigits))"
-        # title = "expected cor = $(round(expected; digits=2))"
-        # yaxisdetails = j == 1
-        ax = Axis(
-            fig[i, j], 
-            subtitle = title, 
-            limits = limits,
-            # xticksvisible = xaxisdetails, xticklabelsvisible = xaxisdetails,
-            # yticksvisible = yaxisdetails, yticklabelsvisible = yaxisdetails
-        )
-        push!(axes, ax)
-        hist!(
-            ax, z; 
-            # label = title
-        )
-        # axislegend(ax; position = :rt)
-        # hidedecorations!(ax, label = false, ticklabels = false, ticks = false, minorticks = false)
-        vlines([1, 2, 3])
-        
-    end
+	for (j, readremovalprob) in enumerate(readremovalprobs)
+		yaxisdetails = j == 1
+		z = maskedcorsdict[(editingprob, readremovalprob)]
+		z = filter(!isnan, z)
+		expected = expectedcor(readremovalprob, editingprob)
+		title = settitle3(editingprob, readremovalprob)
+		ax = Axis(
+			fig[i, j],
+			subtitle = title,
+			limits = limits,
+			# xticksvisible = xaxisdetails, xticklabelsvisible = xaxisdetails,
+			# yticksvisible = yaxisdetails, yticklabelsvisible = yaxisdetails
+		)
+		push!(axes, ax)
+		hist!(
+			ax, z;
+			# label = title
+		)
+		linestyle = (:dot, :dense)
+		lines!(
+			ax, [expected, expected], [0, 8];
+			color = :red, linewidth = 1.5, linestyle = linestyle, transparency = true,
+		)
+		# d = 0.15
+		d = 0.23
+		if expected < mean([abs_min_x, abs_max_x])
+			x = abs_max_x - d
+			align = (:left, :center)
+		else
+			x = abs_min_x + d
+			align = (:right, :center)
+		end
+		y = 8
+		# align = (:center, :center)
+		# println("$i, $j, $x, $y, $expected, $align")
+		text!(
+			ax, x, y;
+			text = "expected =\n$(round(expected; digits=3))",
+			# text = "expected = $(round(expected; digits=3))",
+			fontsize = 12, color = :red,
+			align = align,
+			justification = :center,
+		)
+		# ax.xticks = collect(round(abs_min_x; digits=1):0.05:round(abs_max_x; digits=1))
+		# ax.xticks = (xticks, xtickslabels)
+	end
 end
 linkxaxes!(axes...)
 linkyaxes!(axes...)
 Label(fig[end+1, :], "Pearson's r")  # a axis title
-Label(fig[begin:end-1, 0], "Sites", rotation = pi/2)  # y axis title
+Label(fig[begin:end-1, 0], "Sites", rotation = pi / 2)  # y axis title
 fig
 
+
+
+
+
+# lines!(axes[1], [0.33], [5]; color = :red, linewidth=10)
+# fig
 
 # As = Bs = [1, 2]
 # Xs = Ys = [1, 2]

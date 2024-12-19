@@ -4160,7 +4160,7 @@ min_max_fraction_1_distinct_prots_df.to_csv("Dispersion.PacBio.tsv", sep="\t", i
 # %%
 unique_reads_dfs[1]
 
-# %%
+# %% jupyter={"source_hidden": true}
 # missing_values_reads = unique_reads_dfs[1].iloc[:7]["Reads"].str.split(",").explode().reset_index(drop=True)
 # # missing_values_reads = unique_reads_dfs[1]["Reads"].str.split(",").explode().reset_index(drop=True)
 # # missing_values_reads
@@ -4221,13 +4221,16 @@ top_100_unique_reads_combinatorics_df
 # from collections import Counter
 # Counter(top_100_unique_reads_combinatorics_df.iloc[:7].values.reshape(-1))
 
-# %%
+# %% jupyter={"source_hidden": true}
 # top_100_unique_reads_combinatorics_df.columns[
 #     int(len(top_100_unique_reads_combinatorics_df))
 # ]
 
 # %%
 data = top_100_unique_reads_combinatorics_df.replace(0, 0.5).replace(-1, 0).values
+
+# comb_heatmap_font_size = 24
+comb_heatmap_font_size = 28
 
 fig = go.Figure(
     go.Heatmap(
@@ -4265,18 +4268,29 @@ fig.add_annotation(
     yref="paper",
     x=0.47, 
     y=-0.1,
-    font=dict(size=18)
+    # font=dict(size=18)
+    font=dict(size=comb_heatmap_font_size)
 )
 
 fig.update_yaxes(
     # title="Top 100 expressed unique reads<br>in squid's PCLO (Long-reads)",
     title="Most expressed PCLO reads",
-    title_font=dict(size=18),
+    # title_font=dict(size=18),
+    title_font=dict(size=comb_heatmap_font_size),
     autorange="reversed",
     tick0=1,
     range=[1, 100],
 )
-fig.update_layout(height=700, width=650, template=template, font_size=16,
+
+width = 650
+# height = 700
+height = 600
+
+fig.update_layout(height=height, 
+                  width=width, 
+                  template=template, 
+                  # font_size=16,
+                  font_size=comb_heatmap_font_size,
                   # grid_xside="bottom plot",
                   # title=dict(
                   #     # automargin=True, 
@@ -4293,8 +4307,8 @@ fig.update_layout(height=700, width=650, template=template, font_size=16,
 
 fig.write_image(
     "Combinatorics of top 100 expressed unique reads in PCLO - PacBio.svg",
-    width=650,
-    height=700,
+    height=height, 
+    width=width
 )
 
 fig.show()
@@ -8502,12 +8516,15 @@ fig.show()
 # ##### Num. of editing sites in rare vs. common isoforms
 
 # %%
+
+# %%
 for assignment_df in assignment_dfs:
     assignment_df["300 most expressed"] = assignment_df.index < 300
     assignment_df["1000 least expressed"] = assignment_df.index >= assignment_df.shape[0] - 1000
 merged_assignment_df = pd.concat(assignment_dfs).reset_index(drop=True)
 merged_assignment_df = merged_assignment_df.loc[merged_assignment_df["300 most expressed"] | merged_assignment_df["1000 least expressed"]]
 merged_assignment_df["Abundancy"] = merged_assignment_df["300 most expressed"].apply(lambda x: "300 most expressed" if x else "1000 least expressed")
+# merged_assignment_df.insert(0, "Platform", "Long-reads")
 merged_assignment_df
 
 # %%
@@ -8577,15 +8594,25 @@ for condition, (row, col) in zip(conditions, row_col_iter):
     )
 # fig.update_yaxes(zerolinewidth=zerolinewidth, tickmode="linear", tick0=0, dtick=0.2)
 
+width=600
+height=400
+
 fig.update_layout(
     template=template,
     showlegend=False,
-    # title_text="Pearson correlation between editing sites to number of sites edited in each read",
+    title_text="Long reads",
+    title_x=0.13,
     # height=250 * rows,
-    width=900,
-    height=400,
+    width=width,
+    height=height,
 )
 
+
+fig.write_image(
+    "Edited positions vs expression levels - PacBio.svg",
+    width=width,
+    height=height,
+)
 
 fig.show()
 

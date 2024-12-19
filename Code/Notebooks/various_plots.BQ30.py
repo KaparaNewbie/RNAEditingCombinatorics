@@ -2782,6 +2782,8 @@ fig.show()
 
 
 # %%
+font_size = 28
+
 fig = make_subplots(
     rows=1,
     cols=2,
@@ -2791,7 +2793,8 @@ fig = make_subplots(
     shared_yaxes="all",
     shared_xaxes="all",
     vertical_spacing=0.03,
-    horizontal_spacing=0.015,
+    # horizontal_spacing=0.015,
+    horizontal_spacing=0.03,
 )
 
 for platform, condition, assignment_df in zip(
@@ -2851,22 +2854,34 @@ for platform, condition, assignment_df in zip(
         col=col,
     )
 
-fig.update_xaxes(type="log")
-# fig.update_yaxes(type="log",
-#                  # range=[np.log10(y_min), np.log10(y_max)], nticks=6
-#                 )
+fig.update_xaxes(
+    type="log",
+    tickfont=dict(size=0.7*font_size),
+    tickangle=20,
+)
+fig.update_yaxes(
+    # type="log",
+    tickfont=dict(size=0.7*font_size),
+    # range=[np.log10(y_min), np.log10(y_max)], nticks=6
+)
+
+fig.update_annotations(font_size=font_size)
+
 width = 1200
 height = 650
 
 fig.update_layout(
+    legend_font=dict(size=0.5*font_size),
+    legend_grouptitlefont=dict(size=0.5*font_size),
     # legend_font=dict(size=6),
     # legend_grouptitlefont=dict(size=8),
     # legend_tracegroupgap=4,
-    title="Squid",
-    title_x=0.1,
+    # title="Squid",
+    # title_x=0.1,
     template=template,
     width=width,
     height=height,
+    margin=dict(l=120, r=40, t=60, b=80)
 )
 
 fig.write_image(
@@ -3277,10 +3292,13 @@ merged_max_distinct_df
 # %%
 column_widths = [len(conditions) for conditions in [pacbio_conditions, illumina_conditions]]
 
+font_size = 28
+
 fig = make_subplots(
     rows=1,
     cols=2,
-    y_title="Max distinct protein isoforms observed",
+    # y_title="Max distinct protein isoforms observed",
+    y_title="Max distinct protein<br>isoforms observed",
     x_title="Gene",
     subplot_titles=platforms,
     shared_yaxes="all",
@@ -3315,10 +3333,21 @@ for col, (platform, platform_conditions) in enumerate(zip(platforms, platforms_c
 fig.update_xaxes(
         tickangle = 30, 
     # title_standoff = 10,
-    tickfont=dict(size=10)
+    # tickfont=dict(size=10),
+    title_font=dict(size=font_size),
+    title_standoff=100
 )    
 
-width = 1050
+fig.update_yaxes(
+    title_font=dict(size=font_size),
+    tickfont=dict(size=0.7*font_size),
+    title_standoff=100
+)
+
+fig.update_annotations(font_size=font_size)
+
+# width = 1050
+width = 1200
 height = 550
 
 fig.update_layout(
@@ -3327,7 +3356,8 @@ fig.update_layout(
     template=template,
     width=width,
     height=height,
-    showlegend=False
+    showlegend=False,
+    margin=dict(l=120, r=20, t=60, b=80)
 )
 
 fig.write_image(
@@ -3371,6 +3401,8 @@ y_axis_name = "Distinct protein isoforms observed"
 column_widths = [300_000, 1_500_000]
 
 _marker_size = 7
+
+font_size = 28
 
 # Initialize figure with subplots
 fig = make_subplots(
@@ -3482,21 +3514,36 @@ for col, (platform, platform_conditions) in enumerate(zip(platforms, platforms_c
     )
 
 
-# fig.update_xaxes(type="log")
-# fig.update_yaxes(type="log")
+fig.update_xaxes(
+    tickfont=dict(size=0.7*font_size),
+    tickangle=20,
+    # tickangle=10,
+    # type="log"
+)
+fig.update_yaxes(
+    tickfont=dict(size=0.7*font_size),
+    # type="log"
+)
 
-width = 1100
-height = width*650/900
+fig.update_annotations(font_size=font_size)
+
+# width = 1100
+# width = 1300
+# height = width*650/900
+
+width = 1250
+height = width*700/900
 
 fig.update_layout(
     template=template,
-    # legend_font=dict(size=10),
-    # legend_grouptitlefont=dict(size=12),
+    legend_font=dict(size=0.7*font_size),
+    legend_grouptitlefont=dict(size=0.7*font_size),
     # legend_font=dict(size=14),
     # legend_grouptitlefont=dict(size=16),
     # legend_tracegroupgap=4,
     width=width,
     height=height,
+    margin=dict(l=120, r=40, t=60, b=80)
 )
 # fig.write_image("Distinct unique proteins vs. sequencing depth - Illumina.png", format='png',engine='kaleido')
 fig.write_image(

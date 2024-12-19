@@ -118,24 +118,15 @@ def add_illumina_pe_reads_in_positions(edited_positions_df, strand, group):
                 pos_edited_in_read = -1
 
             # deal with overlapping paired-ended reads mapped to this position
-
-            # if mapped_read not in last_phred_of_read_in_position:
-            #     positions_per_read[mapped_read].append(pos_edited_in_read)
-            #     last_phred_of_read_in_position[mapped_read] = phred_score
-            # elif ord(phred_score) > ord(last_phred_of_read_in_position[mapped_read]):
-            #     positions_per_read[mapped_read][-1] = pos_edited_in_read
-            #     last_phred_of_read_in_position[mapped_read] = phred_score
-            #     overlapping_bases += 1
-            # else:
-            #     raise Exception(
-            #         f"{group = }: {x = }, {len(positions_per_read[mapped_read]) = }, {last_phred_of_read_in_position[mapped_read] = }"
-            #     )
             if mapped_read not in last_phred_of_read_in_position:
                 positions_per_read[mapped_read].append(pos_edited_in_read)
                 last_phred_of_read_in_position[mapped_read] = phred_score
             else:
+                # for a pair of PE reads, we only keep the one with the highest phred score
                 if ord(phred_score) > ord(last_phred_of_read_in_position[mapped_read]):
-                    positions_per_read[mapped_read][-1] = pos_edited_in_read
+                    positions_per_read[mapped_read][
+                        -1
+                    ] = pos_edited_in_read  # overwrite the previous editing status of the read in this position
                     last_phred_of_read_in_position[mapped_read] = phred_score
                 overlapping_bases += 1
 
@@ -155,6 +146,72 @@ def add_illumina_pe_reads_in_positions(edited_positions_df, strand, group):
     ic(group, overlapping_bases)
 
     return positions_per_read
+
+
+def add_illumina_multisample_pe_reads_in_positions(edited_positions_df, strand, group):
+    unique_reads = set(chain.from_iterable(edited_positions_df["Reads"].str.split(",")))
+    positions_per_read = {read: [] for read in unique_reads}
+    sample_per_read = {}
+
+    alt_base = "G" if strand == "+" else "C"
+    for x, position_row in enumerate(edited_positions_df.itertuples()):
+        mapped_bases = position_row.MappedBases
+        mapped_reads = position_row.Reads.split(",")
+        mapped_samples = position_row.Samples.split(",")
+        phred_scores = position_row.Phred
+
+        # deal with reads that were mapped to this pos
+
+        last_phred_of_read_in_position = {}
+
+        for mapped_base, mapped_read, mapped_sample, phred_score in zip(
+            mapped_bases, mapped_reads, mapped_samples, phred_scores
+        ):
+            sample_per_read[mapped_read] = mapped_sample
+
+            # 1 = A2G/T2C editing, 0 = match
+            if mapped_base == alt_base:
+                # pos_edited_in_read = "1" # A2G/T2C editing
+                pos_edited_in_read = 1  # A2G/T2C editing
+            elif mapped_base == ".":
+                # pos_edited_in_read = "0" # match
+                pos_edited_in_read = 0  # match
+            else:
+                # pos_edited_in_read = "-1" # we ignore mismatches that aren't RNA editing by marking them as NaN
+                pos_edited_in_read = (
+                    -1
+                )  # we ignore mismatches that aren't RNA editing by marking them as NaN
+
+            # positions_per_read[mapped_read].append(pos_edited_in_read)
+
+            # deal with overlapping paired-ended reads mapped to this position
+            if mapped_read not in last_phred_of_read_in_position:
+                positions_per_read[mapped_read].append(pos_edited_in_read)
+                last_phred_of_read_in_position[mapped_read] = phred_score
+            else:
+                # for a pair of PE reads, we only keep the one with the highest phred score
+                if ord(phred_score) > ord(last_phred_of_read_in_position[mapped_read]):
+                    positions_per_read[mapped_read][
+                        -1
+                    ] = pos_edited_in_read  # overwrite the previous editing status of the read in this position
+                    last_phred_of_read_in_position[mapped_read] = phred_score
+                overlapping_bases += 1
+
+        # deal with reads that weren't mapped to this pos
+        unmapped_reads_in_pos = unique_reads - set(mapped_reads)
+        for mapped_read in unmapped_reads_in_pos:
+            # pos_edited_in_read = "-1"
+            pos_edited_in_read = -1
+            positions_per_read[mapped_read].append(pos_edited_in_read)
+
+        # check all reads got values for pos
+        mapped_pos_dist = {len(bases) for bases in positions_per_read.values()}
+        if len(mapped_pos_dist) != 1:
+            raise Exception(
+                f"Problem at line {x} in {group}'s positions_df: not all reads are mapped."
+            )
+
+    return positions_per_read, sample_per_read
 
 
 def add_pacbio_multisample_se_reads_in_positions(edited_positions_df, strand, group):
@@ -389,7 +446,13 @@ def multisample_positions_to_reads(
             edited_positions_df, strand, group
         )
     elif parity in ["pe", "PE"]:
-        raise NotImplemented
+        # raise NotImplemented("Illumina paired-end reads not implemented yet.")
+        (
+            positions_per_read,
+            sample_per_read,
+        ) = add_illumina_multisample_pe_reads_in_positions(
+            edited_positions_df, strand, group
+        )
     else:
         raise Exception(f"{group = }: Parity {parity} not recognized.")
 

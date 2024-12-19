@@ -315,13 +315,13 @@ For `fracrepetitions = 2`, `fracstep = 0.3`, `maxfrac = 1.0`,
 and `df` with `length(df) == 100`, the output is:
 
 (fraction = 0.25, nsamplerows = 25, fracrepetition = 1)  
- (fraction = 1.0, nsamplerows = 100, fracrepetition = 1)  
- (fraction = 0.5, nsamplerows = 50, fracrepetition = 1)  
- (fraction = 0.75, nsamplerows = 75, fracrepetition = 1)  
- (fraction = 0.25, nsamplerows = 25, fracrepetition = 2)  
- (fraction = 1.0, nsamplerows = 100, fracrepetition = 2)  
- (fraction = 0.5, nsamplerows = 50, fracrepetition = 2)  
- (fraction = 0.75, nsamplerows = 75, fracrepetition = 2)  
+(fraction = 1.0, nsamplerows = 100, fracrepetition = 1)  
+(fraction = 0.5, nsamplerows = 50, fracrepetition = 1)  
+(fraction = 0.75, nsamplerows = 75, fracrepetition = 1)  
+(fraction = 0.25, nsamplerows = 25, fracrepetition = 2)  
+(fraction = 1.0, nsamplerows = 100, fracrepetition = 2)  
+(fraction = 0.5, nsamplerows = 50, fracrepetition = 2)  
+(fraction = 0.75, nsamplerows = 75, fracrepetition = 2)  
 """
 function prep_pmap_input(fracstep, maxfrac, df, fracrepetitions)
     fractions = collect(fracstep:fracstep:maxfrac) ∪ maxfrac

@@ -8314,9 +8314,6 @@ es_in_rare_vs_abundant_isoforms_df
 merged_assignment_df.groupby([condition_col, "Abundancy"])["EditedPositions"].agg(["mean", "median"])
 
 # %%
-# ?make_subplots
-
-# %%
 # cols = min(4, len(conditions))
 cols = min(5, len(conditions))
 rows = ceil(len(conditions) / cols)
@@ -8362,17 +8359,27 @@ fig.update_xaxes(
         # title_font = {"size": 20},
         title_standoff = 50)
 
+width=1200
+height=900
+
 fig.update_layout(
     template=template,
     showlegend=False,
-    # title_text="Pearson correlation between editing sites to number of sites edited in each read",
+    title_text="Short reads",
+    title_x=0.1,
     # height=250 * rows,
     # width=1400,
     # height=1400,
-    width=1200,
-    height=900,
+    width=width,
+    height=height,
 )
 
+
+fig.write_image(
+    "Edited positions vs expression levels - Illumina.svg",
+    width=width,
+    height=height,
+)
 
 fig.show()
 

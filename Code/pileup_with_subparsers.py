@@ -22,7 +22,7 @@ import pandas as pd
 import numpy as np
 from pybedtools import BedTool
 from icecream import ic
-
+from Bio import Seq
 
 from General.argparse_utils import abs_path_from_str, expanded_path_from_str
 from Alignment.alignment_utils import filter_bam_by_read_quality, sample_bam
@@ -31,7 +31,7 @@ from Pileup.positions import (
     pileup_to_positions,
     # multisample_pileups_to_positions_old,
     multisample_pileups_to_positions_all_transcripts,
-    simulate_complete_and_corresponding_partially_unknown_positions_dfs,
+    simulate_complete_and_corresponding_errored_partially_unknown_positions_dfs,
 )
 from Pileup.reads import reads_and_unique_reads, multisample_reads_and_unique_reads
 from Pileup.proteins import (
@@ -50,8 +50,8 @@ DataFrameOrSeries = Union[pd.DataFrame, pd.Series]
 def undirected_sequencing_main(
     *,
     transcriptome: Path,
-    samples_table: Path,
-    samples_table_sep: str,
+    # samples_table: Path,
+    # samples_table_sep: str,
     sample_col: str,
     group_col: str,
     known_editing_sites: Path,
@@ -176,7 +176,7 @@ def undirected_sequencing_main(
         bams_in_chrom = list(
             Path(main_by_chrom_dir, chrom).glob(f"*{postfix}")
         )  # should be something like `*.bam`
-        ic(bams_in_chrom)  # todo - remove
+        # ic(bams_in_chrom)  # todo - remove
         for bam_in_chrom in bams_in_chrom:
             # ic(bam_in_chrom)
             sample = bam_in_chrom.stem[: bam_in_chrom.stem.index(interfix_start)]
@@ -466,73 +466,108 @@ def undirected_sequencing_main(
         )
 
 
-def simulate_complete_and_corresponding_partially_unknown_main(
+def simulate_complete_and_corresponding_errored_partially_unknown_main(
     # *,
     transcriptome: Path,
     chrom: str,
     orf_start: int,
     orf_end: int,
     strand: str,
+    seq: Seq.Seq,
     n_reads: int,
     known_editing_freqs: list[float],
-    adenosine_positions: list[int],
+    known_editied_adenosine_positions: list[int],
     unknown_probability: float,
+    error_probability: float,
     snp_noise_level: float,
     top_x_noisy_positions: int,
+    min_percent_of_max_coverage: float,
     assurance_factor: float,
     out_dir: Union[Path, str],
-    known_sites_file: Union[Path, str, None] = None,
-    out_files_sep: str = "\t",
-    denovo_detection: bool = False,
-    group_col: str = "Gene",
-    common_output_prefix: str = "",
+    # repetition: Union[int, str],
+    # known_sites_file: Union[Path, str, None] = None,
+    # out_files_sep: str = "\t",
+    # denovo_detection: bool = False,
+    # group_col: str = "Gene",
+    # common_output_prefix: str = "",
+    # compression_postfix: str = ".gz",
+    known_sites_file: Union[Path, str, None],
+    out_files_sep: str,
+    denovo_detection: bool,
+    group_col: str,
+    common_output_prefix: str,
+    compression_postfix: str,
+    # **kwargs,
 ):
+    
+    # snp_noise_level = 0.1
+    # top_x_noisy_positions = 3
+    # assurance_factor = 1.5
+    # denovo_detection = False
+    # out_files_sep = "\t"
+    # min_percent_of_max_coverage = 0.1
+    # group_col = "Gene"
+    # compression_postfix = ".gz"
+    
     if strand != "+":
         raise ValueError("Only positive strand is supported for this simulation")
     parity = "SE"
 
     complete_positions_out_file = Path(
-        out_dir, f"{common_output_prefix}Complete.Positions.tsv"
+        out_dir, f"{common_output_prefix}Complete.Positions.tsv{compression_postfix}"
     )
-    complete_reads_file = Path(out_dir, f"{common_output_prefix}Complete.Reads.tsv")
+    complete_reads_file = Path(
+        out_dir, f"{common_output_prefix}Complete.Reads.tsv{compression_postfix}"
+    )
     complete_unique_reads_file = Path(
-        out_dir, f"{common_output_prefix}Complete.UniqueReads.tsv"
+        out_dir, f"{common_output_prefix}Complete.UniqueReads.tsv{compression_postfix}"
     )
     complete_proteins_file = Path(
-        out_dir, f"{common_output_prefix}Complete.Proteins.tsv"
+        out_dir, f"{common_output_prefix}Complete.Proteins.tsv{compression_postfix}"
     )
     complete_unique_proteins_file = Path(
-        out_dir, f"{common_output_prefix}Complete.UniqueProteins.tsv"
+        out_dir,
+        f"{common_output_prefix}Complete.UniqueProteins.tsv{compression_postfix}",
     )
 
-    partially_unkown_positions_out_file = Path(
-        out_dir, f"{common_output_prefix}PartiallyUnknown.Positions.tsv"
+    errored_partially_unkown_positions_out_file = Path(
+        out_dir,
+        f"{common_output_prefix}Errored.PartiallyUnknown.Positions.tsv{compression_postfix}",
     )
-    partially_unkown_reads_file = Path(
-        out_dir, f"{common_output_prefix}PartiallyUnknown.Reads.tsv"
+    errored_partially_unkown_reads_file = Path(
+        out_dir,
+        f"{common_output_prefix}Errored.PartiallyUnknown.Reads.tsv{compression_postfix}",
     )
-    partially_unkown_unique_reads_file = Path(
-        out_dir, f"{common_output_prefix}PartiallyUnknown.UniqueReads.tsv"
+    errored_partially_unkown_unique_reads_file = Path(
+        out_dir,
+        f"{common_output_prefix}Errored.PartiallyUnknown.UniqueReads.tsv{compression_postfix}",
     )
-    partially_unkown_proteins_file = Path(
-        out_dir, f"{common_output_prefix}PartiallyUnknown.Proteins.tsv"
+    errored_partially_unkown_proteins_file = Path(
+        out_dir,
+        f"{common_output_prefix}Errored.PartiallyUnknown.Proteins.tsv{compression_postfix}",
     )
-    partially_unkown_unique_proteins_file = Path(
-        out_dir, f"{common_output_prefix}PartiallyUnknown.UniqueProteins.tsv"
+    errored_partially_unkown_unique_proteins_file = Path(
+        out_dir,
+        f"{common_output_prefix}Errored.PartiallyUnknown.UniqueProteins.tsv{compression_postfix}",
     )
 
-    simulate_complete_and_corresponding_partially_unknown_positions_dfs(
+    simulate_complete_and_corresponding_errored_partially_unknown_positions_dfs(
         chrom,
+        orf_start,
+        orf_end,
+        seq,
         n_reads,
         known_editing_freqs,
-        adenosine_positions,
+        known_editied_adenosine_positions,
         unknown_probability,
+        error_probability,
         snp_noise_level,
         top_x_noisy_positions,
+        min_percent_of_max_coverage,
         assurance_factor,
         known_sites_file=known_sites_file,
         complete_positions_out_file=complete_positions_out_file,
-        partially_unkown_positions_out_file=partially_unkown_positions_out_file,
+        partially_unkown_positions_out_file=errored_partially_unkown_positions_out_file,
         denovo_detection=denovo_detection,
         out_files_sep=out_files_sep,
     )
@@ -548,13 +583,13 @@ def simulate_complete_and_corresponding_partially_unknown_main(
         out_files_sep,
     )
     reads_and_unique_reads(
-        partially_unkown_positions_out_file,
+        errored_partially_unkown_positions_out_file,
         strand,
         group_col,
         "PartiallyUnknown",
         parity,
-        partially_unkown_reads_file,
-        partially_unkown_unique_reads_file,
+        errored_partially_unkown_reads_file,
+        errored_partially_unkown_unique_reads_file,
         out_files_sep,
     )
 
@@ -571,15 +606,15 @@ def simulate_complete_and_corresponding_partially_unknown_main(
         out_files_sep,
     )
     proteins_and_unique_proteins(
-        partially_unkown_unique_reads_file,
+        errored_partially_unkown_unique_reads_file,
         chrom,
         orf_start,
         orf_end,
         strand,
         transcriptome,
         group_col,
-        partially_unkown_proteins_file,
-        partially_unkown_unique_proteins_file,
+        errored_partially_unkown_proteins_file,
+        errored_partially_unkown_unique_proteins_file,
         out_files_sep,
     )
 
@@ -1191,7 +1226,9 @@ def define_args() -> argparse.Namespace:
         required=True,
     )
     undirected_sequencing_subparser.add_argument(
-        "--samples_table", type=abs_path_from_str, required=True
+        "--samples_table",
+        type=abs_path_from_str,
+        # required=True
     )
     undirected_sequencing_subparser.add_argument(
         "--samples_table_sep", default=",", help="Delimiter used in `samples_table`."

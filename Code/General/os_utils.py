@@ -1,6 +1,8 @@
 from pathlib import Path
 import subprocess
 
+from icecream import ic
+
 from General.type_hints import StrOrPath
 
 
@@ -13,6 +15,7 @@ def find_files(in_dir: Path, postfix: str, recursive: bool) -> list[Path]:
 
 
 def extract_sample_name(sample: Path, postfix: str) -> str:
+    # ic(sample, postfix, sample.name, sample.name.removesuffix(postfix))
     name = sample.name.removesuffix(postfix)
     return name
 
@@ -35,9 +38,13 @@ def group_pe_fastq_files(fastq_files: list[Path], postfix: str, mate_prefix: str
     Returns:
         list[tuple[Path, Path]]: list of tuples of paired-ended fastq files
     """
+    # sorted_fastq_files = sorted(
+    #     fastq_files,
+    #     key=lambda fastq_file: fastq_file.name.rstrip(postfix).split(mate_prefix),
+    # )
     sorted_fastq_files = sorted(
         fastq_files,
-        key=lambda fastq_file: fastq_file.name.rstrip(postfix).split(mate_prefix),
+        key=lambda fastq_file: fastq_file.name.removesuffix(postfix).split(mate_prefix),
     )
     paired_fastq_files = [
         (sorted_fastq_files[x], sorted_fastq_files[x + 1])

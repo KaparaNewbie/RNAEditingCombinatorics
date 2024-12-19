@@ -374,14 +374,19 @@ def annotate_edited_sites(
     positions_df.insert(positions_df.columns.get_loc("Position") + 1, "Edited", edited)
 
 
-def simulate_complete_and_corresponding_partially_unknown_positions_dfs(
+def simulate_complete_and_corresponding_errored_partially_unknown_positions_dfs(
     chrom: str,
+    orf_start: int,
+    orf_end: int,
+    seq: Seq.Seq,
     n_reads: int,
     known_editing_freqs: list[float],
-    adenosine_positions: list[int],
+    known_edited_adenosine_positions: list[int],
     unknown_probability: float,
+    error_probability: float,
     snp_noise_level: float,
     top_x_noisy_positions: int,
+    min_percent_of_max_coverage: float,
     assurance_factor: float,
     known_sites_file: Union[Path, str, None] = None,
     complete_positions_out_file: Union[Path, str, None] = None,
@@ -389,18 +394,33 @@ def simulate_complete_and_corresponding_partially_unknown_positions_dfs(
     out_files_sep: str = "\t",
     denovo_detection: bool = False,
 ):
-    complete_positions_df, partially_unkown_positions_df = (
-        simulate_complete_and_corresponding_partially_unknown_basic_positions_df(
+    # complete_positions_df, partially_unkown_positions_df = (
+    #     simulate_complete_and_corresponding_partially_unknown_basic_positions_df(
+    #         chrom,
+    #         n_reads,
+    #         known_editing_freqs,
+    #         adenosine_positions,
+    #         unknown_probability,
+    #     )
+    # )
+
+    complete_positions_df, errored_partially_unkown_positions_df = (
+        simulate_complete_and_corresponding_errored_partially_unknown_basic_positions_df(
             chrom,
+            orf_start,
+            orf_end,
+            seq,
             n_reads,
             known_editing_freqs,
-            adenosine_positions,
+            known_edited_adenosine_positions,
             unknown_probability,
+            error_probability,
         )
     )
 
     finalize_basic_simulated_positions_df(
         complete_positions_df,
+        min_percent_of_max_coverage,
         snp_noise_level,
         top_x_noisy_positions,
         assurance_factor,
@@ -411,7 +431,8 @@ def simulate_complete_and_corresponding_partially_unknown_positions_dfs(
     )
 
     finalize_basic_simulated_positions_df(
-        partially_unkown_positions_df,
+        errored_partially_unkown_positions_df,
+        min_percent_of_max_coverage,
         snp_noise_level,
         top_x_noisy_positions,
         assurance_factor,
@@ -420,6 +441,198 @@ def simulate_complete_and_corresponding_partially_unknown_positions_dfs(
         out_files_sep=out_files_sep,
         denovo_detection=denovo_detection,
     )
+
+
+def simulate_complete_and_corresponding_errored_partially_unknown_basic_positions_df(
+    chrom: str,
+    orf_start: int,
+    orf_end: int,
+    seq: Seq.Seq,
+    n_reads: int,
+    known_editing_freqs: list[float],
+    known_edited_adenosine_positions: list[int],
+    unknown_probability: float,
+    error_probability: float,
+) -> pd.DataFrame:
+
+    coding_bases_dict = {
+        position: seq[position] for position in range(orf_start, orf_end)
+    }
+    unedited_based_dict = {
+        position: base
+        for position, base in coding_bases_dict.items()
+        if position not in known_edited_adenosine_positions
+    }
+
+    orf_length = len(coding_bases_dict)
+    k_sites = len(known_editing_freqs)
+
+    complete_editing_status = (
+        np.random.rand(n_reads, k_sites) < known_editing_freqs
+    )  # Generate the boolean array
+    complete_editing_status = complete_editing_status.astype(
+        int
+    )  # Convert the boolean array to int
+    complete_unedited_positions_status = np.zeros(
+        (n_reads, len(unedited_based_dict))
+    ).astype(int)
+
+    complete_editing_status_df = pd.DataFrame(
+        complete_editing_status, columns=known_edited_adenosine_positions
+    )
+    complete_unedited_positions_status_df = pd.DataFrame(
+        complete_unedited_positions_status, columns=unedited_based_dict.keys()
+    )
+
+    complete_status_df = pd.concat(
+        [complete_editing_status_df, complete_unedited_positions_status_df], axis=1
+    )
+
+    mapped_bases = (
+        complete_status_df.replace({0: ".", 1: "G"}).apply("".join).values
+    )  # assuming that only A is possibly edited, and all other bases are identical to the reference
+    phred_scores = ["?" * n_reads for _ in range(orf_length)]
+    reads = [",".join([str(i) for i in range(n_reads)]) for _ in range(orf_length)]
+
+    positions = known_edited_adenosine_positions + list(unedited_based_dict.keys())
+    for position in positions[:k_sites]:
+        assert position in known_edited_adenosine_positions
+    for position in positions[k_sites:]:
+        assert position in unedited_based_dict.keys()
+
+    ref_bases = [seq[position] for position in positions]
+
+    complete_positions_df = pd.DataFrame(
+        {
+            "Chrom": chrom,
+            "Position": positions,
+            "RefBase": ref_bases,
+            "TotalCoverage": n_reads,
+            "MappedBases": mapped_bases,
+            "Phred": phred_scores,
+            "Reads": reads,
+        }
+    )
+
+    assert (
+        complete_positions_df["TotalCoverage"]
+        .eq(complete_positions_df["MappedBases"].apply(len))
+        .all()
+    )
+
+    bases = ["A", "T", "C", "G"]
+
+    def mapped_base_and_other_bases_prob(mapped_base: str, base: str) -> float:
+        if base == mapped_base:
+            return 1 - error_probability * 3
+        return error_probability
+
+    random_base_probs_by_mapped_base_dict = {
+        mapped_base: [
+            mapped_base_and_other_bases_prob(mapped_base, base) for base in bases
+        ]
+        for mapped_base in bases
+    }
+
+    def ref_base_and_other_bases_str(ref_base: str, base: str) -> str:
+        if base == ref_base:
+            return "."
+        return base
+
+    base_str_in_pos_by_ref_base_dict = {
+        ref_base: [ref_base_and_other_bases_str(ref_base, base) for base in bases]
+        for ref_base in bases
+    }
+
+    def error_mapped_bases_in_position(ref_base: str, mapped_bases: str) -> str:
+        errored_mapped_bases = []
+        for mapped_base in mapped_bases:
+            if mapped_base == ".":
+                mapped_base = ref_base
+            errored_mapped_base = np.random.choice(
+                base_str_in_pos_by_ref_base_dict[ref_base],
+                p=random_base_probs_by_mapped_base_dict[mapped_base],
+            )
+            errored_mapped_bases.append(errored_mapped_base)
+        return "".join(errored_mapped_bases)
+
+    complete_errored_positions_df = complete_positions_df.copy()
+
+    complete_errored_positions_df["MappedBases"] = complete_errored_positions_df.apply(
+        lambda x: error_mapped_bases_in_position(x["RefBase"], x["MappedBases"]),
+        axis=1,
+    )
+
+    def update_position_by_unknown_probability(row: pd.Series):
+        total_coverage = row["TotalCoverage"]
+        mapped_bases = row["MappedBases"]
+        reads = row["Reads"].split(",")
+
+        remaining_indices = np.random.choice(
+            [True, False],
+            total_coverage,
+            p=[1 - unknown_probability, unknown_probability],
+        )
+
+        total_coverage = remaining_indices.sum()
+        remaining_mapped_bases = [
+            mapped_base
+            for mapped_base, base_remains in zip(mapped_bases, remaining_indices)
+            if base_remains
+        ]
+        remaining_reads = [
+            read for read, read_remains in zip(reads, remaining_indices) if read_remains
+        ]
+        remaining_mapped_bases = "".join(remaining_mapped_bases)
+        remaining_phred_scores = "?" * total_coverage
+        remaining_reads = ",".join(remaining_reads)
+
+        new_row = pd.Series(
+            {
+                "Chrom": row["Chrom"],
+                "Position": row["Position"],
+                "RefBase": row["RefBase"],
+                "TotalCoverage": total_coverage,
+                "MappedBases": remaining_mapped_bases,
+                "Phred": remaining_phred_scores,
+                "Reads": remaining_reads,
+            }
+        )
+
+        return new_row
+
+    partially_unknown_errored_positions_df = complete_errored_positions_df.apply(
+        update_position_by_unknown_probability, axis=1
+    )
+
+    assert (
+        partially_unknown_errored_positions_df["TotalCoverage"]
+        .eq(partially_unknown_errored_positions_df["MappedBases"].apply(len))
+        .all()
+    )
+    assert (
+        partially_unknown_errored_positions_df["TotalCoverage"]
+        .eq(partially_unknown_errored_positions_df["Phred"].apply(len))
+        .all()
+    )
+    assert (
+        partially_unknown_errored_positions_df["Reads"]
+        .str.split(",")
+        .apply(len)
+        .eq(partially_unknown_errored_positions_df["TotalCoverage"])
+        .all()
+    )
+
+    complete_positions_df = complete_positions_df.sort_values("Position").reset_index(
+        drop=True
+    )
+    partially_unknown_errored_positions_df = (
+        partially_unknown_errored_positions_df.sort_values("Position").reset_index(
+            drop=True
+        )
+    )
+
+    return complete_positions_df, partially_unknown_errored_positions_df
 
 
 def simulate_complete_and_corresponding_partially_unknown_basic_positions_df(
@@ -520,7 +733,7 @@ def simulate_complete_and_corresponding_partially_unknown_basic_positions_df(
 
 def finalize_basic_simulated_positions_df(
     positions_df: pd.DataFrame,
-    # min_percent_of_max_coverage: float,
+    min_percent_of_max_coverage: float,
     snp_noise_level: float,
     top_x_noisy_positions: int,
     assurance_factor: float,
@@ -533,10 +746,10 @@ def finalize_basic_simulated_positions_df(
     strand = "+"
     remove_non_refbase_noisy_positions = False
 
-    # # remove positions with insufficient coverage
-    # max_coverage = positions_df["TotalCoverage"].max()
-    # required_coverage = max_coverage * min_percent_of_max_coverage
-    # positions_df = positions_df.loc[positions_df["TotalCoverage"] >= required_coverage]
+    # remove positions with insufficient coverage
+    max_coverage = positions_df["TotalCoverage"].max()
+    required_coverage = max_coverage * min_percent_of_max_coverage
+    positions_df = positions_df.loc[positions_df["TotalCoverage"] >= required_coverage]
 
     annotate_prolamatic_sites(positions_df, strand, problamatic_regions_file=None)
     annotate_known_sites(positions_df, strand, known_sites_file)
@@ -576,22 +789,22 @@ def finalize_basic_simulated_positions_df(
     annotate_editing_frequency_per_position(positions_df, strand)
     annotate_edited_sites(positions_df, strand, noise_threshold, denovo_detection)
 
-    # # verify that noise is only applied to non ref_base positions, and vice versa for editing frequency
-    # non_ref_base_edit_freq = positions_df.loc[
-    #     positions_df["RefBase"] != ref_base, "EditingFrequency"
-    # ].unique()
-    # assert len(non_ref_base_edit_freq) == 1 and np.isnan(non_ref_base_edit_freq[0])
-    # ref_base_noise = positions_df.loc[
-    #     positions_df["RefBase"] == ref_base, "Noise"
-    # ].unique()
-    # assert len(ref_base_noise) == 1 and np.isnan(ref_base_noise[0])
+    # verify that noise is only applied to non ref_base positions, and vice versa for editing frequency
+    non_ref_base_edit_freq = positions_df.loc[
+        positions_df["RefBase"] != ref_base, "EditingFrequency"
+    ].unique()
+    assert len(non_ref_base_edit_freq) == 1 and np.isnan(non_ref_base_edit_freq[0])
+    ref_base_noise = positions_df.loc[
+        positions_df["RefBase"] == ref_base, "Noise"
+    ].unique()
+    assert len(ref_base_noise) == 1 and np.isnan(ref_base_noise[0])
 
     if positions_out_file:
         positions_df.to_csv(
             positions_out_file, sep=out_files_sep, index=False, na_rep=np.NaN
         )
 
-    # return positions_df
+    return positions_df
 
 
 def pileup_to_positions(

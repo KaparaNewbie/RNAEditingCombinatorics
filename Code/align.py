@@ -8,6 +8,7 @@ from typing import Union
 import pysam
 import pandas as pd
 from pybedtools import BedTool
+from icecream import ic
 
 from General.multiqc import multiqc
 from General.consts import final_words
@@ -99,18 +100,34 @@ def bwa_align_pe_reads(
     require_flags: int = 3,
     exclude_flags: int = 2304,
     separate_by_chrom: bool = True,
+    decompress_cmd: Union[str, None] = None,
+    separate_by_chrom_only_chroms_with_known_editing: bool = False,
+    chroms_with_known_editing: Union[set[str], None] = None,
 ):
     sam = Path(out_dir, f"{sample_name}.sam")
-    align_cmd = (
-        f"{bwa_path} "
-        "mem "
-        f"-t {threads} "
-        "-M "
-        f"{genome_index_file} "
-        f"{left_in_file} "
-        f"{right_in_file} "
-        f"> {sam} "
-    )
+
+    if decompress_cmd is None:
+        align_cmd = (
+            f"{bwa_path} "
+            "mem "
+            f"-t {threads} "
+            "-M "
+            f"{genome_index_file} "
+            f"{left_in_file} "
+            f"{right_in_file} "
+            f"> {sam} "
+        )
+    else:
+        align_cmd = (
+            f"{bwa_path} "
+            "mem "
+            f"-t {threads} "
+            "-M "
+            f"{genome_index_file} "
+            f"<({decompress_cmd} {left_in_file}) "
+            f"<({decompress_cmd} {right_in_file}) "
+            f"> {sam} "
+        )
     subprocess.run(align_cmd, shell=True)
     bam = Path(out_dir, f"{sample_name}.bam")
     sam_to_bam_cmd = f"{samtools_path} view -@ {threads} -h -o {bam} {sam}"
@@ -144,6 +161,8 @@ def bwa_align_pe_reads(
             sample_name,
             bam=aligned_filtered_sorted_bam,
             interfix=".sorted.aligned.filtered",
+            separate_by_chrom_only_chroms_with_known_editing=separate_by_chrom_only_chroms_with_known_editing,
+            chroms_with_known_editing=chroms_with_known_editing,
         )
 
     # if not separate_by_chrom:
@@ -173,15 +192,21 @@ def separte_bam_to_chroms(
     threads: int,
     sample_name: str,
     bam: Path,
-    interfix: str,  # https://www.wikiwand.com/en/Interfix
+    interfix: str,  # https://www.wikiwanseparate_by_chrom_only_chroms_with_known_editingd.com/en/Interfix
+    separate_by_chrom_only_chroms_with_known_editing: bool = False,
+    chroms_with_known_editing: Union[set[str], None] = None,
 ):
     by_chrom_dir = Path(out_dir, f"{sample_name}.ByChrom")
+    ic("separte_bam_to_chroms", out_dir, sample_name, bam, interfix)
     by_chrom_dir.mkdir(exist_ok=True)
-    chroms = {record.reference_name for record in pysam.AlignmentFile(bam, "rb")}
+    if separate_by_chrom_only_chroms_with_known_editing:
+        chroms = chroms_with_known_editing
+    else:
+        chroms = {record.reference_name for record in pysam.AlignmentFile(bam, "rb")}
     for chrom in chroms:
         bam_in_region = Path(by_chrom_dir, f"{sample_name}{interfix}.{chrom}.bam")
         filter_cmd = (
-            f"{samtools_path} view -@ {threads} -h -o {bam_in_region} {bam} {chrom}"
+            f'{samtools_path} view -@ {threads} -h -o "{bam_in_region}" {bam} "{chrom}"'
         )
         subprocess.run(filter_cmd, shell=True)
         # it is somehow possible (why?) to get chrom with no reads aligned to it --> the bam_in_region is not created,
@@ -565,270 +590,169 @@ def whole_transcriptome_isoseq_main(
     genome_index_file.unlink(missing_ok=True)
 
 
-# def pacbio_preprocessed_isoseq_main(
-#     *,
-#     genome: Path,
-#     gff: Path,
-#     in_dir: Path,
-#     postfix: str,
-#     recursive: bool,
-#     out_dir: Path,
-#     base_conda_env_dir: Path,
-#     pb_conda_env_name: str,
-#     pbmm2_path: Path,
-#     best_n_alignments_per_read: int,
-#     processes: int,
-#     threads: int,
-#     samtools_path: Path,
-#     multiqc_path: Path,
-#     # include_flags: Union[int, str, None],
-#     # exclude_flags: Union[int, str, None],
-#     **kwargs,
-# ):
-#     preset = "ISOSEQ"
-#     interfix = ".aligned.sorted"
+def whole_transcriptome_illumina_main(
+    *,
+    genome: Path,
+    # gff: Path,
+    known_sites_bed_file: Path,
+    separate_by_chrom_only_chroms_with_known_editing: bool,
+    in_dir: Path,
+    postfix: str,
+    mate_prefix: str,
+    recursive: bool,
+    out_dir: Path,
+    # base_conda_env_dir: Path,
+    # pb_conda_env_name: str,
+    # pbmm2_path: Path,
+    # best_n_alignments_per_read: int,
+    processes: int,
+    threads: int,
+    samtools_path: Path,
+    multiqc_path: Path,
+    decompress_cmd: str,
+    bwa_path: Path,
+    include_flags: Union[int, str, None],
+    exclude_flags: Union[int, str, None],
+    **kwargs,
+):
+    separate_by_chrom = True
 
-#     out_dir.mkdir(exist_ok=True)
+    out_dir.mkdir(exist_ok=True)
 
-#     in_files = find_files(in_dir, postfix, recursive)
-#     samples_names = [extract_sample_name(in_file, postfix) for in_file in in_files]
+    compressed_in_files = find_files(in_dir, postfix, recursive)
 
-#     genome_index_file = Path(out_dir, f"{genome.name}.mmi")
+    paired_compressed_in_files = group_pe_fastq_files(
+        compressed_in_files, postfix, mate_prefix
+    )
 
-#     # index genome
-#     pacbio_index_genome(
-#         base_conda_env_dir,
-#         pb_conda_env_name,
-#         pbmm2_path,
-#         genome,
-#         genome_index_file,
-#         preset,
-#         threads,
-#     )
+    paired_samples_names = [
+        extract_sample_name(left_file, f"{mate_prefix}1{postfix}")
+        for left_file, _ in paired_compressed_in_files
+    ]
 
-#     gene_regions = get_nonoverlapping_gene_regions(gff)
-#     separate_by_chrom = False
-#     seperate_by_gene = True
-#     include_flags = None
-#     exclude_flags = None
+    if decompress_cmd in ["", "cat"]:
+        decompress_cmd = None
 
-#     # align
-#     with Pool(processes=processes) as pool:
-#         pool.starmap(
-#             func=pacbio_align,
-#             iterable=[
-#                 (
-#                     base_conda_env_dir,
-#                     pb_conda_env_name,
-#                     pbmm2_path,
-#                     preset,
-#                     best_n_alignments_per_read,
-#                     threads,
-#                     genome_index_file,
-#                     in_file,
-#                     Path(out_dir, f"{sample_name}{interfix}.bam"),
-#                     samtools_path,
-#                     out_dir,
-#                     sample_name,
-#                     interfix,
-#                     gene_regions,
-#                     include_flags,
-#                     exclude_flags,
-#                     separate_by_chrom,
-#                     seperate_by_gene,
-#                 )
-#                 for in_file, sample_name in zip(in_files, samples_names)
-#             ],
-#         )
+    index_dir = Path(out_dir, "GenomeIndex")
+    bwa_index_genome(samtools_path, bwa_path, genome, index_dir)
+    genome_index_file = Path(index_dir, genome.name)
 
-#     be_gene_samples_dirs = [
-#         Path(out_dir, f"{sample_name}.ByGene") for sample_name in samples_names
-#     ]
+    known_sites_df = pd.read_csv(
+        known_sites_bed_file,
+        sep="\t",
+        names="Chrom Start End Name Score Strand".split(),
+        comment="#",
+    )
 
-#     main_by_gene_dir = Path(out_dir, "ByGene")
-#     main_by_gene_dir.mkdir(exist_ok=True)
+    if separate_by_chrom_only_chroms_with_known_editing:
+        chroms_with_known_editing = set(known_sites_df["Chrom"].unique())
+    else:
+        chroms_with_known_editing = None
 
-#     with Pool(processes=processes) as pool:
-#         by_gene_dfs = pool.starmap(
-#             func=gather_by_gene_bams_and_collect_stats,
-#             iterable=[
-#                 (
-#                     samtools_path,
-#                     main_by_gene_dir,
-#                     gene_region,
-#                     samples_names,
-#                     be_gene_samples_dirs,
-#                     interfix,
-#                     threads,
-#                     include_flags,
-#                     exclude_flags,
-#                 )
-#                 for gene_region in gene_regions
-#             ],
-#         )
+    with Pool(processes=processes) as pool:
+        pool.starmap(
+            func=bwa_align_pe_reads,
+            iterable=[
+                (
+                    bwa_path,
+                    threads,
+                    genome_index_file,
+                    left_file,
+                    right_file,
+                    out_dir,
+                    sample_name,
+                    samtools_path,
+                    include_flags,
+                    exclude_flags,
+                    separate_by_chrom,
+                    decompress_cmd,
+                    separate_by_chrom_only_chroms_with_known_editing,
+                    chroms_with_known_editing,
+                )
+                for (left_file, right_file), sample_name in zip(
+                    paired_compressed_in_files, paired_samples_names
+                )
+            ],
+        )
 
-#     # write mapping stats
-#     by_gene_df = pd.concat(by_gene_dfs, ignore_index=True)
+    # gather separated-by-chrom bams
+    # first to main sub-dir
+    # and then subdir for chrom, containing bams from different samples
+    by_chrom_samples_dirs = [
+        Path(out_dir, f"{sample_name}.ByChrom") for sample_name in paired_samples_names
+    ]
 
-#     chrom_startend = by_gene_df["GeneRegion"].str.split(":", expand=True)
-#     chrom = chrom_startend.iloc[:, 0]
-#     start_end = chrom_startend.iloc[:, 1].str.split("-", expand=True)
-#     start = start_end.iloc[:, 0].astype(int)
-#     end = start_end.iloc[:, 1].astype(int)
+    interfix = ".sorted.aligned.filtered"
 
-#     by_gene_df.insert(by_gene_df.columns.get_loc("GeneRegion") + 1, "Chrom", chrom)
-#     by_gene_df.insert(by_gene_df.columns.get_loc("GeneRegion") + 2, "Start", start)
-#     by_gene_df.insert(by_gene_df.columns.get_loc("GeneRegion") + 3, "End", end)
+    if separate_by_chrom_only_chroms_with_known_editing:
+        chroms = chroms_with_known_editing
+    else:
+        chroms = {
+            "".join(f.suffixes).removeprefix(interfix).removesuffix(".bam")
+            for by_chrom_sample_dir in by_chrom_samples_dirs
+            for f in by_chrom_sample_dir.iterdir()
+            if f.suffix.endswith("bam")
+        }
 
-#     by_gene_df = by_gene_df.sort_values(
-#         ["Chrom", "Start", "End", "Sample"]
-#     ).reset_index(drop=True)
+    main_by_chrom_dir = Path(out_dir, "ByChrom")
+    main_by_chrom_dir.mkdir(exist_ok=True)
 
-#     mapped_genes_bed3_df = by_gene_df.loc[:, ["Chrom", "Start", "End"]].drop_duplicates(
-#         ignore_index=True
-#     )
-#     mapped_genes_bed3_df["Start"] = mapped_genes_bed3_df["Start"] - 1
-#     mapped_genes_bed3_bedtool = BedTool().from_dataframe(mapped_genes_bed3_df).sort()
+    with Pool(processes=processes) as pool:
+        by_chrom_dfs = pool.starmap(
+            func=gather_by_chrom_bams_and_collect_stats,
+            iterable=[
+                (
+                    samtools_path,
+                    main_by_chrom_dir,
+                    chrom,
+                    paired_samples_names,
+                    by_chrom_samples_dirs,
+                    interfix,
+                    threads,
+                    include_flags,
+                    exclude_flags,
+                )
+                for chrom in chroms
+            ],
+        )
 
-#     gff_df = read_gff(gff)
+    # write mapping stats
+    df = pd.concat(by_chrom_dfs, ignore_index=True)
 
-#     exons_gff_df = gff_df.loc[gff_df["Type"] == "exon"]
-#     exons_bed6_df = exons_gff_df.loc[:, ["Chrom", "Start", "End", "Score", "Strand"]]
-#     exons_bed6_df["Start"] = exons_bed6_df["Start"].astype(int) - 1
-#     exons_bed6_df["End"] = exons_bed6_df["End"].astype(int)
-#     exons_bed6_df.insert(exons_bed6_df.columns.get_loc("End") + 1, "Name", ".")
-#     exons_bed6_bedtools = BedTool().from_dataframe(exons_bed6_df)
+    agg_df = (
+        df.groupby("Chrom")
+        .agg({"MappedReads": sum, "Sample": len})
+        .reset_index()
+        .rename(columns={"Sample": "Samples"})
+    )
+    agg_df["MappedReadsPerSample"] = agg_df["MappedReads"] / agg_df["Samples"]
 
-#     genes_gff_df = gff_df.loc[gff_df["Type"] == "gene"]
-#     genes_bed_df = genes_gff_df.loc[:, ["Chrom", "Start", "End", "Strand"]]
-#     genes_bed_df["Start"] = genes_bed_df["Start"].astype(int)
-#     genes_bed_df["Start"] = genes_bed_df["Start"] - 1
-#     genes_bed_df["End"] = genes_bed_df["End"].astype(int)
-#     genes_bed_df.insert(genes_bed_df.columns.get_loc("End") + 1, "Name", ".")
-#     genes_bed_df.insert(genes_bed_df.columns.get_loc("Name") + 1, "Score", ".")
-#     genes_bedtool = BedTool().from_dataframe(genes_bed_df).sort()
+    known_sites_per_chrom_df = (
+        known_sites_df.groupby("Chrom")
+        .size()
+        .reset_index()
+        .rename(columns={0: "KnownSites"})
+        .sort_values("KnownSites", ascending=False)
+    )
 
-#     mapped_genes_bed6_bedtool = genes_bedtool.intersect(
-#         mapped_genes_bed3_bedtool
-#     ).intersect(  # retain only mapped genes
-#         exons_bed6_bedtools, s=True, c=True
-#     )  # count number in exons in each such gene
+    agg_df = agg_df.merge(known_sites_per_chrom_df, how="left")
+    agg_df["KnownSites"] = agg_df["KnownSites"].fillna(0)
 
-#     mapped_genes_df = (
-#         mapped_genes_bed6_bedtool.to_dataframe()
-#         .drop(["name", "score"], axis=1)
-#         .rename(
-#             columns={
-#                 "chrom": "Chrom",
-#                 "start": "Start",
-#                 "end": "End",
-#                 "strand": "Strand",
-#                 "thickStart": "ExonsInGene",
-#             }
-#         )
-#     )
-#     mapped_genes_df["Start"] = mapped_genes_df["Start"] + 1
+    agg_df = agg_df.sort_values(
+        ["KnownSites", "MappedReadsPerSample", "MappedReads", "Samples"],
+        ascending=False,
+    ).reset_index(drop=True)
 
-#     by_gene_df = by_gene_df.merge(mapped_genes_df, on=["Chrom", "Start", "End"])
-#     by_gene_df = reorder_df_by_wanted_cols(
-#         by_gene_df, wanted_first_cols=["GeneRegion", "Chrom", "Start", "End", "Strand"]
-#     )
+    df.to_csv(Path(out_dir, "ByChromBySampleSummary.tsv"), sep="\t", index=False)
+    agg_df.to_csv(
+        Path(out_dir, "AggregatedByChromBySampleSummary.tsv"), sep="\t", index=False
+    )
 
-#     agg_df = (
-#         by_gene_df.groupby(
-#             ["GeneRegion", "Chrom", "Start", "End", "Strand", "ExonsInGene"]
-#         )
-#         .agg({"MappedReads": sum, "Sample": len})
-#         .reset_index()
-#         .rename(columns={"Sample": "Samples"})
-#     )
-#     agg_df["MappedReadsPerSample"] = agg_df["MappedReads"] / agg_df["Samples"]
-#     agg_df["CodingGene"] = agg_df["ExonsInGene"] > 0
-#     agg_df = agg_df.sort_values(
-#         ["CodingGene", "MappedReadsPerSample", "MappedReads", "Samples"],
-#         ascending=False,
-#     ).reset_index(drop=True)
+    # run MultiQC on the reports created for each whole aligned file
+    multiqc(multiqc_path=multiqc_path, data_dir=out_dir)
 
-#     by_gene_df.to_csv(
-#         Path(out_dir, "ByGeneRegionBySampleSummary.tsv"), sep="\t", index=False
-#     )
-#     agg_df.to_csv(
-#         Path(out_dir, "AggregatedByGeneBySampleSummary.tsv"), sep="\t", index=False
-#     )
-
-#     # # gather separated-by-chrom bams
-#     # # first to main sub-dir
-#     # # and then subdir for chrom, containing bams from different samples
-#     # by_chrom_samples_dirs = [
-#     #     Path(out_dir, f"{sample_name}.ByChrom") for sample_name in samples_names
-#     # ]
-#     # chroms = {
-#     #     f.suffixes[-2].removeprefix(".")
-#     #     for by_chrom_sample_dir in by_chrom_samples_dirs
-#     #     for f in by_chrom_sample_dir.iterdir()
-#     #     if f.suffix.endswith("bam")
-#     # }
-
-#     # main_by_chrom_dir = Path(out_dir, "ByChrom")
-#     # main_by_chrom_dir.mkdir(exist_ok=True)
-
-#     # # include_flags = None
-#     # # exclude_flags = None
-#     # with Pool(processes=processes) as pool:
-#     #     by_chrom_dfs = pool.starmap(
-#     #         func=gather_by_chrom_bams_and_collect_stats,
-#     #         iterable=[
-#     #             (
-#     #                 samtools_path,
-#     #                 main_by_chrom_dir,
-#     #                 chrom,
-#     #                 samples_names,
-#     #                 by_chrom_samples_dirs,
-#     #                 interfix,
-#     #                 threads,
-#     #                 include_flags,
-#     #                 exclude_flags,
-#     #             )
-#     #             for chrom in chroms
-#     #         ],
-#     #     )
-
-#     # # write mapping stats
-#     # df = pd.concat(by_chrom_dfs, ignore_index=True)
-
-#     # agg_df = (
-#     #     df.groupby("Chrom")
-#     #     .agg({"MappedReads": sum, "Sample": len})
-#     #     .reset_index()
-#     #     .rename(columns={"Sample": "Samples"})
-#     # )
-#     # agg_df["MappedReadsPerSample"] = agg_df["MappedReads"] / agg_df["Samples"]
-
-#     # gff_df = read_gff(gff)
-#     # exon_conatining_chroms = gff_df.loc[gff_df["Type"] == "exon"][
-#     #     "Chrom"
-#     # ].drop_duplicates()
-
-#     # agg_df = pd.merge(
-#     #     agg_df, exon_conatining_chroms, on="Chrom", how="left", indicator=True
-#     # ).rename(columns={"_merge": "InExon"})
-#     # agg_df["InExon"] = (
-#     #     agg_df["InExon"].replace({"both": True, "left_only": False}).astype(bool)
-#     # )
-#     # agg_df = agg_df.sort_values(
-#     #     ["InExon", "MappedReadsPerSample", "MappedReads", "Samples"], ascending=False
-#     # ).reset_index(drop=True)
-
-#     # df.to_csv(Path(out_dir, "ByChromBySampleSummary.tsv"), sep="\t", index=False)
-#     # agg_df.to_csv(
-#     #     Path(out_dir, "AggregatedByChromBySampleSummary.tsv"), sep="\t", index=False
-#     # )
-
-#     # run MultiQC on the reports created for each whole aligned file
-#     multiqc(multiqc_path=multiqc_path, data_dir=out_dir)
-
-#     # delete the genome's index (it's quite heavy)
-#     genome_index_file.unlink(missing_ok=True)
+    # delete the genome's index (it's quite heavy)
+    genome_index_file.unlink(missing_ok=True)
 
 
 def gather_by_gene_bams_and_collect_stats(
@@ -1136,7 +1060,7 @@ def define_args() -> argparse.Namespace:
         help="Exclude reads with this flag.",
     )
 
-    # pacbio isoseq args
+    # whole-transcriptome pacbio isoseq args
 
     pacbio_isoseq_undirected_seq_parser = subparsers.add_parser(
         "whole_transcriptome_isoseq", help="Whole-transcriptome IsoSeq reads help"
@@ -1185,6 +1109,99 @@ def define_args() -> argparse.Namespace:
         type=abs_path_from_str,
         help=(
             "BED file of known editing sites used for by-chrom separation of BAM files."
+        ),
+    )
+
+    # whole-transcriptome illumina args
+
+    illumina_undirected_seq_parser = subparsers.add_parser(
+        "whole_transcriptome_illumina", help="Whole-transcriptome Illumina reads help"
+    )
+    illumina_undirected_seq_parser.set_defaults(func=whole_transcriptome_illumina_main)
+    illumina_undirected_seq_parser.add_argument(
+        "--postfix",
+        default=".fastq.gz",
+        help="Postfix of wanted files in `in_dir`. Should be the *full* postfix.",
+    )
+    illumina_undirected_seq_parser.add_argument(
+        "--mate_prefix",
+        default="_",
+        help="Mate prefix, e.g., `_` for `reads_1.fastq` and `reads_2.fastq`.",
+    )
+    illumina_undirected_seq_parser.add_argument(
+        "--decompress_cmd",
+        help=(
+            "Command to decompress files, e.g., `gunzip -c`. "
+            "Should match the form `$decompress_cmd $in_file > $out_file`."
+        ),
+        default="gunzip -c",
+    )
+    illumina_undirected_seq_parser.add_argument(
+        "--bwa_path",
+        type=expanded_path_from_str,
+        # default=Path("~/anaconda3/envs/combinatorics/bin/bwa-mem2").expanduser(),
+        default=Path("bwa-mem2"),
+        help="BWA mem2 executable.",
+    )
+    illumina_undirected_seq_parser.add_argument(
+        "--include_flags",
+        default="3",
+        type=int,
+        help="Use only reads with this flag. The default 2304 required mapped propely-paired PE reads.",
+    )
+    illumina_undirected_seq_parser.add_argument(
+        "--exclude_flags",
+        default="2304",
+        type=int,
+        help="Exclude reads with this flag. The default 2304 remove secondary and supplementary (chimeric) alignments.",
+    )
+    # illumina_undirected_seq_parser.add_argument(
+    #     "--separate_by_chrom",
+    #     action="store_true",
+    #     help="Separate aligned reads by the chromosome they were mapped to.",
+    # )
+    # illumina_undirected_seq_parser.add_argument(
+    #     "--base_conda_env_dir",
+    #     default=Path("~/anaconda3").expanduser(),
+    #     type=expanded_path_from_str,
+    # )
+    # illumina_undirected_seq_parser.add_argument(
+    #     "--pb_conda_env_name",
+    #     default="pacbiocomb",
+    #     help="Contains all PacBio's software packages (seperate env due to python 2.7 requirement).",
+    # )
+    # illumina_undirected_seq_parser.add_argument(
+    #     "--pbmm2_path",
+    #     type=expanded_path_from_str,
+    #     # default=Path("~/anaconda3/envs/pacbiocomb/bin/pbmm2").expanduser(),
+    #     default=Path("pbmm2"),
+    #     help="Note it should match `--pb_conda_env`.",
+    # )
+    # illumina_undirected_seq_parser.add_argument(
+    #     "--best_n_alignments_per_read",
+    #     type=int,
+    #     default=1,
+    #     help="Output at maximum N alignments for each read, 0 means no maximum.",
+    # )
+    # pacbio_preprocessed_isoseq_parser.add_argument(
+    #     "--gff",
+    #     # required=True,
+    #     type=abs_path_from_str,
+    #     help=("GFF3 annotation file for by-chrom separation of BAM files."),
+    # )
+    illumina_undirected_seq_parser.add_argument(
+        "--known_sites_bed_file",
+        required=True,
+        type=abs_path_from_str,
+        help=(
+            "BED file of known editing sites used for by-chrom separation of BAM files."
+        ),
+    )
+    illumina_undirected_seq_parser.add_argument(
+        "--separate_by_chrom_only_chroms_with_known_editing",
+        action="store_true",
+        help=(
+            "When separating BAM files of different samples by chrom, only use chroms with known editing sites."
         ),
     )
 
@@ -1251,6 +1268,7 @@ if __name__ == "__main__":
     # )  # https://stackoverflow.com/a/35824590/10249633 argparse.Namespace -> Dict
     parser = define_args()
     args = parser.parse_args()
+    ic(args)
     args.func(**vars(args))
 
     # end
