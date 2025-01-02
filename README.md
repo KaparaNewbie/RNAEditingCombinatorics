@@ -84,6 +84,23 @@ exit()
 ```
 
 
+## scsnv
+
+```bash
+# mkdir scSNV
+# cd scSNV
+
+git clone https://github.com/GWW/scsnv # Mar 25, 2023 release
+
+# WRITE DOCKERFILE
+
+cd scsnv
+docker build -t getting-started .
+
+```
+
+
+
 # Demo
 
 
@@ -223,6 +240,8 @@ python Code/orfs_fasta_to_bed.py \
 --in_fasta O.vulgaris/Annotations/orfs_oct.fa \
 --out_bed O.vulgaris/Annotations/orfs_oct.bed
 ```
+
+### O.vul annotations for single-cell analysis
 
 Creating a GTF from the ORFs bed file to allow for single-cell analysis:
 
@@ -488,6 +507,38 @@ python Code/neural_transcripts.py \
 --orthofinder_out_dir O.vulgaris/Annotations/OrthoFinderAgainstObim \
 --ovul_neural_transcripts_file O.vulgaris/Annotations/NeuralVsNonNeuralExpression.BySalmonAndOrthoFinder.tsv \
 > O.vulgaris/Annotations/neural_transcripts.out &
+```
+
+
+## New squid long-reads w/ UMIs
+
+```bash
+tmux new -s umi_data
+
+COMB
+
+RAW_DATA_DIR=D.pealeii/Data/RawWithUMIs
+mkdir $RAW_DATA_DIR
+cd $RAW_DATA_DIR
+```
+
+CCS and lima commands executed by Azenta:
+```bash
+@PG     ID:ccs  PN:ccs  VN:6.3.0        DS:Generate circular consensus sequences (ccs) from subreads.   CL:/opt/pacbio/pa-ccs/current/bin/ccs --streamed --suppress-reports --num-threads 200 --log-level INFO --log-file m64296e_241222_071206.ccs.log --report-json m64296e_241222_071206.ccs_reports.json --report-file m64296e_241222_071206.ccs_reports.txt --metrics-json m64296e_241222_071206.zmw_metrics.json.gz --hifi-summary-json m64296e_241222_071206.hifi_summary.json --stderr-json-log --all --bam m64296e_241222_071206.reads.bam --all-kinetics /data/pa/m64296e_241222_071206.consensusreadset.xml
+
+@PG     ID:lima VN:2.7.1 (commit v2.7.1-1-gf067520)     CL:/gwngsfs/gwngs/tools/conda/envs/smrtlink12.0/share/smrtlink/install/smrtlink-release_12.0.0.177059/bundles/smrttools/install/smrttools-release_12.0.0.177059/private/pacbio/barcoding/binwrap/../../../../private/pacbio/barcoding/bin/lima --ccs /gwngsfs/gwngs/data/projects/30-1097162729/r64296e_20241219_203404D01_tmp//rawdata/r64296e_20241219_203404D01/r64296e_20241219_203404D01.hifireads.bam /gwngsfs/gwngs/tools/pipelines/revio_pacbio_workflow/barcodes/Sequel_RSII_96_barcodes_v3/Sequel_RSII_96_barcodes_v3.fasta /gwngsfs/gwngs/data/p
+rojects/30-1097162729/r64296e_20241219_203404D01_tmp//rawdata/r64296e_20241219_203404D01/r64296e_20241219_203404D01.bam
+ --split-bam --num-threads 8 --peek-guess --same
+
+lima \
+--ccs \
+hifireads.bam \
+Sequel_RSII_96_barcodes_v3.fasta \
+r64296e_20241219_203404D01.bam \
+--split-bam \
+--num-threads 8 \
+--peek-guess \ # Try to infer the used barcodes subset.
+--same # Only keep same barcodes in a pair in output
 ```
 
 # Alignment
@@ -1183,7 +1234,7 @@ Code/Simulations/maximal_independent_set_5.jl \
 
 ## Empirical graph assessment
 
-``````bash
+```bash
 COMB
 
 mkdir -p Simulations/GraphAssessment
@@ -1242,12 +1293,40 @@ ls -l Simulations/GraphAssessment/*.DistinctUniqueProteins.* | wc -l # 180 files
 
 
 ```bash
-cut -f 1-5 /private7/projects/Combinatorics/Simulations/GraphAssessment/Complete.DistinctUniqueProteins.05.09.2024-15:06:52.csv | less
+tmux a -t comb18
 
-
-cut -f 1-5 /private7/projects/Combinatorics/Simulations/GraphAssessment/Complete.DistinctUniqueProteins.05.09.2024-15:06:52.csv | tail
-cut -f 1-5 /private7/projects/Combinatorics/Simulations/GraphAssessment/PartiallyUnknown.DistinctUniqueProteins.05.09.2024-15:07:03.csv | tail
+julia \
+--project=. \
+--threads 40 \
+Code/Simulations/mis_5_assessment.jl \
+--complete_infiles Simulations/GraphAssessment/comp141434_c0_seq1.CBPC1_HUMAN.UP0_09.Rep1.Complete.UniqueProteins.tsv.gz \
+--errored_na_files Simulations/GraphAssessment/comp141434_c0_seq1.CBPC1_HUMAN.UP0_09.Rep1.Errored.PartiallyUnknown.UniqueProteins.tsv.gz \
+--out_files Simulations/GraphAssessment/comp141434_c0_seq1.CBPC1_HUMAN.UP0_09.Rep1.FalsePositives.tsv.gz \
+--testfraction 0.1 \
+2>&1 | tee Simulations/GraphAssessment/mis_5_assessment.test.23.12.2024.log
 ```
+
+```bash
+tmux a -t comb18
+
+COMPLETE_INFILES=$(cat Simulations/GraphAssessment/CompleteInfiles.fofn)
+ERRORED_NA_INFILES=$(cat Simulations/GraphAssessment/ErroredNAFiles.fofn)
+OUT_FILES=$(cat Simulations/GraphAssessment/FalsePositivesOutFiles.fofn)
+
+julia \
+--project=. \
+--threads 40 \
+Code/Simulations/mis_5_assessment.jl \
+--complete_infiles $COMPLETE_INFILES \
+--errored_na_infiles $ERRORED_NA_INFILES \
+--out_files $OUT_FILES \
+2>&1 | tee Simulations/GraphAssessment/mis_5_assessment.24.12.2024.log
+```
+
+
+
+
+
 
 # Notebooks
 

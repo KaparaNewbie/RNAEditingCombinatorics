@@ -22,7 +22,7 @@ from pileup_with_subparsers import (
 pd.set_option("display.max_columns", 20)
 
 processes = 4
-# threads = 30
+threads = 30
 
 # parameters for simulating reads
 n_reads = 100_000
@@ -98,7 +98,11 @@ chroms = (
     .values
 )
 
+
 selected_orfs_df = orfs_df.loc[orfs_df["Chrom"].isin(chroms)]
+
+
+
 
 selected_editing_sites_df = editing_sites_df.loc[editing_sites_df["Chrom"].isin(chroms)]
 # selected_editing_sites_df.groupby("Chrom").size()
@@ -119,6 +123,12 @@ per_chrom_orf_start = selected_orfs_df["Start"].values
 per_chrom_orf_end = selected_orfs_df["End"].values
 per_chrom_strand = selected_orfs_df["Strand"].values
 per_chrom_seq = [transcriptome_dict[chrom] for chrom in chroms]
+
+
+
+
+
+
 
 
 starmap_inputs = []
@@ -263,3 +273,80 @@ with Pool(processes) as pool:
 # merged_df.groupby(["Name", "UnknownProbability", "DataType"])[
 #     "NumDistinctProteins"
 # ].max()
+
+
+
+
+def get_files_for_fp_tests(in_dir: Path,
+    chrom: str,
+    swiss_prot_name: str,
+    unknown_probability: float,
+    repetition: str,
+    data_types: list[str] = ["Complete", "Errored.PartiallyUnknown"],) -> list[Path]:
+    coupled_unique_proteins_files = [
+            Path(
+            in_dir,
+            f"{chrom}.{swiss_prot_name}.UP{str(unknown_probability).replace('.', '_')}.Rep{repetition}.{data_type.replace('+', '.')}.UniqueProteins.tsv.gz",
+        )
+        for data_type in data_types
+    ]
+    for f in coupled_unique_proteins_files:
+        if not f.exists():
+            raise FileNotFoundError(f)
+    out_file = Path(
+        in_dir,
+        f"{chrom}.{swiss_prot_name}.UP{str(unknown_probability).replace('.', '_')}.Rep{repetition}.FalsePositives.tsv.gz"
+    )
+    return coupled_unique_proteins_files + [out_file]
+    
+
+files_for_fp_tests = [
+    get_files_for_fp_tests(
+        out_dir, chrom, swiss_prot_name, unknown_probability, repetition
+    )
+    for chrom, swiss_prot_name in zip(
+        chroms, per_chrom_gene_names
+    )
+    for unknown_probability, repetition in product(
+        unknown_probabilities, data_creation_repetitions
+    )
+]
+
+# len(files_for_fp_tests)
+
+complete_infiles_fofn = Path(out_dir, "CompleteInfiles.fofn")
+errored_na_files_fofn = Path(out_dir, "ErroredNAFiles.fofn")
+false_positives_out_files_fofn = Path(out_dir, "FalsePositivesOutFiles.fofn")
+
+complete_infiles = " ".join([str(f[0]) for f in files_for_fp_tests])
+errored_na_files = " ".join([str(f[1]) for f in files_for_fp_tests])
+false_positives_out_files = " ".join([str(f[2]) for f in files_for_fp_tests])
+
+for fofn, files in zip(
+    [complete_infiles_fofn, errored_na_files_fofn, false_positives_out_files_fofn],
+    [complete_infiles, errored_na_files, false_positives_out_files],
+):
+    with open(fofn, "w") as f:
+        f.write(files)
+
+
+# complete_infiles = complete_infiles[:2]
+# errored_na_files = errored_na_files[:2]
+# out_files = out_files[:2]
+
+
+# mis_5_assessment_cmd = f"""
+# julia \
+# --project=. \
+# Code/Simulations/mis_5_assessment.jl \
+# --complete_infiles {" ".join(complete_infiles)} \
+# --errored_na_files {" ".join(errored_na_files)} \
+# --out_files {" ".join(out_files)}
+# """
+
+# import subprocess
+# subprocess.run(mis_5_assessment_cmd, shell=True)
+
+
+
+
