@@ -145,8 +145,7 @@ function parsecmd()
 		default = 10
 		"--consistentfracsampling"
 		help = "When sampling a fraction of the data, keep the same fraction of the data for each repetition. Useful for grpah assessment when comparing coupled datasets."
-		arg_type = Bool
-		default = false
+		action = :store_true
 		"--algrepetitions"
 		help = "Number of repetitions for each algorithm is run on each repetition of each fraction of the data."
 		arg_type = Int
