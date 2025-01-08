@@ -1,26 +1,26 @@
 # https://discourse.julialang.org/t/julia-python-equivalent-of-main/35433
 if abspath(PROGRAM_FILE) == @__FILE__
-    using Pkg
-    using Distributed
+	using Pkg
+	using Distributed
 else
-    using BenchmarkTools
-    using Distributed
+	using BenchmarkTools
+	using Distributed
 end
 
 
 n_workers = length(workers())
 if n_workers > 1
-    # remove previous workers
-    rmprocs(workers())
-    # add new one, but with limited number of threads
-    addprocs(
-        # n_workers  = 2
-        n_workers,
-        exeflags=[
-            "--threads=$(Int(round(Threads.nthreads() / n_workers)))",
-            "--project"
-        ]
-    )
+	# remove previous workers
+	rmprocs(workers())
+	# add new one, but with limited number of threads
+	addprocs(
+		# n_workers  = 2
+		n_workers,
+		exeflags = [
+			"--threads=$(Int(round(Threads.nthreads() / n_workers)))",
+			"--project",
+		],
+	)
 end
 
 
@@ -51,27 +51,27 @@ include(joinpath(@__DIR__, "indistinguishable_rows.jl"))
 
 
 @everywhere begin
-    using DataFrames # for reading input and writing output
-    using Distributed, DistributedArrays
-    using Transducers
-    using ThreadsX
-    using InlineStrings  # got an error without it
-    using Dates # for logging
-    using StatsBase  # for StatsBase.sample
-    using IterTools  # for IterTools.imap
-    using Random # for MersenneTwister & shuffle
-    using TimerOutputs
-    # using BioSymbols
-    using BioSequences
-    using JuMP, HiGHS # for ilp in solve
-    # const to = TimerOutput() # Create a TimerOutput, this is the main type that keeps track of everything.
-    include(joinpath(@__DIR__, "consts.jl")) # for ∅
-    include(joinpath(@__DIR__, "timeformatters.jl"))
-    include(joinpath(@__DIR__, "solve.jl"))
-    include(joinpath(@__DIR__, "sample.jl"))
-    include(joinpath(@__DIR__, "run_fracrepetition.jl"))
-    # using Logging, LoggingExtras
-    # include(joinpath(@__DIR__, "setlogger.jl"))
+	using DataFrames # for reading input and writing output
+	using Distributed, DistributedArrays
+	using Transducers
+	using ThreadsX
+	using InlineStrings  # got an error without it
+	using Dates # for logging
+	using StatsBase  # for StatsBase.sample
+	using IterTools  # for IterTools.imap
+	using Random # for MersenneTwister & shuffle
+	using TimerOutputs
+	# using BioSymbols
+	using BioSequences
+	using JuMP, HiGHS # for ilp in solve
+	# const to = TimerOutput() # Create a TimerOutput, this is the main type that keeps track of everything.
+	include(joinpath(@__DIR__, "consts.jl")) # for ∅
+	include(joinpath(@__DIR__, "timeformatters.jl"))
+	include(joinpath(@__DIR__, "solve.jl"))
+	include(joinpath(@__DIR__, "sample.jl"))
+	include(joinpath(@__DIR__, "run_fracrepetition.jl"))
+	# using Logging, LoggingExtras
+	# include(joinpath(@__DIR__, "setlogger.jl"))
 end
 
 
@@ -81,100 +81,104 @@ end
 Define command-line arguments.
 """
 function parsecmd()
-    s = ArgParseSettings()
-    @add_arg_table s begin
-        "--infiles"
-        help = "One or more csv files representing unique reads/proteins."
-        nargs = '+'
-        action = :store_arg
-        required = true
-        "--delim"
-        help = "Delimiter for input/output csv files."
-        arg_type = String
-        default = "\t"
-        "--prefix_to_remove", "--prefix"
-        help = "Remove `prefix` from output files` names."
-        default = ""
-        "--postfix_to_remove", "--postfix"
-        help = "Remove `postfix` from output files` names, e.g., `.unique_reads.csv`."
-        default = ""
-        "--postfix_to_add"
-        help = "Add `postfix` to output files' names, e.g., `\$sample.DistinctUnique{Reads,Proteins}\$postfix.\$time.csv`."
-        default = ""
-        "--idcol"
-        help = "Label of unique samples columns. Typically `Transcripts` for `Reads` and `Protein` for `Proteins`."
-        required = true
-        "--firstcolpos"
-        help = "Int location of the first editing position column of each file in `infiles`. As of now, should be 9 for `Reads` and 15 for `Proteins`."
-        arg_type = Int
-        required = true
+	s = ArgParseSettings()
+	@add_arg_table s begin
+		"--infiles"
+		help = "One or more csv files representing unique reads/proteins."
+		nargs = '+'
+		action = :store_arg
+		required = true
+		"--delim"
+		help = "Delimiter for input/output csv files."
+		arg_type = String
+		default = "\t"
+		"--prefix_to_remove", "--prefix"
+		help = "Remove `prefix` from output files` names."
+		default = ""
+		"--postfix_to_remove", "--postfix"
+		help = "Remove `postfix` from output files` names, e.g., `.unique_reads.csv`."
+		default = ""
+		"--postfix_to_add"
+		help = "Add `postfix` to output files' names, e.g., `\$sample.DistinctUnique{Reads,Proteins}\$postfix.\$time.csv`."
+		default = ""
+		"--idcol"
+		help = "Label of unique samples columns. Typically `Transcripts` for `Reads` and `Protein` for `Proteins`."
+		required = true
+		"--firstcolpos"
+		help = "Int location of the first editing position column of each file in `infiles`. As of now, should be 9 for `Reads` and 15 for `Proteins`."
+		arg_type = Int
+		required = true
 
-        "--datatype"
-        help = "Data type of the input files. Either `Reads` or `Proteins`."
-        required = true
-        "--substitutionmatrix"
-        help = "Use this substitution matrix as a stricter criteria for determination of distinct AAs. Use in conjuction with `datatype == Proteins`. Not compatible with `aagroups`. Use any matrix in https://github.com/KaparaNewbie/BioAlignments.jl/blob/master/src/submat.jl."
-        arg_type = Symbol
-        "--similarityscorecutoff"
-        help = "See `similarityvalidator` below."
-        arg_type = Int
-        default = 0
-        "--similarityvalidator"
-        help = "Use this opeartor to determine similarty of AA change, e.g., whether `5 >= similarityscorecutoff`."
-        arg_type = Symbol
-        default = :(>=)
-        "--aagroups"
-        help = "Use predifined AAs classification as a stricter criteria for determination of distinct AAs. Use in conjuction with `datatype == Proteins`. Not compatible with `substitutionmatrix`."
-        arg_type = Symbol
-        range_tester = x -> x ∈ [:AA_groups, :AA_groups_Miyata1979]
+		"--datatype"
+		help = "Data type of the input files. Either `Reads` or `Proteins`."
+		required = true
+		"--substitutionmatrix"
+		help = "Use this substitution matrix as a stricter criteria for determination of distinct AAs. Use in conjuction with `datatype == Proteins`. Not compatible with `aagroups`. Use any matrix in https://github.com/KaparaNewbie/BioAlignments.jl/blob/master/src/submat.jl."
+		arg_type = Symbol
+		"--similarityscorecutoff"
+		help = "See `similarityvalidator` below."
+		arg_type = Int
+		default = 0
+		"--similarityvalidator"
+		help = "Use this opeartor to determine similarty of AA change, e.g., whether `5 >= similarityscorecutoff`."
+		arg_type = Symbol
+		default = :(>=)
+		"--aagroups"
+		help = "Use predifined AAs classification as a stricter criteria for determination of distinct AAs. Use in conjuction with `datatype == Proteins`. Not compatible with `substitutionmatrix`."
+		arg_type = Symbol
+		range_tester = x -> x ∈ [:AA_groups, :AA_groups_Miyata1979]
 
-        "--outdir"
-        help = "Write output files to this directory."
-        required = true
-        "--fracstep"
-        help = "Step size for the fraction of the dataset to be used for each iteration, s.t. `fractions = collect(fracstep:fracstep:1.0) ∪ 1.0`."
-        arg_type = Float64
-        default = 0.1
-        "--maxfrac"
-        help = "Maximum fraction of the dataset to be sampled."
-        arg_type = Float64
-        default = 1.0
-        "--fracrepetitions"
-        help = "Number of repetitions of the sampling procedure for each fraction of the data."
-        arg_type = Int
-        default = 10
-        "--algrepetitions"
-        help = "Number of repetitions for each algorithm is run on each repetition of each fraction of the data."
-        arg_type = Int
-        default = 5
-        "--testfraction"
-        help = "Fraction of the dataset to be used for testing. That fraction will correspond to `maxfrac == 1.0`."
-        arg_type = Float64
-        default = 1.0
-        range_tester = x -> 0.0 < x <= 1.0
-        "--randseed"
-        help = "Random seed for sampling test data."
-        arg_type = Int
-        default = 1892
-        "--run_solve_threaded"
-        help = "Run different algorithms/algrepetitions in parallel using threads"
-        action = :store_true
-        "--sortresults"
-        help = "Sort distinct unique samples of reads/proteins."
-        action = :store_true
-        "--algs"
-        help = "Use these algorithms to obtain distinct unique samples of reads/proteins."
-        default = ["Ascending", "Descending", "Unordered"]
-        nargs = '+'
-        range_tester = x -> x ∈ ["Ascending", "Descending", "Unordered"]
-        "--gcp"
-        help = "Program is run on a google cloud VM."
-        action = :store_true
-        "--shutdowngcp"
-        help = "Shutdown google cloud VM when the program ends."
-        action = :store_true
-    end
-    return parse_args(s)
+		"--outdir"
+		help = "Write output files to this directory."
+		required = true
+		"--fracstep"
+		help = "Step size for the fraction of the dataset to be used for each iteration, s.t. `fractions = collect(fracstep:fracstep:1.0) ∪ 1.0`."
+		arg_type = Float64
+		default = 0.1
+		"--maxfrac"
+		help = "Maximum fraction of the dataset to be sampled."
+		arg_type = Float64
+		default = 1.0
+		"--fracrepetitions"
+		help = "Number of repetitions of the sampling procedure for each fraction of the data."
+		arg_type = Int
+		default = 10
+		"--consistentfracsampling"
+		help = "When sampling a fraction of the data, keep the same fraction of the data for each repetition. Useful for grpah assessment when comparing coupled datasets."
+		arg_type = Bool
+		default = false
+		"--algrepetitions"
+		help = "Number of repetitions for each algorithm is run on each repetition of each fraction of the data."
+		arg_type = Int
+		default = 5
+		"--testfraction"
+		help = "Fraction of the dataset to be used for testing. That fraction will correspond to `maxfrac == 1.0`."
+		arg_type = Float64
+		default = 1.0
+		range_tester = x -> 0.0 < x <= 1.0
+		"--randseed"
+		help = "Random seed for sampling test data."
+		arg_type = Int
+		default = 1892
+		"--run_solve_threaded"
+		help = "Run different algorithms/algrepetitions in parallel using threads"
+		action = :store_true
+		"--sortresults"
+		help = "Sort distinct unique samples of reads/proteins."
+		action = :store_true
+		"--algs"
+		help = "Use these algorithms to obtain distinct unique samples of reads/proteins."
+		default = ["Ascending", "Descending", "Unordered"]
+		nargs = '+'
+		range_tester = x -> x ∈ ["Ascending", "Descending", "Unordered"]
+		"--gcp"
+		help = "Program is run on a google cloud VM."
+		action = :store_true
+		"--shutdowngcp"
+		help = "Shutdown google cloud VM when the program ends."
+		action = :store_true
+	end
+	return parse_args(s)
 end
 
 
@@ -185,101 +189,102 @@ Each such result contains a list of compatible unique reads (they are all differ
 """
 function main()
 
-    # read command-line args
-    parsedargs = parsecmd()
+	# read command-line args
+	parsedargs = parsecmd()
 
-    infiles = parsedargs["infiles"]
-    delim = parsedargs["delim"]
-    prefix_to_remove = parsedargs["prefix_to_remove"]
-    postfix_to_remove = parsedargs["postfix_to_remove"]
-    postfix_to_add = parsedargs["postfix_to_add"]
-    idcol = parsedargs["idcol"]
-    firstcolpos = parsedargs["firstcolpos"]
-    datatype = parsedargs["datatype"]
-    outdir = parsedargs["outdir"]
-    fracstep = parsedargs["fracstep"]
-    maxfrac = parsedargs["maxfrac"]
-    fracrepetitions = parsedargs["fracrepetitions"]
-    algrepetitions = parsedargs["algrepetitions"]
-    testfraction = parsedargs["testfraction"]
-    randseed = parsedargs["randseed"]
-    run_solve_threaded = parsedargs["run_solve_threaded"]
-    sortresults = parsedargs["sortresults"]
-    algs = parsedargs["algs"]
-    gcp = parsedargs["gcp"]
-    shutdowngcp = parsedargs["shutdowngcp"]
+	infiles = parsedargs["infiles"]
+	delim = parsedargs["delim"]
+	prefix_to_remove = parsedargs["prefix_to_remove"]
+	postfix_to_remove = parsedargs["postfix_to_remove"]
+	postfix_to_add = parsedargs["postfix_to_add"]
+	idcol = parsedargs["idcol"]
+	firstcolpos = parsedargs["firstcolpos"]
+	datatype = parsedargs["datatype"]
+	outdir = parsedargs["outdir"]
+	fracstep = parsedargs["fracstep"]
+	maxfrac = parsedargs["maxfrac"]
+	fracrepetitions = parsedargs["fracrepetitions"]
+	consistentfracsampling = parsedargs["consistentfracsampling"]
+	algrepetitions = parsedargs["algrepetitions"]
+	testfraction = parsedargs["testfraction"]
+	randseed = parsedargs["randseed"]
+	run_solve_threaded = parsedargs["run_solve_threaded"]
+	sortresults = parsedargs["sortresults"]
+	algs = parsedargs["algs"]
+	gcp = parsedargs["gcp"]
+	shutdowngcp = parsedargs["shutdowngcp"]
 
-    algs::Vector{String} = String.(algs)
+	algs::Vector{String} = String.(algs)
 
-    substitutionmatrix = eval(parsedargs["substitutionmatrix"])
-    similarityscorecutoff = parsedargs["similarityscorecutoff"]
-    similarityvalidator = eval(parsedargs["similarityvalidator"])
-    aagroups = eval(parsedargs["aagroups"])
-
-
-    # infiles = ["D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv"]
-    # delim = "\t"
-    # postfix_to_remove = ".aligned.sorted.MinRQ998.unique_proteins.csv"
-    # prefix_to_remove = ""
-    # postfix_to_add = ".GRANTHAM1974-100"
-    # idcol = "Protein"
-    # firstcolpos = 15
-    # datatype = "Proteins"
-    # outdir = "D.pealeii/MpileupAndTranscripts/RQ998.2"
-    # fracstep = 0.5
-    # maxfrac = 1.0
-    # fracrepetitions = 5
-    # algrepetitions = 2
-    # testfraction = 0.01
-    # randseed = 1892
-    # run_solve_threaded = false
-    # sortresults = false
-    # algs = ["Ascending", "Descending"]
-    # gcp = false
-    # shutdowngcp = false
+	substitutionmatrix = eval(parsedargs["substitutionmatrix"])
+	similarityscorecutoff = parsedargs["similarityscorecutoff"]
+	similarityvalidator = eval(parsedargs["similarityvalidator"])
+	aagroups = eval(parsedargs["aagroups"])
 
 
-    @info "$(loggingtime())\tmain" delim prefix_to_remove postfix_to_remove postfix_to_add idcol firstcolpos datatype outdir fracstep maxfrac fracrepetitions algrepetitions testfraction randseed run_solve_threaded sortresults algs gcp shutdowngcp
+	# infiles = ["D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv"]
+	# delim = "\t"
+	# postfix_to_remove = ".aligned.sorted.MinRQ998.unique_proteins.csv"
+	# prefix_to_remove = ""
+	# postfix_to_add = ".GRANTHAM1974-100"
+	# idcol = "Protein"
+	# firstcolpos = 15
+	# datatype = "Proteins"
+	# outdir = "D.pealeii/MpileupAndTranscripts/RQ998.2"
+	# fracstep = 0.5
+	# maxfrac = 1.0
+	# fracrepetitions = 5
+	# algrepetitions = 2
+	# testfraction = 0.01
+	# randseed = 1892
+	# run_solve_threaded = false
+	# sortresults = false
+	# algs = ["Ascending", "Descending"]
+	# gcp = false
+	# shutdowngcp = false
 
-    # do the thing for each file, in ascending order of file size
 
-    sort!(infiles, by=(x -> filesize(x)))
-    if prefix_to_remove != "" && postfix_to_remove != ""
-        samplesnames = map(x -> replace(splitdir(x)[2], prefix_to_remove => "", postfix_to_remove => ""), infiles)
-    elseif prefix_to_remove != ""
-        samplesnames = map(x -> replace(splitdir(x)[2], prefix_to_remove => ""), infiles)
-    elseif postfix_to_remove != ""
-        samplesnames = map(x -> replace(splitdir(x)[2], postfix_to_remove => ""), infiles)
-    else
-        samplesnames = map(x -> splitdir(x)[2], infiles)
-    end
+	@info "$(loggingtime())\tmain" delim prefix_to_remove postfix_to_remove postfix_to_add idcol firstcolpos datatype outdir fracstep maxfrac fracrepetitions consistentfracsampling algrepetitions testfraction randseed run_solve_threaded sortresults algs gcp shutdowngcp
 
-    # logfile = joinpath(outdir, "log.$(writingtime()).txt")
-    # run(`touch $logfile`)
-    # @everywhere setlogger($logfile) # https://discourse.julialang.org/t/copying-variable-to-all-remote-processes/26518/4?u=kaparanewbie
+	# do the thing for each file, in ascending order of file size
 
-    for x ∈ eachindex(infiles)  # could be eachindex(samplesnames) as well
-        infile = infiles[x]
-        samplename = samplesnames[x]
-        # @timeit to "run_sample" run_sample(
-        #     infile, delim, samplename, idcol, firstcolpos, datatype, outdir, postfix_to_add,
-        #     fracstep, maxfrac, fracrepetitions, algrepetitions, testfraction, randseed,
-        #     run_solve_threaded, sortresults, algs,
-        #     substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups
-        # )
-        run_sample(
-            infile, delim, samplename, idcol, firstcolpos, datatype, outdir, postfix_to_add,
-            fracstep, maxfrac, fracrepetitions, algrepetitions, testfraction, randseed,
-            run_solve_threaded, sortresults, algs,
-            substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups
-        )
-    end
+	sort!(infiles, by = (x -> filesize(x)))
+	if prefix_to_remove != "" && postfix_to_remove != ""
+		samplesnames = map(x -> replace(splitdir(x)[2], prefix_to_remove => "", postfix_to_remove => ""), infiles)
+	elseif prefix_to_remove != ""
+		samplesnames = map(x -> replace(splitdir(x)[2], prefix_to_remove => ""), infiles)
+	elseif postfix_to_remove != ""
+		samplesnames = map(x -> replace(splitdir(x)[2], postfix_to_remove => ""), infiles)
+	else
+		samplesnames = map(x -> splitdir(x)[2], infiles)
+	end
 
-    # # Print the timings in the default way
-    # show(to)
+	# logfile = joinpath(outdir, "log.$(writingtime()).txt")
+	# run(`touch $logfile`)
+	# @everywhere setlogger($logfile) # https://discourse.julialang.org/t/copying-variable-to-all-remote-processes/26518/4?u=kaparanewbie
 
-    # shutdown gcp vm
-    gcp && shutdowngcp && run(`sudo shutdown`) # https://cloud.google.com/compute/docs/shutdownscript
+	for x ∈ eachindex(infiles)  # could be eachindex(samplesnames) as well
+		infile = infiles[x]
+		samplename = samplesnames[x]
+		# @timeit to "run_sample" run_sample(
+		#     infile, delim, samplename, idcol, firstcolpos, datatype, outdir, postfix_to_add,
+		#     fracstep, maxfrac, fracrepetitions, algrepetitions, testfraction, randseed,
+		#     run_solve_threaded, sortresults, algs,
+		#     substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups
+		# )
+		run_sample(
+			infile, delim, samplename, idcol, firstcolpos, datatype, outdir, postfix_to_add,
+			fracstep, maxfrac, fracrepetitions, consistentfracsampling, algrepetitions, testfraction, randseed,
+			run_solve_threaded, sortresults, algs,
+			substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups,
+		)
+	end
+
+	# # Print the timings in the default way
+	# show(to)
+
+	# shutdown gcp vm
+	gcp && shutdowngcp && run(`sudo shutdown`) # https://cloud.google.com/compute/docs/shutdownscript
 end
 
 
@@ -296,17 +301,17 @@ julia> interleaved_fold([1, 2, 3, 4, 5])
 ```
 """
 function interleaved_fold(A)
-    middle = Int(ceil(length(A) / 2))
-    if iseven(length(A))
-        a = A[begin:middle]
-        b = reverse(A[middle+1:end])
-        Y = collect(Iterators.flatten(zip(a, b)))
-    else # odd
-        a = A[begin:middle-1]
-        b = reverse(A[middle+1:end])
-        Y = vcat(collect(Iterators.flatten(zip(a, b))), A[middle])
-    end
-    Y
+	middle = Int(ceil(length(A) / 2))
+	if iseven(length(A))
+		a = A[begin:middle]
+		b = reverse(A[middle+1:end])
+		Y = collect(Iterators.flatten(zip(a, b)))
+	else # odd
+		a = A[begin:middle-1]
+		b = reverse(A[middle+1:end])
+		Y = vcat(collect(Iterators.flatten(zip(a, b))), A[middle])
+	end
+	Y
 end
 
 
@@ -324,156 +329,161 @@ and `df` with `length(df) == 100`, the output is:
 (fraction = 0.75, nsamplerows = 75, fracrepetition = 2)  
 """
 function prep_pmap_input(fracstep, maxfrac, df, fracrepetitions)
-    fractions = collect(fracstep:fracstep:maxfrac) ∪ maxfrac
-    # define nsamplerows for each fraction
-    nrows = size(df, 1)
-    fraction_nsamplerows = [convert(Int, round(fraction * nrows)) for fraction ∈ fractions]
+	fractions = collect(fracstep:fracstep:maxfrac) ∪ maxfrac
+	# define nsamplerows for each fraction
+	nrows = size(df, 1)
+	fraction_nsamplerows = [convert(Int, round(fraction * nrows)) for fraction ∈ fractions]
 
-    fracrepetitions_inputs = [
-        interleaved_fold(
-            [
-            (fraction=fraction, nsamplerows=nsamplerows, fracrepetition=fracrepetition)
-            for (fraction, nsamplerows) ∈ zip(fractions, fraction_nsamplerows)
-        ]
-        )
-        for fracrepetition ∈ 1:fracrepetitions
-    ]
-    fracrepetitions_inputs = vcat(fracrepetitions_inputs...)
+	fracrepetitions_inputs = [
+		interleaved_fold(
+			[
+			(fraction = fraction, nsamplerows = nsamplerows, fracrepetition = fracrepetition)
+			for (fraction, nsamplerows) ∈ zip(fractions, fraction_nsamplerows)
+		]
+		)
+		for fracrepetition ∈ 1:fracrepetitions
+	]
+	fracrepetitions_inputs = vcat(fracrepetitions_inputs...)
 
-    return fracrepetitions_inputs
+	return fracrepetitions_inputs
 end
 
 
 
 function run_sample(
-    infile::String,
-    delim::String,
-    samplename::String,
-    idcol::String,
-    firstcolpos::Int,
-    datatype::String,
-    outdir::String,
-    postfix_to_add::String,
-    fracstep::Float64,
-    maxfrac::Float64,
-    fracrepetitions::Int,
-    algrepetitions::Int,
-    testfraction::Float64,
-    randseed::Int,
-    run_solve_threaded::Bool,
-    sortresults::Bool,
-    algs::Vector{String},
-    substitutionmatrix::Union{SubstitutionMatrix,Nothing},
-    similarityscorecutoff::Int64,
-    similarityvalidator::Function,
-    aagroups::Union{Dict{AminoAcid,String},Nothing}
+	infile::String,
+	delim::String,
+	samplename::String,
+	idcol::String,
+	firstcolpos::Int,
+	datatype::String,
+	outdir::String,
+	postfix_to_add::String,
+	fracstep::Float64,
+	maxfrac::Float64,
+	fracrepetitions::Int,
+	consistentfracsampling::Bool,
+	algrepetitions::Int,
+	testfraction::Float64,
+	randseed::Int,
+	run_solve_threaded::Bool,
+	sortresults::Bool,
+	algs::Vector{String},
+	substitutionmatrix::Union{SubstitutionMatrix, Nothing},
+	similarityscorecutoff::Int64,
+	similarityvalidator::Function,
+	aagroups::Union{Dict{AminoAcid, String}, Nothing},
 )
-    @info "$(loggingtime())\trun_sample" infile samplename
+	@info "$(loggingtime())\trun_sample" infile samplename
 
-    df, firstcolpos = try
-        # @timeit to "preparedf!" preparedf!(
-        #     infile, delim, datatype, idcol, firstcolpos,
-        #     testfraction, randseed
-        # )
-        preparedf!(
-            infile, delim, datatype, idcol, firstcolpos,
-            testfraction, randseed
-        )
-    catch e
-        @warn "$(loggingtime())\tpreparedf! failed for $infile" e
-        return
-    end
+	df, firstcolpos = try
+		# @timeit to "preparedf!" preparedf!(
+		#     infile, delim, datatype, idcol, firstcolpos,
+		#     testfraction, randseed
+		# )
+		preparedf!(
+			infile, delim, datatype, idcol, firstcolpos,
+			testfraction, randseed,
+		)
+	catch e
+		@warn "$(loggingtime())\tpreparedf! failed for $infile" e
+		return
+	end
 
-    # println("before indistinguishable_rows")
-    # println(df[1:5, 1:5])
+	# println("before indistinguishable_rows")
+	# println(df[1:5, 1:5])
 
-    if length(size(df)) > 1  # df has 2 dimensions, i.e., not a row of a single protein
+	if length(size(df)) > 1  # df has 2 dimensions, i.e., not a row of a single protein
 
-        # G is the main neighborhood matrix and created only once; samples can create subgraphs induced by it
-        G = try
-            if substitutionmatrix !== nothing
-                # @timeit to "indistinguishable_rows" indistinguishable_rows(df, idcol, substitutionmatrix, similarityscorecutoff, similarityvalidator; firstcolpos)
-                indistinguishable_rows(df, idcol, substitutionmatrix, similarityscorecutoff, similarityvalidator; firstcolpos)
-            elseif aagroups !== nothing
-                # @timeit to "indistinguishable_rows" indistinguishable_rows(df, idcol, aagroups; firstcolpos)
-                indistinguishable_rows(df, idcol, aagroups; firstcolpos)
-            else
-                # @timeit to "indistinguishable_rows" indistinguishable_rows(df, idcol; firstcolpos)
-                indistinguishable_rows(df, idcol; firstcolpos)
-            end
-        catch e
-            @warn "$(loggingtime())\tindistinguishable_rows failed for $infile" e
-            return
-        end
-        
-        # println("after indistinguishable_rows")
-        # println(df[1:5, 1:5])
-        
-        ArrG = @DArray [G for _ ∈ 1:1]  # move G across processes on a distributed array in order to save memory
+		# G is the main neighborhood matrix and created only once; samples can create subgraphs induced by it
+		G = try
+			if substitutionmatrix !== nothing
+				# @timeit to "indistinguishable_rows" indistinguishable_rows(df, idcol, substitutionmatrix, similarityscorecutoff, similarityvalidator; firstcolpos)
+				indistinguishable_rows(df, idcol, substitutionmatrix, similarityscorecutoff, similarityvalidator; firstcolpos)
+			elseif aagroups !== nothing
+				# @timeit to "indistinguishable_rows" indistinguishable_rows(df, idcol, aagroups; firstcolpos)
+				indistinguishable_rows(df, idcol, aagroups; firstcolpos)
+			else
+				# @timeit to "indistinguishable_rows" indistinguishable_rows(df, idcol; firstcolpos)
+				indistinguishable_rows(df, idcol; firstcolpos)
+			end
+		catch e
+			@warn "$(loggingtime())\tindistinguishable_rows failed for $infile" e
+			return
+		end
 
-        # having built G, we only need to keep the reads and unique reads/proteins they support
-        # select!(df, idcol)
-        if "Read" ∈ names(df)
-            df = select!(df, idcol, "Read")
-        else
-            df = select!(df, idcol)
-        end
-        GC.gc() # free up memory, just in case
+		# println("after indistinguishable_rows")
+		# println(df[1:5, 1:5])
 
+		ArrG = @DArray [G for _ ∈ 1:1]  # move G across processes on a distributed array in order to save memory
 
-        # define input parameters for pmap
-        # @timeit to "fracrepetitions_inputs" fracrepetitions_inputs = prep_pmap_input(fracstep, maxfrac, df, fracrepetitions)
-        fracrepetitions_inputs = prep_pmap_input(fracstep, maxfrac, df, fracrepetitions)
-
-        # @timeit to "run_fracrepetition" fracrepetitions_results = pmap(
-        fracrepetitions_results = pmap(
-            fracrepetitions_inputs;
-            retry_delays=ExponentialBackOff(n=3, first_delay=5, max_delay=1000)
-        ) do (fraction, nsamplerows, fracrepetition)
-            try
-                run_fracrepetition(
-                    df,
-                    idcol,
-                    ArrG,
-                    fraction,
-                    nsamplerows,
-                    fracrepetition,
-                    algrepetitions,
-                    run_solve_threaded,
-                    sortresults,
-                    algs
-                )
-            catch e
-                @warn "$(loggingtime())\trun_fracrepetition failed" infile fraction fracrepetition e
-                missing
-            end
-        end
-
-        # @timeit to "`fracrepetitions_results` -> sorted `results`" begin
-        #     results::DataFrame = vcat(skipmissing(fracrepetitions_results)...)
-        #     sort!(results, ["Fraction", "FractionRepetition", "Algorithm", "AlgorithmRepetition"])
-        # end
-        results::DataFrame = vcat(skipmissing(fracrepetitions_results)...)
-        sort!(results, ["Fraction", "FractionRepetition", "Algorithm", "AlgorithmRepetition"])
+		# having built G, we only need to keep the reads and unique reads/proteins they support
+		# select!(df, idcol)
+		if "Read" ∈ names(df)
+			# df = select!(df, idcol, "Read")
+			select!(df, idcol, "Read")
+		else
+			# df = select!(df, idcol)
+			select!(df, idcol)
+		end
+		GC.gc() # free up memory, just in case
 
 
-    else
+		# define input parameters for pmap
+		# @timeit to "fracrepetitions_inputs" fracrepetitions_inputs = prep_pmap_input(fracstep, maxfrac, df, fracrepetitions)
+		fracrepetitions_inputs = prep_pmap_input(fracstep, maxfrac, df, fracrepetitions)
 
-        try
-            results = emptyresults()
-            for alg in algs
-                push!(results, [1.0, 1, alg, 1, 1, df[idcol]]; promote=true)
-            end
-        catch e
-            @warn samplename e
-            missing
-        end
-    end
+		# @timeit to "run_fracrepetition" fracrepetitions_results = pmap(
+		fracrepetitions_results = pmap(
+			fracrepetitions_inputs;
+			retry_delays = ExponentialBackOff(n = 3, first_delay = 5, max_delay = 1000),
+		) do (fraction, nsamplerows, fracrepetition)
+			try
+				run_fracrepetition(
+					df,
+					idcol,
+					ArrG,
+					fraction,
+					nsamplerows,
+					fracrepetition,
+					consistentfracsampling,
+					seed,
+					algrepetitions,
+					run_solve_threaded,
+					sortresults,
+					algs,
+				)
+			catch e
+				@warn "$(loggingtime())\trun_fracrepetition failed" infile fraction fracrepetition e
+				missing
+			end
+		end
 
-    # write the results to a csv file
-    # outfile = abspath(outdir) * "/" * samplename * ".DistinctUnique$datatype.$(writingtime()).csv"
-    outfile = joinpath(abspath(outdir), "$samplename.DistinctUnique$datatype$postfix_to_add.$(writingtime()).csv")
-    CSV.write(outfile, results; delim)
+		# @timeit to "`fracrepetitions_results` -> sorted `results`" begin
+		#     results::DataFrame = vcat(skipmissing(fracrepetitions_results)...)
+		#     sort!(results, ["Fraction", "FractionRepetition", "Algorithm", "AlgorithmRepetition"])
+		# end
+		results::DataFrame = vcat(skipmissing(fracrepetitions_results)...)
+		sort!(results, ["Fraction", "FractionRepetition", "Algorithm", "AlgorithmRepetition"])
+
+
+	else
+
+		try
+			results = emptyresults()
+			for alg in algs
+				push!(results, [1.0, 1, alg, 1, 1, df[idcol]]; promote = true)
+			end
+		catch e
+			@warn samplename e
+			missing
+		end
+	end
+
+	# write the results to a csv file
+	# outfile = abspath(outdir) * "/" * samplename * ".DistinctUnique$datatype.$(writingtime()).csv"
+	outfile = joinpath(abspath(outdir), "$samplename.DistinctUnique$datatype$postfix_to_add.$(writingtime()).csv")
+	CSV.write(outfile, results; delim)
 end
 
 
@@ -494,33 +504,82 @@ main();
 # # prefix_to_remove = ""
 # # postfix_to_add = ".GRANTHAM1974-100"
 # # outdir = "D.pealeii/MpileupAndTranscripts/RQ998.2"
-# # fracstep = 0.2
-# # maxfrac = 1.0
+# fracstep = 0.2
+# maxfrac = 1.0
 # # fracrepetitions = 4
 # # algrepetitions = 2
-# infile = "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
+# fracrepetitions = 1
+# algrepetitions = 8
+# infile = "/private7/projects/Combinatorics/Simulations/GraphAssessment/comp141434_c0_seq1.CBPC1_HUMAN.UP0_09.Rep1.Errored.PartiallyUnknown.UniqueProteins.tsv.gz"
 # firstcolpos = 15
 # delim = "\t"
 # idcol = "Protein"
 # datatype = "Proteins"
 # testfraction = 1.0
 # randseed = 1892
+# sortbyreadname = true
 # run_solve_threaded = false
 # sortresults = false
 # algs = [
-#     # "Ascending", "Descending", 
-#     "ILP"
-#     ]
+# 	"Ascending", "Descending",
+# 	# "ILP"
+# ]
 # gcp = false
 # shutdowngcp = false
 
 
 # df, firstcolpos = preparedf!(
-#     infile, delim, datatype, idcol, firstcolpos,
-#     testfraction, randseed
+# 	infile, delim, datatype, idcol, firstcolpos,
+# 	testfraction, randseed, sortbyreadname,
 # )
 # G = indistinguishable_rows(df, idcol; firstcolpos)
 # ArrG = @DArray [G for _ ∈ 1:1]  # move G across processes on a distributed array in order to save memory
+
+
+
+# # having built G, we only need to keep the reads and unique reads/proteins they support
+# # select!(df, idcol)
+# if "Read" ∈ names(df)
+# 	select!(df, idcol, "Read")
+# else
+# 	select!(df, idcol)
+# end
+# GC.gc() # free up memory, just in case
+
+# # define input parameters for pmap
+# # @timeit to "fracrepetitions_inputs" fracrepetitions_inputs = prep_pmap_input(fracstep, maxfrac, df, fracrepetitions)
+# fracrepetitions_inputs = prep_pmap_input(fracstep, maxfrac, df, fracrepetitions)
+
+
+# # fraction, nsamplerows, fracrepetition = fracrepetitions_inputs[1]
+
+# # allsampledrows = [sample(MersenneTwister(randseed), collect(1:size(df, 1)), nsamplerows, replace = false) for _ in 1:10]
+
+# # @assert all(x -> x == allsampledrows[1], allsampledrows)
+
+
+
+# # fraction, nsamplerows, fracrepetition = fracrepetitions_inputs[3]
+
+# # allsampledrows = [sample(MersenneTwister(randseed), collect(1:size(df, 1)), nsamplerows, replace = false) for _ in 1:10]
+
+# # @assert all(x -> x == allsampledrows[1], allsampledrows)
+
+# sampleG, availablereads = get_graph_sample_and_available_reads(G, fraction, nsamplerows, df, idcol)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # fraction = 1.0
 # nrows = size(df, 1)

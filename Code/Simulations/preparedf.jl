@@ -27,7 +27,7 @@ Parse `infile` into a DataFrame to be later used for building a graph of (distin
 """
 function preparedf!(
     infile::String, delim::String, datatype::String, idcol::String, firstcolpos::Int,
-    testfraction::Float64=1.0, randseed=1892
+    testfraction::Float64=1.0, randseed=1892, sortbyreadname::Bool=false
 )
     @info "$(loggingtime())\tpreparedf" infile delim datatype idcol firstcolpos testfraction randseed
 
@@ -72,17 +72,33 @@ function preparedf!(
         rename!(df, "Reads" => "Read")
         df = hcat(select(df, idcol, "Read"), toAAset.(df[:, firstcolpos:end]))
         firstcolpos = 3
-
     else
         throw("datatype must be either `Reads` or `Proteins`")
+    end
+    
+    # sort by read name to make sure that the order of reads is the same in all dfs with the same reads -
+    # this is the case for graph asseement, where we need to compare the same reads in coupled dfs,
+    # where the second df is made with errored and partially-unknown reads from the first df
+    # (without this, the order of reads in the two dfs would be different - according to the order of the unique
+    # proteins in each df, which would be supported by different reads)
+    if sortbyreadname
+        sort!(df, :Read)
     end
 
     # remove uniformative cols 
     # (altough we also apply the function on the idcol it shouldn't matter for the idcol, 
     # if it has more than one unique value)
     informativedf = df[:, map(col -> length(unique(col)) > 1, eachcol(df))]
+    """
+    Check if informativedf has any rows. This is done using the size(informativedf)[1] expression, 
+        which returns the number of rows in informativedf. If this number is zero, indicating 
+        that informativedf is empty, the code assigns the first row of the original DataFrame 
+        df to df. This ensures that df is not completely empty and retains at least one row.
+    """
     if size(informativedf)[1] == 0
         df = df[1, :]
+    else
+        df = informativedf
     end
 
     return df, firstcolpos

@@ -12,6 +12,8 @@ function run_fracrepetition(
     fraction::Float64,
     nsamplerows::Int64,
     fracrepetition::Int64,
+    consistentfracsampling::Bool,
+    seed,
     algrepetitions::Int64,
     run_solve_threaded::Bool,
     sortresults::Bool,
@@ -39,7 +41,12 @@ function run_fracrepetition(
     # sampleG = @timeit to "get_graph_sample" get_graph_sample(G, fraction, nsamplerows, df, idcol)
     # sampleG = get_graph_sample(G, fraction, nsamplerows, df, idcol)
     # while
-    sampleG, availablereads = get_graph_sample_and_available_reads(G, fraction, nsamplerows, df, idcol)
+    
+    if consistentfracsampling
+        sampleG, availablereads = get_graph_sample_and_available_reads(G, fraction, nsamplerows, df, idcol, randseed)
+    else
+        sampleG, availablereads = get_graph_sample_and_available_reads(G, fraction, nsamplerows, df, idcol)
+    end
 
     # sampleG = try
     #     @timeit to "get_graph_sample" get_graph_sample(G, fraction, nsamplerows, df, idcol)
