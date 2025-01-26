@@ -129,12 +129,21 @@ def undirected_sequencing_main(
         alignments_stats_table, sep=alignments_stats_table_sep
     )
 
-    alignments_stats_df = alignments_stats_df.loc[
-        (alignments_stats_df["Samples"] >= min_samples)
-        & (alignments_stats_df["MappedReadsPerSample"] >= min_mapped_reads_per_sample)
-        & (alignments_stats_df["KnownSites"] >= min_known_sites)
-        & (alignments_stats_df["MappedReads"] >= total_mapped_reads)
-    ]
+    # while redundant, as the first filtertation also accounts for cases where min_known_sites is 0,
+    # it allows us to accept an alignments_stats_df which doesn't have a "KnownSites" column to begin with
+    if min_known_sites > 0:
+        alignments_stats_df = alignments_stats_df.loc[
+            (alignments_stats_df["Samples"] >= min_samples)
+            & (alignments_stats_df["MappedReadsPerSample"] >= min_mapped_reads_per_sample)
+            & (alignments_stats_df["KnownSites"] >= min_known_sites)
+            & (alignments_stats_df["MappedReads"] >= total_mapped_reads)
+        ]
+    else:
+        alignments_stats_df = alignments_stats_df.loc[
+            (alignments_stats_df["Samples"] >= min_samples)
+            & (alignments_stats_df["MappedReadsPerSample"] >= min_mapped_reads_per_sample)
+            & (alignments_stats_df["MappedReads"] >= total_mapped_reads)
+        ]
 
     alignments_stats_df = alignments_stats_df.merge(cds_df, how="left")
 

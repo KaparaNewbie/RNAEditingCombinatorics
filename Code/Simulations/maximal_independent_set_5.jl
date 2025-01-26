@@ -380,9 +380,13 @@ function run_sample(
 		#     infile, delim, datatype, idcol, firstcolpos,
 		#     testfraction, randseed
 		# )
+
+		# if consistentfracsampling is true, sort the reads by their names to allow for consistent sampling
+		sortbyreadname = consistentfracsampling
+
 		preparedf!(
 			infile, delim, datatype, idcol, firstcolpos,
-			testfraction, randseed,
+			testfraction, randseed, sortbyreadname,
 		)
 	catch e
 		@warn "$(loggingtime())\tpreparedf! failed for $infile" e
@@ -432,12 +436,26 @@ function run_sample(
 		# @timeit to "fracrepetitions_inputs" fracrepetitions_inputs = prep_pmap_input(fracstep, maxfrac, df, fracrepetitions)
 		fracrepetitions_inputs = prep_pmap_input(fracstep, maxfrac, df, fracrepetitions)
 
+		# define ahead of time the rows to sample for each fraction - 
+		# this is to ensure that the same rows are sampled for each fraction, even across
+		# different cpus and processes
+		nrows = size(df, 1)
+		samplerowsdict = Dict(
+			(fraction, nsamplerows) => sample(MersenneTwister(randseed), collect(1:nrows), nsamplerows, replace = false)
+			for (fraction, nsamplerows, _) in fracrepetitions_inputs
+		)
+
 		# @timeit to "run_fracrepetition" fracrepetitions_results = pmap(
 		fracrepetitions_results = pmap(
 			fracrepetitions_inputs;
 			retry_delays = ExponentialBackOff(n = 3, first_delay = 5, max_delay = 1000),
 		) do (fraction, nsamplerows, fracrepetition)
 			try
+
+				# these exact samplerows will in fact only be used if consistentfracsampling is true,
+				# otherwise nsamplerows will be used to sample other rows
+				samplerows = samplerowsdict[(fraction, nsamplerows)]
+
 				run_fracrepetition(
 					df,
 					idcol,
@@ -446,12 +464,29 @@ function run_sample(
 					nsamplerows,
 					fracrepetition,
 					consistentfracsampling,
-					seed,
+					samplerows,
+					# randseed,
 					algrepetitions,
 					run_solve_threaded,
 					sortresults,
 					algs,
 				)
+
+				# run_fracrepetition(
+				# 	df,
+				# 	idcol,
+				# 	ArrG,
+				# 	fraction,
+				# 	nsamplerows,
+				# 	fracrepetition,
+				# 	consistentfracsampling,
+				# 	samplerows,
+				# 	algrepetitions,
+				# 	run_solve_threaded,
+				# 	sortresults,
+				# 	algs,
+				# 	outdir,
+				# 	samplename)
 			catch e
 				@warn "$(loggingtime())\trun_fracrepetition failed" infile fraction fracrepetition e
 				missing
@@ -499,9 +534,9 @@ main();
 
 
 
-# # postfix_to_remove = ".aligned.sorted.MinRQ998.unique_proteins.csv"
-# # prefix_to_remove = ""
-# # postfix_to_add = ".GRANTHAM1974-100"
+# postfix_to_remove = ".UniqueProteins.tsv.gz"
+# prefix_to_remove = ""
+# postfix_to_add = ""
 # # outdir = "D.pealeii/MpileupAndTranscripts/RQ998.2"
 # fracstep = 0.2
 # maxfrac = 1.0
@@ -509,7 +544,11 @@ main();
 # # algrepetitions = 2
 # fracrepetitions = 1
 # algrepetitions = 8
-# infile = "/private7/projects/Combinatorics/Simulations/GraphAssessment/comp141434_c0_seq1.CBPC1_HUMAN.UP0_09.Rep1.Errored.PartiallyUnknown.UniqueProteins.tsv.gz"
+# # infile = "/private7/projects/Combinatorics/Simulations/GraphAssessment/comp141434_c0_seq1.CBPC1_HUMAN.UP0_09.Rep1.Errored.PartiallyUnknown.UniqueProteins.tsv.gz"
+# infile = "/private7/projects/Combinatorics/Simulations/GraphAssessment/comp140826_c0_seq1.VPS8_HUMAN.UP0_09.Rep10.Complete.UniqueProteins.tsv.gz"
+# samplename = "comp140826_c0_seq1.VPS8_HUMAN.UP0_09.Rep10.Complete"
+# # infile = "/private7/projects/Combinatorics/Simulations/GraphAssessment/comp140826_c0_seq1.VPS8_HUMAN.UP0_09.Rep10.Errored.PartiallyUnknown.UniqueProteins.tsv.gz"
+# outdir = "/private7/projects/Combinatorics/Simulations/GraphAssessment/SameFracTest"
 # firstcolpos = 15
 # delim = "\t"
 # idcol = "Protein"
@@ -525,6 +564,7 @@ main();
 # ]
 # gcp = false
 # shutdowngcp = false
+# consistentfracsampling = true
 
 
 # df, firstcolpos = preparedf!(
@@ -533,7 +573,6 @@ main();
 # )
 # G = indistinguishable_rows(df, idcol; firstcolpos)
 # ArrG = @DArray [G for _ ∈ 1:1]  # move G across processes on a distributed array in order to save memory
-
 
 
 # # having built G, we only need to keep the reads and unique reads/proteins they support
@@ -550,7 +589,7 @@ main();
 # fracrepetitions_inputs = prep_pmap_input(fracstep, maxfrac, df, fracrepetitions)
 
 
-# # fraction, nsamplerows, fracrepetition = fracrepetitions_inputs[1]
+
 
 # # allsampledrows = [sample(MersenneTwister(randseed), collect(1:size(df, 1)), nsamplerows, replace = false) for _ in 1:10]
 
@@ -564,7 +603,132 @@ main();
 
 # # @assert all(x -> x == allsampledrows[1], allsampledrows)
 
-# sampleG, availablereads = get_graph_sample_and_available_reads(G, fraction, nsamplerows, df, idcol)
+
+
+# nrows = size(df, 1)
+# samplerowsdict = Dict(
+# 	(fraction, nsamplerows) => sample(MersenneTwister(randseed), collect(1:nrows), nsamplerows, replace = false)
+# 	for (fraction, nsamplerows, _) in fracrepetitions_inputs
+# )
+
+
+
+# # manually running a single run_fracrepetition
+
+# fraction, nsamplerows, fracrepetition = fracrepetitions_inputs[1]
+
+# samplerows = samplerowsdict[(fraction, nsamplerows)]
+
+# results = run_fracrepetition(
+# 	df,
+# 	idcol,
+# 	ArrG,
+# 	fraction,
+# 	nsamplerows,
+# 	fracrepetition,
+# 	consistentfracsampling,
+# 	samplerows,
+# 	algrepetitions,
+# 	run_solve_threaded,
+# 	sortresults,
+# 	algs,
+# 	outdir,
+# 	samplename,
+# )
+
+
+
+# # running all iterations of run_fracrepetition
+
+
+# fracrepetitions_results = pmap(
+# 	fracrepetitions_inputs;
+# 	retry_delays = ExponentialBackOff(n = 3, first_delay = 5, max_delay = 1000),
+# ) do (fraction, nsamplerows, fracrepetition)
+# 	try
+# 		# run_fracrepetition(
+# 		# 	df,
+# 		# 	idcol,
+# 		# 	ArrG,
+# 		# 	fraction,
+# 		# 	nsamplerows,
+# 		# 	fracrepetition,
+# 		# 	consistentfracsampling,
+# 		# 	randseed,
+# 		# 	algrepetitions,
+# 		# 	run_solve_threaded,
+# 		# 	sortresults,
+# 		# 	algs,
+# 		# )
+
+# 		samplerows = samplerowsdict[(fraction, nsamplerows)]
+
+# 		run_fracrepetition(
+# 			df,
+# 			idcol,
+# 			ArrG,
+# 			fraction,
+# 			nsamplerows,
+# 			fracrepetition,
+# 			consistentfracsampling,
+# 			samplerows,
+# 			algrepetitions,
+# 			run_solve_threaded,
+# 			sortresults,
+# 			algs,
+# 			outdir,
+# 			samplename,)
+# 	catch e
+# 		@warn "$(loggingtime())\trun_fracrepetition failed" infile fraction fracrepetition e
+# 		missing
+# 	end
+# end
+
+
+
+
+
+
+
+
+
+
+
+
+# fraction, nsamplerows, fracrepetition = fracrepetitions_inputs[1]
+
+# samplerows = samplerowsdict[(fraction, nsamplerows)]
+
+# if consistentfracsampling
+# 	sampleG, availablereads = get_graph_sample_and_available_reads(G, fraction, samplerows, df, idcol)
+# else
+# 	sampleG, availablereads = get_graph_sample_and_available_reads(G, fraction, nsamplerows, df, idcol)
+# end
+
+
+# typeof(availablereads)
+
+# infiles = [infile]
+# sort!(infiles, by = (x -> filesize(x)))
+# if prefix_to_remove != "" && postfix_to_remove != ""
+# 	samplesnames = map(x -> replace(splitdir(x)[2], prefix_to_remove => "", postfix_to_remove => ""), infiles)
+# elseif prefix_to_remove != ""
+# 	samplesnames = map(x -> replace(splitdir(x)[2], prefix_to_remove => ""), infiles)
+# elseif postfix_to_remove != ""
+# 	samplesnames = map(x -> replace(splitdir(x)[2], postfix_to_remove => ""), infiles)
+# else
+# 	samplesnames = map(x -> splitdir(x)[2], infiles)
+# end
+# samplename = samplesnames[1]
+
+# sampledreadsoutfile = joinpath(abspath(outdir), "$samplename.SampledReads.$fraction.$(postfix_to_add)csv")
+# CSV.write(sampledreadsoutfile, DataFrame(:Read => availablereads))
+
+
+
+
+
+
 
 
 

@@ -252,8 +252,12 @@ def add_pacbio_multisample_se_reads_in_positions(edited_positions_df, strand, gr
         # check all reads got values for pos
         mapped_pos_dist = {len(bases) for bases in positions_per_read.values()}
         if len(mapped_pos_dist) != 1:
+            # raise Exception(
+            #     f"Problem at line {x} in {group}'s positions_df: not all reads are mapped."
+            # )
+            chrom = edited_positions_df["Chrom"].iloc[0]
             raise Exception(
-                f"Problem at line {x} in {group}'s positions_df: not all reads are mapped."
+                f"Problem at line {x} in {chrom}'s ({group}) positions_df: not all reads are mapped."
             )
 
     return positions_per_read, sample_per_read

@@ -100,6 +100,32 @@ docker build -t getting-started .
 ```
 
 
+## umicollapse
+
+```bash
+cd Code/umicollapse
+
+docker build -t umicollapse:latest .
+
+
+mkdir test
+cd test
+curl -O -L https://github.com/CGATOxford/UMI-tools/releases/download/1.0.0/example.bam
+samtools index example.bam
+cd ..
+
+docker run --rm -v $(pwd):/data umicollapse -i /data/example.bam -o /data/dedup_example.bam
+
+./umicollapse bam -i test/example.bam -o test/dedup_example.bam
+
+
+
+conda create --name umicollapse umicollapse
+conda activate umicollapse
+
+umicollapse bam -i example.bam -o dedup_example.bam
+```
+
 
 # Demo
 
@@ -1226,6 +1252,67 @@ Code/Simulations/maximal_independent_set_5.jl \
 2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.BQ30.AHL.BHAfterNoise.3/DistinctProteins.regular.log
 ```
 
+
+## O.vul single-cell data
+
+```bash
+mkdir 
+
+### total_mapped_reads 50
+
+#### Pileup
+
+```bash
+mkdir -p O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50
+
+nohup python Code/pileup_with_subparsers.py \
+--transcriptome O.vulgaris/Annotations/orfs_oct.fa \
+--known_editing_sites O.vulgaris/Annotations/O.vul.EditingSites.bed \
+--exclude_flags 2304 \
+--parity SE \
+--min_bq 30 \
+--out_dir O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50 \
+--processes 20 \
+--threads 5 \
+--gz_compression \
+undirected_sequencing_data \
+--alignments_stats_table /private10/Projects/David/Kobi_octupus/splitSites/Whole_collapsed_sample.regatedByChromBySampleSummary.tsv \
+--total_mapped_reads 50 \
+--alternative_hypothesis larger \
+--final_editing_scheme "BH after noise thresholding" \
+--disregard_alt_base_freq_1 \
+--main_by_chrom_dir /private10/Projects/David/Kobi_octupus/splitSites/Whole_collapsed_sample \
+--interfix_start ".comp" \
+--cds_regions O.vulgaris/Annotations/orfs_oct.bed \
+--min_mapped_reads_per_position 0 \
+> O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50/pileup.19.1.25.out & 
+
+
+# nohup python Code/pileup_with_subparsers.py \
+# --transcriptome  /private10/Projects/Maor/combinatorial_analysis/collab_with_kobi/Annotations/GCF_000001405.40_GRCh38.p14_rna.fna \
+# --known_editing_sites /private10/Projects/Maor/combinatorial_analysis/collab_with_kobi/Annotations/3genes_sites.bed \
+# --include_flags 3 \
+# --exclude_flags 2304 \
+# --min_bq 30 \
+# --parity PE \
+# --out_dir /private10/Projects/Maor/combinatorial_analysis/collab_with_kobi/MpileupAndTranscripts \
+# --processes 20 \
+# --threads 5 \
+# --gz_compression \
+# undirected_sequencing_data \
+# --alignments_stats_table /private10/Projects/Maor/combinatorial_analysis/collab_with_kobi/Alignment/AggregatedByChromBySampleSummary.tsv \
+# --total_mapped_reads 50 \
+# --alternative_hypothesis larger \
+# --final_editing_scheme "BH after noise thresholding" \
+# --disregard_alt_base_freq_1 \
+# --main_by_chrom_dir /private10/Projects/Maor/combinatorial_analysis/collab_with_kobi/Alignment/ByChrom \
+# --interfix_start ".sorted.aligned.filtered" \
+# --cds_regions /private10/Projects/Maor/combinatorial_analysis/collab_with_kobi/Annotations/HSPA1L_and3genes_coding_regions_from_transcript.bed \
+# --min_mapped_reads_per_position 0 \
+```
+
+
+
 # Simulations
 
 ## Unfinished editing isoforms
@@ -1324,8 +1411,91 @@ Code/Simulations/mis_5_assessment.jl \
 ```
 
 
+Doing the distinct proteins analysis but with a single sampling per fraction.
+
+```bash
+tmux a -t comb18
+
+mkdir Simulations/GraphAssessment/SameFrac
+
+# sed 's|GraphAssessment|GraphAssessment/SameFrac|g' Simulations/GraphAssessment/FalsePositivesOutFiles.fofn
 
 
+INFILES=$(echo Simulations/GraphAssessment/*.UniqueProteins.tsv.gz)
+
+julia \
+--project=. \
+--threads 40 --proc 6 \
+Code/Simulations/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .UniqueProteins.tsv.gz \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--outdir Simulations/GraphAssessment/SameFrac \
+--fracstep 0.2 \
+--fracrepetitions 1 \
+--consistentfracsampling \
+--algrepetitions 8 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee Simulations/GraphAssessment/SameFrac/DistinctProteins.regular.21.1.25.log
+```
+* alu 13
+* 21.1.2024
+* 10:42
+
+
+
+
+Not sure I got it right. Trying to print the names of sampled reads from 2/3 samples of corresponding files:
+
+```bash
+
+tmux a -t comb18
+
+mkdir Simulations/GraphAssessment/SameFracTest
+
+x=1
+complete_files=$(echo Simulations/GraphAssessment/*Complete.UniqueProteins.tsv.gz | cut -d' ' -f1-$x)
+errored_files=$(echo Simulations/GraphAssessment/*Errored.PartiallyUnknown.UniqueProteins.tsv.gz | cut -d' ' -f1-$x)
+INFILES="${complete_files} ${errored_files}"
+echo $INFILES
+
+
+julia \
+--project=. \
+--threads 40 --proc 6 \
+Code/Simulations/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .UniqueProteins.tsv.gz \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--outdir Simulations/GraphAssessment/SameFracTest \
+--fracstep 0.2 \
+--fracrepetitions 1 \
+--consistentfracsampling \
+--algrepetitions 8 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee Simulations/GraphAssessment/SameFracTest/DistinctProteins.regular.20.1.25.log
+```
+* alu 18
+* 20.1.2024
+* 11:22
+
+
+```bash
+fractions=("0.2" "0.4" "0.6" "0.8" "1.0")
+for fraction in "${fractions[@]}"; do
+    f1=/private7/projects/Combinatorics/Simulations/GraphAssessment/SameFracTest/comp140826_c0_seq1.VPS8_HUMAN.UP0_09.Rep10.Errored.PartiallyUnknown.SampledReads.$fraction.csv
+    f2=/private7/projects/Combinatorics/Simulations/GraphAssessment/SameFracTest/comp140826_c0_seq1.VPS8_HUMAN.UP0_09.Rep10.Complete.SampledReads.$fraction.csv
+    # diff --brief <(tail -n +2 $f1 | sort) <(tail -n +2 $f2 | sort)
+    diff --brief $f1 $f2
+done
+
+```
 
 
 # Notebooks

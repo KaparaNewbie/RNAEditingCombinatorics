@@ -72,23 +72,6 @@ function parsecmd()
 end
 
 
-# complete_infile = "/private7/projects/Combinatorics/Simulations/GraphAssessment/comp141434_c0_seq1.CBPC1_HUMAN.UP0_09.Rep1.Complete.UniqueProteins.tsv.gz"
-# errored_na_infile = "/private7/projects/Combinatorics/Simulations/GraphAssessment/comp141434_c0_seq1.CBPC1_HUMAN.UP0_09.Rep1.Errored.PartiallyUnknown.UniqueProteins.tsv.gz"
-# out_file = "/private7/projects/Combinatorics/Simulations/GraphAssessment/comp141434_c0_seq1.CBPC1_HUMAN.UP0_09.Rep1.FalsePositives.tsv.gz"
-
-# delim = "\t"
-# # datatype = "Proteins"
-# idcol = "Protein"
-# firstcolpos = 15
-# testfraction = 0.1 # for testing purposes only!
-# # testfraction = 1.0
-# # substitutionmatrix = nothing
-# # aagroups = nothing
-
-
-# # randseed = 1892
-# complete_protein_suffix = "-C"
-# errored_na_protein_suffix = "-D"
 
 
 function preparecoupleddf!(
@@ -305,6 +288,86 @@ end
 
 
 main()
+
+
+
+complete_infile = "/private7/projects/Combinatorics/Simulations/GraphAssessment/comp141434_c0_seq1.CBPC1_HUMAN.UP0_09.Rep1.Complete.UniqueProteins.tsv.gz"
+errored_na_infile = "/private7/projects/Combinatorics/Simulations/GraphAssessment/comp141434_c0_seq1.CBPC1_HUMAN.UP0_09.Rep1.Errored.PartiallyUnknown.UniqueProteins.tsv.gz"
+# out_file = "/private7/projects/Combinatorics/Simulations/GraphAssessment/comp141434_c0_seq1.CBPC1_HUMAN.UP0_09.Rep1.FalsePositives.tsv.gz"
+delim = "\t"
+# datatype = "Proteins"
+idcol = "Protein"
+firstcolpos = 15
+# testfraction = 0.1 # for testing purposes only!
+testfraction = 1.0
+randseed = 1892
+complete_protein_suffix = "-C"
+errored_na_protein_suffix = "-D"
+
+
+
+coupleddf, firstcolpos = preparecoupleddf!(
+	complete_infile, errored_na_infile, delim, firstcolpos,
+	testfraction, idcol, complete_protein_suffix, errored_na_protein_suffix, randseed,
+)
+
+
+completedf = subset(coupleddf, :Protein => p -> occursin.(complete_protein_suffix, p))
+erroreddf = subset(coupleddf, :Protein => p -> occursin.(errored_na_protein_suffix, p))
+
+sort!(completedf, :Read)
+sort!(erroreddf, :Read)
+
+all(completedf[!, :Read] .== erroreddf[!, :Read])
+
+G_coupled = try
+	coupled_indistinguishable_rows(coupleddf, idcol, firstcolpos)
+catch e
+	@warn "$(loggingtime())\tcoupled_indistinguishable_rows failed for $complete_infile and $errored_na_infile" e
+	return
+end
+
+G_D = Dict(k => v for (k, v) in G_coupled if occursin(errored_na_protein_suffix, k))
+
+G_FP = Dict()
+# for each damaged protein
+for k in keys(G_D)
+	vs = []
+	# add its indistinguishable complete proteins to the FP dict
+	for v in values(G_D[k])
+		if occursin(complete_protein_suffix, v)
+			# remove the suffix from the complete protein
+			v = removesuffix(v, complete_protein_suffix)
+			push!(vs, v)
+		end
+	end
+	# remove the suffix from the damaged protein
+	k = removesuffix(k, errored_na_protein_suffix)
+	G_FP[k] = vs
+end
+
+prots = ["10Q", "7F4", "11o", "1vE", "1gc", "3tr", "1vT"]
+prots_w_suffix = ["10Q-D", "7F4-D", "11o-D", "1vE-C", "1gc-C", "3tr-C", "1vT-C"]
+
+G_D[prots_w_suffix[1]]
+G_FP[prots[1]]
+
+
+qccoupleddf = coupleddf[in.(coupleddf.Protein, Ref(prots_w_suffix)), :]
+qccoupleddf = unique(qccoupleddf, Not(:Read))
+
+ks = [k for k in keys(G_FP)]
+n_neighbours = length.(values(G_FP))
+vs = [custom_reduce(v) for v in values(G_FP)]
+
+df = DataFrame(
+	"Errored+PartiallyUnknownProtein" => ks,
+	"NumOfIndistinguishableCompleteProteins" => n_neighbours,
+	"IndistinguishableCompleteProteins" => vs,
+)
+sort!(df, "Errored+PartiallyUnknownProtein")
+
+
 
 
 # coupleddf, firstcolpos = preparecoupleddf!(
