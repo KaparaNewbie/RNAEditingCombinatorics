@@ -85,21 +85,44 @@ function preparedf!(
         sort!(df, :Read)
     end
 
-    # remove uniformative cols 
-    # (altough we also apply the function on the idcol it shouldn't matter for the idcol, 
-    # if it has more than one unique value)
-    informativedf = df[:, map(col -> length(unique(col)) > 1, eachcol(df))]
+    # # remove uniformative cols 
+    # # (altough we also apply the function on the idcol it shouldn't matter for the idcol, 
+    # # if it has more than one unique value)
+    # informativedf = df[:, map(col -> length(unique(col)) > 1, eachcol(df))]
+
+    # """
+    # Check if informativedf has any rows. This is done using the size(informativedf)[1] expression, 
+    #     which returns the number of rows in informativedf. If this number is zero, indicating 
+    #     that informativedf is empty, the code assigns the first row of the original DataFrame 
+    #     df to df. This ensures that df is not completely empty and retains at least one row.
+    # """
+    # if size(informativedf)[1] == 0
+    #     df = df[1, :]
+    # else
+    #     df = informativedf
+    # end
+
+
+    
+    
+
+
     """
     Check if informativedf has any rows. This is done using the size(informativedf)[1] expression, 
-        which returns the number of rows in informativedf. If this number is zero, indicating 
-        that informativedf is empty, the code assigns the first row of the original DataFrame 
-        df to df. This ensures that df is not completely empty and retains at least one row.
+    which returns the number of rows in informativedf. If this number is zero, indicating 
+    that informativedf is empty, the code assigns the first row of the original DataFrame 
+    df to df. This ensures that df is not completely empty and retains at least one row.
     """
-    if size(informativedf)[1] == 0
+    aadf = df[:, firstcolpos:end]
+    informativedaaf = aadf[:, map(col -> length(unique(col)) > 1, eachcol(aadf))]
+
+    # no AA columns with more than one unique value per row
+    if size(informativedaaf)[1] == 0
         df = df[1, :]
     else
-        df = informativedf
+        df = hcat(df[:, 1:firstcolpos-1], informativedaaf)
     end
+
 
     return df, firstcolpos
 end

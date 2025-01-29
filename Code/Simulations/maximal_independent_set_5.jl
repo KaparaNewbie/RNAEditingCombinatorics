@@ -533,6 +533,164 @@ main();
 
 
 
+# postfix_to_remove = ".UniqueProteins.tsv.gz"
+# prefix_to_remove = ""
+# postfix_to_add = ""
+# # outdir = "D.pealeii/MpileupAndTranscripts/RQ998.2"
+# fracstep = 0.2
+# maxfrac = 1.0
+# fracrepetitions = 4
+# algrepetitions = 2
+# # fracrepetitions = 1
+# # algrepetitions = 8
+# infile = "O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50/ProteinsFiles/comp178742_c2_seq1.unique_proteins.csv.gz"
+# samplename = "comp178742_c2_seq1"
+# # infile = "/private7/projects/Combinatorics/Simulations/GraphAssessment/comp140826_c0_seq1.VPS8_HUMAN.UP0_09.Rep10.Errored.PartiallyUnknown.UniqueProteins.tsv.gz"
+# # outdir = "/private7/projects/Combinatorics/Simulations/GraphAssessment/SameFracTest"
+# firstcolpos = 16
+# delim = "\t"
+# idcol = "Protein"
+# datatype = "Proteins"
+# testfraction = 1.0
+# randseed = 1892
+# sortbyreadname = false
+# run_solve_threaded = false
+# sortresults = false
+# algs = [
+# 	"Ascending", "Descending",
+# 	# "ILP"
+# ]
+# gcp = false
+# shutdowngcp = false
+# # consistentfracsampling = true
+
+
+# df, firstcolpos = preparedf!(
+# 	infile, delim, datatype, idcol, firstcolpos,
+# 	testfraction, randseed, sortbyreadname,
+# )
+# G = indistinguishable_rows(df, idcol; firstcolpos)
+# ArrG = @DArray [G for _ ∈ 1:1]  # move G across processes on a distributed array in order to save memory
+
+
+# # having built G, we only need to keep the reads and unique reads/proteins they support
+# # select!(df, idcol)
+# if "Read" ∈ names(df)
+# 	select!(df, idcol, "Read")
+# else
+# 	select!(df, idcol)
+# end
+# GC.gc() # free up memory, just in case
+
+# # define input parameters for pmap
+# # @timeit to "fracrepetitions_inputs" fracrepetitions_inputs = prep_pmap_input(fracstep, maxfrac, df, fracrepetitions)
+# fracrepetitions_inputs = prep_pmap_input(fracstep, maxfrac, df, fracrepetitions)
+
+
+
+
+# allsampledrows = [sample(MersenneTwister(randseed), collect(1:size(df, 1)), nsamplerows, replace = false) for _ in 1:10]
+
+# @assert all(x -> x == allsampledrows[1], allsampledrows)
+
+
+
+# fraction, nsamplerows, fracrepetition = fracrepetitions_inputs[3]
+
+# allsampledrows = [sample(MersenneTwister(randseed), collect(1:size(df, 1)), nsamplerows, replace = false) for _ in 1:10]
+
+# @assert all(x -> x == allsampledrows[1], allsampledrows)
+
+
+
+# nrows = size(df, 1)
+# samplerowsdict = Dict(
+# 	(fraction, nsamplerows) => sample(MersenneTwister(randseed), collect(1:nrows), nsamplerows, replace = false)
+# 	for (fraction, nsamplerows, _) in fracrepetitions_inputs
+# )
+
+
+
+# # manually running a single run_fracrepetition
+
+# fraction, nsamplerows, fracrepetition = fracrepetitions_inputs[1]
+
+# samplerows = samplerowsdict[(fraction, nsamplerows)]
+
+# results = run_fracrepetition(
+# 	df,
+# 	idcol,
+# 	ArrG,
+# 	fraction,
+# 	nsamplerows,
+# 	fracrepetition,
+# 	consistentfracsampling,
+# 	samplerows,
+# 	algrepetitions,
+# 	run_solve_threaded,
+# 	sortresults,
+# 	algs,
+# 	outdir,
+# 	samplename,
+# )
+
+
+
+# # running all iterations of run_fracrepetition
+
+
+# fracrepetitions_results = pmap(
+# 	fracrepetitions_inputs;
+# 	retry_delays = ExponentialBackOff(n = 3, first_delay = 5, max_delay = 1000),
+# ) do (fraction, nsamplerows, fracrepetition)
+# 	try
+# 		# run_fracrepetition(
+# 		# 	df,
+# 		# 	idcol,
+# 		# 	ArrG,
+# 		# 	fraction,
+# 		# 	nsamplerows,
+# 		# 	fracrepetition,
+# 		# 	consistentfracsampling,
+# 		# 	randseed,
+# 		# 	algrepetitions,
+# 		# 	run_solve_threaded,
+# 		# 	sortresults,
+# 		# 	algs,
+# 		# )
+
+# 		samplerows = samplerowsdict[(fraction, nsamplerows)]
+
+# 		run_fracrepetition(
+# 			df,
+# 			idcol,
+# 			ArrG,
+# 			fraction,
+# 			nsamplerows,
+# 			fracrepetition,
+# 			consistentfracsampling,
+# 			samplerows,
+# 			algrepetitions,
+# 			run_solve_threaded,
+# 			sortresults,
+# 			algs,
+# 			outdir,
+# 			samplename)
+# 	catch e
+# 		@warn "$(loggingtime())\trun_fracrepetition failed" infile fraction fracrepetition e
+# 		missing
+# 	end
+# end
+
+
+
+
+
+
+
+
+
+
 
 # postfix_to_remove = ".UniqueProteins.tsv.gz"
 # prefix_to_remove = ""
