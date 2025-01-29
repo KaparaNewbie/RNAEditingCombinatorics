@@ -118,7 +118,8 @@ function preparedf!(
 
     # no AA columns with more than one unique value per row
     if size(informativedaaf)[1] == 0
-        df = df[1, :]
+        # df = df[1, :]
+        df = df[[1], :]
     else
         df = hcat(df[:, 1:firstcolpos-1], informativedaaf)
     end

@@ -331,7 +331,14 @@ function prep_pmap_input(fracstep, maxfrac, df, fracrepetitions)
 	fractions = collect(fracstep:fracstep:maxfrac) ∪ maxfrac
 	# define nsamplerows for each fraction
 	nrows = size(df, 1)
-	fraction_nsamplerows = [convert(Int, round(fraction * nrows)) for fraction ∈ fractions]
+
+	# fraction_nsamplerows = [convert(Int, round(fraction * nrows)) for fraction ∈ fractions]
+
+	# take at least 1 sampled row for each fraction
+	fraction_nsamplerows = [
+		max(1, convert(Int, round(fraction * nrows)))
+		for fraction ∈ fractions
+	]
 
 	fracrepetitions_inputs = [
 		interleaved_fold(
@@ -543,8 +550,14 @@ main();
 # algrepetitions = 2
 # # fracrepetitions = 1
 # # algrepetitions = 8
-# infile = "O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50/ProteinsFiles/comp178742_c2_seq1.unique_proteins.csv.gz"
-# samplename = "comp178742_c2_seq1"
+
+# # infile = "O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50/ProteinsFiles/comp178742_c2_seq1.unique_proteins.csv.gz"
+# # samplename = "comp178742_c2_seq1"
+
+# infile = "O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50/ProteinsFiles/comp100843_c0_seq1.unique_proteins.csv.gz"
+# samplename = "comp100843_c0_seq1"
+
+
 # # infile = "/private7/projects/Combinatorics/Simulations/GraphAssessment/comp140826_c0_seq1.VPS8_HUMAN.UP0_09.Rep10.Errored.PartiallyUnknown.UniqueProteins.tsv.gz"
 # # outdir = "/private7/projects/Combinatorics/Simulations/GraphAssessment/SameFracTest"
 # firstcolpos = 16
@@ -554,6 +567,7 @@ main();
 # testfraction = 1.0
 # randseed = 1892
 # sortbyreadname = false
+# consistentfracsampling = false
 # run_solve_threaded = false
 # sortresults = false
 # algs = [
@@ -562,13 +576,14 @@ main();
 # ]
 # gcp = false
 # shutdowngcp = false
-# # consistentfracsampling = true
+
 
 
 # df, firstcolpos = preparedf!(
 # 	infile, delim, datatype, idcol, firstcolpos,
 # 	testfraction, randseed, sortbyreadname,
 # )
+
 # G = indistinguishable_rows(df, idcol; firstcolpos)
 # ArrG = @DArray [G for _ ∈ 1:1]  # move G across processes on a distributed array in order to save memory
 
@@ -583,24 +598,7 @@ main();
 # GC.gc() # free up memory, just in case
 
 # # define input parameters for pmap
-# # @timeit to "fracrepetitions_inputs" fracrepetitions_inputs = prep_pmap_input(fracstep, maxfrac, df, fracrepetitions)
 # fracrepetitions_inputs = prep_pmap_input(fracstep, maxfrac, df, fracrepetitions)
-
-
-
-
-# allsampledrows = [sample(MersenneTwister(randseed), collect(1:size(df, 1)), nsamplerows, replace = false) for _ in 1:10]
-
-# @assert all(x -> x == allsampledrows[1], allsampledrows)
-
-
-
-# fraction, nsamplerows, fracrepetition = fracrepetitions_inputs[3]
-
-# allsampledrows = [sample(MersenneTwister(randseed), collect(1:size(df, 1)), nsamplerows, replace = false) for _ in 1:10]
-
-# @assert all(x -> x == allsampledrows[1], allsampledrows)
-
 
 
 # nrows = size(df, 1)
@@ -617,7 +615,7 @@ main();
 
 # samplerows = samplerowsdict[(fraction, nsamplerows)]
 
-# results = run_fracrepetition(
+# fracrepetitions_result = run_fracrepetition(
 # 	df,
 # 	idcol,
 # 	ArrG,
@@ -630,9 +628,16 @@ main();
 # 	run_solve_threaded,
 # 	sortresults,
 # 	algs,
-# 	outdir,
-# 	samplename,
 # )
+
+
+
+
+
+
+
+
+
 
 
 
