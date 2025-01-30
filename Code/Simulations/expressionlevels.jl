@@ -312,7 +312,7 @@ function prepare_allprotsdf!(allprotsfile, delim, innerdelim, truestrings, false
     # allprotsdf = DataFrame(CSV.File(allprotsfile; delim, truestrings, falsestrings))
     # allprotsdf = hcat(allprotsdf[:, begin:firstcolpos-1], toAAset.(allprotsdf[:, firstcolpos:end], innerdelim))
 
-    df1 = DataFrame(CSV.File(allprotsfile, delim=delim, select=collect(1:firstcolpos-1), types=Dict("Protein" => String)))
+    df1 = DataFrame(CSV.File(allprotsfile, delim=delim, select=collect(1:firstcolpos-1), types=Dict("Protein" => String, "Reads" => String)))
     df1[!, "Protein"] = InlineString.(df1[!, :Protein])
     # make sure columns of AAs containing only Ts aren't parsed as boolean columns
     df2 = DataFrame(CSV.File(allprotsfile, delim=delim, drop=collect(1:firstcolpos-1), types=String))
@@ -485,6 +485,15 @@ function one_solution_additional_assignment_considering_available_reads(distinct
         baseallprotsdf[:, "NumOfReads"] .= length.(availablereadsperprotein)
         baseallprotsdf = filter("NumOfReads" => x -> x > 0, baseallprotsdf)
     end
+
+    # ["a1", "a2", "a3",  "b", "c"], Protein = ["A", "A", "A", "B", "C"]
+
+    # availablereads = ["a1", "a3",  "b",]
+    # allreadsperprotein = [["a1", "a2", "a3"],  ["b"], ["c"]]
+    # availablereadsperprotein = [
+    #         [read for read ∈ reads if read ∈ availablereads]
+    #         for reads ∈ allreadsperprotein
+    #     ]
 
     prots_in_solution = solutionrow["UniqueSamples"]
 
@@ -773,17 +782,26 @@ end
 
 
 
-# distinctfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.DistinctUniqueProteins.Fraction0_1.11.05.2023-17:03:49.csv"
+# # distinctfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.DistinctUniqueProteins.Fraction0_1.11.05.2023-17:03:49.csv"
+# distinctfile = "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50/DistinctProteins/comp73852_c0_seq1.DistinctUniqueProteins.29.01.2025-14:49:19.csv"
 # delim = "\t"
 # innerdelim = ","
 # truestrings = ["TRUE", "True", "true"]
 # falsestrings = ["FALSE", "False", "false"]
-# allprotsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
-# firstcolpos = 15
-# fractions = [0.1]
+# # allprotsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
+# allprotsfile = "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50/ProteinsFiles/comp73852_c0_seq1.unique_proteins.csv.gz"
+# firstcolpos = 16
+# # fractions = [0.1]
 # algs = ["Ascending", "Descending"]
 # onlymaxdistinct = false
 # maxmainthreads = 20
+# fractions = [0.2, 0.4, 0.6, 0.8, 1.0]
+
+# substitutionmatrix = nothing
+# aagroups = nothing
+# similarityscorecutoff = 0
+# similarityvalidator = :(>=)
+
 
 # distinctdf = prepare_distinctdf(
 #     distinctfile, delim, innerdelim, truestrings, falsestrings
@@ -795,36 +813,96 @@ end
 
 # # the possible amino acids each protein has in each position
 # M = Matrix(allprotsdf[:, firstcolpos:end])
-
 # # the distances between any two proteins according to `M`
-# Δ = distances(M)
+# Δ = begin
+#     if substitutionmatrix !== nothing
+#         distances(M, substitutionmatrix, similarityscorecutoff, similarityvalidator)
+#     elseif aagroups !== nothing
+#         distances(M, aagroups)
+#     else
+#         distances(M)
+#     end
+# end
 
 # # considering only desired solutions (rows' indices)
 # solutions = choosesolutions(distinctdf, fractions, algs, onlymaxdistinct)
 
-# # allsubsolutions = collect(Iterators.partition(solutions, maxmainthreads))
+# # # allsubsolutions = collect(Iterators.partition(solutions, maxmainthreads))
 
 # minmainthreads = minimum([Int(Threads.nthreads() / 5), Int(length(solutions) / 4)])
 # allsubsolutions = collect(Iterators.partition(solutions, minmainthreads))
 
-# allprotsdf[:, firstcolpos-4:firstcolpos-1]
-# @assert all(length.(allprotsdf[!, "AdditionalSupportingReadsIDs"]) .== [0 for _ ∈ 1:size(allprotsdf, 1)])
-# @assert all(length.(allprotsdf[!, "AdditionalSupportingProteinsIDs"]) .== [0 for _ ∈ 1:size(allprotsdf, 1)])
+# # allprotsdf[:, firstcolpos-4:firstcolpos-1]
+# # @assert all(length.(allprotsdf[!, "AdditionalSupportingReadsIDs"]) .== [0 for _ ∈ 1:size(allprotsdf, 1)])
+# # @assert all(length.(allprotsdf[!, "AdditionalSupportingProteinsIDs"]) .== [0 for _ ∈ 1:size(allprotsdf, 1)])
 
-# # results_1_4 = additional_assignments(distinctdf, allprotsdf, firstcolpos, Δ, allsubsolutions[1])
+# # # results_1_4 = additional_assignments(distinctdf, allprotsdf, firstcolpos, Δ, allsubsolutions[1])
 
-# # results = [
-# #     additional_assignments(distinctdf, allprotsdf, firstcolpos, Δ, subsolutions)
-# #     for subsolutions ∈ allsubsolutions
-# # ]
+# # # results = [
+# # #     additional_assignments(distinctdf, allprotsdf, firstcolpos, Δ, subsolutions)
+# # #     for subsolutions ∈ allsubsolutions
+# # # ]
 
+# solution = 1
+
+
+# solutionrow = distinctdf[solution, :]
+
+# baseallprotsdf = deepcopy(allprotsdf[:, begin:firstcolpos-1])
+
+# # if "AvailableReads" ∈ names(solutionrow) && solutionrow["Fraction"] < 1.0
+# if "AvailableReads" ∈ names(solutionrow)
+#     availablereads = solutionrow["AvailableReads"]
+#     allreadsperprotein = baseallprotsdf[!, "Reads"]
+#     availablereadsperprotein = [
+#         [read for read ∈ reads if read ∈ availablereads]
+#         for reads ∈ allreadsperprotein
+#     ]
+#     baseallprotsdf[:, "Reads"] .= availablereadsperprotein
+#     baseallprotsdf[:, "NumOfReads"] .= length.(availablereadsperprotein)
+#     baseallprotsdf = filter("NumOfReads" => x -> x > 0, baseallprotsdf)
+# end
+
+
+
+
+
+# one_result = one_solution_additional_assignment_considering_available_reads(distinctdf, allprotsdf, firstcolpos, Δ, solution)
 
 # results = tcollect(
 #     additional_assignments(distinctdf, allprotsdf, firstcolpos, Δ, subsolutions)
 #     for subsolutions ∈ allsubsolutions
 # )
-# # finalresults = vcat(Iterators.flatten(results)...)
 # finalresults = vcat((skipmissing(Iterators.flatten(results))...))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # unique(finalresults[!, "#Solution"])
 
