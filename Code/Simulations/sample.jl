@@ -56,40 +56,6 @@ end
 
 
 
-# function get_graph_sample_and_available_reads(
-# 	G::Dict, fraction::Float64, nsamplerows::Int64, df::DataFrame, idcol::String, randseed,
-# )
-# 	@info "$(loggingtime())\tget_graph_sample_and_available_reads" fraction myid()
-# 	if fraction < 1.0
-# 		sampleG, availablereads = get_graph_sample_and_available_reads(G, nsamplerows, df, idcol, randseed)
-# 	else  # fraction == 1.0, so there's no need to create a sub-graph
-# 		sampleG = G
-# 		# print(df)
-# 		availablereads = df[:, "Read"]
-# 	end
-# 	return sampleG, availablereads
-# end
-
-# function get_graph_sample_and_available_reads(
-# 	G::Dict, nsamplerows::Int64, df::DataFrame, idcol::String, randseed,
-# )
-# 	# sample a fraction of the rows (non-unique reads/proteins)
-#     samplerows = sample(MersenneTwister(randseed), collect(1:size(df, 1)), nsamplerows, replace = false)
-# 	# get their corresponding unique ids
-# 	sampleids = ThreadsX.unique(df[samplerows, idcol])
-# 	# also get all corresponding avaiable reads' names
-# 	# print(df)
-# 	availablereads = df[samplerows, "Read"]
-# 	# assemble sub neighborhood lists of uncompatible unique sampled rows by using the pre-computed complete graph
-# 	sampleG = subgraph(G, sampleids)
-# 	return sampleG, availablereads
-# end
-
-
-
-
-
-
 function get_graph_sample_and_available_reads(
 	G::Dict, fraction::Float64, samplerows::Vector{Int64}, df::DataFrame, idcol::String,
 )
