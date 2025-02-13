@@ -1589,19 +1589,40 @@ def get_covered_and_uncovered_coding_non_adenosines_in_transcript(
             f"Unmatching chroms: {chrom = } != {covered_coding_non_adenosines_positions_df['Chrom'].unique() = }"
         )
 
-    # perform binomial test on each covered position
-    ref_and_alt_base_counts_df = covered_coding_non_adenosines_positions_df.apply(
-        lambda x: ref_and_alt_base_count_in_noise_position(
-            x["RefBase"],
-            strand,
-            x["A"],
-            x["T"],
-            x["C"],
-            x["G"],
-        ),
-        axis=1,
-        result_type="expand",
-    ).rename(columns={0: "RefBaseCount", 1: "AltBaseCount"})
+    # # perform binomial test on each covered position
+    # ref_and_alt_base_counts_df = covered_coding_non_adenosines_positions_df.apply(
+    #     lambda x: ref_and_alt_base_count_in_noise_position(
+    #         x["RefBase"],
+    #         strand,
+    #         x["A"],
+    #         x["T"],
+    #         x["C"],
+    #         x["G"],
+    #     ),
+    #     axis=1,
+    #     result_type="expand",
+    # ).rename(columns={0: "RefBaseCount", 1: "AltBaseCount"})
+
+    try:
+        # perform binomial test on each covered position
+        ref_and_alt_base_counts_df = covered_coding_non_adenosines_positions_df.apply(
+            lambda x: ref_and_alt_base_count_in_noise_position(
+                x["RefBase"],
+                strand,
+                x["A"],
+                x["T"],
+                x["C"],
+                x["G"],
+            ),
+            axis=1,
+            result_type="expand",
+        ).rename(columns={0: "RefBaseCount", 1: "AltBaseCount"})
+    except Exception as e:
+        raise ValueError(
+            f"{chrom}: {e}"
+        )
+
+
     covered_coding_non_adenosines_positions_df[["RefBaseCount", "AltBaseCount"]] = (
         ref_and_alt_base_counts_df
     )

@@ -39,12 +39,13 @@ import plotly.colors as pc
 import plotly.express as px
 import plotly.graph_objects as go
 import scipy.stats
-from statsmodels.stats.multitest import multipletests, fdrcorrection
 import seaborn as sns
 import umap
+from Bio import Seq
 from icecream import ic
 from matplotlib_venn import venn2, venn3
 from plotly.subplots import make_subplots
+
 from scipy import interpolate  # todo unimport this later?
 from scipy.spatial import ConvexHull, convex_hull_plot_2d
 from scipy.stats import iqr
@@ -54,7 +55,7 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.metrics import mean_squared_error, r2_score, silhouette_score
 from sklearn.preprocessing import StandardScaler
-from Bio import Seq
+from statsmodels.stats.multitest import fdrcorrection, multipletests
 
 sys.path.append(str(Path(code_dir).absolute()))
 from Alignment.alignment_utils import (
@@ -65,127 +66,148 @@ from Alignment.alignment_utils import (
 )
 from EditingUtils.seq import make_fasta_dict
 
+# %%
+pd.set_option("display.max_columns", 500)
+
 # %% papermill={"duration": 0.071769, "end_time": "2022-02-01T09:42:43.049672", "exception": false, "start_time": "2022-02-01T09:42:42.977903", "status": "completed"} tags=["parameters"]
+# condition_col = "Transcript"
 condition_col = "Gene"
-conditions = ["GRIA", "PCLO"]
-fixed_conditions = ["GRIA2", "PCLO"]
-chroms = ["comp141693_c0_seq1", "comp141882_c0_seq14"]
-starts = [170, 0]
-ends = [2999, 6294]
+conditions = ["ADAR1", "IQEC1"]
+fixed_conditions = ["ADAR1", "IQEC1"]
+chroms = ["comp134400_c0_seq1_extended", "comp141565_c6_seq3"]
+swiss_prot_names = ["DSRAD_MOUSE", "IQEC1_HUMAN"]
+starts = [0, 988]
+ends = [3741, 4195]
 strands = ["+", "+"]
 unaligned_bam_files = [
-    "/private7/projects/Combinatorics/D.pealeii/Data/CCS/BasicCCS/GRIA-CNS-RESUB.C0x1291.ccs.bam",
-    "/private7/projects/Combinatorics/D.pealeii/Data/CCS/BasicCCS/PCLO-CNS-RESUB.C0x1291.ccs.bam",
+    [
+        "/private7/projects/Combinatorics/D.pealeii/Data/RawWithUMIs/30-1097162729/CCS/LP1ADAR1.r64296e203404D01.hifireads.bam",
+        "/private7/projects/Combinatorics/D.pealeii/Data/RawWithUMIs/30-1097162729/CCS/LP2ADAR1.r64296e203404D01.hifireads.bam",
+        "/private7/projects/Combinatorics/D.pealeii/Data/RawWithUMIs/30-1097162729/CCS/LP2ADAR1.r64296e203404D01.hifireads.bam",
+    ],
+    [
+        "/private7/projects/Combinatorics/D.pealeii/Data/RawWithUMIs/30-1097162729/CCS/LP1IQEC.r64296e203404D01.hifireads.bam",
+        "/private7/projects/Combinatorics/D.pealeii/Data/RawWithUMIs/30-1097162729/CCS/LP2IQEC.r64296e203404D01.hifireads.bam",
+        "/private7/projects/Combinatorics/D.pealeii/Data/RawWithUMIs/30-1097162729/CCS/LP3IQEC.r64296e203404D01.hifireads.bam",
+    ],
 ]
 reads_type = "CCS"  # something like CCS / miseq / etc.
 aligned_bam_files = [
-    "/private7/projects/Combinatorics/D.pealeii/Alignment/BestN1/GRIA-CNS-RESUB.C0x1291.aligned.sorted.bam",
-    "/private7/projects/Combinatorics/D.pealeii/Alignment/BestN1/PCLO-CNS-RESUB.C0x1291.aligned.sorted.bam",
+    [
+        "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads/ByChrom/comp134400_c0_seq1_extended/LP1ADAR1.r64296e203404D01.aligned.sorted.comp134400_c0_seq1_extended.bam",
+        "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads/ByChrom/comp134400_c0_seq1_extended/LP2ADAR1.r64296e203404D01.aligned.sorted.comp134400_c0_seq1_extended.bam",
+        "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads/ByChrom/comp134400_c0_seq1_extended/LP3ADAR1.r64296e203404D01.aligned.sorted.comp134400_c0_seq1_extended.bam",
+    ],
+    [
+        "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads/ByChrom/comp141565_c6_seq3/LP1IQEC.r64296e203404D01.aligned.sorted.comp141565_c6_seq3.bam",
+        "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads/ByChrom/comp141565_c6_seq3/LP2IQEC.r64296e203404D01.aligned.sorted.comp141565_c6_seq3.bam",
+        "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads/ByChrom/comp141565_c6_seq3/LP3IQEC.r64296e203404D01.aligned.sorted.comp141565_c6_seq3.bam",
+    ],
 ]
-filtered_aligned_bam_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.bam",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.bam",
-]
+# filtered_aligned_bam_files = [
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.bam",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.bam",
+# ]
 include_flags = None
 exclude_flags = "2304"  # remove secondary and supplementary (chimeric) alignments
 sep = "\t"
 positions_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads/PositionsFiles/comp134400_c0_seq1_extended.positions.csv.gz",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads/PositionsFiles/comp141565_c6_seq3.positions.csv.gz",
 ]
 reads_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads/ReadsFiles/comp134400_c0_seq1_extended.reads.csv.gz",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads/ReadsFiles/comp141565_c6_seq3.reads.csv.gz",
 ]
 unique_reads_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_reads.csv.gz",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_reads.csv.gz",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads/ReadsFiles/comp134400_c0_seq1_extended.unique_reads.csv.gz",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads/ReadsFiles/comp141565_c6_seq3.unique_reads.csv.gz",
 ]
 proteins_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.proteins.csv.gz",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.proteins.csv.gz",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads/ProteinsFiles/comp134400_c0_seq1_extended.proteins.csv.gz",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads/ProteinsFiles/comp141565_c6_seq3.proteins.csv.gz",
 ]
 unique_proteins_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads/ProteinsFiles/comp134400_c0_seq1_extended.unique_proteins.csv.gz",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads/ProteinsFiles/comp141565_c6_seq3.unique_proteins.csv.gz",
 ]
-reads_first_col_pos = 6
-unique_reads_first_col_pos = 8
-proteins_first_col_pos = 12
-unique_proteins_first_col_pos = 14
+# reads_first_col_pos = 6
+# unique_reads_first_col_pos = 8
+# proteins_first_col_pos = 12
+reads_first_col_pos = 7
+unique_reads_first_col_pos = 9
+proteins_first_col_pos = 13
+unique_proteins_first_col_pos = 15
 reads_editing_col = "EditingFrequency"
 proteins_editing_col = "MinNonSyns"
 
 # distinct files with available supporting reads
 distinct_unique_proteins_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.06.02.2024-09:29:20.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.DistinctUniqueProteins.06.02.2024-09:46:24.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads/DistinctProteins/comp134400_c0_seq1_extended.DistinctUniqueProteins.30.01.2025-15:34:46.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads/DistinctProteins/comp141565_c6_seq3.DistinctUniqueProteins.30.01.2025-13:40:10.csv",
 ]
 
-distinct_unique_proteins_fraction01_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.Fraction0_1.06.02.2024-10:55:32.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.DistinctUniqueProteins.Fraction0_1.06.02.2024-11:05:02.csv",
-]
+# distinct_unique_proteins_fraction01_files = [
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.Fraction0_1.06.02.2024-10:55:32.csv",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.DistinctUniqueProteins.Fraction0_1.06.02.2024-11:05:02.csv",
+# ]
 
 # new expression files with supporting reads and unique proteins
 expression_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA.DistinctUniqueProteins.ExpressionLevels.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO.DistinctUniqueProteins.ExpressionLevels.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads/ExpressionLevels/comp134400_c0_seq1_extended.DistinctUniqueProteins.ExpressionLevels.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads/ExpressionLevels/comp141565_c6_seq3.DistinctUniqueProteins.ExpressionLevels.csv",
 ]
-fraction01_expression_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA.DistinctUniqueProteins.ExpressionLevels.Fraction0_1.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO.DistinctUniqueProteins.ExpressionLevels.Fraction0_1.csv",
-]
+# fraction01_expression_files = [
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA.DistinctUniqueProteins.ExpressionLevels.Fraction0_1.csv",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO.DistinctUniqueProteins.ExpressionLevels.Fraction0_1.csv",
+# ]
 
-distinct_dissimilar_miyata_proteins_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.AAgroupsMiyata1979.06.02.2024-13:43:37.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.DistinctUniqueProteins.AAgroupsMiyata1979.06.02.2024-14:14:55.csv",
-]
-miyata_expression_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA.DistinctUniqueProteins.ExpressionLevels.AAgroupsMiyata1979.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO.DistinctUniqueProteins.ExpressionLevels.AAgroupsMiyata1979.csv",
-]
-grantham_cutoff_scores = [
-    # 50, 75,
-    100,
-    # 125, 150
-]
-distinct_dissimilar_grantham_proteins_files = [
-    [
-        "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.GRANTHAM1974-100.06.02.2024-14:27:55.csv",
-    ],
-    [
-        "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.DistinctUniqueProteins.GRANTHAM1974-100.06.02.2024-15:51:50.csv",
-    ],
-]
-grantham_expression_files = [
-    [
-        "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA.DistinctUniqueProteins.ExpressionLevels.GRANTHAM1974-100.csv",
-    ],
-    [
-        "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO.DistinctUniqueProteins.ExpressionLevels.GRANTHAM1974-100.csv",
-    ],
-]
-alg_repetitions = 5
-known_sites_file = (
-    "/private7/projects/Combinatorics/D.pealeii/Annotations/D.pea.EditingSites.csv"
-)
+# distinct_dissimilar_miyata_proteins_files = [
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.AAgroupsMiyata1979.06.02.2024-13:43:37.csv",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.DistinctUniqueProteins.AAgroupsMiyata1979.06.02.2024-14:14:55.csv",
+# ]
+# miyata_expression_files = [
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA.DistinctUniqueProteins.ExpressionLevels.AAgroupsMiyata1979.csv",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO.DistinctUniqueProteins.ExpressionLevels.AAgroupsMiyata1979.csv",
+# ]
+# grantham_cutoff_scores = [
+#     # 50, 75,
+#     100,
+#     # 125, 150
+# ]
+# distinct_dissimilar_grantham_proteins_files = [
+#     [
+#         "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.GRANTHAM1974-100.06.02.2024-14:27:55.csv",
+#     ],
+#     [
+#         "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.DistinctUniqueProteins.GRANTHAM1974-100.06.02.2024-15:51:50.csv",
+#     ],
+# ]
+# grantham_expression_files = [
+#     [
+#         "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA.DistinctUniqueProteins.ExpressionLevels.GRANTHAM1974-100.csv",
+#     ],
+#     [
+#         "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO.DistinctUniqueProteins.ExpressionLevels.GRANTHAM1974-100.csv",
+#     ],
+# ]
+# alg_repetitions = 5
+known_sites_file = "/private7/projects/Combinatorics/D.pealeii/Annotations/Jan2025/D.pea.EditingSites.csv"
 samtools_path = "/home/alu/kobish/anaconda3/envs/combinatorics/bin/samtools"
 threads = 20
 code_dir = "/private7/projects/Combinatorics/Code"
 seed = 1892
 transcriptome_file = (
-    "/private7/projects/Combinatorics/D.pealeii/Annotations/orfs_squ.fa"
+    "/private7/projects/Combinatorics/D.pealeii/Annotations/Jan2025/orfs_squ.fa"
 )
-primers_for = [
-    "CTGATCACAACGATGTGTTGGTCG",
-    "AGTCTTAGACTCGCCTGTTACGCCC"
-]
-primers_rev = [
-    "AAAAACCTTGTAACAGCCATTCCTGC",
-    "CATGCTGAATTGCACCCATGCAGC"
-]
-
+# primers_for = [
+#     "CTGATCACAACGATGTGTTGGTCG",
+#     "AGTCTTAGACTCGCCTGTTACGCCC"
+# ]
+# primers_rev = [
+#     "AAAAACCTTGTAACAGCCATTCCTGC",
+#     "CATGCTGAATTGCACCCATGCAGC"
+# ]
 
 # %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"}
 # # Ploting utils
@@ -271,7 +293,7 @@ def n_repetitions_colormap(subcolors_discrete_map, condition, n_repetitions):
 
 
 # %%
-n_repetitions_colormap(subcolors_discrete_map, "GRIA", 10)
+# n_repetitions_colormap(subcolors_discrete_map, "GRIA", 10)
 
 # %%
 # # %%timeit
@@ -290,7 +312,7 @@ n_repetitions_colormap(subcolors_discrete_map, "GRIA", 10)
 # # proteins_sets_array
 
 # %%
-25_000 / (750 * 1.17)
+# 25_000 / (750 * 1.17)
 
 # %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"}
 # # Data
@@ -342,7 +364,7 @@ known_non_syns_per_chrom_df
 known_non_syns_per_chrom_df.loc[known_non_syns_per_chrom_df["NonSyns"] >= 100]
 
 # %%
-known_non_syns_per_chrom_df.loc[known_non_syns_per_chrom_df["NonSyns"] >= 100].to_csv("ChromsWithAtLeast100NonSyns.Squid.tsv", index=False, sep="\t")
+# known_non_syns_per_chrom_df.loc[known_non_syns_per_chrom_df["NonSyns"] >= 100].to_csv("ChromsWithAtLeast100NonSyns.Squid.tsv", index=False, sep="\t")
 
 # %%
 fig = px.histogram(
@@ -363,49 +385,171 @@ positions_dfs = [
     pd.read_csv(position_file, sep=sep) for position_file in positions_files
 ]
 for positions_df, condition in zip(positions_dfs, conditions):
+    positions_df["UniqueSamples"] = (
+        positions_df["Samples"].str.split(",").apply(lambda x: list(set(x)))
+    )
+    positions_df["NumUniqueSamples"] = positions_df["UniqueSamples"].apply(len)
+    positions_df["Contaminated"] = positions_df.apply(
+        lambda row: any(
+            [
+                (condition[:-1] not in unique_sample)
+                for unique_sample in row["UniqueSamples"]
+            ]
+        ),
+        axis=1,
+    )
+
     positions_df.insert(0, condition_col, condition)
-positions_dfs[0]
+
+concat_positions_df = pd.concat(positions_dfs, ignore_index=True)
+concat_positions_df["UsedForNoiseThresholding"] = concat_positions_df.apply(
+    lambda x: x["Noise"] < 0.1 and x["NoisyFinal"], axis=1
+)
+
+assert (
+    concat_positions_df.loc[
+        (concat_positions_df["EditedFinal"]) & (concat_positions_df["CDS"])
+    ].shape
+    == concat_positions_df.loc[(concat_positions_df["EditedFinal"])].shape
+), "All final editing sites should reside within CDS regions"
+
+assert concat_positions_df.loc[
+    (concat_positions_df["EditedFinal"])
+    & (concat_positions_df["UsedForNoiseThresholding"])
+].empty
+
+concat_positions_df
 
 
 # %%
-cds_editing_positions_per_sample = [
-    len(df.loc[(df["Edited"]) & (df["CDS"])]) for df in positions_dfs
-]
-for x in cds_editing_positions_per_sample:
-    print(x)
+editing_positions_per_sample = (
+    concat_positions_df.loc[concat_positions_df["EditedFinal"]]
+    .groupby(condition_col)
+    .size()
+)
+editing_positions_per_sample
 
 # %%
-all_editing_positions_per_sample = [
-    len(df.loc[(df["Edited"])]) for df in positions_dfs
-]
-for x in all_editing_positions_per_sample:
-    print(x)
+print(f"Average of {editing_positions_per_sample.mean()} editing sites per sample")
 
 # %%
-print(
-    f"Average of {sum(cds_editing_positions_per_sample)/len(positions_dfs)} editing sites per sample"
+
+# %%
+
+# %%
+concat_positions_df["Contaminated"].value_counts()
+
+# %%
+concat_positions_df["Contaminated"].value_counts(normalize=True).mul(100).round(2)
+
+# %%
+concat_positions_df.groupby([condition_col])["Contaminated"].value_counts()
+
+# %%
+concat_positions_df.groupby([condition_col])["Contaminated"].value_counts(
+    normalize=True
+).mul(100).round(2)
+
+# %%
+
+# %%
+concat_positions_df.groupby([condition_col])[
+    ["Contaminated", "NumUniqueSamples"]
+].value_counts()
+
+# %%
+concat_positions_df.groupby([condition_col])[
+    ["Contaminated", "NumUniqueSamples"]
+].value_counts(normalize=True).mul(100).round(2)
+
+# %%
+
+# %%
+concat_positions_df.loc[concat_positions_df["Contaminated"]].groupby(
+    [condition_col, "EditedFinal"]
+).size()
+
+# %%
+concat_positions_df.loc[concat_positions_df["Contaminated"]].groupby(
+    [condition_col, "UsedForNoiseThresholding"]
+).size()
+
+# %%
+
+# %%
+concat_positions_df.loc[concat_positions_df["EditedFinal"]].groupby(
+    [condition_col, "Contaminated"]
+).size()
+
+# %%
+concat_positions_df.loc[concat_positions_df["UsedForNoiseThresholding"]].groupby(
+    [condition_col, "Contaminated"]
+).size()
+
+# %%
+
+# %%
+
+# %%
+concat_positions_df.groupby([condition_col, "Contaminated", "EditedFinal"]).size()
+
+# %%
+concat_positions_df.groupby([condition_col, "Contaminated", "EditedFinal"]).size().mul(
+    100
+).div(concat_positions_df.shape[0]).round(2)
+
+# %%
+concat_positions_df.groupby(
+    [condition_col, "Contaminated", "UsedForNoiseThresholding"]
+).size()
+
+# %%
+concat_positions_df.groupby(
+    [condition_col, "Contaminated", "UsedForNoiseThresholding"]
+).size().mul(100).div(concat_positions_df.shape[0]).round(2)
+
+# %%
+concat_positions_df.loc[
+    (concat_positions_df["EditedFinal"])
+    | (concat_positions_df["UsedForNoiseThresholding"])
+].groupby(
+    [condition_col, "Contaminated", "EditedFinal", "UsedForNoiseThresholding"]
+).size().reset_index(
+    name="NumOfPositions"
+).sort_values(
+    [condition_col, "Contaminated"]
 )
 
 # %%
-transcriptome_dict = make_fasta_dict(transcriptome_file)
+concat_positions_df.groupby(
+    [condition_col, "EditedFinal", "UsedForNoiseThresholding", "Contaminated"]
+).size()
 
 # %%
-primers_ranges = []
-for chrom, primer_for, primer_rev in zip(chroms, primers_for, primers_rev):
-    chrom_seq = transcriptome_dict[chrom]
-    primer_for_start = chrom_seq.find(primer_for)
-    primer_rev = Seq.Seq(primer_rev).reverse_complement()
-    primer_rev_end = chrom_seq.find(primer_rev) + len(primer_rev)
-    primers_ranges.append((primer_for_start, primer_rev_end))
-primers_ranges
+concat_positions_df.groupby(
+    [condition_col, "Contaminated", "EditedFinal", "UsedForNoiseThresholding"]
+).size()
 
 # %%
-within_primers_editing_positions_per_sample = [
-    len(df.loc[(df["Edited"]) & (df["CDS"]) & (df["Position"] >= primer_for_start) & (df["Position"] + 1 <= primer_rev_end)]) 
-    for df, (primer_for_start, primer_rev_end) in zip(positions_dfs, primers_ranges)
-]
-for x in within_primers_editing_positions_per_sample:
-    print(x)
+# transcriptome_dict = make_fasta_dict(transcriptome_file)
+
+# %%
+# primers_ranges = []
+# for chrom, primer_for, primer_rev in zip(chroms, primers_for, primers_rev):
+#     chrom_seq = transcriptome_dict[chrom]
+#     primer_for_start = chrom_seq.find(primer_for)
+#     primer_rev = Seq.Seq(primer_rev).reverse_complement()
+#     primer_rev_end = chrom_seq.find(primer_rev) + len(primer_rev)
+#     primers_ranges.append((primer_for_start, primer_rev_end))
+# primers_ranges
+
+# %%
+# within_primers_editing_positions_per_sample = [
+#     len(df.loc[(df["Edited"]) & (df["CDS"]) & (df["Position"] >= primer_for_start) & (df["Position"] + 1 <= primer_rev_end)])
+#     for df, (primer_for_start, primer_rev_end) in zip(positions_dfs, primers_ranges)
+# ]
+# for x in within_primers_editing_positions_per_sample:
+#     print(x)
 
 # %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"}
 # ## Reads
@@ -418,6 +562,13 @@ for x in within_primers_editing_positions_per_sample:
 
 # %% papermill={"duration": 1.204258, "end_time": "2022-02-01T09:42:47.668206", "exception": false, "start_time": "2022-02-01T09:42:46.463948", "status": "completed"}
 reads_dfs = [pd.read_csv(reads_file, sep=sep) for reads_file in reads_files]
+
+for reads_df, condition in zip(reads_dfs, conditions):
+    reads_df.rename(
+        columns={"Transcript": condition_col}, inplace=True, errors="ignore"
+    )
+    reads_df[condition_col] = condition
+
 reads_dfs[0]
 
 
@@ -447,8 +598,7 @@ fig = px.histogram(
 )
 fig.update_traces(opacity=0.75)
 fig.update_yaxes(title="Reads")
-fig.update_layout(width=500, height=350, template=template, barmode='overlay',
-                 title="Squid's Long-reads")
+fig.update_layout(width=500, height=350, template=template, barmode='overlay', title="Squid's UMI long-reads - per sample")
 fig.show()
 
 # %%
@@ -487,9 +637,22 @@ np.percentile(ambigous_positions_in_reads_df, [25, 75])
 unique_reads_dfs = [
     pd.read_csv(unique_reads_file, sep=sep) for unique_reads_file in unique_reads_files
 ]
-for unique_reads_df in unique_reads_dfs:
-    if "Transcript" in unique_reads_df.columns:
-        unique_reads_df.rename(columns={"Transcript": "UniqueRead"}, inplace=True)
+
+# # for unique_reads_df in unique_reads_dfs:
+# #     if "Transcript" in unique_reads_df.columns:
+# #         unique_reads_df.rename(columns={"Transcript": "UniqueRead"}, inplace=True)
+
+# for unique_reads_df in unique_reads_dfs:
+#     unique_reads_df.rename(
+#         columns={"Transcript": condition_col}, inplace=True, errors="ignore"
+#     )
+
+for unique_reads_df, condition in zip(unique_reads_dfs, conditions):
+    reads_df.rename(
+        columns={"Transcript": condition_col}, inplace=True, errors="ignore"
+    )
+    unique_reads_df[condition_col] = condition
+
 unique_reads_dfs[0]
 
 
@@ -515,9 +678,22 @@ unique_reads_dfs[1]
 
 # %%
 proteins_dfs = [pd.read_csv(proteins_file, sep=sep) for proteins_file in proteins_files]
-for proteins_df in proteins_dfs:
-    if "Transcript" in proteins_df.columns:
-        proteins_df.rename(columns={"Transcript": "UniqueRead"}, inplace=True)
+
+# # for proteins_df in proteins_dfs:
+# #     if "Transcript" in proteins_df.columns:
+# #         proteins_df.rename(columns={"Transcript": "UniqueRead"}, inplace=True)
+
+# for proteins_df in proteins_dfs:
+#     proteins_df.rename(
+#         columns={"Transcript": condition_col}, inplace=True, errors="ignore"
+#     )
+
+for proteins_df, condition in zip(proteins_dfs, conditions):
+    proteins_df.rename(
+        columns={"Transcript": condition_col}, inplace=True, errors="ignore"
+    )
+    proteins_df[condition_col] = condition
+
 proteins_dfs[0]
 
 
@@ -545,15 +721,24 @@ unique_proteins_dfs = [
     pd.read_csv(unique_proteins_file, sep=sep)
     for unique_proteins_file in unique_proteins_files
 ]
-for unique_proteins_df in unique_proteins_dfs:
+
+# for unique_proteins_df in unique_proteins_dfs:
+#     unique_proteins_df.rename(
+#         columns={
+#             col: col.replace("Transcripts", "UniqueReads")
+#             for col in unique_proteins_df.columns[:unique_proteins_first_col_pos]
+#             if "Transcripts" in col
+#         },
+#         inplace=True,
+#     )
+
+
+for unique_proteins_df, condition in zip(unique_proteins_dfs, conditions):
     unique_proteins_df.rename(
-        columns={
-            col: col.replace("Transcripts", "UniqueReads")
-            for col in unique_proteins_df.columns[:unique_proteins_first_col_pos]
-            if "Transcripts" in col
-        },
-        inplace=True,
+        columns={"Transcript": condition_col}, inplace=True, errors="ignore"
     )
+    unique_proteins_df[condition_col] = condition
+
 unique_proteins_dfs[0]
 
 
@@ -694,7 +879,9 @@ distinct_unique_proteins_dfs = []
 for condition, distinct_unique_proteins_file, unique_reads_df in zip(
     conditions, distinct_unique_proteins_files, unique_reads_dfs
 ):
-    distinct_unique_proteins_df = pd.read_csv(distinct_unique_proteins_file, sep=sep)
+    distinct_unique_proteins_df = pd.read_csv(
+        distinct_unique_proteins_file, sep=sep
+    ).rename(columns={"Transcript": condition_col}, errors="ignore")
     # distinct_unique_proteins_df = distinct_unique_proteins_df.drop("AvailableReads", axis=1)
     distinct_unique_proteins_df.insert(0, condition_col, condition)
     distinct_unique_proteins_df.insert(
@@ -734,13 +921,6 @@ assert distinct_unique_proteins_df.loc[
 ].empty, "The true number of available reads, versus the one computed by the potential * fraction, should differ only by the rounding to an interger"
 
 distinct_unique_proteins_df
-
-
-# %%
-# distinct_unique_proteins_df.loc[distinct_unique_proteins_df["NumOfProteins"] > ]
-
-# %%
-# unique_edited_proteins_dfs[0].columns[:unique_proteins_first_col_pos]
 
 
 # %%
@@ -799,50 +979,50 @@ distinct_unique_proteins_df2 = (
 distinct_unique_proteins_df2
 
 # %%
-distinct_unique_proteins_fraction01_dfs = []
-for condition, distinct_unique_proteins_fraction01_file, unique_reads_df in zip(
-    conditions, distinct_unique_proteins_fraction01_files, unique_reads_dfs
-):
-    distinct_unique_proteins_fraction01_df = pd.read_csv(
-        distinct_unique_proteins_fraction01_file, sep=sep
-    ).drop("AvailableReads", axis=1)
-    distinct_unique_proteins_fraction01_df.insert(0, condition_col, condition)
-    distinct_unique_proteins_fraction01_df.insert(
-        1,
-        "NumOfReads",
-        (
-            distinct_unique_proteins_fraction01_df["Fraction"]
-            * unique_reads_df["NumOfReads"].sum()
-        ).astype(int),
-    )
-    distinct_unique_proteins_fraction01_dfs.append(
-        distinct_unique_proteins_fraction01_df
-    )
+# distinct_unique_proteins_fraction01_dfs = []
+# for condition, distinct_unique_proteins_fraction01_file, unique_reads_df in zip(
+#     conditions, distinct_unique_proteins_fraction01_files, unique_reads_dfs
+# ):
+#     distinct_unique_proteins_fraction01_df = pd.read_csv(
+#         distinct_unique_proteins_fraction01_file, sep=sep
+#     ).drop("AvailableReads", axis=1)
+#     distinct_unique_proteins_fraction01_df.insert(0, condition_col, condition)
+#     distinct_unique_proteins_fraction01_df.insert(
+#         1,
+#         "NumOfReads",
+#         (
+#             distinct_unique_proteins_fraction01_df["Fraction"]
+#             * unique_reads_df["NumOfReads"].sum()
+#         ).astype(int),
+#     )
+#     distinct_unique_proteins_fraction01_dfs.append(
+#         distinct_unique_proteins_fraction01_df
+#     )
 
-distinct_unique_proteins_fraction01_df = (
-    pd.concat(distinct_unique_proteins_fraction01_dfs)
-    .reset_index(drop=True)
-    .rename(columns={"NumUniqueSamples": "NumOfProteins", "UniqueSamples": "Proteins"})
-)
+# distinct_unique_proteins_fraction01_df = (
+#     pd.concat(distinct_unique_proteins_fraction01_dfs)
+#     .reset_index(drop=True)
+#     .rename(columns={"NumUniqueSamples": "NumOfProteins", "UniqueSamples": "Proteins"})
+# )
 
-distinct_unique_proteins_fraction01_df = (
-    distinct_unique_proteins_fraction01_df.sort_values(
-        [
-            condition_col,
-            "Fraction",
-            "FractionRepetition",
-            "Algorithm",
-            "AlgorithmRepetition",
-        ]
-    ).reset_index(drop=True)
-)
+# distinct_unique_proteins_fraction01_df = (
+#     distinct_unique_proteins_fraction01_df.sort_values(
+#         [
+#             condition_col,
+#             "Fraction",
+#             "FractionRepetition",
+#             "Algorithm",
+#             "AlgorithmRepetition",
+#         ]
+#     ).reset_index(drop=True)
+# )
 
-distinct_unique_proteins_fraction01_df
+# distinct_unique_proteins_fraction01_df
 
 
 # %%
-sol12 = distinct_unique_proteins_fraction01_dfs[0].iloc[11]
-sol12
+# sol12 = distinct_unique_proteins_fraction01_dfs[0].iloc[11]
+# sol12
 
 # %%
 per_solution_avaialble_reads = {}
@@ -1025,101 +1205,101 @@ expanded_distinct_unique_proteins_df_2["NumOfReads"].describe()
 # #### Distinct dissimilar
 
 # %%
-distinct_dissimilar_miyata_proteins_dfs = []
-for condition, distinct_dissimilar_miyata_file, unique_reads_df in zip(
-    conditions, distinct_dissimilar_miyata_proteins_files, unique_reads_dfs
-):
-    distinct_dissimilar_miyata_proteins_df = pd.read_csv(
-        distinct_dissimilar_miyata_file, sep=sep
-    )
-    distinct_dissimilar_miyata_proteins_df.insert(0, condition_col, condition)
-    distinct_dissimilar_miyata_proteins_df.insert(
-        1,
-        "NumOfReads",
-        (
-            distinct_dissimilar_miyata_proteins_df["Fraction"]
-            * unique_reads_df["NumOfReads"].sum()
-        ).astype(int),
-    )
-    distinct_dissimilar_miyata_proteins_dfs.append(
-        distinct_dissimilar_miyata_proteins_df
-    )
+# distinct_dissimilar_miyata_proteins_dfs = []
+# for condition, distinct_dissimilar_miyata_file, unique_reads_df in zip(
+#     conditions, distinct_dissimilar_miyata_proteins_files, unique_reads_dfs
+# ):
+#     distinct_dissimilar_miyata_proteins_df = pd.read_csv(
+#         distinct_dissimilar_miyata_file, sep=sep
+#     )
+#     distinct_dissimilar_miyata_proteins_df.insert(0, condition_col, condition)
+#     distinct_dissimilar_miyata_proteins_df.insert(
+#         1,
+#         "NumOfReads",
+#         (
+#             distinct_dissimilar_miyata_proteins_df["Fraction"]
+#             * unique_reads_df["NumOfReads"].sum()
+#         ).astype(int),
+#     )
+#     distinct_dissimilar_miyata_proteins_dfs.append(
+#         distinct_dissimilar_miyata_proteins_df
+#     )
 
-distinct_dissimilar_miyata_proteins_df = (
-    pd.concat(distinct_dissimilar_miyata_proteins_dfs)
-    .reset_index(drop=True)
-    .rename(columns={"NumUniqueSamples": "NumOfProteins", "UniqueSamples": "Proteins"})
-)
+# distinct_dissimilar_miyata_proteins_df = (
+#     pd.concat(distinct_dissimilar_miyata_proteins_dfs)
+#     .reset_index(drop=True)
+#     .rename(columns={"NumUniqueSamples": "NumOfProteins", "UniqueSamples": "Proteins"})
+# )
 
-distinct_dissimilar_miyata_proteins_df = (
-    distinct_dissimilar_miyata_proteins_df.sort_values(
-        [
-            condition_col,
-            "Fraction",
-            "FractionRepetition",
-            "Algorithm",
-            "AlgorithmRepetition",
-        ]
-    ).reset_index(drop=True)
-)
+# distinct_dissimilar_miyata_proteins_df = (
+#     distinct_dissimilar_miyata_proteins_df.sort_values(
+#         [
+#             condition_col,
+#             "Fraction",
+#             "FractionRepetition",
+#             "Algorithm",
+#             "AlgorithmRepetition",
+#         ]
+#     ).reset_index(drop=True)
+# )
 
-distinct_dissimilar_miyata_proteins_df
-
-# %%
-distinct_dissimilar_miyata_proteins_df.groupby(condition_col)["NumOfProteins"].max()
+# distinct_dissimilar_miyata_proteins_df
 
 # %%
-distinct_dissimilar_grantham_proteins_dfs = []
-for (
-    condition,
-    condition_distinct_dissimilar_grantham_proteins_files,
-    unique_reads_df,
-) in zip(conditions, distinct_dissimilar_grantham_proteins_files, unique_reads_dfs):
-    for cutoff_score, distinct_dissimilar_grantham_file in zip(
-        grantham_cutoff_scores, condition_distinct_dissimilar_grantham_proteins_files
-    ):
-        distinct_dissimilar_grantham_proteins_df = pd.read_csv(
-            distinct_dissimilar_grantham_file, sep=sep
-        )
-        distinct_dissimilar_grantham_proteins_df.insert(0, condition_col, condition)
-        distinct_dissimilar_grantham_proteins_df.insert(1, "CutoffScore", cutoff_score)
-        distinct_dissimilar_grantham_proteins_df.insert(
-            2,
-            "NumOfReads",
-            (
-                distinct_dissimilar_grantham_proteins_df["Fraction"]
-                * unique_reads_df["NumOfReads"].sum()
-            ).astype(int),
-        )
-        distinct_dissimilar_grantham_proteins_dfs.append(
-            distinct_dissimilar_grantham_proteins_df
-        )
-
-distinct_dissimilar_grantham_proteins_df = (
-    pd.concat(distinct_dissimilar_grantham_proteins_dfs)
-    .reset_index(drop=True)
-    .rename(columns={"NumUniqueSamples": "NumOfProteins", "UniqueSamples": "Proteins"})
-)
-
-distinct_dissimilar_grantham_proteins_df = (
-    distinct_dissimilar_grantham_proteins_df.sort_values(
-        [
-            condition_col,
-            "CutoffScore",
-            "Fraction",
-            "FractionRepetition",
-            "Algorithm",
-            "AlgorithmRepetition",
-        ]
-    ).reset_index(drop=True)
-)
-
-distinct_dissimilar_grantham_proteins_df
+# distinct_dissimilar_miyata_proteins_df.groupby(condition_col)["NumOfProteins"].max()
 
 # %%
-distinct_dissimilar_grantham_proteins_df.groupby([condition_col, "CutoffScore"])[
-    "NumOfProteins"
-].max()
+# distinct_dissimilar_grantham_proteins_dfs = []
+# for (
+#     condition,
+#     condition_distinct_dissimilar_grantham_proteins_files,
+#     unique_reads_df,
+# ) in zip(conditions, distinct_dissimilar_grantham_proteins_files, unique_reads_dfs):
+#     for cutoff_score, distinct_dissimilar_grantham_file in zip(
+#         grantham_cutoff_scores, condition_distinct_dissimilar_grantham_proteins_files
+#     ):
+#         distinct_dissimilar_grantham_proteins_df = pd.read_csv(
+#             distinct_dissimilar_grantham_file, sep=sep
+#         )
+#         distinct_dissimilar_grantham_proteins_df.insert(0, condition_col, condition)
+#         distinct_dissimilar_grantham_proteins_df.insert(1, "CutoffScore", cutoff_score)
+#         distinct_dissimilar_grantham_proteins_df.insert(
+#             2,
+#             "NumOfReads",
+#             (
+#                 distinct_dissimilar_grantham_proteins_df["Fraction"]
+#                 * unique_reads_df["NumOfReads"].sum()
+#             ).astype(int),
+#         )
+#         distinct_dissimilar_grantham_proteins_dfs.append(
+#             distinct_dissimilar_grantham_proteins_df
+#         )
+
+# distinct_dissimilar_grantham_proteins_df = (
+#     pd.concat(distinct_dissimilar_grantham_proteins_dfs)
+#     .reset_index(drop=True)
+#     .rename(columns={"NumUniqueSamples": "NumOfProteins", "UniqueSamples": "Proteins"})
+# )
+
+# distinct_dissimilar_grantham_proteins_df = (
+#     distinct_dissimilar_grantham_proteins_df.sort_values(
+#         [
+#             condition_col,
+#             "CutoffScore",
+#             "Fraction",
+#             "FractionRepetition",
+#             "Algorithm",
+#             "AlgorithmRepetition",
+#         ]
+#     ).reset_index(drop=True)
+# )
+
+# distinct_dissimilar_grantham_proteins_df
+
+# %%
+# distinct_dissimilar_grantham_proteins_df.groupby([condition_col, "CutoffScore"])[
+#     "NumOfProteins"
+# ].max()
 
 # %% [markdown]
 # ## Summary of data loss
@@ -1516,9 +1696,7 @@ def make_corrected_corrs_df(sites_df):
 
 
 # %%
-def get_symmetric_r_matrices(
-    corrected_corrs_df
-):
+def get_symmetric_r_matrices(corrected_corrs_df):
     sites = sorted(
         list(set(corrected_corrs_df["Site1"]) | set(corrected_corrs_df["Site2"]))
     )
@@ -1543,7 +1721,7 @@ def get_symmetric_r_matrices(
     symmetric_rs = np.triu(symmetric_rs)
     # Make the matrix symmetric
     symmetric_rs = symmetric_rs + symmetric_rs.T - np.diag(symmetric_rs.diagonal())
-    
+
     return symmetric_rs
 
 
@@ -1633,8 +1811,7 @@ bonferroni_acceptions_matrices = [
 
 # %%
 basic_masks = [
-    np.triu(np.ones_like(corr, dtype=bool))
-    for corr in corrected_corrs_matrices
+    np.triu(np.ones_like(corr, dtype=bool)) for corr in corrected_corrs_matrices
 ]
 
 fdr_by_masks = [
@@ -1644,7 +1821,9 @@ fdr_by_masks = [
 
 bonferroni_masks = [
     basic_mask | symmetric_acception
-    for basic_mask, symmetric_acception in zip(basic_masks, bonferroni_acceptions_matrices)
+    for basic_mask, symmetric_acception in zip(
+        basic_masks, bonferroni_acceptions_matrices
+    )
 ]
 
 # %%
@@ -1659,34 +1838,39 @@ masked_bonferroni_corrs = [
 ]
 
 pclo_masked_bonferroni_corr_df = pd.DataFrame(masked_bonferroni_corrs[1])
-pclo_masked_bonferroni_corr_df.to_csv("PCLOMaskedBonferroniCorr.PacBio.tsv", index=False, sep="\t")
+pclo_masked_bonferroni_corr_df.to_csv(
+    "PCLOMaskedBonferroniCorr.PacBio.tsv", index=False, sep="\t"
+)
 
 masked_bonferroni_corrs[0]
 
 # %%
 data = masked_bonferroni_corrs[1]
 
-sns_colorscale = [[0.0, '#3f7f93'], #cmap = sns.diverging_palette(220, 10, as_cmap = True)
- [0.071, '#5890a1'],
- [0.143, '#72a1b0'],
- [0.214, '#8cb3bf'],
- [0.286, '#a7c5cf'],
- [0.357, '#c0d6dd'],
- [0.429, '#dae8ec'],
- [0.5, '#f2f2f2'],
- [0.571, '#f7d7d9'],
- [0.643, '#f2bcc0'],
- [0.714, '#eda3a9'],
- [0.786, '#e8888f'],
- [0.857, '#e36e76'],
- [0.929, '#de535e'],
- [1.0, '#d93a46']]
+sns_colorscale = [
+    [0.0, "#3f7f93"],  # cmap = sns.diverging_palette(220, 10, as_cmap = True)
+    [0.071, "#5890a1"],
+    [0.143, "#72a1b0"],
+    [0.214, "#8cb3bf"],
+    [0.286, "#a7c5cf"],
+    [0.357, "#c0d6dd"],
+    [0.429, "#dae8ec"],
+    [0.5, "#f2f2f2"],
+    [0.571, "#f7d7d9"],
+    [0.643, "#f2bcc0"],
+    [0.714, "#eda3a9"],
+    [0.786, "#e8888f"],
+    [0.857, "#e36e76"],
+    [0.929, "#de535e"],
+    [1.0, "#d93a46"],
+]
 
 fig = go.Figure(
     go.Heatmap(
         z=data,
         # y=top_100_combinatorics_df.index + 1,
-        xgap=1, ygap=1,
+        xgap=1,
+        ygap=1,
         # zmid=0,
         colorscale=sns_colorscale,
         colorbar_thickness=20,
@@ -1704,18 +1888,14 @@ fig = go.Figure(
     )
 )
 
-fig.update_xaxes(
-    showticklabels=False,
-    showgrid=False,
-    zeroline=False
-)
+fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=False)
 
 # fig.add_annotation(
 #     showarrow=False,
 #     text="Editable codons",
-#     xref="paper", 
+#     xref="paper",
 #     yref="paper",
-#     x=0.47, 
+#     x=0.47,
 #     y=-0.1,
 #     font=dict(size=18)
 # )
@@ -1733,25 +1913,25 @@ fig.update_yaxes(
 )
 
 fig.update_layout(
-    height=700, 
-    width=650, 
-    template=template, 
+    height=700,
+    width=650,
+    template=template,
     # font_size=16,
     # xaxis_showgrid=False,
     # yaxis_showgrid=False,
-      # title=dict(
-      #     # automargin=True, 
-      #     # yref='paper',
-      #     # yref='container',
-      #     y=0.93,
-      #     x=0.4,
-      #     # yanchor="top"
-      #     # text="Editable amino acids in squid's PCLO (Long-reads)",
-      #     # text="Editable amino acids",
-      #     # text="Most expressed PCLO protein isoforms",
-      #     text=" sss",
-      #     font=dict(size=18)
-  # ),
+    # title=dict(
+    #     # automargin=True,
+    #     # yref='paper',
+    #     # yref='container',
+    #     y=0.93,
+    #     x=0.4,
+    #     # yanchor="top"
+    #     # text="Editable amino acids in squid's PCLO (Long-reads)",
+    #     # text="Editable amino acids",
+    #     # text="Most expressed PCLO protein isoforms",
+    #     text=" sss",
+    #     font=dict(size=18)
+    # ),
 )
 
 # fig.write_image(
@@ -1763,7 +1943,9 @@ fig.update_layout(
 fig.show()
 
 # %%
-for condition, corr, mask in zip(conditions, corrected_corrs_matrices, bonferroni_masks):
+for condition, corr, mask in zip(
+    conditions, corrected_corrs_matrices, bonferroni_masks
+):
     fig, ax = plt.subplots(figsize=(11, 9))
 
     # Draw the heatmap with the mask and correct aspect ratio
@@ -1785,20 +1967,15 @@ for condition, corr, mask in zip(conditions, corrected_corrs_matrices, bonferron
         # vmin=vmin, vmax=vmax,
     )
 
-    
     # if condition == "PCLO":
     #     fig.savefig(f"{title}.svg", dpi=300);
-    
+
     if condition == "PCLO":
-            title = (
-                f"Pearson's r between editing sites in squid's Long-reads {condition}"
-            )
-            plt.title(title)
-            fig.savefig(f"{title}.svg", dpi=300);
-    
-    title = (
-        f"Pearson's r between editing sites in squid's Long-reads {condition}\n\n(Bonferroni corrected pvals)"
-    )
+        title = f"Pearson's r between editing sites in squid's Long-reads {condition}"
+        plt.title(title)
+        fig.savefig(f"{title}.svg", dpi=300)
+
+    title = f"Pearson's r between editing sites in squid's Long-reads {condition}\n\n(Bonferroni corrected pvals)"
 
     plt.title(title)
 
@@ -1827,10 +2004,8 @@ for condition, corr, mask in zip(conditions, corrected_corrs_matrices, fdr_by_ma
     #         )
     #         plt.title(title)
     #         fig.savefig(f"{title}.svg", dpi=300);
-    
-    title = (
-        f"Pearson's r between editing sites in squid's Long-reads {condition}\n\n(Benjamini/Yekutieli corrected pvals)"
-    )
+
+    title = f"Pearson's r between editing sites in squid's Long-reads {condition}\n\n(Benjamini/Yekutieli corrected pvals)"
     plt.title(title)
 
 # %% [markdown]
@@ -1981,7 +2156,9 @@ symmetric_pclo_mi_df
 # %%
 symmetric_pclo_mi_matrix = symmetric_pclo_mi_df.values
 mask = np.triu(np.ones_like(symmetric_pclo_mi_matrix, dtype=bool))
-pclo_masked_symmetric_mi_matrix = np.ma.masked_array(symmetric_pclo_mi_matrix, mask=mask, fill_value=np.nan).filled()
+pclo_masked_symmetric_mi_matrix = np.ma.masked_array(
+    symmetric_pclo_mi_matrix, mask=mask, fill_value=np.nan
+).filled()
 
 pclo_masked_symmetric_mi_df = pd.DataFrame(pclo_masked_symmetric_mi_matrix)
 pclo_masked_symmetric_mi_df.to_csv("PCLOMaskedMI.PacBio.tsv", index=False, sep="\t")
@@ -2022,7 +2199,7 @@ sns.heatmap(
     cbar_kws={"shrink": 0.5},
     # center=0.5,
     # vmin=0, vmax=1
-    # center=(vmax-vmin)/2,    
+    # center=(vmax-vmin)/2,
     # vmin=vmin, vmax=vmax,
 )
 
@@ -2256,36 +2433,265 @@ for positions_df, condition, strand in zip(positions_dfs, conditions, strands):
     ref_base = "A" if strand == "+" else "T"
     df = positions_df.loc[positions_df["RefBase"] != ref_base]
     df = df.assign(Noise2=df["Noise"] * 100).rename(columns={"Noise2": "%Noise"})
+    df["UniqueSamples"] = df["Samples"].str.split(",").apply(lambda x: list(set(x)))
+    df["NumUniqueSamples"] = df["UniqueSamples"].apply(len)
     noise_dfs.append(df)
-merged_noise_df = pd.concat(noise_dfs)
-merged_noise_df.iloc[[0, 1, -2, -1]]
+merged_noise_df = pd.concat(noise_dfs, ignore_index=True)
+merged_noise_df["Contaminated"] = merged_noise_df.apply(
+    lambda row: any(
+        [
+            (row[condition_col][:-1] not in unique_sample)
+            for unique_sample in row["UniqueSamples"]
+        ]
+    ),
+    axis=1,
+)
+merged_noise_df
+
+# %%
+merged_noise_df.groupby(condition_col).value_counts()
+
+# %%
+merged_noise_df.groupby(condition_col)["Contaminated"].value_counts(normalize=True).mul(
+    100
+).round(2)
+
+# %%
+merged_noise_df.loc[
+    (merged_noise_df["NoisyFinal"]) & (merged_noise_df["%Noise"] < 10)
+].groupby([condition_col, "Contaminated"]).size().reset_index(
+    name="NumOfCandidtePositionsForNoiseThresholding"
+)
+
+# %%
+merged_noise_df.loc[
+    (merged_noise_df["NoisyFinal"]) & (merged_noise_df["%Noise"] < 10)
+].groupby([condition_col]).size().reset_index(
+    name="NumOfCandidtePositionsForNoiseThresholding"
+)
+
+# %%
+merged_noise_df.groupby([condition_col, "Contaminated"])["%Noise"].describe()
+
+# %%
+merged_noise_df.loc[
+    (merged_noise_df["NoisyFinal"]) & (merged_noise_df["%Noise"] < 10)
+].groupby([condition_col, "Contaminated"])["%Noise"].describe()
+
+# %%
+merged_noise_df.loc[
+    (merged_noise_df["NoisyFinal"]) & (merged_noise_df["%Noise"] < 10)
+].groupby([condition_col])["%Noise"].describe()
+
+# %%
+merged_noise_df.loc[
+    (merged_noise_df["NoisyFinal"]) & (merged_noise_df["%Noise"] < 10)
+].groupby([condition_col, "Contaminated"])["%Noise"].nlargest(n=3).groupby(
+    [condition_col, "Contaminated"]
+).apply(
+    lambda x: 1.5 * x.sum() / 3
+).reset_index(
+    name="NoiseThreshold"
+)
+
+# %%
+merged_noise_df.loc[
+    (merged_noise_df["NoisyFinal"]) & (merged_noise_df["%Noise"] < 10)
+].groupby([condition_col])["%Noise"].nlargest(n=3).groupby([condition_col]).apply(
+    lambda x: 1.5 * x.sum() / 3
+).reset_index(
+    name="NoiseThreshold"
+)
+
+# %%
+# stats of num of unique samples per contaminated positions used for noise thresholding
+merged_noise_df.loc[
+    (merged_noise_df["NoisyFinal"])
+    & (merged_noise_df["%Noise"] < 10)
+    & (merged_noise_df["Contaminated"])
+].groupby([condition_col])["NumUniqueSamples"].describe()
+
+# %%
+# fig = px.violin(
+#     merged_noise_df,
+#     x=condition_col,
+#     y="%Noise",
+#     color=condition_col,
+#     color_discrete_map=color_discrete_map,
+#     category_orders=category_orders,
+#     template=template,
+#     # title="Noise levels",
+#     # labels={"Gene": "Transcript"},
+# )
+# fig.update_yaxes(
+#     title="% noise (all positions)",
+#     # tickmode='linear',
+#     # tick0=0,
+#     # dtick=2
+# )
+# fig.update_layout(
+#     showlegend=False,
+#     width=450,
+#     height=350,
+#     title_text="Squid's UMI long-reads - per sample",
+#     title_x=0.15,
+# )
+# # fig.write_image(
+# #     "Per chrom noise levels - PacBio.svg",
+# #     width=300,
+# #     height=350,
+# # )
+# fig.show()
 
 
 # %%
-color_discrete_map
+# fig = px.violin(
+#     merged_noise_df,
+#     x=condition_col,
+#     y="%Noise",
+#     color=condition_col,
+#     color_discrete_map=color_discrete_map,
+#     category_orders=category_orders,
+#     facet_col="Contaminated",
+#     template=template,
+#     # title="Noise levels",
+#     labels={"%Noise": "% noise<br>(all positions)"},
+#     # log_y=True
+# )
+# # fig.update_yaxes(
+# #     title="% noise",
+# #     # tickmode='linear',
+# #     # tick0=0,
+# #     # dtick=2
+# # )
+# fig.update_layout(
+#     showlegend=False,
+#     width=600,
+#     height=350,
+#     title_text="Squid's UMI long-reads - per sample",
+#     title_x=0.2,
+# )
+# # fig.write_image(
+# #     "Per chrom noise levels - PacBio.svg",
+# #     width=300,
+# #     height=350,
+# # )
+# fig.show()
+
+
+# %%
+# fig = px.violin(
+#     merged_noise_df.loc[merged_noise_df["NoisyFinal"]],
+#     x=condition_col,
+#     y="%Noise",
+#     color=condition_col,
+#     color_discrete_map=color_discrete_map,
+#     category_orders=category_orders,
+#     template=template,
+#     # title="Noise levels",
+#     labels={"%Noise": "% noise<br>(final noisy positions)"},
+#     # labels={"Gene": "Transcript"},
+# )
+# # fig.update_yaxes(
+# #     title="% noise",
+# #     # tickmode='linear',
+# #     # tick0=0,
+# #     # dtick=2
+# # )
+# fig.update_layout(
+#     showlegend=False,
+#     width=550,
+#     height=350,
+#     title_text="Squid's UMI long-reads - per sample",
+#     title_x=0.15,
+# )
+# # fig.write_image(
+# #     "Per chrom noise levels - PacBio.svg",
+# #     width=300,
+# #     height=350,
+# # )
+# fig.show()
+
+
+# %%
+# fig = px.violin(
+#     merged_noise_df.loc[merged_noise_df["NoisyFinal"]],
+#     x=condition_col,
+#     y="%Noise",
+#     color=condition_col,
+#     color_discrete_map=color_discrete_map,
+#     category_orders=category_orders,
+#     facet_col="Contaminated",
+#     template=template,
+#     # title="Noise levels",
+#     labels={"%Noise": "% noise<br>(final noisy positions)"},
+#     # labels={"Gene": "Transcript"},
+#     # log_y=True
+# )
+# # fig.update_yaxes(
+# #     title="% noise",
+# #     # tickmode='linear',
+# #     # tick0=0,
+# #     # dtick=2
+# # )
+# fig.update_layout(
+#     showlegend=False,
+#     width=600,
+#     height=350,
+#     title_text="Squid's UMI long-reads - per sample",
+#     title_x=0.2,
+# )
+# # fig.write_image(
+# #     "Per chrom noise levels - PacBio.svg",
+# #     width=300,
+# #     height=350,
+# # )
+# fig.show()
+
+
+# %%
+duplicated_merged_noise_df_1 = merged_noise_df.copy()
+duplicated_merged_noise_df_2 = merged_noise_df.copy()
+duplicated_merged_noise_df_2["Contaminated"] = "All (True + False)"
+duplicated_merged_noise_df = pd.concat(
+    [duplicated_merged_noise_df_1, duplicated_merged_noise_df_2]
+)
+# duplicated_merged_noise_df
+
+# %%
+category_orders | {"Contaminated": ["All (True + False)", True, False]}
 
 # %%
 fig = px.violin(
-    merged_noise_df,
+    duplicated_merged_noise_df,
     x=condition_col,
     y="%Noise",
     color=condition_col,
     color_discrete_map=color_discrete_map,
-    category_orders=category_orders,
+    # category_orders=category_orders,
+    category_orders=category_orders
+    | {"Contaminated": ["All (True + False)", True, False]},
+    facet_col="Contaminated",
     template=template,
-    title="Noise levels",
+    # title="Noise levels",
+    # labels={"%Noise": "% noise<br>(final noisy positions)"},
+    labels={"%Noise": "% noise<br>(all positions)"},
     box=True,
     points="all",
-    # labels={"Gene": "Transcript"},
+    # log_y=True
 )
-fig.update_yaxes(
-    title="% noise",
-    # tickmode='linear',
-    # tick0=0,
-    # dtick=2
-)
+# fig.update_yaxes(
+#     title="% noise",
+#     # tickmode='linear',
+#     # tick0=0,
+#     # dtick=2
+# )
 fig.update_layout(
-    showlegend=False, width=300, height=350, title_text="Squid's Long-reads", title_x=0.2
+    showlegend=False,
+    width=800,
+    height=400,
+    title_text="Squid's UMI long-reads - per sample",
+    title_x=0.1,
 )
 # fig.write_image(
 #     "Per chrom noise levels - PacBio.svg",
@@ -2296,10 +2702,93 @@ fig.show()
 
 
 # %%
-for positions_df, condition, strand in zip(positions_dfs, conditions, strands):
-    ref_base = "A" if strand == "+" else "T"
-    df = positions_df.loc[positions_df["RefBase"] != ref_base]
-    df = df.assign(Noise2=df["Noise"] * 100).rename(columns={"Noise2": "%Noise"})
+fig = px.violin(
+    duplicated_merged_noise_df.loc[duplicated_merged_noise_df["NoisyFinal"]],
+    x=condition_col,
+    y="%Noise",
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    # category_orders=category_orders,
+    category_orders=category_orders
+    | {"Contaminated": ["All (True + False)", True, False]},
+    facet_col="Contaminated",
+    template=template,
+    # title="Noise levels",
+    labels={"%Noise": "% noise<br>(final noisy positions)"},
+    box=True,
+    points="all",
+    # log_y=True
+)
+# fig.update_yaxes(
+#     title="% noise",
+#     # tickmode='linear',
+#     # tick0=0,
+#     # dtick=2
+# )
+fig.update_layout(
+    showlegend=False,
+    width=800,
+    height=400,
+    title_text="Squid's UMI long-reads - per sample",
+    title_x=0.1,
+)
+# fig.write_image(
+#     "Per chrom noise levels - PacBio.svg",
+#     width=300,
+#     height=350,
+# )
+fig.show()
+
+
+# %%
+fig = px.violin(
+    duplicated_merged_noise_df.loc[
+        (duplicated_merged_noise_df["NoisyFinal"])
+        & (duplicated_merged_noise_df["%Noise"] < 10)
+    ],
+    x=condition_col,
+    y="%Noise",
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    # category_orders=category_orders,
+    category_orders=category_orders
+    | {"Contaminated": ["All (True + False)", True, False]},
+    facet_col="Contaminated",
+    template=template,
+    # title="Noise levels",
+    labels={
+        "%Noise": "% noise<br>(only positions considered for<br>noise thresholding)"
+    },
+    box=True,
+    points="all",
+    # log_y=True
+)
+# fig.update_yaxes(
+#     title="% noise",
+#     # tickmode='linear',
+#     # tick0=0,
+#     # dtick=2
+# )
+fig.update_layout(
+    showlegend=False,
+    width=800,
+    height=400,
+    title_text="Squid's UMI long-reads - per sample",
+    title_x=0.1,
+)
+# fig.write_image(
+#     "Per chrom noise levels - PacBio.svg",
+#     width=300,
+#     height=350,
+# )
+fig.show()
+
+
+# %%
+
+# %%
+for condition in conditions:
+    df = merged_noise_df.loc[merged_noise_df[condition_col] == condition]
     fig = px.bar(
         df,
         x="Position",
@@ -2310,9 +2799,32 @@ for positions_df, condition, strand in zip(positions_dfs, conditions, strands):
         # template=template,
         template="simple_white",
         title=f"Noise per position in {condition}",
+        labels={"%Noise": "% noise<br>(all positions)"},
     )
     fig.update_layout(showlegend=False)
-    fig.update_yaxes(title="% noise")
+    # fig.update_yaxes(title="% noise")
+    fig.show()
+
+
+# %%
+for condition in conditions:
+    df = merged_noise_df.loc[
+        (merged_noise_df[condition_col] == condition) & (merged_noise_df["NoisyFinal"])
+    ]
+    fig = px.bar(
+        df,
+        x="Position",
+        y="%Noise",
+        color=condition_col,
+        color_discrete_map=color_discrete_map,
+        category_orders=category_orders,
+        # template=template,
+        template="simple_white",
+        title=f"Noise per position in {condition}",
+        labels={"%Noise": "% noise<br>(final noisy positions)"},
+    )
+    fig.update_layout(showlegend=False)
+    # fig.update_yaxes(title="% noise")
     fig.show()
 
 
@@ -2320,12 +2832,12 @@ for positions_df, condition, strand in zip(positions_dfs, conditions, strands):
 # #### Saving noise dfs
 
 # %%
-merged_noise_df.insert(0, "Platform", "Long-reads")
-merged_noise_df.loc[:, condition_col] = merged_noise_df.loc[:, condition_col].apply(lambda x: "GRIA2" if x == "GRIA" else x)
-merged_noise_df
+# merged_noise_df.insert(0, "Platform", "Long-reads")
+# merged_noise_df.loc[:, condition_col] = merged_noise_df.loc[:, condition_col].apply(lambda x: "GRIA2" if x == "GRIA" else x)
+# merged_noise_df
 
 # %%
-merged_noise_df.to_csv("NoiseLevels.PacBio.tsv", sep="\t", index=False)
+# merged_noise_df.to_csv("NoiseLevels.PacBio.tsv", sep="\t", index=False)
 
 # %% [markdown]
 # ### Known & new editing sites
@@ -2353,7 +2865,7 @@ conditions_labels = {
     condition: ["Edited", "KnownEditing", "InProbRegion"] for condition in conditions
 }
 
-    
+
 conditions_sets = {
     condition: [
         set(positions_df.loc[positions_df[label], "Position"])
@@ -2378,7 +2890,7 @@ except KeyError:
 
 
 # %%
-len(conditions_sets["PCLO"])
+# len(conditions_sets["PCLO"])
 
 # %%
 problamatic_regions_exist = False
@@ -2419,12 +2931,12 @@ for condition, ax in zip(conditions, axs.flat):
 #     title = "Positions' membership: currently edited & known editing"
 
 fig.suptitle(
-    "Squid's Long-reads",
+    "Squid's UMI long-reads - per sample",
     fontsize="xx-large",
     # y=1.2
 )
 
-plt.savefig("Known vs new editing sites - PacBio.svg", format="svg", dpi=300)
+# plt.savefig("Known vs new editing sites - PacBio.svg", format="svg", dpi=300)
 
 plt.show()
 
@@ -2436,21 +2948,24 @@ plt.show()
 # conditions_labels = {
 #     condition: ["Edited", "KnownEditing", "InProbRegion"] for condition in conditions
 # }
-conditions_labels = {
-    condition: ["Edited", "KnownEditing"] for condition in conditions
-}
+conditions_labels = {condition: ["Edited", "KnownEditing"] for condition in conditions}
 
 conditions_sets = {
     condition: [
         set(
             positions_df.loc[
-                (positions_df[label]) & (positions_df["CDS"]) & (positions_df["Position"] >= primer_for_start) & (positions_df["Position"] + 1 <= primer_rev_end), 
-                "Position"
+                (positions_df[label])
+                & (positions_df["CDS"])
+                & (positions_df["Position"] >= primer_for_start)
+                & (positions_df["Position"] + 1 <= primer_rev_end),
+                "Position",
             ]
         )
         for label in conditions_labels[condition]
     ]
-    for positions_df, condition, (primer_for_start, primer_rev_end) in zip(positions_dfs, conditions, primers_ranges)
+    for positions_df, condition, (primer_for_start, primer_rev_end) in zip(
+        positions_dfs, conditions, primers_ranges
+    )
 }
 
 try:
@@ -2506,7 +3021,9 @@ fig.suptitle(
     # y=1.2
 )
 
-plt.savefig("Known vs new editing sites - within primers - PacBio.svg", format="svg", dpi=300)
+plt.savefig(
+    "Known vs new editing sites - within primers - PacBio.svg", format="svg", dpi=300
+)
 
 plt.show()
 
@@ -2576,7 +3093,8 @@ merged_ref_base_positions_df = merged_ref_base_positions_df.drop(
 )
 
 melt_merged_ref_base_positions_df = merged_ref_base_positions_df.melt(
-    id_vars=[condition_col, "Chrom", "Position", "Edited", "KnownEditing"],
+    # id_vars=[condition_col, "Chrom", "Position", "Edited", "KnownEditing"],
+    id_vars=[condition_col, "Chrom", "Position", "EditedFinal", "KnownEditing"],
     # var_name="",
     # value_name=""
 )
@@ -2591,7 +3109,8 @@ for condition in conditions:
     ]
     # df = df.loc[~df["variable"].str.contains("%Editing")]
     df = df.loc[df["variable"].isin(["TotalCoverage", "EditedReads"])]
-    df = df.loc[df["Edited"]]
+    # df = df.loc[df["Edited"]]
+    df = df.loc[df["EditedFinal"]]
 
     fig = px.bar(
         df,
@@ -2599,8 +3118,13 @@ for condition in conditions:
         y="value",
         # facet_col="KnownEditing",
         # facet_row="Edited",
+        # title=(
+        #     f"Editing vs. coverage in {condition}"
+        #     "<br>"
+        #     "<sub>(only edited positions are presented)</sub>"
+        # ),
         title=(
-            f"Editing vs. coverage in {condition}"
+            f"Editing vs. coverage in {condition} - Squid's UMI long-reads - per sample"
             "<br>"
             "<sub>(only edited positions are presented)</sub>"
         ),
@@ -2640,7 +3164,8 @@ fig = make_subplots(
 )
 
 df = merged_ref_base_positions_df.copy()
-df = df.loc[df["Edited"] & df["KnownEditing"]]
+# df = df.loc[df["Edited"] & df["KnownEditing"]]
+df = df.loc[(df["EditedFinal"]) & (df["KnownEditing"]) & (~df["%EditingKnown"].isna())]
 
 for col, condition, unique_reads_df in zip(
     range(1, cols + 1), conditions, unique_reads_dfs
@@ -2680,12 +3205,12 @@ for col, condition, unique_reads_df in zip(
 
 fig.update_layout(
     # title_text="Correlation between current & previously-reported editing levels",
-    title_text="Squid's Long-reads",
+    title_text="Squid's UMI long-reads - per sample",
     title_x=0.1,
     showlegend=False,
     template=template,
     width=900,
-    height=450
+    height=450,
 )
 
 fig.update_xaxes(range=[0, 100])
@@ -2693,6 +3218,27 @@ fig.update_yaxes(range=[0, 100])
 
 fig.show()
 
+
+# %%
+df.loc[df["%EditingKnown"].isna()]
+
+# %%
+condition_df
+
+# %%
+x = condition_df["%Editing"]
+y = condition_df["%EditingKnown"]
+
+# %%
+x.isna().any()
+
+# %%
+y.isna().any()
+
+# %%
+x.value_counts(dropna=False)
+
+# %%
 
 # %%
 # todo turn to fig and drop nan (here they're treated as zeros)
@@ -2709,7 +3255,7 @@ for condition in conditions:
     df["Position"] = df["Position"].astype(int)
     df = df.sort_values("Position")
 
-    fig = px.line(
+    fig = px.line
         df,
         x="Position",
         y="value",
@@ -2744,6 +3290,7 @@ for condition in conditions:
 df = merged_ref_base_positions_df.loc[
     merged_ref_base_positions_df["Edited"]
 ]  # todo or maybe all positions - not just the edited ones?
+
 fig = px.histogram(
     df,
     x="%Editing",
@@ -2834,7 +3381,7 @@ fig.update_layout(
     xaxis_title="Gene",
     width=width,
     height=height,
-    title_text="Squid's Long-reads",
+    title_text="Squid's UMI long-reads - per sample",
     # title_x=0.3
     # title_x=0.27,
 )
@@ -2995,7 +3542,6 @@ fig.update_yaxes(
 fig.update_xaxes(range=[0, maximal_x * 1.1])
 fig.update_layout(
     # title_text=head_title,
-    title_text="Squid's Long-reads",
     template=template,
     legend_font=dict(size=10),
     legend_grouptitlefont=dict(size=12),
@@ -3010,9 +3556,11 @@ fig.update_layout(
     height=600,
     width=900,
 )
-fig.write_image(
-    "Distinct proteins vs. sequencing depth - PacBio.svg", width=900, height=600
-)
+
+# fig.write_image(
+#     "Distinct proteins vs. sequencing depth - PacBio.svg", width=900, height=600
+# )
+
 fig.show()
 
 
@@ -3025,7 +3573,9 @@ out_files = ["DistinctProteins.PacBio.tsv", "MaxDistinctProteinsF1.PacBio.tsv"]
 for df, out_file in zip(dfs, out_files):
     df = df.copy()
     df.insert(0, "Platform", "Long-reads")
-    df.loc[:, condition_col] = df.loc[:, condition_col].apply(lambda x: "GRIA2" if x == "GRIA" else x)
+    df.loc[:, condition_col] = df.loc[:, condition_col].apply(
+        lambda x: "GRIA2" if x == "GRIA" else x
+    )
     df.to_csv(out_file, sep="\t", index=False)
 
 # %%
@@ -3138,17 +3688,15 @@ fig.update_yaxes(
 )
 
 width = 600
-height = width*450/500
+height = width * 450 / 500
 
 fig.update_layout(
     template=template,
     # title="Squid's Long-reads",
     title="Long-reads",
     title_x=0.15,
-    
-#     autosize=False,
-#     # margin_r=200,
-    
+    #     autosize=False,
+    #     # margin_r=200,
     legend=dict(
         orientation="h",
         entrywidth=90,
@@ -3168,7 +3716,6 @@ fig.update_layout(
     # legend_grouptitlefont_size=12,
     # legend_font=dict(size=12),
     legend_tracegroupgap=0,
-
     height=height,
     width=width,
 )
@@ -3471,7 +4018,7 @@ fig.show()
 # # y_title = "Num solutions a protein<br>is included at (avg)"
 # y_title = "Frac. 1.0 solutions a protein<br>is included at (avg)"
 # # title_text = "Distribution of min & max estimates of non-syn mutations per protein"
-# title_text="Squid's Long-reads"
+# title_text="Squid's UMI long-reads - per sample"
 
 # fig = make_subplots(
 #     rows=rows,
@@ -3534,9 +4081,13 @@ fig.show()
 
 # %%
 df3_fixed = (
-    expanded_distinct_unique_proteins_df_2
-    .groupby([condition_col, "Fraction", "Protein"])
-    .agg(NumOfSolutions=("Protein", "size"), MeanAmbigousPositions=("MeanAmbigousPositions", "mean"))
+    expanded_distinct_unique_proteins_df_2.groupby(
+        [condition_col, "Fraction", "Protein"]
+    )
+    .agg(
+        NumOfSolutions=("Protein", "size"),
+        MeanAmbigousPositions=("MeanAmbigousPositions", "mean"),
+    )
     .reset_index()
     .rename(columns={"NumOfSolutions": "#SolutionIncluded"})
 )
@@ -3550,7 +4101,7 @@ row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(condi
 x_title = "Mean ambiguous positions per protein"
 # y_title = "Num solutions a protein<br>is included at (avg)"
 y_title = "Frac. 1.0 solutions a protein<br>is included at (avg)"
-title_text = "Squid's Long-reads"
+title_text = "Squid's UMI long-reads - per sample"
 
 fig = make_subplots(
     rows=rows,
@@ -3623,7 +4174,7 @@ x_title = "Mean ambiguous positions per protein"
 # y_title = "Num solutions a protein<br>is included at (avg)"
 # y_title = "Frac. 1.0 solutions a protein<br>is included at (avg)"
 y_title = "Cumulative % of<br>frac. 1.0 solutions"
-title_text = "Squid's Long-reads"
+title_text = "Squid's UMI long-reads - per sample"
 
 fig = make_subplots(
     rows=rows,
@@ -3649,8 +4200,69 @@ for (
             x=x,
             y=y,
             # histfunc="avg",
-            histnorm='percent',
+            histnorm="percent",
             cumulative_enabled=True,
+            cumulative_direction="decreasing",
+            marker_color=color_discrete_map[condition],
+            name=condition,
+        ),
+        row=row,
+        col=col,
+    )
+
+fig.update_layout(
+    template=template,
+    barmode="overlay",  # Overlay both histograms
+    title_text=title_text,
+    title_x=0.15,
+    # title_y=0.95,
+    showlegend=False,
+    # height=max(170 * rows, 300),
+    height=max(170 * rows, 350),
+    width=max(220 * cols, 500),
+)
+
+fig.show()
+
+
+# %% jupyter={"source_hidden": true}
+cols = min(facet_col_wrap, len(conditions), 5)
+rows = ceil(len(conditions) / cols)
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
+
+x_title = "Mean ambiguous positions per protein"
+# y_title = "Num solutions a protein<br>is included at (avg)"
+# y_title = "Frac. 1.0 solutions a protein<br>is included at (avg)"
+y_title = "Cumulative % of<br>frac. 1.0 solutions"
+title_text = "Squid's UMI long-reads - per sample"
+
+fig = make_subplots(
+    rows=rows,
+    cols=cols,
+    subplot_titles=conditions,
+    shared_yaxes="all",
+    shared_xaxes="all",
+    x_title=x_title,
+    y_title=y_title,
+)
+
+# plot averaged histograms
+for (
+    (row, col),
+    condition,
+) in zip(row_col_iter, conditions):
+    _df3 = df3_fixed.loc[df3_fixed[condition_col] == condition]
+    # x = _df3["AmbigousPositions"]
+    x = _df3["MeanAmbigousPositions"]
+    y = _df3["#SolutionIncluded"]
+    fig.add_trace(
+        go.Histogram(
+            x=x,
+            y=y,
+            # histfunc="avg",
+            histnorm="percent",
+            cumulative_enabled=True,
+            # cumulative_direction="decreasing",
             marker_color=color_discrete_map[condition],
             name=condition,
         ),
@@ -4134,7 +4746,9 @@ fig.show()
 
 # %%
 min_max_fraction_1_distinct_prots_df.insert(0, "Platform", "Long-reads")
-min_max_fraction_1_distinct_prots_df.to_csv("Dispersion.PacBio.tsv", sep="\t", index=False)
+min_max_fraction_1_distinct_prots_df.to_csv(
+    "Dispersion.PacBio.tsv", sep="\t", index=False
+)
 
 # %%
 # fig = go.Figure(
@@ -4508,7 +5122,7 @@ min_max_fraction_1_distinct_prots_df.to_csv("Dispersion.PacBio.tsv", sep="\t", i
 # %%
 unique_reads_dfs[1]
 
-# %% jupyter={"source_hidden": true}
+# %%
 # missing_values_reads = unique_reads_dfs[1].iloc[:7]["Reads"].str.split(",").explode().reset_index(drop=True)
 # # missing_values_reads = unique_reads_dfs[1]["Reads"].str.split(",").explode().reset_index(drop=True)
 # # missing_values_reads
@@ -4569,7 +5183,7 @@ top_100_unique_reads_combinatorics_df
 # from collections import Counter
 # Counter(top_100_unique_reads_combinatorics_df.iloc[:7].values.reshape(-1))
 
-# %% jupyter={"source_hidden": true}
+# %%
 # top_100_unique_reads_combinatorics_df.columns[
 #     int(len(top_100_unique_reads_combinatorics_df))
 # ]
@@ -4612,12 +5226,12 @@ fig.update_xaxes(
 fig.add_annotation(
     showarrow=False,
     text="Editing sites",
-    xref="paper", 
+    xref="paper",
     yref="paper",
-    x=0.47, 
+    x=0.47,
     y=-0.1,
     # font=dict(size=18)
-    font=dict(size=comb_heatmap_font_size)
+    font=dict(size=comb_heatmap_font_size),
 )
 
 fig.update_yaxes(
@@ -4634,29 +5248,30 @@ width = 650
 # height = 700
 height = 600
 
-fig.update_layout(height=height, 
-                  width=width, 
-                  template=template, 
-                  # font_size=16,
-                  font_size=comb_heatmap_font_size,
-                  # grid_xside="bottom plot",
-                  # title=dict(
-                  #     # automargin=True, 
-                  #     # yref='paper',
-                  #     # yref='container',
-                  #     y=0.93,
-                  #     x=0.47,
-                  #     # yanchor="top"
-                  #     # text="Editable amino acids in squid's PCLO (Long-reads)",
-                  #     text="Editing sites",
-                  #     font=dict(size=18)
-                  # ),
-                 )
+fig.update_layout(
+    height=height,
+    width=width,
+    template=template,
+    # font_size=16,
+    font_size=comb_heatmap_font_size,
+    # grid_xside="bottom plot",
+    # title=dict(
+    #     # automargin=True,
+    #     # yref='paper',
+    #     # yref='container',
+    #     y=0.93,
+    #     x=0.47,
+    #     # yanchor="top"
+    #     # text="Editable amino acids in squid's PCLO (Long-reads)",
+    #     text="Editing sites",
+    #     font=dict(size=18)
+    # ),
+)
 
 fig.write_image(
     "Combinatorics of top 100 expressed unique reads in PCLO - PacBio.svg",
-    height=height, 
-    width=width
+    height=height,
+    width=width,
 )
 
 fig.show()
@@ -5203,8 +5818,7 @@ assignment_dfs[0].columns
 
 # %%
 avg_of_min_estimate_of_non_syns_per_isoforms = [
-    assignment_df["MinNonSyns"].mean()
-    for assignment_df in assignment_dfs
+    assignment_df["MinNonSyns"].mean() for assignment_df in assignment_dfs
 ]
 avg_of_min_estimate_of_non_syns_per_isoforms
 
@@ -6122,7 +6736,7 @@ for (
     pred_y = regr.predict(np.array(test_x).reshape(-1, 1))
 
     # transform these variables back to original scale so that they can plotted
-    test_x = reverse_x_transform(test_x)  # should be equivalent to `test_x = x[test_logspace]`?
+                                            test_x = reverse_x_transform(test_x)  # should be equivalent to `test_x = x[test_logspace]`?
     pred_y = reverse_y_transform(pred_y)
 
     fig.add_trace(
@@ -6373,13 +6987,13 @@ for assignment_df in fraction01_assignment_dfs:
 fraction01_assignment_dfs[0]
 
 # %%
-facet_row_spacing 
+facet_row_spacing
 
 # %%
-facet_row_spacing  / 2.5
+facet_row_spacing / 2.5
 
 # %%
-facet_row_spacing  / 4
+facet_row_spacing / 4
 
 # %%
 facet_col_spacing
@@ -6448,7 +7062,7 @@ for (row, col), assignment_df, fraction01_assignment_df, condition in zip(
 
         # text = f"  Fraction = {percentile_fraction}"
         text = "Subsampled data (10%)" if percentile_fraction == 0.1 else "Full data"
-        
+
         fig.add_trace(
             go.Scatter(
                 x=legend_x,
@@ -6478,7 +7092,7 @@ fig.update_xaxes(
 )
 
 width = 900
-height = 450    
+height = 450
 
 fig.update_layout(
     # title="Squid's Long-reads",
@@ -6699,7 +7313,7 @@ for col, condition in zip(range(cols), conditions):
 #     )
 
 width = 900
-height = 450    
+height = 450
 
 fig.update_layout(
     title="Relative expression [%]",
@@ -7492,32 +8106,31 @@ def run_hdbscan(
 ):
     rng = np.random.RandomState(seed)
 
-#     conditions_hdbscan_labels = [
-#         HDBSCAN(
-#             min_samples=min_samples,
-#             min_cluster_size=min_cluster_size,
-#         ).fit_predict(weighted_conditions_umap.values)
-#         for weighted_conditions_umap in weighted_conditions_umaps
-#     ]
+    #     conditions_hdbscan_labels = [
+    #         HDBSCAN(
+    #             min_samples=min_samples,
+    #             min_cluster_size=min_cluster_size,
+    #         ).fit_predict(weighted_conditions_umap.values)
+    #         for weighted_conditions_umap in weighted_conditions_umaps
+    #     ]
 
-#     return conditions_hdbscan_labels
+    #     return conditions_hdbscan_labels
 
     conditions_hdbscan_labels = []
     conditions_medoids = []
-    
+
     for weighted_conditions_umap in weighted_conditions_umaps:
-        
         hdb = HDBSCAN(
             min_samples=min_samples,
             min_cluster_size=min_cluster_size,
-            store_centers="medoid"
+            store_centers="medoid",
         )
         hdb.fit(weighted_conditions_umap.values)
         labels = hdb.labels_
         medoids = hdb.medoids_
         conditions_hdbscan_labels.append(labels)
         conditions_medoids.append(medoids)
-        
+
     return conditions_hdbscan_labels, conditions_medoids
 
 
@@ -7995,7 +8608,9 @@ weighted_conditions_umaps[0]
 # fig.show()
 
 # %%
-conditions_hdbscan_labels, conditions_medoids = run_hdbscan(weighted_conditions_umaps, seed=seed)
+conditions_hdbscan_labels, conditions_medoids = run_hdbscan(
+    weighted_conditions_umaps, seed=seed
+)
 
 [set(labels) for labels in conditions_hdbscan_labels]
 
@@ -8010,7 +8625,7 @@ hdbscan_labels_color_map = {
     label: color
     for label, color in zip(
         hdbscan_labels_dict.values(),
-        px.colors.qualitative.Light24 + px.colors.qualitative.Dark24
+        px.colors.qualitative.Light24 + px.colors.qualitative.Dark24,
     )
 }
 # hdbscan_labels_color_map
@@ -8030,14 +8645,7 @@ fig = make_subplots(
     subplot_titles=fixed_conditions,
     x_title="UMAP 1",
     y_title="UMAP 2",
-    insets=[
-        {
-            "cell": (row, col),
-            "l": 0.85,
-            "b": 0.85
-        }
-        for row, col in row_col_iter
-    ],
+    insets=[{"cell": (row, col), "l": 0.85, "b": 0.85} for row, col in row_col_iter],
 )
 
 # fig.layout
@@ -8066,66 +8674,70 @@ for (
     y = values[:, 1]
 
     formatted_labels = [hdbscan_labels_dict[label] for label in hdbscan_labels]
-    
+
     # plot all points
-    
+
     colors = [hdbscan_labels_color_map[label] for label in formatted_labels]
 
     fig.add_trace(
-            go.Scattergl(
-                x=x,
-                y=y,
-                mode="markers",
-                marker=dict(
-                    color=colors,
-                    size=1,
-                    line=dict(
-                        width=0,
-                        # color="black"
-                    ),
-                    opacity=0.3,
+        go.Scattergl(
+            x=x,
+            y=y,
+            mode="markers",
+            marker=dict(
+                color=colors,
+                size=1,
+                line=dict(
+                    width=0,
+                    # color="black"
                 ),
+                opacity=0.3,
             ),
-            row=row,
-            col=col,
-        )
-    
+        ),
+        row=row,
+        col=col,
+    )
+
     # plot labels' perimeters & labels numbers, located at the medoids
-    
+
     unique_formatted_labels = set(formatted_labels)
     if "*" in unique_formatted_labels:
         # first "*" and then the rest of the labels
-        sorted_unique_formatted_labels = ["*"] + sorted(list(unique_formatted_labels - {"*"}))
+        sorted_unique_formatted_labels = ["*"] + sorted(
+            list(unique_formatted_labels - {"*"})
+        )
     else:
         sorted_unique_formatted_labels = sorted(list(unique_formatted_labels))
 
     for i, unique_label in enumerate(sorted_unique_formatted_labels):
-
         # don't plot perimiter of unclustered proteins
         if unique_label == "*":
             continue
-        
+
         color = hdbscan_labels_color_map[unique_label]
-        
+
         # plot labels' perimeters
-        
-        rows_belong_to_unique_label = [label == unique_label for label in formatted_labels]
+
+        rows_belong_to_unique_label = [
+            label == unique_label for label in formatted_labels
+        ]
 
         unique_label_x = x[rows_belong_to_unique_label]
         unique_label_y = y[rows_belong_to_unique_label]
 
-        points = np.array([[i,  j] for i, j in zip(unique_label_x, unique_label_y)])
+        points = np.array([[i, j] for i, j in zip(unique_label_x, unique_label_y)])
         hull = ConvexHull(points)
 
         for simplex in hull.simplices:
-
             fig.add_trace(
                 go.Scattergl(
                     x=points[simplex, 0],
                     y=points[simplex, 1],
                     # mode='lines+markers',
-                    mode='lines',
-                    line=dict(color=color, width=2, dash="dash") if unique_label == "*" else dict(color=color, width=2),
+                    mode="lines",
+                    line=dict(color=color, width=2, dash="dash")
+                    if unique_label == "*"
+                    else dict(color=color, width=2),
                     # marker=dict(
                     #     color=color,
                     #     size=4,
@@ -8135,14 +8747,14 @@ for (
                 row=row,
                 col=col,
             )
-        
+
         # plot labels numbers, located at the medoids (only for clustered labels)
-        
+
         if i == 0:
             continue
         j = i - 1
         medoid_x, medoid_y = medoids[j, 0], medoids[j, 1]
-        
+
         fig.add_trace(
             go.Scattergl(
                 x=[medoid_x],
@@ -8157,7 +8769,7 @@ for (
             ),
             row=row,
             col=col,
-            )
+        )
 
 # fig.update_xaxes(range=[min_x, max_x])
 
@@ -8199,7 +8811,6 @@ fig = make_subplots(
     y_title="Cummulative relative<br>expression [%]",
     shared_xaxes="all",
     shared_yaxes="all",
-
 )
 
 # fig.layout
@@ -8221,23 +8832,27 @@ for (
     weighted_exp_umap_input_dfs,
 ):
     formatted_labels = [hdbscan_labels_dict[label] for label in hdbscan_labels]
-    
+
     # plot the summed relative expression levels of hdbcsan groups as an inset plot
-    
+
     # copy the relative expression col into a new df
     relative_expression_df = weighted_exp_umap_input_df.loc[:, ["%RelativeExpression"]]
     # add HDBSCAN labels to allow summing the relative expression levels of each such group
     relative_expression_df["HDBSCAN labels"] = hdbscan_labels
-    hdbscan_groups_summed_expression_df = relative_expression_df.groupby("HDBSCAN labels").sum().reset_index()
+    hdbscan_groups_summed_expression_df = (
+        relative_expression_df.groupby("HDBSCAN labels").sum().reset_index()
+    )
     # format hdbscan clusters' names
-    hdbscan_groups_summed_expression_df["HDBSCAN labels"] = hdbscan_groups_summed_expression_df["HDBSCAN labels"].apply(
+    hdbscan_groups_summed_expression_df[
+        "HDBSCAN labels"
+    ] = hdbscan_groups_summed_expression_df["HDBSCAN labels"].apply(
         lambda x: hdbscan_labels_dict[x]
     )
-    
+
     x = hdbscan_groups_summed_expression_df["HDBSCAN labels"]
     y = hdbscan_groups_summed_expression_df["%RelativeExpression"]
     colors = [hdbscan_labels_color_map[label] for label in x]
-    
+
     fig.add_trace(
         go.Bar(
             x=x,
@@ -8253,7 +8868,7 @@ for (
             # width=1
         ),
         row=row,
-        col=col
+        col=col,
     )
 
 width = 550
@@ -8262,7 +8877,7 @@ height = (350 / 600) * width
 # fig.update_traces(textfont_size=4)
 
 fig.update_xaxes(
-    # tickangle=0, 
+    # tickangle=0,
     # tickfont=dict(size=7),
     # title="HDBSCAN<br>labels",
     # title_font_size=8,
@@ -8270,7 +8885,7 @@ fig.update_xaxes(
     # automargin=True,
     tickmode="array",
     ticktext=list(hdbscan_labels_dict.values()),
-    type="category"
+    type="category",
 )
 
 fig.update_layout(
@@ -8284,7 +8899,9 @@ fig.update_layout(
 )
 
 fig.write_image(
-    "Cummulative expression vs HDBSCAN labeling - PacBio.svg", width=width, height=height
+    "Cummulative expression vs HDBSCAN labeling - PacBio.svg",
+    width=width,
+    height=height,
 )
 
 fig.show()
@@ -8542,8 +9159,7 @@ fig.add_trace(
 
 fig.update_yaxes(title_text="Entropy")
 fig.update_xaxes(
-    title="Gene",
-    tickfont=dict(size=10)
+    title="Gene", tickfont=dict(size=10)
 )  # https://plotly.com/python/axes/#set-axis-label-rotation-and-font
 
 # fig.update_traces(
@@ -8643,18 +9259,16 @@ fig = go.Figure(
     )
 )
 
-fig.update_xaxes(
-    showticklabels=False
-)
+fig.update_xaxes(showticklabels=False)
 
 fig.add_annotation(
     showarrow=False,
     text="Editable codons",
-    xref="paper", 
+    xref="paper",
     yref="paper",
-    x=0.47, 
+    x=0.47,
     y=-0.1,
-    font=dict(size=18)
+    font=dict(size=18),
 )
 
 fig.update_yaxes(
@@ -8666,22 +9280,25 @@ fig.update_yaxes(
     range=[1, 100],
 )
 
-fig.update_layout(height=700, width=650, template=template, 
-                  font_size=16,
-                  # title=dict(
-                  #     # automargin=True, 
-                  #     # yref='paper',
-                  #     # yref='container',
-                  #     y=0.93,
-                  #     x=0.4,
-                  #     # yanchor="top"
-                  #     # text="Editable amino acids in squid's PCLO (Long-reads)",
-                  #     # text="Editable amino acids",
-                  #     # text="Most expressed PCLO protein isoforms",
-                  #     text=" sss",
-                  #     font=dict(size=18)
-                  # ),
-                 )
+fig.update_layout(
+    height=700,
+    width=650,
+    template=template,
+    font_size=16,
+    # title=dict(
+    #     # automargin=True,
+    #     # yref='paper',
+    #     # yref='container',
+    #     y=0.93,
+    #     x=0.4,
+    #     # yanchor="top"
+    #     # text="Editable amino acids in squid's PCLO (Long-reads)",
+    #     # text="Editable amino acids",
+    #     # text="Most expressed PCLO protein isoforms",
+    #     text=" sss",
+    #     font=dict(size=18)
+    # ),
+)
 
 fig.write_image(
     "Combinatorics of top 100 expressed proteins in PCLO - PacBio.svg",
@@ -8868,17 +9485,33 @@ fig.show()
 # %%
 for assignment_df in assignment_dfs:
     assignment_df["300 most expressed"] = assignment_df.index < 300
-    assignment_df["1000 least expressed"] = assignment_df.index >= assignment_df.shape[0] - 1000
+    assignment_df["1000 least expressed"] = (
+        assignment_df.index >= assignment_df.shape[0] - 1000
+    )
 merged_assignment_df = pd.concat(assignment_dfs).reset_index(drop=True)
-merged_assignment_df = merged_assignment_df.loc[merged_assignment_df["300 most expressed"] | merged_assignment_df["1000 least expressed"]]
-merged_assignment_df["Abundancy"] = merged_assignment_df["300 most expressed"].apply(lambda x: "300 most expressed" if x else "1000 least expressed")
+merged_assignment_df = merged_assignment_df.loc[
+    merged_assignment_df["300 most expressed"]
+    | merged_assignment_df["1000 least expressed"]
+]
+merged_assignment_df["Abundancy"] = merged_assignment_df["300 most expressed"].apply(
+    lambda x: "300 most expressed" if x else "1000 least expressed"
+)
 # merged_assignment_df.insert(0, "Platform", "Long-reads")
 merged_assignment_df
 
 # %%
-assert merged_assignment_df.loc[merged_assignment_df["300 most expressed"]].shape[0] == len(conditions) * 300
-assert merged_assignment_df.loc[merged_assignment_df["1000 least expressed"]].shape[0] == len(conditions) * 1000
-assert merged_assignment_df.loc[merged_assignment_df["300 most expressed"] & merged_assignment_df["1000 least expressed"]].empty
+assert (
+    merged_assignment_df.loc[merged_assignment_df["300 most expressed"]].shape[0]
+    == len(conditions) * 300
+)
+assert (
+    merged_assignment_df.loc[merged_assignment_df["1000 least expressed"]].shape[0]
+    == len(conditions) * 1000
+)
+assert merged_assignment_df.loc[
+    merged_assignment_df["300 most expressed"]
+    & merged_assignment_df["1000 least expressed"]
+].empty
 
 
 # %%
@@ -8902,7 +9535,9 @@ es_in_rare_vs_abundant_isoforms_df = (
 es_in_rare_vs_abundant_isoforms_df
 
 # %%
-merged_assignment_df.groupby([condition_col, "Abundancy"])["EditedPositions"].agg(["mean", "median"])
+merged_assignment_df.groupby([condition_col, "Abundancy"])["EditedPositions"].agg(
+    ["mean", "median"]
+)
 
 # %%
 cols = min(5, len(conditions))
@@ -8912,7 +9547,7 @@ row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(condi
 fig = make_subplots(
     rows=rows,
     cols=cols,
-    vertical_spacing=0.8/rows,
+    vertical_spacing=0.8 / rows,
     subplot_titles=fixed_conditions,
     shared_yaxes="all",
     # x_title="Abundancy",
@@ -8942,8 +9577,8 @@ for condition, (row, col) in zip(conditions, row_col_iter):
     )
 # fig.update_yaxes(zerolinewidth=zerolinewidth, tickmode="linear", tick0=0, dtick=0.2)
 
-width=600
-height=400
+width = 600
+height = 400
 
 fig.update_layout(
     template=template,
@@ -8966,8 +9601,8 @@ fig.show()
 
 # %%
 merged_assignment_df.loc[
-                merged_assignment_df[condition_col] == "GRIA", "Abundancy"
-            ].str.replace(" ", "<br>")
+    merged_assignment_df[condition_col] == "GRIA", "Abundancy"
+].str.replace(" ", "<br>")
 
 # %% [markdown] toc-hr-collapsed=true
 # ## Editing in reads
@@ -9245,8 +9880,6 @@ estimate_names = ["Min", "Max"]
 for (row, col), condition, fixed_condition, proteins_df in zip(
     row_col_iter, conditions, fixed_conditions, non_syns_per_read_dfs
 ):
-    
-
     for i, (col_name, estimate_name) in enumerate(zip(col_names, estimate_names)):
         x = proteins_df[col_name]
 
