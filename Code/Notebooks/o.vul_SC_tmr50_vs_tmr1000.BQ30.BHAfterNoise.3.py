@@ -13,7 +13,7 @@
 #     name: python3
 # ---
 
-# %% [markdown] papermill={"duration": 0.029907, "end_time": "2022-02-01T09:42:43.198426", "exception": false, "start_time": "2022-02-01T09:42:43.168519", "status": "completed"}
+# %% [markdown] papermill={"duration": 0.029907, "end_time": "2022-02-01T09:42:43.198426", "exception": false, "start_time": "2022-02-01T09:42:43.168519", "status": "completed"} jp-MarkdownHeadingCollapsed=true
 # # Imports
 
 # %%
@@ -28,6 +28,7 @@ code_dir = "/private7/projects/Combinatorics/Code"
 import subprocess
 import sys
 import time
+import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import reduce
 from itertools import chain, combinations, product
@@ -36,16 +37,19 @@ from multiprocessing import Pool
 from pathlib import Path
 from random import choice
 
+warnings.filterwarnings("error")
+
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import plotly.colors as pc
 import plotly.express as px
 import plotly.graph_objects as go
-
-from scipy import interpolate  # todo unimport this later?
+import plotly.io as pio
 import scipy.stats
 import seaborn as sns
+import seaborn.objects as so
 from Bio import SeqIO, motifs  # biopython
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -54,10 +58,13 @@ from logomaker import Logo  # logomaker
 from matplotlib_venn import venn2, venn3
 from plotly.subplots import make_subplots
 from pybedtools import BedTool
+from scipy import interpolate  # todo unimport this later?
+from seaborn import axes_style
 from sklearn import linear_model
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.metrics import mean_squared_error, r2_score
+from statsmodels.stats.multitest import fdrcorrection
 
 sys.path.append(str(Path(code_dir).absolute()))
 from Alignment.alignment_utils import (
@@ -71,8 +78,6 @@ from EditingUtils.seq import make_fasta_dict
 
 # %%
 pd.set_option("display.max_columns", 500)
-
-# %%
 
 # %% [markdown]
 # # Data loading
@@ -197,8 +202,6 @@ tmr50_alignment_stats_df.loc[
 ]
 
 # %%
-
-# %%
 reads_files = list(reads_dir.glob("*.reads.csv.gz"))
 chroms_in_reads_files = [reads_file.name.split(".")[0] for reads_file in reads_files]
 
@@ -226,9 +229,9 @@ reads_data_df = reads_data_df.merge(unique_reads_data_df, on="Chrom", how="left"
 reads_data_df
 
 # %%
-tmr50_alignment_stats_df.loc[
-    ~tmr50_alignment_stats_df["Chrom"].isin(reads_data_df["Chrom"])
-]
+# tmr50_alignment_stats_df.loc[
+#     ~tmr50_alignment_stats_df["Chrom"].isin(reads_data_df["Chrom"])
+# ]
 
 # %%
 proteins_files = list(proteins_dir.glob("*.proteins.csv.gz"))
@@ -352,7 +355,7 @@ complete_data_df
 # robo2_index
 
 # %%
-complete_data_df["Strand"].value_counts()
+# complete_data_df["Strand"].value_counts()
 
 # %%
 # complete_data_df.loc[complete_data_df["Name"].duplicated(keep=False)].sort_values("Name", ignore_index=True)
@@ -373,15 +376,15 @@ distinct_unique_proteins_files = complete_data_df["DistinctProteinsFile"].tolist
 expression_files = complete_data_df["ExpressionFile"].tolist()
 
 # %%
-len(data_df["UniqueReadsFile"])
+# len(data_df["UniqueReadsFile"])
 
 # %%
-len(complete_data_df["UniqueReadsFile"])
+# len(complete_data_df["UniqueReadsFile"])
 
 # %%
-100 * len(chroms) / len(possibly_na_chroms)
+# 100 * len(chroms) / len(possibly_na_chroms)
 
-# %% [markdown]
+# %% [markdown] jp-MarkdownHeadingCollapsed=true
 # # Data loading - TMR 1000
 
 # %%
@@ -580,7 +583,7 @@ tmr1000_distinct_unique_proteins_files = tmr1000_complete_data_df[
 tmr1000_expression_files = tmr1000_complete_data_df["ExpressionFile"].tolist()
 
 
-# %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"}
+# %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"} jp-MarkdownHeadingCollapsed=true
 # # Ploting utils
 
 # %%
@@ -621,7 +624,7 @@ def two_subcolors_from_hex(hex_color, d_r=4, d_g=20, d_b=22, scale_1=1, scale_2=
 # %%
 # sample_to_tissue_dict
 
-# %%
+# %% jupyter={"source_hidden": true}
 # tissues_order = [
 #     "Axial nerve cord",
 #     "Frontal & vertical lobe",
@@ -633,7 +636,7 @@ def two_subcolors_from_hex(hex_color, d_r=4, d_g=20, d_b=22, scale_1=1, scale_2=
 # ]
 # tissue_to_legendrank = {tissue: x for x, tissue in enumerate(tissues_order, start=1)}
 
-# %% papermill={"duration": 0.054755, "end_time": "2022-02-01T09:42:46.304499", "exception": false, "start_time": "2022-02-01T09:42:46.249744", "status": "completed"}
+# %% papermill={"duration": 0.054755, "end_time": "2022-02-01T09:42:46.304499", "exception": false, "start_time": "2022-02-01T09:42:46.249744", "status": "completed"} jupyter={"source_hidden": true}
 # # # plotly consts
 # # color_sequence = px.colors.qualitative.Pastel
 # # # color_sequence = px.colors.qualitative.D3
@@ -673,6 +676,12 @@ def two_subcolors_from_hex(hex_color, d_r=4, d_g=20, d_b=22, scale_1=1, scale_2=
 
 # %%
 template = "plotly_white"
+
+# %%
+# pio.templates.default = template
+
+# %%
+so.Plot.config.theme.update(axes_style("whitegrid"))
 
 # %% [markdown]
 #
@@ -714,7 +723,7 @@ template = "plotly_white"
 # %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"}
 # # Data preprocessing
 
-# %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"}
+# %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"} jp-MarkdownHeadingCollapsed=true
 # ## Known sites
 
 # %%
@@ -767,45 +776,6 @@ fig = px.histogram(
 )
 # fig['layout']['xaxis']['autorange'] = "reversed" # reverse the x-axis
 fig.update_layout(width=800, height=400)
-fig.show()
-
-# %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"}
-# ## Neural expression
-
-# %%
-neural_vs_non_neural_expression_df = pd.read_csv(
-    "/private7/projects/Combinatorics/O.vulgaris/Annotations/NeuralVsNonNeuralExpression.BySalmonAndOrthoFinder.tsv",
-    sep="\t",
-)
-
-# # the original file from Y. Shoshan's paper contained a line per editing site,
-# # but the per-transcript ("Chrom") expression levels are the same for each transcript,
-# # so we remove duplicates s.t. each transcript will appear only oncee
-# neural_vs_non_neural_expression_df = neural_vs_non_neural_expression_df.drop_duplicates(
-#     subset="Chrom", ignore_index=True
-# )
-
-# # determine whether a transcript is highly expressed in neural tissues
-# neural_vs_non_neural_expression_df[
-#     "IsNeural"
-# ] = neural_vs_non_neural_expression_df.apply(
-#     lambda x: "Yes" if x["NeuralExpression"] > 4 * x["NonNeuralExpression"] else "No",
-#     axis=1,
-# )
-neural_vs_non_neural_expression_df
-
-# %%
-fig = px.histogram(
-    neural_vs_non_neural_expression_df,
-    x="NeuralObimOrthologs/ObimOrthologs",
-    log_y=True,
-)
-fig.update_layout(width=600, height=400, template=template)
-fig.show()
-
-# %%
-fig = px.histogram(neural_vs_non_neural_expression_df, x="IsNeural", log_y=True)
-fig.update_layout(width=600, height=400, template=template)
 fig.show()
 
 # %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"}
@@ -1244,6 +1214,101 @@ concat_all_positions_df.loc[
 # ## Raw reads
 
 # %%
+neuronality_of_annotaion_df = pd.DataFrame(
+    {
+        "Annotation": [
+            "ACH1",
+            "ACH2",
+            "ACH3",
+            "CCAP",
+            "DOP1",
+            "DOP2",
+            "DOP3",
+            "EC",
+            "FBL",
+            "GABA",
+            "GLIA1",
+            "GLIA2",
+            "GLIA3",
+            "GLUT1",
+            "GLUT2",
+            "GLUT3",
+            "GLUT4",
+            "HC",
+            "IGL1-OA",
+            "IGL2-GLUT/DOP",
+            "IGL2-GLUT/DOP",
+            "IGL3",
+            "IGL4-L11",
+            "OA",
+            "OGL1",
+            "OGL2-DOP",
+            "OGL3-OA",
+            "PEP-APWG",
+            "PEP-Burs",
+            "PEP-Fmrfa1",
+            "PEP-Fmrfa3",
+            "PREC",
+            "SERT",
+            "SUB",
+            "VL",
+        ],
+        "NeuronalStrRep": [
+            "Yes",
+            "Yes",
+            "Yes",
+            "No",
+            "Yes",
+            "Yes",
+            "Yes",
+            "No",
+            "No",
+            "Yes",
+            "No",
+            "No",
+            "No",
+            "Yes",
+            "Yes",
+            "Yes",
+            "Yes",
+            "No",
+            "Yes",
+            "Yes",
+            "Yes",
+            "Yes",
+            "Yes",
+            "Yes",
+            "Yes",
+            "Yes",
+            "Yes",
+            "Yes",
+            "Yes",
+            "Yes",
+            "Yes",
+            "Yes",
+            "Yes",
+            "Yes",
+            "Yes",
+        ],
+    }
+)
+# neuronality_of_annotaion_df["NeuronalStrRep"] = neuronality_of_annotaion_df["Neuronal"]
+neuronality_of_annotaion_df["Neuronal"] = neuronality_of_annotaion_df[
+    "NeuronalStrRep"
+].apply(lambda x: True if x == "Yes" else False)
+neuronality_of_annotaion_df = neuronality_of_annotaion_df.drop_duplicates(
+    ignore_index=True
+)
+# .replace({"Yes": True, "No": False})
+neuronality_of_annotaion_df
+
+# %%
+neuronality_of_annotaion_df["NeuronalStrRep"].value_counts(dropna=False)
+
+# %%
+neuronality_of_annotaion_df["Neuronal"].value_counts(dropna=False)
+
+# %%
 raw_reads_info_df = pd.read_csv(
     raw_reads_info_file,
     usecols=[
@@ -1260,12 +1325,442 @@ raw_reads_info_df = pd.read_csv(
 ).rename(
     columns={"Gene": "Chrom", "Library": "Sample", "seurat_clusters": "SeuratCluster"}
 )
+raw_reads_info_df = raw_reads_info_df.merge(neuronality_of_annotaion_df, how="left")
+raw_reads_info_df["NeuronalStrRep"] = raw_reads_info_df["NeuronalStrRep"].fillna("NA")
 
 raw_reads_info_df
 
 # %%
+raw_reads_info_df.groupby(["Sample", "CB"]).size()
+
+# %%
+reads_per_cell_df = (
+    raw_reads_info_df.loc[raw_reads_info_df["Chrom"].isin(chroms)]
+    .groupby(["Sample", "Neuronal", "Annotation", "CB"], dropna=False)
+    .size()
+    .reset_index(name="Reads")
+)
+reads_per_cell_df
+
+# %%
+reads_per_cell_df.groupby("Sample")["Reads"].describe()
+
+# %%
+reads_per_cell_df.groupby(["Sample", "Annotation"])["Reads"].describe()
+
+# %%
+p = (
+    so.Plot(
+        reads_per_cell_df,
+        x="Reads",
+        # color="Sample"
+    ).add(so.Area(), so.Hist())
+    # .add(so.Bars(), so.Hist())
+    .scale(
+        # x="log",
+        y="log"
+    )
+    # .limit(x=(0, 100))
+    .label(
+        x="Reads per cell",
+        y="Cells",
+        # color="Editing detected in gene",
+    )
+)
+p
+
+# %%
+(
+    so.Plot(reads_per_cell_df, x="Reads", color="Sample").add(so.Area(), so.Hist())
+    # .add(so.Bars(), so.Hist(), color="EditingDetectedInChrom")
+    # .scale(color=so.Nominal(order=[True, False]))
+    # .limit(x=(0, 100))
+    .label(
+        x="Reads per cell",
+        y="Cells",
+        # color="Editing detected in gene",
+    )
+)
+
+# %%
+(
+    so.Plot(
+        raw_reads_info_df.loc[raw_reads_info_df["Chrom"].isin(chroms)], "%Yes/Total"
+    )
+    .add(so.Area(), so.Hist(), color="EditingDetectedInChrom")
+    # .add(so.Bars(), so.Hist(), color="EditingDetectedInChrom")
+    .scale(color=so.Nominal(order=[True, False]))
+    .limit(x=(0, 100))
+    .label(
+        x="Reads from neuronal cells / all reads [%]",
+        y="Genes",
+        color="Editing detected in gene",
+    )
+)
+
+# %%
+raw_reads_info_df["Chrom"].nunique()
+
+# %%
+raw_reads_info_df.loc[raw_reads_info_df["Chrom"].isin(chroms), "Chrom"].nunique()
+
+# %%
+raw_reads_info_df.loc[
+    raw_reads_info_df["Chrom"].isin(chroms), "NeuronalStrRep"
+].value_counts(normalize=True).round(2).mul(100)
+
+# %%
+raw_reads_info_df.loc[
+    (raw_reads_info_df["NeuronalStrRep"].ne("NA")),
+    ["Chrom", "NeuronalStrRep"],
+]
+
+# %%
+raw_reads_info_df.loc[
+    (raw_reads_info_df["NeuronalStrRep"].ne("NA")),
+    ["Chrom", "NeuronalStrRep"],
+].groupby("Chrom")["NeuronalStrRep"].value_counts()
+
+# %%
+raw_reads_info_df.loc[
+    (raw_reads_info_df["Chrom"].isin(chroms))
+    & (raw_reads_info_df["NeuronalStrRep"].ne("NA")),
+    "NeuronalStrRep",
+].value_counts(normalize=True).round(2).mul(100)
+
+# %%
+raw_reads_info_df.loc[(raw_reads_info_df["Chrom"].isin(chroms))].groupby(
+    ["Sample", "Neuronal"], dropna=False
+)["CB"].value_counts(dropna=False).r
+
+# %%
+raw_reads_info_df.loc[(raw_reads_info_df["Chrom"].isin(chroms))].groupby(
+    ["Sample", "Neuronal"], dropna=False
+)["CB"].nunique(dropna=False)
+
+# %%
+raw_reads_info_df.loc[(raw_reads_info_df["Chrom"].isin(chroms))].groupby(
+    ["Sample", "Neuronal", "Annotation"], dropna=False
+)["CB"].nunique(dropna=False)
+
+# %%
+df = Out[890].reset_index()
+df
+
+# %%
+df.groupby(["Sample", "Neuronal"], dropna=False)["CB"].mean()
+
+# %%
+raw_reads_info_df.loc[
+    (raw_reads_info_df["Chrom"].isin(chroms))
+    & (raw_reads_info_df["NeuronalStrRep"].ne("NA"))
+].groupby("Chrom")["NeuronalStrRep"].value_counts()
+
+
+# %% jupyter={"source_hidden": true}
+# neuronal_reads_per_chrom_df = (
+#     raw_reads_info_df
+#     .groupby("Chrom")["NeuronalStrRep"]
+#     .value_counts()
+#     .reset_index(name="Reads")
+# )
+
+# neuronal_reads_per_chrom_df["MaxReadsPerChrom"] = (
+#     neuronal_reads_per_chrom_df.groupby("Chrom")["Reads"].transform("max")
+# )
+# neuronal_reads_per_chrom_df["IsMaxReadsPerChrom"] = (
+#     neuronal_reads_per_chrom_df["Reads"].eq(
+#         neuronal_reads_per_chrom_df["MaxReadsPerChrom"]
+#     )
+# )
+# neuronal_reads_per_chrom_df = neuronal_reads_per_chrom_df.merge(
+#     (
+#         neuronal_reads_per_chrom_df.loc[
+#             neuronal_reads_per_chrom_df["IsMaxReadsPerChrom"]
+#         ]
+#         .groupby("Chrom")
+#         .apply(
+#             lambda x: x["NeuronalStrRep"].sample(n=1, random_state=seed),
+#             include_groups=False,
+#         )
+#         .reset_index(name="ChromNeuronality")
+#         .drop(columns="level_1")
+#     ),
+#     how="left",
+# )
+
+# neuronal_reads_per_chrom_df = neuronal_reads_per_chrom_df.merge(
+#     neuronal_reads_per_chrom_df.groupby("Chrom")
+#     .apply(
+#         lambda x: x.loc[x["NeuronalStrRep"].ne("NA"), "Reads"].max(),
+#         include_groups=False,
+#     )
+#     .reset_index(name="MaxReadsPerChromWoNa"),
+#     how="left",
+# )
+# neuronal_reads_per_chrom_df["IsMaxReadsPerChromWoNa"] = (
+#     neuronal_reads_per_chrom_df.apply(
+#         lambda x: (
+#             x["Reads"] == x["MaxReadsPerChromWoNa"]
+#             if x["MaxReadsPerChromWoNa"] != "NA"
+#             else np.nan
+#         ),
+#         axis=1,
+#     )
+# )
+
+# neuronal_reads_per_chrom_df
+
+# neuronal_reads_per_chrom_df = neuronal_reads_per_chrom_df.merge(
+#     (
+#         neuronal_reads_per_chrom_df.groupby("Chrom")
+#         .apply(
+#             lambda x: x.loc[x["IsMaxReadsPerChromWoNa"], "NeuronalStrRep"].sample(
+#                 n=1, random_state=seed
+#             ),
+#             include_groups=False,
+#         )
+#         .reset_index(name="ChromNeuronalityWoNa")
+#         .drop(columns="level_1")
+#     ),
+#     how="left",
+# )
+
+# neuronal_reads_per_chrom_df
+
+# %%
+# def decide_chrom_neurality(rng, num_of_neural_reads, num_of_non_neural_reads, num_of_na_reads=None):
+#     if num_of_na_reads is not None:
+#         nums_of_reads = [num_of_neural_reads, num_of_non_neural_reads, num_of_na_reads]
+#         neurality_ids = ["Yes", "No", "NA"]
+#     else:
+#         nums_of_reads = [num_of_neural_reads, num_of_non_neural_reads]
+#         neurality_ids = ["Yes", "No"]
+#     # ic(nums_of_reads, neurality_ids)
+#     max_num_of_reads = max(nums_of_reads)
+#     max_ids = [neurality_id for neurality_id, num_of_reads in zip(neurality_ids, nums_of_reads) if num_of_reads == max_num_of_reads]
+#     # ic(nums_of_reads, neurality_ids, max_num_of_reads, max_ids)
+#     return rng.choice(max_ids)
+
+# %%
+# def decide_complete_chrom_neurality_by_expected(observed_neural_reads, observed_non_neural_reads, expected_neural_reads, observed_non_neural_reads):
+#     if num_of_na_reads is not None:
+#         nums_of_reads = [num_of_neural_reads, num_of_non_neural_reads, num_of_na_reads]
+#         neurality_ids = ["Yes", "No", "NA"]
+#     else:
+#         nums_of_reads = [num_of_neural_reads, num_of_non_neural_reads]
+#         neurality_ids = ["Yes", "No"]
+#     # ic(nums_of_reads, neurality_ids)
+#     max_num_of_reads = max(nums_of_reads)
+#     max_ids = [neurality_id for neurality_id, num_of_reads in zip(neurality_ids, nums_of_reads) if num_of_reads == max_num_of_reads]
+#     # ic(nums_of_reads, neurality_ids, max_num_of_reads, max_ids)
+#     return rng.choice(max_ids)
+
+# %%
+def decide_chrom_neuronality_2(
+    neural_reads,
+    non_neural_reads,
+    na_reads,
+    mean_neural_to_non_neural_reads_ratio,
+    std_neural_to_non_neural_reads_ratio,
+    mean_neural_to_total_reads_prct,
+):
+    if neural_reads > 0 and non_neural_reads > 0:
+        if (
+            neural_reads / non_neural_reads
+            >= mean_neural_to_non_neural_reads_ratio
+            + 3 * std_neural_to_non_neural_reads_ratio
+        ):
+            return "Yes"
+        return "No"
+    if neural_reads > 0 and non_neural_reads == 0:
+        if (100 * neural_reads) / (
+            neural_reads + na_reads
+        ) >= mean_neural_to_total_reads_prct:
+            return "Yes"
+        return "No"
+    if neural_reads == 0 and non_neural_reads > 0:
+        return "No"
+    if neural_reads == non_neural_reads == 0:
+        return "NA"
+    raise ValueError("something weird")
+
+
+# %%
+neuronal_reads_per_chrom_df = (
+    raw_reads_info_df.loc[
+        raw_reads_info_df["Chrom"].isin(possibly_na_chroms)
+    ]  # use only chroms with sufficient mapped reads
+    .groupby("Chrom")["NeuronalStrRep"]
+    .value_counts()
+    .reset_index(name="Reads")
+    .pivot(index=["Chrom"], columns=["NeuronalStrRep"])
+    .fillna(0)
+)
+neuronal_reads_per_chrom_df = neuronal_reads_per_chrom_df.set_axis(
+    neuronal_reads_per_chrom_df.columns.get_level_values(1).values, axis=1
+).reset_index()
+neuronal_reads_per_chrom_df = neuronal_reads_per_chrom_df.loc[
+    :, ["Chrom", "Yes", "No", "NA"]
+]
+
+neuronal_reads_per_chrom_df["Total"] = neuronal_reads_per_chrom_df.loc[
+    :, ["Yes", "No", "NA"]
+].sum(axis=1)
+# neuronal_reads_per_chrom_df["AllReadsWoNA"] = neuronal_reads_per_chrom_df.loc[:, ["Yes", "No"]].sum(axis=1)
+
+# rng = np.random.default_rng(seed)
+# neuronal_reads_per_chrom_df["ChromNeuronality"] = neuronal_reads_per_chrom_df.apply(
+#     lambda x: decide_chrom_neurality(rng, x["Yes"], x["No"], x["NA"]),
+#     axis=1
+# )
+# neuronal_reads_per_chrom_df["ChromNeuronalityWoNa"] = neuronal_reads_per_chrom_df.apply(
+#     lambda x: decide_chrom_neurality(rng, x["Yes"], x["No"]),
+#     axis=1
+# )
+
+neuronal_reads_per_chrom_df["%Yes/Total"] = (
+    neuronal_reads_per_chrom_df["Yes"]
+    .div(neuronal_reads_per_chrom_df["Total"])
+    .mul(100)
+)
+
+neuronal_reads_per_chrom_df["ChromNeuronality"] = neuronal_reads_per_chrom_df[
+    "%Yes/Total"
+].ge(
+    neuronal_reads_per_chrom_df["%Yes/Total"].mean()
+    + neuronal_reads_per_chrom_df["%Yes/Total"].std() * 3
+)
+neuronal_reads_per_chrom_df["ChromNeuronality"] = neuronal_reads_per_chrom_df[
+    "ChromNeuronality"
+].apply(lambda x: "Yes" if x else "No")
+
+neuronal_reads_per_chrom_df["Yes/No"] = (
+    neuronal_reads_per_chrom_df["Yes"]
+    .div(neuronal_reads_per_chrom_df["No"])
+    .replace([np.inf, -np.inf], np.nan)
+)
+neuronal_reads_per_chrom_df["ChromNeuronality2"] = neuronal_reads_per_chrom_df.apply(
+    lambda x: decide_chrom_neuronality_2(
+        x["Yes"],
+        x["No"],
+        x["NA"],
+        neuronal_reads_per_chrom_df["Yes/No"].mean(),
+        neuronal_reads_per_chrom_df["Yes/No"].std(),
+        neuronal_reads_per_chrom_df["%Yes/Total"].mean(),
+    ),
+    axis=1,
+)
+
+neuronal_reads_per_chrom_df["EditingDetectedInChrom"] = neuronal_reads_per_chrom_df[
+    "Chrom"
+].isin(chroms)
+
+neuronal_reads_per_chrom_df
+
+# %%
+neuronal_reads_per_chrom_df["%Yes/Total"].describe().round(3)
+
+# %%
+neuronal_reads_per_chrom_df["Yes/No"].describe().round(2)
+
+# %%
+(
+    so.Plot(neuronal_reads_per_chrom_df, "%Yes/Total")
+    .add(so.Area(), so.Hist(), color="EditingDetectedInChrom")
+    # .add(so.Bars(), so.Hist(), color="EditingDetectedInChrom")
+    .scale(color=so.Nominal(order=[True, False]))
+    .limit(x=(0, 100))
+    .label(
+        x="Reads from neuronal cells / all reads [%]",
+        y="Genes",
+        color="Editing detected in gene",
+    )
+)
+
+# %%
+(
+    so.Plot(neuronal_reads_per_chrom_df, "Yes/No")
+    .add(so.Area(), so.Hist(), color="EditingDetectedInChrom")
+    # .add(so.Bars(), so.Hist(), color="EditingDetectedInChrom")
+    .scale(color=so.Nominal(order=[True, False]), x="log")
+    .limit(x=(0, None))
+    .label(
+        x="Reads from neuronal cells / reads from non-neural cells",
+        y="Genes",
+        color="Editing detected in gene",
+    )
+)
+
+# %%
+# (
+#     so.Plot(neuronal_reads_per_chrom_df, y="Total", x="%Yes/Total")
+#     .add(so.Dot(), color="EditingDetectedInChrom")
+#     # .add(so.Bars(), so.Hist(), color="EditingDetectedInChrom")
+#     .scale(color=so.Nominal())
+#     .limit(x=(0, 100), y=(0, None))
+#     .label(x="Reads from neuronal cells / all reads [%]", y="All reads", color="Editing detected in gene")
+# )
+
+# %%
+# neuronal_reads_per_edited_chrom_df = (
+#     neuronal_reads_per_chrom_df.loc[(neuronal_reads_per_chrom_df["Chrom"].isin(chroms))]
+#     .reset_index(drop=True)
+# )
+neuronal_reads_per_edited_chrom_df = neuronal_reads_per_chrom_df.loc[
+    neuronal_reads_per_chrom_df["EditingDetectedInChrom"]
+].reset_index(drop=True)
+
+neuronal_reads_per_edited_chrom_df
+
+# %%
+neuronal_reads_per_chrom_df["ChromNeuronality"].value_counts()
+
+# %%
+neuronal_reads_per_edited_chrom_df["ChromNeuronality"].value_counts()
+
+# %%
+neuronal_reads_per_chrom_df["ChromNeuronality2"].value_counts()
+
+# %%
+neuronal_reads_per_edited_chrom_df["ChromNeuronality2"].value_counts()
+
+# %%
+# neuronal_reads_per_edited_chrom_df["ChromNeuronalityWoNa"].value_counts()
+
+# %%
+# neuronal_reads_per_edited_chrom_df.loc[
+#     neuronal_reads_per_edited_chrom_df["Chrom"].isin(chroms_with_at_least_5_isoforms)
+# ]
+
+# %%
+# neuronal_reads_per_edited_chrom_df.loc[
+#     neuronal_reads_per_edited_chrom_df["ChromNeuronality"].eq("No"),
+#     "ChromNeuronalityWoNa",
+# ].value_counts()
+
+# %%
+# raw_reads_info_df.loc[
+#     raw_reads_info_df["Chrom"].isin(
+#         neuronal_reads_per_edited_chrom_df.loc[
+#             neuronal_reads_per_edited_chrom_df["ChromNeuronality"].eq("No"), "Chrom"
+#         ].unique()
+#     ),
+# ].groupby("NeuronalStrRep")["Annotation"].value_counts(dropna=False)
+
+# %%
+
+# %%
 # num of unique cells
 raw_reads_info_df["CB"].nunique()
+
+# %%
+# num of unique cells
+raw_reads_info_df.groupby("Sample")["CB"].nunique()
+
+# %%
+# num of unique cells
+raw_reads_info_df.groupby("Sample")["CB"].nunique().sum()
 
 # %%
 # num of unique molecules
@@ -1279,102 +1774,300 @@ raw_reads_info_df.groupby("CB")["UB"].nunique().describe()
 raw_reads_info_df["Annotation"].nunique()
 
 # %%
+set(raw_reads_info_df["Annotation"].unique()) - set(
+    neuronality_of_annotaion_df["Annotation"].unique()
+)
+
+# %%
+raw_reads_info_df["Annotation"].str.startswith("TBA")
+
+# %%
 raw_reads_info_df["Annotation"].value_counts(dropna=False)
 
-# %%
-# possibly_na_positions_files
+# %% jupyter={"source_hidden": true}
+# expanded_annotation_labels_string_2
 
+# %% jupyter={"source_hidden": true}
+# expanded_annotation_labels_string = """A anterior, ACH cholinergic neurons, AcTub acetylated tubulin, CCAP cardioactive peptide cells, DOP dopaminergic neurons, D dorsal, EC endothelial cells, es esophagus, FBL fibroblasts, fu funnel, GABA GABAergic neurons, GLUT glutamatergic neurons, HC hemocytes, igl inner granular layer, IGL inner granular layer cells, me medulla, OA octopaminergic neurons, ogl outer granular layer, OGL outer granular layer cells, ol optic lobe, P posterior, PEP peptidergic neurons, PREC precursor cells, plx plexiform layer, sem supraesophageal mass, SERT serotonergic neurons, sub subesophageal mass, SUB subesophageal neurons, st statocysts, TBA to be annotated, V ventral, vl vertical lobe, VL vertical lobe cells"""
 
-# %%
+# expanded_annotation_labels_string_2 = """ACH, cholinergic neurons; CCAP, cardioactive peptide cells; DOP, dopaminergic neurons; EC, endothelial cells; FBL, fibroblasts; GABA, GABAergic neurons; GLUT, glutamatergic neurons; HC, hemocytes; IGL, inner granular layer cells; OA, octopaminergic neurons; OGL, outer granular layer cells; PEP, peptidergic neurons; PREC, precursors; SERT, serotonergic neurons; SUB, subesophageal neurons; TBA, to be annotated; VL, vertical lobe cells"""
+# expanded_annotation_labels_string_2 = expanded_annotation_labels_string_2.replace(
+#     ",", ""
+# ).replace(";", ",")
 
-# %%
-# per_chrom_new_reads_info_df = {}
-
-# for chrom in possibly_na_chroms:
-#     if pd.isna(chrom):
-#         continue
-#     one_chrom_old_to_new_reads_file = Path(
-#         positions_dir, f"{chrom}.OldToNewReads.csv.gz"
-#     )
-#     if not one_chrom_old_to_new_reads_file.exists():
-#         continue
-#     one_chrom_raw_reads_info_df = raw_reads_info_df.loc[
-#         raw_reads_info_df["Chrom"] == chrom
-#     ]
-#     one_chrom_old_to_new_reads_df = pd.read_table(
-#         one_chrom_old_to_new_reads_file, dtype={"OldRead": str, "NewRead": str}
-#     )
-
-#     one_chrom_new_reads_info_df = (
-#         one_chrom_raw_reads_info_df.merge(
-#             one_chrom_old_to_new_reads_df,
-#             # how="inner",
-#             how="left",
-#             left_on="ReadID",
-#             right_on="OldRead",
-#             # indicator="Indicator",
-#         )
-#         .drop(columns=["ReadID", "OldRead"])
-#         .rename(columns={"NewRead": "Read"})
-#     )
-
-#     per_chrom_new_reads_info_df[chrom] = one_chrom_new_reads_info_df
-
-# %%
-# one_chrom_raw_reads_info_df = None
-# one_chrom_old_to_new_reads_df = None
-
-# # for chrom, positions_file in zip(possibly_na_chroms, possibly_na_positions_files):
-# #     if pd.isna(chrom) or pd.isna(positions_file):
-# #         continue
-# #     one_chrom_old_to_new_reads_file = Path(positions_file.parent, f"")
-
-# for chrom in possibly_na_chroms:
-#     if pd.isna(chrom):
-#         continue
-#     one_chrom_old_to_new_reads_file = Path(
-#         positions_dir, f"{chrom}.OldToNewReads.csv.gz"
-#     )
-#     if not one_chrom_old_to_new_reads_file.exists():
-#         continue
-#     one_chrom_raw_reads_info_df = raw_reads_info_df.loc[
-#         raw_reads_info_df["Chrom"] == chrom
-#     ]
-#     one_chrom_old_to_new_reads_df = pd.read_table(
-#         one_chrom_old_to_new_reads_file, dtype={"OldRead": str, "NewRead": str}
-#     )
-
-#     break
-
-# %%
-# one_chrom_raw_reads_info_df
-
-# %%
-# one_chrom_old_to_new_reads_df
-
-# %%
-# one_chrom_new_reads_info_df = (
-#     one_chrom_raw_reads_info_df.merge(
-#         one_chrom_old_to_new_reads_df,
-#         how="inner",
-#         left_on="ReadID",
-#         right_on="OldRead",
-#         indicator="Indicator",
-#     )
-#     .drop(columns=["ReadID", "OldRead"])
-#     .rename(columns={"NewRead": "Read"})
+# expanded_annotation_labels_string = (
+#     expanded_annotation_labels_string + ", " + expanded_annotation_labels_string_2
 # )
 
-# one_chrom_new_reads_info_df
+# expanded_annotation_labels_dict = {
+#     x.split(" ", maxsplit=1)[0]: x.split(" ", maxsplit=1)[1]
+#     for x in expanded_annotation_labels_string.split(", ")
+# }
+# expanded_annotation_labels_dict
+
+# expanded_cell_annotation_df = pd.DataFrame(
+#     {
+#         "Annotation": expanded_annotation_labels_dict.keys(),
+#         "ExpandedAnnotation": expanded_annotation_labels_dict.values(),
+#     }
+# )
+# expanded_cell_annotation_df
+
+# %% jupyter={"source_hidden": true}
+# well_annotated_cells_df = (
+#     raw_reads_info_df.loc[
+#         ~raw_reads_info_df["Annotation"].isin(
+#             [
+#                 "unstable",
+#                 "not separated",
+#                 "TBA1",
+#                 "TBA2",
+#                 "TBA3",
+#                 "TBA4",
+#                 "TBA5",
+#                 "TBA6",
+#                 "TBA7",
+#                 "TBA8",
+#             ]
+#         )
+#     ]
+#     .drop(columns=["Chrom", "ReadID", "UB"])
+#     .dropna(axis=0)
+#     .drop_duplicates(["Sample", "CB"])
+#     # .merge(
+#     #     expanded_cell_annotation_df,
+#     #     on="Annotation",
+#     #     how="left",
+#     #     # how="outer",
+#     #     indicator="indicator",
+#     # )
+#     .merge(neuronality_of_annotaion_df)
+# )
+# # well_annotated_cells_df.insert(
+# #     well_annotated_cells_df.columns.get_loc("ExpandedAnnotation") + 1,
+# #     "MissingExpandedAnnotation",
+# #     well_annotated_cells_df["ExpandedAnnotation"].isna(),
+# # )
+# # well_annotated_cells_df["MissingExpandedAnnotation"] = well_annotated_cells_df["ExpandedAnnotation"].isna()
+# well_annotated_cells_df
+
+# %% jupyter={"source_hidden": true}
+# expanded_cell_annotation_with_indicator_df = expanded_cell_annotation_df.merge(
+#     well_annotated_cells_df.loc[:, ["Annotation"]].drop_duplicates(),
+#     how="left",
+#     indicator="indicator",
+# )
+# expanded_cell_annotation_with_indicator_df.loc[
+#     expanded_cell_annotation_with_indicator_df["indicator"] == "left_only"
+# ]
+# # expanded_cell_annotation_with_indicator_df
+
+# %% jupyter={"source_hidden": true}
+# well_annotated_cells_df["indicator"].value_counts()
+
+# %% jupyter={"source_hidden": true}
+# # how many cells are missing an expanded annotation
+# well_annotated_cells_df.groupby(["Sample", "MissingExpandedAnnotation"]).size()
+
+# %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"} jp-MarkdownHeadingCollapsed=true
+# ## Neural expression
 
 # %%
-# one_chrom_new_reads_info_df["Indicator"].value_counts(dropna=False)
+neural_vs_non_neural_expression_df = pd.read_csv(
+    "/private7/projects/Combinatorics/O.vulgaris/Annotations/NeuralVsNonNeuralExpression.BySalmonAndOrthoFinder.tsv",
+    sep="\t",
+)
+
+# # the original file from Y. Shoshan's paper contained a line per editing site,
+# # but the per-transcript ("Chrom") expression levels are the same for each transcript,
+# # so we remove duplicates s.t. each transcript will appear only oncee
+# neural_vs_non_neural_expression_df = neural_vs_non_neural_expression_df.drop_duplicates(
+#     subset="Chrom", ignore_index=True
+# )
+
+# # determine whether a transcript is highly expressed in neural tissues
+# neural_vs_non_neural_expression_df[
+#     "IsNeural"
+# ] = neural_vs_non_neural_expression_df.apply(
+#     lambda x: "Yes" if x["NeuralExpression"] > 4 * x["NonNeuralExpression"] else "No",
+#     axis=1,
+# )
+neural_vs_non_neural_expression_df
+
+# %%
+# fig = px.histogram(
+#     neural_vs_non_neural_expression_df,
+#     x="NeuralObimOrthologs/ObimOrthologs",
+#     log_y=True,
+# )
+# fig.update_layout(width=600, height=400, template=template)
+# fig.show()
+
+# %%
+fig = px.histogram(neural_vs_non_neural_expression_df, x="IsNeural", log_y=True)
+fig.update_layout(width=600, height=400, template=template)
+fig.show()
 
 # %%
 
-# %%
+# %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"}
+# ## Combined neural expression
 
 # %%
+combined_per_chrom_neurality_df = (
+    neural_vs_non_neural_expression_df.loc[:, ["OvulChrom", "IsNeural"]]
+    .rename(columns={"OvulChrom": "Chrom", "IsNeural": "ChromNeuronalityOld"})
+    .merge(
+        # neuronal_reads_per_chrom_df.drop(columns=["Yes", "No", "NA"]).rename(columns={"ChromNeuronality": "ChromNeuronalityNew"}),
+        neuronal_reads_per_chrom_df.rename(
+            columns={
+                "ChromNeuronality": "ChromNeuronalityNew",
+                "ChromNeuronality2": "ChromNeuronalityNew2",
+            }
+        ),
+        # how="outer"
+        how="right",
+    )
+)
+# combined_per_chrom_neurality_df["OldAndNewMethodsAgree"] = (
+#     combined_per_chrom_neurality_df["ChromNeuronalityOld"].eq(
+#         combined_per_chrom_neurality_df["ChromNeuronalityNew"]
+#     )
+# )
+# combined_per_chrom_neurality_df["OldAndNewMethods2Agree"] = (
+#     combined_per_chrom_neurality_df["ChromNeuronalityOld"].eq(
+#         combined_per_chrom_neurality_df["ChromNeuronalityNew2"]
+#     )
+# )
+combined_per_chrom_neurality_df
+
+# %%
+complete_combined_per_chrom_neurality_df = combined_per_chrom_neurality_df.loc[
+    ~combined_per_chrom_neurality_df[
+        ["ChromNeuronalityOld", "ChromNeuronalityNew", "ChromNeuronalityNew2"]
+    ]
+    .isna()
+    .any(axis=1)
+].copy()
+# complete_combined_per_chrom_neurality_df["NeuralityAgreementDetails"] = (
+#     complete_combined_per_chrom_neurality_df.apply(
+#         lambda x: (
+#             "Yes"
+#             if x["ChromNeuronalityOld"] == "Yes" and x["ChromNeuronalityNew"] == "No"
+#             else (
+#                 "Old - yes, New - no"
+#                 if x["ChromNeuronalityOld"] == "Yes"
+#                 else (
+#                     "Old - no, New - yes" if x["ChromNeuronalityNew"] == "Yes" else "No"
+#                 )
+#             )
+#         ),
+#         axis=1,
+#     )
+# )
+# complete_combined_per_chrom_neurality_df["NeuralityAgreementDetails2"] = (
+#     complete_combined_per_chrom_neurality_df.apply(
+#         lambda x: (
+#             "NA" if x["ChromNeuronalityNew2"] == "NA"
+#             else "Yes" if x["ChromNeuronalityOld"] == "Yes" and x["ChromNeuronalityNew2"] == "No"
+#             else (
+#                 "Old - yes, New - no"
+#                 if x["ChromNeuronalityOld"] == "Yes"
+#                 else (
+#                     "Old - no, New - yes" if x["ChromNeuronalityNew2"] == "Yes" else "No"
+#                 )
+#             )
+#         ),
+#         axis=1,
+#     )
+# )
+complete_combined_per_chrom_neurality_df
+
+# %%
+complete_combined_per_chrom_neurality_df[
+    ["ChromNeuronalityOld", "ChromNeuronalityNew", "ChromNeuronalityNew2"]
+].value_counts(dropna=False)
+
+# %%
+# combined_per_chrom_neurality_df["OldAndNewMethodsAgree"].value_counts(dropna=False)
+
+# %%
+# complete_combined_per_chrom_neurality_df["OldAndNewMethodsAgree"].value_counts()
+
+# %%
+# complete_combined_per_chrom_neurality_df["OldAndNewMethods2Agree"].value_counts()
+
+# %%
+complete_combined_per_chrom_neurality_df.loc[
+    (
+        complete_combined_per_chrom_neurality_df["ChromNeuronalityOld"].eq(
+            complete_combined_per_chrom_neurality_df["ChromNeuronalityNew"]
+        )
+    )
+    & (
+        complete_combined_per_chrom_neurality_df["ChromNeuronalityOld"].eq(
+            complete_combined_per_chrom_neurality_df["ChromNeuronalityNew2"]
+        )
+    )
+]
+
+# %%
+complete_combined_per_chrom_neurality_df.loc[
+    (
+        complete_combined_per_chrom_neurality_df["ChromNeuronalityOld"].eq(
+            complete_combined_per_chrom_neurality_df["ChromNeuronalityNew"]
+        )
+    )
+    & (
+        complete_combined_per_chrom_neurality_df["ChromNeuronalityOld"].eq(
+            complete_combined_per_chrom_neurality_df["ChromNeuronalityNew2"]
+        )
+    )
+    & (complete_combined_per_chrom_neurality_df["EditingDetectedInChrom"])
+]
+
+# %%
+# complete_combined_per_chrom_neurality_df["NeuralityAgreementDetails"].value_counts()
+
+# %%
+# complete_combined_per_chrom_neurality_df["NeuralityAgreementDetails2"].value_counts()
+
+# %%
+# so.Plot(complete_combined_per_chrom_neurality_df, "%Yes/Total").add(so.Bars(), so.Hist())
+
+# %%
+# (
+#     so.Plot(complete_combined_per_chrom_neurality_df, "%Yes/Total")
+#     .add(so.Area(), so.Hist(), color="NeuralityAgreementDetails")
+#     # .add(so.Bars(), so.Hist(), color="NeuralityAgreementDetails")
+#     # .scale(color=so.Nominal(order=['Yes', 'Old - yes, New - no', 'Old - no, New - yes', 'No']))
+#     .limit(x=(0, 100))
+#     .layout(size=(6, 4.5))
+#     .label(x="Reads from neuronal cells / all reads [%]", y="Genes")
+# )
+
+# %%
+# (
+#     so.Plot(complete_combined_per_chrom_neurality_df, "%Yes/Total")
+#     .facet(col="OldAndNewMethodsAgree")
+#     .add(so.Bars(), so.Hist(), color="NeuralityAgreementDetails")
+#     # .scale(y="log")
+#     .scale(marker=so.Nominal(order=['Yes', 'Old - yes, New - no', 'Old - no, New - yes', "No"]))
+#     .limit(x=(0, 100))
+# )
+
+# %%
+# (
+#     so.Plot(complete_combined_per_chrom_neurality_df, "%Yes/Total")
+#     .facet(col="NeuralityAgreementDetails", order=['Yes', 'Old - yes, New - no', 'Old - no, New - yes', "No"])
+#     # .add(so.Bars(), so.Hist())
+#     .add(so.Area(), so.Hist())
+#     # .add(so.Area(), so.Hist(), color="NeuralityAgreementDetails")
+#     # .scale(y="log")
+#     .limit(x=(0, 100))
+#     .layout(size=(10, 4))
+#     # .label(color=None, marker=None, col=None)
+# )
 
 # %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"}
 # ## Reads
@@ -1387,12 +2080,278 @@ raw_reads_info_df["Annotation"].value_counts(dropna=False)
 # %% [markdown]
 # That is, all filtered reads.
 
-# %% papermill={"duration": 1.204258, "end_time": "2022-02-01T09:42:47.668206", "exception": false, "start_time": "2022-02-01T09:42:46.463948", "status": "completed"}
-# reads_dfs = [
-#     pd.read_csv(reads_file, sep=sep, dtype={"Read": str}) for reads_file in reads_files
-# ]
-# reads_dfs[0]
+# %%
+len(possibly_na_reads_files)
 
+# %% papermill={"duration": 1.204258, "end_time": "2022-02-01T09:42:47.668206", "exception": false, "start_time": "2022-02-01T09:42:46.463948", "status": "completed"}
+# dfs of reads mapped to edited positions
+reads_dfs = [
+    pd.read_csv(reads_file, sep=sep, dtype={"Read": str}) for reads_file in reads_files
+]
+for reads_df, chrom in zip(reads_dfs, chroms):
+    reads_df.insert(0, "Chrom", chrom)
+reads_dfs[0]
+
+
+# %%
+# reads_dfs[1]["Read"].tolist()
+
+# %%
+# chrom = "comp1001381_c0_seq1"
+
+# %%
+# one_chrom_edited_positions_df = concat_all_positions_df.loc[
+#     (concat_all_positions_df["Chrom"] == chroms[1])
+#     & (concat_all_positions_df["EditedFinal"])
+# ]
+# one_chrom_edited_positions_df
+
+# %%
+# one_chrom_unique_reads_mapped_to_edited_positions = list(
+#     set(chain.from_iterable(one_chrom_edited_positions_df["Reads"].str.split(",")))
+# )
+# ic(len(one_chrom_unique_reads_mapped_to_edited_positions))
+# one_chrom_unique_reads_mapped_to_edited_positions[:3]
+
+# %%
+# one_chrom_raw_reads_info_df = raw_reads_info_df.loc[raw_reads_info_df["Chrom"] == chrom]
+# # one_chrom_raw_reads_info_df
+
+# one_chrom_old_to_new_reads_df = pd.read_table(
+#     Path(positions_dir, f"{chrom}.OldToNewReads.csv.gz"),
+#     dtype={"OldRead": str, "NewRead": str},
+# )
+# # one_chrom_old_to_new_reads_df
+
+# one_chrom_reads_info_df = (
+#     one_chrom_raw_reads_info_df.merge(
+#         one_chrom_old_to_new_reads_df,
+#         how="left",
+#         left_on="ReadID",
+#         right_on="OldRead",
+#     )
+#     .drop(columns=["ReadID", "OldRead"])
+#     .rename(columns={"NewRead": "Read"})
+# )
+# one_chrom_new_reads_info_df
+
+# %%
+# one_chrom_new_reads_info_df.loc[
+#     one_chrom_new_reads_info_df["Read"].isin(
+#         one_chrom_unique_reads_mapped_to_edited_positions
+#     )
+# ]
+
+# %%
+reads_mapped_to_edited_positions_info_dfs = []
+
+for chrom, reads_df in zip(chroms, reads_dfs):
+    one_chrom_raw_reads_info_df = raw_reads_info_df.loc[
+        raw_reads_info_df["Chrom"] == chrom
+    ]
+    # one_chrom_raw_reads_info_df
+
+    one_chrom_old_to_new_reads_df = pd.read_table(
+        Path(positions_dir, f"{chrom}.OldToNewReads.csv.gz"),
+        dtype={"OldRead": str, "NewRead": str},
+    )
+    # one_chrom_old_to_new_reads_df
+
+    one_chrom_new_reads_info_df = (
+        one_chrom_raw_reads_info_df.merge(
+            one_chrom_old_to_new_reads_df,
+            how="left",
+            left_on="ReadID",
+            right_on="OldRead",
+        )
+        .drop(columns=["ReadID", "OldRead"])
+        .rename(columns={"NewRead": "Read"})
+    )
+    # one_chrom_new_reads_info_df
+
+    # one_chrom_edited_positions_df = concat_all_positions_df.loc[
+    #     (concat_all_positions_df["Chrom"] == chrom)
+    #     & (concat_all_positions_df["EditedFinal"])
+    # ]
+    # # one_chrom_edited_positions_df
+    # one_chrom_unique_reads_mapped_to_edited_positions = list(
+    #     set(chain.from_iterable(one_chrom_edited_positions_df["Reads"].str.split(",")))
+    # )
+    one_chrom_unique_reads_mapped_to_edited_positions = reads_df["Read"].tolist()
+    # ic(len(one_chrom_unique_reads_mapped_to_edited_positions))
+    # one_chrom_unique_reads_mapped_to_edited_positions[:3]
+
+    reads_mapped_to_edited_positions_info_df = one_chrom_new_reads_info_df.loc[
+        one_chrom_new_reads_info_df["Read"].isin(
+            one_chrom_unique_reads_mapped_to_edited_positions
+        )
+    ]
+
+    reads_mapped_to_edited_positions_info_dfs.append(
+        reads_mapped_to_edited_positions_info_df
+    )
+    # break
+
+concat_reads_mapped_to_edited_positions_info_dfs = pd.concat(
+    reads_mapped_to_edited_positions_info_dfs, ignore_index=True
+)
+concat_reads_mapped_to_edited_positions_info_dfs
+
+# %%
+neuronal_order = ["Yes", "No"]
+
+# %%
+well_annotated_reads_mapped_to_edited_positions_per_cell_df = (
+    concat_reads_mapped_to_edited_positions_info_dfs.loc[~concat_reads_mapped_to_edited_positions_info_dfs["Neuronal"].isna()].groupby(["Sample", "Neuronal", "NeuronalStrRep", "Annotation", "CB"], dropna=False)
+    .size()
+    .reset_index(name="Reads")
+)
+# Convert NeuronalStrRep to a categorical variable with the desired order
+well_annotated_reads_mapped_to_edited_positions_per_cell_df["CatNeuronalStrRep"] = pd.Categorical(
+    well_annotated_reads_mapped_to_edited_positions_per_cell_df["NeuronalStrRep"],
+    categories=neuronal_order,
+    ordered=True,
+)
+well_annotated_reads_mapped_to_edited_positions_per_cell_df = well_annotated_reads_mapped_to_edited_positions_per_cell_df.sort_values(
+    ["CatNeuronalStrRep", "Annotation"], ignore_index=True
+)
+well_annotated_reads_mapped_to_edited_positions_per_cell_df
+
+# %%
+well_annotated_reads_mapped_to_edited_positions_per_annotation_df = (
+    concat_reads_mapped_to_edited_positions_info_dfs.loc[~concat_reads_mapped_to_edited_positions_info_dfs["Neuronal"].isna()].groupby(["Sample", "Neuronal", "NeuronalStrRep", "Annotation"], dropna=False)
+    .size()
+    .reset_index(name="Reads")
+)
+# Convert NeuronalStrRep to a categorical variable with the desired order
+well_annotated_reads_mapped_to_edited_positions_per_annotation_df["CatNeuronalStrRep"] = pd.Categorical(
+    well_annotated_reads_mapped_to_edited_positions_per_annotation_df["NeuronalStrRep"],
+    categories=neuronal_order,
+    ordered=True,
+)
+well_annotated_reads_mapped_to_edited_positions_per_annotation_df = well_annotated_reads_mapped_to_edited_positions_per_annotation_df.sort_values(
+    ["CatNeuronalStrRep", "Annotation"], ignore_index=True
+)
+well_annotated_reads_mapped_to_edited_positions_per_annotation_df
+
+# %%
+well_annotated_reads_mapped_to_edited_positions_per_cell_df.groupby("Sample")["Reads"].sum()
+
+# %%
+well_annotated_reads_mapped_to_edited_positions_per_cell_df.groupby("Sample")["Reads"].describe()
+
+# %%
+well_annotated_reads_mapped_to_edited_positions_per_cell_df.groupby(["Sample", "Neuronal"])["Reads"].describe().round(2)
+
+# %%
+well_annotated_reads_mapped_to_edited_positions_per_cell_df.groupby(["Sample", "Annotation"])[
+    "Reads"
+].describe()
+
+# %%
+well_annotated_reads_mapped_to_edited_positions_per_annotation_df.groupby(["Sample", "Neuronal"])["Reads"].describe().round(2)
+
+# %%
+width = 4
+height = 4
+
+p = (
+    so.Plot(
+        well_annotated_reads_mapped_to_edited_positions_per_cell_df,
+        x="Reads",
+        color="NeuronalStrRep"
+    )
+    .add(so.Area(), so.Hist())
+    # .add(so.Bars(), so.Hist())
+    .facet(col="Sample")
+    .scale(
+        # x="log",
+        # y="log",
+        # y="symlog",
+        # color=so.Nominal(order=["Yes", "No", "NA"])
+        color=so.Nominal(order=["Yes", "No"])
+    )
+    .limit(x=(0, None), y=(0, None))
+    .label(
+        x="Reads per cell",
+        y="Cells",
+        color="Neuronal",
+    )
+    .layout(size=(width * 2, height))
+)
+p
+
+# %%
+neuronal_order = ["Yes", "No"]
+
+g = sns.catplot(
+    well_annotated_reads_mapped_to_edited_positions_per_cell_df,
+    x="Reads",
+    y="Annotation",
+    col="Sample",
+    hue="CatNeuronalStrRep",
+    hue_order=neuronal_order,
+    kind="boxen",
+    # kind="violin",
+    # fill=False,
+    height=6,
+    aspect=0.6,
+)
+
+g.set_axis_labels(x_var="Reads per cell", y_var="Cluster")
+# Remove duplicate legend entries (keep only the first one)
+handles, labels = g.axes.flat[
+    0
+].get_legend_handles_labels()  # Get handles from first facet
+g._legend.set_title("Neuronal")  # Alternative method if needed
+g._legend.legendHandles = handles  # Ensure only unique handles appear
+
+g
+
+# %%
+well_annotated_reads_mapped_to_edited_positions_per_annotation_df.head()
+
+# %%
+# g.set(xticks=[10, 30, 50])
+
+# %%
+neuronal_order = ["Yes", "No"]
+
+g = sns.catplot(
+    well_annotated_reads_mapped_to_edited_positions_per_annotation_df,
+    x="Reads",
+    y="Annotation",
+    col="Sample",
+    hue="CatNeuronalStrRep",
+    hue_order=neuronal_order,
+    kind="bar",
+    # kind="violin",
+    # fill=False,
+    height=6,
+    aspect=0.8,
+    # log_scale=True
+    # log=True
+)
+
+# # Rotate x-tick labels
+# for ax in g.axes.flat:
+#     ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right")
+
+g.set_axis_labels(x_var="Reads from all cells within cluster", y_var="Cluster")
+# Remove duplicate legend entries (keep only the first one)
+handles, labels = g.axes.flat[
+    0
+].get_legend_handles_labels()  # Get handles from first facet
+g._legend.set_title("Neuronal")  # Alternative method if needed
+g._legend.legendHandles = handles  # Ensure only unique handles appear
+
+g
+
+# %%
+len(reads_mapped_to_edited_positions_info_dfs)
+
+
+# %%
 
 # %%
 # reads_dfs[1]
@@ -1409,10 +2368,16 @@ def count_lines_in_file(file, cat_cmd="zcat"):
 
 
 # %%
-num_of_reads_in_reads_files = [
-    count_lines_in_file(reads_file) - 1 for reads_file in reads_files
-]
-num_of_reads_in_reads_files[:3]
+num_of_reads_in_reads_files = pd.Series(
+    [count_lines_in_file(reads_file) - 1 for reads_file in reads_files]
+)
+num_of_reads_in_reads_files
+
+# %%
+num_of_reads_in_reads_files.describe()
+
+# %%
+num_of_reads_in_reads_files.sum()
 
 # %%
 # len(reads_dfs[0])
@@ -1429,7 +2394,7 @@ num_of_reads_in_reads_files[:3]
 # edited_reads_dfs[0]
 
 
-# %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"}
+# %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"} jp-MarkdownHeadingCollapsed=true
 # ### Unique
 
 # %% papermill={"duration": 0.126539, "end_time": "2022-02-01T09:42:47.923363", "exception": false, "start_time": "2022-02-01T09:42:47.796824", "status": "completed"}
@@ -1543,7 +2508,7 @@ num_of_reads_comparison_df["%Decrease"].describe()
 # %%
 # expanded_unique_reads_dfs[0].columns
 
-# %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"}
+# %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"} jp-MarkdownHeadingCollapsed=true
 # ### Unique - TMR 1000
 
 # %% papermill={"duration": 0.126539, "end_time": "2022-02-01T09:42:47.923363", "exception": false, "start_time": "2022-02-01T09:42:47.796824", "status": "completed"}
@@ -1641,7 +2606,7 @@ len(tmr1000_unique_reads_dfs)
 #     1, "Protein", serialize_compressed_ids(len(unique_proteins_df))
 # )
 
-# %% [markdown]
+# %% [markdown] jp-MarkdownHeadingCollapsed=true
 # ### Unique proteins
 
 # %%
@@ -1838,12 +2803,12 @@ distinct_unique_proteins_df["NumOfReads"].sub(
     distinct_unique_proteins_df["NumOfAvailableReads"]
 ).describe()
 
-# %%
+# %% jupyter={"source_hidden": true}
 # complete_data_df.loc[
 #     (complete_data_df["Name"].isin(realizations_count_df.loc[realizations_count_df["Count"] < 16, condition_col]), ["Chrom", "Name"])
 # ].values
 
-# %%
+# %% jupyter={"source_hidden": true}
 # num_of_reads_per_transcript_and_fraction_df = (
 #     distinct_unique_proteins_df.groupby([condition_col, "Fraction"])["NumOfReads"]
 #     .unique()
@@ -1852,10 +2817,10 @@ distinct_unique_proteins_df["NumOfReads"].sub(
 # # num_of_reads_per_transcript_and_fraction_df = num_of_reads_per_transcript_and_fraction_df.explode("NumOfReads", ignore_index=True)
 # num_of_reads_per_transcript_and_fraction_df
 
-# %%
+# %% jupyter={"source_hidden": true}
 # num_of_reads_per_transcript_and_fraction_df["NumOfReads"].apply(len).value_counts()
 
-# %%
+# %% jupyter={"source_hidden": true}
 # expanded_distinct_unique_proteins_df = (
 #     distinct_unique_proteins_df.copy()
 #     .assign(Proteins2=lambda x: x.Proteins.str.split(","))
@@ -1875,7 +2840,7 @@ distinct_unique_proteins_df["NumOfReads"].sub(
 # expanded_distinct_unique_proteins_df
 
 
-# %%
+# %% jupyter={"source_hidden": true}
 # distinct_unique_proteins_df2 = (
 #     expanded_distinct_unique_proteins_df.groupby(
 #         [
@@ -1914,19 +2879,40 @@ distinct_unique_proteins_df["NumOfReads"].sub(
 # #### Max distinct per fraction
 
 # %%
+distinct_unique_proteins_df
+
+# %%
+# create a temp col which will soon be deleted
+distinct_unique_proteins_df["TempIndex"] = distinct_unique_proteins_df.index
+
 # first, create a df with all the largset solutions per chrom and fraction
 # (this happens due to n=1, keep="all" in the nlargst function)
 max_distinct_per_fraction_df = (
-    distinct_unique_proteins_df.groupby(["Chrom", "Fraction"])
-    .apply(pd.DataFrame.nlargest, n=1, keep="all", columns="NumOfProteins")
-    .reset_index(drop=True)
+    distinct_unique_proteins_df.groupby(["Chrom", "Fraction"]).apply(
+        pd.DataFrame.nlargest,
+        n=1,
+        keep="all",
+        columns="NumOfProteins",
+        include_groups=False,
+    )
+    # .reset_index(drop=True)
 )
+# use merge to also get the chrom and fraction cols lost due to include_groups=False
+max_distinct_per_fraction_df = distinct_unique_proteins_df.loc[
+    distinct_unique_proteins_df["TempIndex"].isin(
+        max_distinct_per_fraction_df["TempIndex"]
+    )
+].drop(columns="TempIndex")
+
+del distinct_unique_proteins_df["TempIndex"]
 
 # then, sample a single largest solution (a set of distinct proteins)
 # per each fraction in each chrom
-max_distinct_per_fraction_df = max_distinct_per_fraction_df.groupby(
-    ["Chrom", "Fraction"]
-).sample(n=1, random_state=seed)
+max_distinct_per_fraction_df = (
+    max_distinct_per_fraction_df.groupby(["Chrom", "Fraction"])
+    .sample(n=1, random_state=seed)
+    .reset_index(drop=True)
+)
 
 max_distinct_per_fraction_df
 
@@ -1983,10 +2969,29 @@ max_distinct_proteins_df = max_distinct_proteins_df.merge(
     on="Chrom",
     how="left",
 )
-
+# max_distinct_proteins_df = max_distinct_proteins_df.merge(
+#     neural_vs_non_neural_expression_df.loc[:, ["OvulChrom", "IsNeural"]].rename(
+#         columns={"OvulChrom": "Chrom", "IsNeural": "IsNeuralOld"}
+#     ),
+#     on="Chrom",
+#     how="left",
+# )
 max_distinct_proteins_df["IsNeural"] = max_distinct_proteins_df["IsNeural"].fillna(
     "Missing"
 )
+
+max_distinct_proteins_df = max_distinct_proteins_df.merge(
+    neuronal_reads_per_chrom_df.loc[
+        :, ["Chrom", "ChromNeuronality", "ChromNeuronality2"]
+    ].rename(
+        columns={"ChromNeuronality": "IsNeuralNew", "ChromNeuronality2": "IsNeuralNew2"}
+    ),
+    on="Chrom",
+    how="left",
+)
+max_distinct_proteins_df["IsNeuralNew2"] = max_distinct_proteins_df[
+    "IsNeuralNew2"
+].replace("NA", "Missing")
 
 max_distinct_proteins_df = max_distinct_proteins_df.sort_values(
     "NumOfProteins", ascending=False, ignore_index=True
@@ -1995,6 +3000,12 @@ max_distinct_proteins_df = max_distinct_proteins_df.sort_values(
 # max_distinct_proteins_df["CummulativeTranscripts"] = max_distinct_proteins_df["CummulativeTranscripts"][::-1].values
 
 max_distinct_proteins_df
+
+# %%
+max_distinct_proteins_df[["IsNeural", "IsNeuralNew", "IsNeuralNew2"]].value_counts()
+
+# %%
+max_distinct_proteins_df[["IsNeural", "IsNeuralNew2"]].value_counts()
 
 # %%
 assert max_distinct_proteins_df.loc[
@@ -2112,7 +3123,7 @@ fig.show()
 
 
 # %% [markdown]
-# ### Expression levels (max, f1, 5+ isoforms)
+# ### Expression levels (max, f1, optionally 5+ isoforms)
 
 # %%
 def remove_wrapping_quote_marks_from_elements(elements):
@@ -2126,13 +3137,13 @@ chroms_with_at_least_5_isoforms = max_distinct_proteins_df.loc[
 ].tolist()
 ic(len(chroms_with_at_least_5_isoforms));
 
-# %%
-chroms_and_exp_files_of_chroms_with_at_least_5_isoforms_sorted_as_all_chroms = [
-    (chrom, expression_file)
-    for chrom, expression_file in zip(chroms, expression_files)
-    if chrom in chroms_with_at_least_5_isoforms
-]
 
+# %%
+# chroms_and_exp_files_of_chroms_with_at_least_5_isoforms_sorted_as_all_chroms = [
+#     (chrom, expression_file)
+#     for chrom, expression_file in zip(chroms, expression_files)
+#     if chrom in chroms_with_at_least_5_isoforms
+# ]
 
 # %%
 # chrom
@@ -2143,82 +3154,81 @@ chroms_and_exp_files_of_chroms_with_at_least_5_isoforms_sorted_as_all_chroms = [
 # %%
 # concat_f1_5plus_max_expression_df["Chrom"].nunique()
 
-# %%
-def get_f1_max_expression_df(
-    expression_file, chrom, max_distinct_proteins_df, sep, condition_col
-):
-    expression_df = pd.read_csv(
-        expression_file,
-        sep=sep,
-        dtype={
-            "#Solution": str,
-            "AdditionalSupportingReadsIDs": str,
-            "AdditionalSupportingProteinsIDs": str,
-        },
-    )
-    expression_df = expression_df.loc[expression_df["Fraction"] == 1].reset_index(
-        drop=True
-    )
+# %% jupyter={"source_hidden": true}
+# def get_f1_max_expression_df(
+#     expression_file, chrom, max_distinct_proteins_df, sep, condition_col
+# ):
+#     expression_df = pd.read_csv(
+#         expression_file,
+#         sep=sep,
+#         dtype={
+#             "#Solution": str,
+#             "AdditionalSupportingReadsIDs": str,
+#             "AdditionalSupportingProteinsIDs": str,
+#         },
+#     )
+#     expression_df = expression_df.loc[expression_df["Fraction"] == 1].reset_index(
+#         drop=True
+#     )
 
-    expression_df = expression_df.drop(
-        columns=[
-            "#Solution",
-            "AmbigousPositions",
-            "EditedPositions",
-            "EditingFrequency",
-            "Index",
-            "NumOfUniqueReads",
-            "Samples",
-            "UneditedPositions",
-            "UniqueReads",
-            "AdditionalEqualSupportingReads",
-            "TotalEqualSupportingReads",
-            "MinNonSyns",
-            "MaxNonSyns",
-            "MinNonSynsFrequency",
-            "MaxNonSynsFrequency",
-            "AdditionalWeightedSupportingReads",
-            "TotalWeightedSupportingReads",
-            # "TotalAdditionalSupportingProteins"
-        ]
-    )
+#     expression_df = expression_df.drop(
+#         columns=[
+#             "#Solution",
+#             "AmbigousPositions",
+#             "EditedPositions",
+#             "EditingFrequency",
+#             "Index",
+#             "NumOfUniqueReads",
+#             "Samples",
+#             "UneditedPositions",
+#             "UniqueReads",
+#             "AdditionalEqualSupportingReads",
+#             "TotalEqualSupportingReads",
+#             "MinNonSyns",
+#             "MaxNonSyns",
+#             "MinNonSynsFrequency",
+#             "MaxNonSynsFrequency",
+#             "AdditionalWeightedSupportingReads",
+#             "TotalWeightedSupportingReads",
+#             # "TotalAdditionalSupportingProteins"
+#         ]
+#     )
 
-    expression_df.insert(0, "Chrom", chrom)
-    expression_df = expression_df.merge(
-        max_distinct_proteins_df.loc[
-            max_distinct_proteins_df["Chrom"] == chrom,
-            [
-                "Chrom",
-                condition_col,
-                "Fraction",
-                "FractionRepetition",
-                "Algorithm",
-                "AlgorithmRepetition",
-            ],
-        ],
-        how="right",
-    )
+#     expression_df.insert(0, "Chrom", chrom)
+#     expression_df = expression_df.merge(
+#         max_distinct_proteins_df.loc[
+#             max_distinct_proteins_df["Chrom"] == chrom,
+#             [
+#                 "Chrom",
+#                 condition_col,
+#                 "Fraction",
+#                 "FractionRepetition",
+#                 "Algorithm",
+#                 "AlgorithmRepetition",
+#             ],
+#         ],
+#         how="right",
+#     )
 
-    expression_df = expression_df.drop(
-        columns=["Fraction", "FractionRepetition", "Algorithm", "AlgorithmRepetition"]
-    )
+#     expression_df = expression_df.drop(
+#         columns=["Fraction", "FractionRepetition", "Algorithm", "AlgorithmRepetition"]
+#     )
 
-    expression_df["Reads"] = (
-        expression_df["Reads"]
-        .str.removeprefix("SubString{String}[")
-        .str.removesuffix("]")
-        .str.split(", ")
-        .apply(remove_wrapping_quote_marks_from_elements)
-    )
-    expression_df["AdditionalSupportingReadsIDs"] = expression_df[
-        "AdditionalSupportingReadsIDs"
-    ].apply(lambda x: "" if pd.isna(x) else [y.split(",") for y in x.split(";")])
-    expression_df["AdditionalSupportingProteinsIDs"] = expression_df[
-        "AdditionalSupportingProteinsIDs"
-    ].apply(lambda x: "" if pd.isna(x) else x.split(","))
+#     expression_df["Reads"] = (
+#         expression_df["Reads"]
+#         .str.removeprefix("SubString{String}[")
+#         .str.removesuffix("]")
+#         .str.split(", ")
+#         .apply(remove_wrapping_quote_marks_from_elements)
+#     )
+#     expression_df["AdditionalSupportingReadsIDs"] = expression_df[
+#         "AdditionalSupportingReadsIDs"
+#     ].apply(lambda x: "" if pd.isna(x) else [y.split(",") for y in x.split(";")])
+#     expression_df["AdditionalSupportingProteinsIDs"] = expression_df[
+#         "AdditionalSupportingProteinsIDs"
+#     ].apply(lambda x: "" if pd.isna(x) else x.split(","))
 
-    return expression_df
-
+#     return expression_df
 
 # %% jupyter={"source_hidden": true}
 # def get_f1_5plus_exapnded_max_expression_df(
@@ -2368,7 +3378,7 @@ def get_f1_max_expression_df(
 #     return expanded_max_expression_df
 
 # %%
-def simplified_get_f1_5plus_exapnded_max_expression_df(
+def simplified_get_f1_exapnded_max_expression_df(
     chrom,
     expression_file,
     positions_dir,
@@ -2474,6 +3484,9 @@ def simplified_get_f1_5plus_exapnded_max_expression_df(
     return expanded_max_expression_df
 
 
+# %%
+# chroms_with_at_least_5_isoforms
+
 # %% jupyter={"source_hidden": true}
 # # x = 1130
 # x = 1129
@@ -2486,6 +3499,13 @@ def simplified_get_f1_5plus_exapnded_max_expression_df(
 
 # %% jupyter={"source_hidden": true}
 # one_chrom_raw_reads_info_df = raw_reads_info_df.loc[raw_reads_info_df["Chrom"] == chrom]
+# one_chrom_raw_reads_info_df
+
+# %% jupyter={"source_hidden": true}
+# one_chrom_raw_reads_info_df["Neuronal"].value_counts(dropna=False)
+
+# %% jupyter={"source_hidden": true}
+# copies_df
 
 # %% jupyter={"source_hidden": true}
 # out_file = Path(max_expression_dir, f"{chrom}.gz")
@@ -2571,8 +3591,96 @@ def simplified_get_f1_5plus_exapnded_max_expression_df(
 # )
 # expanded_max_expression_df
 
+# %% jupyter={"source_hidden": true}
+# f1_5plus_exapnded_max_expression_dfs = []
+# # f1_5plus_exapnded_max_expression_dfs_2 = []
+
+# start_time = time.time()  # Start time of the whole cell
+# loop_times = []
+
+# # i = 0
+# # i = 1119
+# # j = 1
+
+# try_using_previous_out_file = True
+
+# for i, (chrom, expression_file) in enumerate(
+#     chroms_and_exp_files_of_chroms_with_at_least_5_isoforms_sorted_as_all_chroms,
+#     start=1,
+# ):
+#     loop_start = time.time()  # Start time of each loop iteration
+
+#     # i += 1
+#     state = "start"
+#     # if i >= 1120:
+#     #     ic(i, state, chrom)
+#     # elif i % 50 == 0:
+#     #     ic(i, state)
+#     if i % 50 == 0 or i == len(
+#         chroms_and_exp_files_of_chroms_with_at_least_5_isoforms_sorted_as_all_chroms
+#     ):
+#         ic(i, state)
+
+#     one_chrom_raw_reads_info_df = raw_reads_info_df.loc[
+#         raw_reads_info_df["Chrom"] == chrom
+#     ]
+
+#     out_file = Path(max_expression_dir, f"{chrom}.gz")
+
+#     # exapnded_max_expression_df = get_f1_5plus_exapnded_max_expression_df(
+#     exapnded_max_expression_df = simplified_get_f1_exapnded_max_expression_df(
+#         chrom,
+#         expression_file,
+#         positions_dir,
+#         one_chrom_raw_reads_info_df,
+#         max_distinct_proteins_df,
+#         sep,
+#         condition_col,
+#         out_file,
+#         try_using_previous_out_file,
+#     )
+
+#     f1_5plus_exapnded_max_expression_dfs.append(exapnded_max_expression_df)
+#     # f1_5plus_exapnded_max_expression_dfs_2.append(expanded_max_expression_df)
+
+#     state = "end"
+#     # if i >= 1140:
+#     #     ic(i, state, chrom)
+#     # elif i % 50 == 0:
+#     #     ic(i, state)
+#     if i % 50 == 0 or i == len(
+#         chroms_and_exp_files_of_chroms_with_at_least_5_isoforms_sorted_as_all_chroms
+#     ):
+#         ic(i, state)
+#     # i += 1
+#     # j += 1
+
+#     loop_end = time.time()  # End time of each loop iteration
+#     loop_times.append(loop_end - loop_start)
+#     # if i == 10:
+#     #     break
+#     # if j == 30:
+#     #     break
+
+#     # break
+
+# end_time = time.time()  # End time of the whole cell
+# loop_times = pd.Series(loop_times)
+# print(f"Total execution time: {end_time - start_time:.2f} seconds")
+# print(f"Mean execution time: {loop_times.mean():.2f} seconds")
+# print(f"Median execution time: {loop_times.median():.2f} seconds")
+
+# ic(
+#     len(f1_5plus_exapnded_max_expression_dfs),
+#     len(chroms_with_at_least_5_isoforms),
+#     len(f1_5plus_exapnded_max_expression_dfs) == len(chroms_with_at_least_5_isoforms),
+# )
+
+# f1_5plus_exapnded_max_expression_dfs[0]
+# # f1_5plus_exapnded_max_expression_dfs_2[0]
+
 # %%
-f1_5plus_exapnded_max_expression_dfs = []
+f1_exapnded_max_expression_dfs = []
 # f1_5plus_exapnded_max_expression_dfs_2 = []
 
 start_time = time.time()  # Start time of the whole cell
@@ -2585,7 +3693,7 @@ loop_times = []
 try_using_previous_out_file = True
 
 for i, (chrom, expression_file) in enumerate(
-    chroms_and_exp_files_of_chroms_with_at_least_5_isoforms_sorted_as_all_chroms,
+    zip(chroms, expression_files),
     start=1,
 ):
     loop_start = time.time()  # Start time of each loop iteration
@@ -2596,9 +3704,7 @@ for i, (chrom, expression_file) in enumerate(
     #     ic(i, state, chrom)
     # elif i % 50 == 0:
     #     ic(i, state)
-    if i % 50 == 0 or i == len(
-        chroms_and_exp_files_of_chroms_with_at_least_5_isoforms_sorted_as_all_chroms
-    ):
+    if i % 50 == 0 or i == len(chroms):
         ic(i, state)
 
     one_chrom_raw_reads_info_df = raw_reads_info_df.loc[
@@ -2608,7 +3714,7 @@ for i, (chrom, expression_file) in enumerate(
     out_file = Path(max_expression_dir, f"{chrom}.gz")
 
     # exapnded_max_expression_df = get_f1_5plus_exapnded_max_expression_df(
-    exapnded_max_expression_df = simplified_get_f1_5plus_exapnded_max_expression_df(
+    exapnded_max_expression_df = simplified_get_f1_exapnded_max_expression_df(
         chrom,
         expression_file,
         positions_dir,
@@ -2620,7 +3726,7 @@ for i, (chrom, expression_file) in enumerate(
         try_using_previous_out_file,
     )
 
-    f1_5plus_exapnded_max_expression_dfs.append(exapnded_max_expression_df)
+    f1_exapnded_max_expression_dfs.append(exapnded_max_expression_df)
     # f1_5plus_exapnded_max_expression_dfs_2.append(expanded_max_expression_df)
 
     state = "end"
@@ -2628,9 +3734,7 @@ for i, (chrom, expression_file) in enumerate(
     #     ic(i, state, chrom)
     # elif i % 50 == 0:
     #     ic(i, state)
-    if i % 50 == 0 or i == len(
-        chroms_and_exp_files_of_chroms_with_at_least_5_isoforms_sorted_as_all_chroms
-    ):
+    if i % 50 == 0 or i == len(chroms):
         ic(i, state)
     # i += 1
     # j += 1
@@ -2651,13 +3755,18 @@ print(f"Mean execution time: {loop_times.mean():.2f} seconds")
 print(f"Median execution time: {loop_times.median():.2f} seconds")
 
 ic(
-    len(f1_5plus_exapnded_max_expression_dfs),
-    len(chroms_with_at_least_5_isoforms),
-    len(f1_5plus_exapnded_max_expression_dfs) == len(chroms_with_at_least_5_isoforms),
+    len(f1_exapnded_max_expression_dfs),
+    len(chroms),
+    len(f1_exapnded_max_expression_dfs) == len(chroms),
 )
 
-f1_5plus_exapnded_max_expression_dfs[0]
+f1_exapnded_max_expression_dfs[0]
 # f1_5plus_exapnded_max_expression_dfs_2[0]
+
+# %%
+len(f1_exapnded_max_expression_dfs)
+
+# %%
 
 # %%
 # try_using_previous_out_file = True
@@ -2762,19 +3871,39 @@ tmr1000_distinct_unique_proteins_df
 # #### Max distinct per fraction - TMR 1000
 
 # %%
+# create a temp col which will soon be deleted
+tmr1000_distinct_unique_proteins_df["TempIndex"] = (
+    tmr1000_distinct_unique_proteins_df.index
+)
+
 # first, create a df with all the largset solutions per chrom and fraction
 # (this happens due to n=1, keep="all" in the nlargst function)
 tmr1000_max_distinct_per_fraction_df = (
-    tmr1000_distinct_unique_proteins_df.groupby(["Chrom", "Fraction"])
-    .apply(pd.DataFrame.nlargest, n=1, keep="all", columns="NumOfProteins")
-    .reset_index(drop=True)
+    tmr1000_distinct_unique_proteins_df.groupby(["Chrom", "Fraction"]).apply(
+        pd.DataFrame.nlargest,
+        n=1,
+        keep="all",
+        columns="NumOfProteins",
+        include_groups=False,
+    )
+    # .reset_index(drop=True)
 )
+# use merge to also get the chrom and fraction cols lost due to include_groups=False
+tmr1000_max_distinct_per_fraction_df = tmr1000_distinct_unique_proteins_df.loc[
+    tmr1000_distinct_unique_proteins_df["TempIndex"].isin(
+        tmr1000_max_distinct_per_fraction_df["TempIndex"]
+    )
+].drop(columns="TempIndex")
+
+del tmr1000_distinct_unique_proteins_df["TempIndex"]
 
 # then, sample a single largest solution (a set of distinct proteins)
 # per each fraction in each chrom
-tmr1000_max_distinct_per_fraction_df = tmr1000_max_distinct_per_fraction_df.groupby(
-    ["Chrom", "Fraction"]
-).sample(n=1, random_state=seed)
+tmr1000_max_distinct_per_fraction_df = (
+    tmr1000_max_distinct_per_fraction_df.groupby(["Chrom", "Fraction"])
+    .sample(n=1, random_state=seed)
+    .reset_index(drop=True)
+)
 
 tmr1000_max_distinct_per_fraction_df
 
@@ -2835,10 +3964,20 @@ tmr1000_max_distinct_proteins_df = tmr1000_max_distinct_proteins_df.merge(
     on="Chrom",
     how="left",
 )
-
 tmr1000_max_distinct_proteins_df["IsNeural"] = tmr1000_max_distinct_proteins_df[
     "IsNeural"
 ].fillna("Missing")
+
+tmr1000_max_distinct_proteins_df = tmr1000_max_distinct_proteins_df.merge(
+    neuronal_reads_per_chrom_df.loc[
+        :, ["Chrom", "ChromNeuronality", "ChromNeuronality2"]
+    ].rename(
+        columns={"ChromNeuronality": "IsNeuralNew", "ChromNeuronality2": "IsNeuralNew2"}
+    ),
+    on="Chrom",
+    how="left",
+)
+
 
 tmr1000_max_distinct_proteins_df = tmr1000_max_distinct_proteins_df.sort_values(
     "NumOfProteins", ascending=False, ignore_index=True
@@ -2906,7 +4045,7 @@ raise Error("don't run the notebook from this point")
 # %% [markdown] papermill={"duration": 0.045853, "end_time": "2022-02-01T09:42:48.953594", "exception": false, "start_time": "2022-02-01T09:42:48.907741", "status": "completed"}
 # # Results
 
-# %% [markdown] papermill={"duration": 0.124528, "end_time": "2022-02-01T09:43:10.054394", "exception": false, "start_time": "2022-02-01T09:43:09.929866", "status": "completed"}
+# %% [markdown] papermill={"duration": 0.124528, "end_time": "2022-02-01T09:43:10.054394", "exception": false, "start_time": "2022-02-01T09:43:09.929866", "status": "completed"} jp-MarkdownHeadingCollapsed=true
 # ## Positions
 
 # %% [markdown] papermill={"duration": 0.149848, "end_time": "2022-02-01T09:43:12.800733", "exception": false, "start_time": "2022-02-01T09:43:12.650885", "status": "completed"}
@@ -2919,7 +4058,7 @@ concat_all_positions_df
 # %%
 def calc_per_transcript_per_sample_coverage(
     positions_df,
-    samples_and_tissues_df
+    samples_and_tissues_df,
     # samples
 ):
     expanded_positions_df = (
@@ -3174,9 +4313,9 @@ def calc_per_transcript_per_sample_a_and_g_counts(positions_df, strand, samples)
     expanded_all_refbase_positions_df["Samples"] = expanded_all_refbase_positions_df[
         "Samples"
     ].str.split(",")
-    expanded_all_refbase_positions_df[
-        "MappedBases"
-    ] = expanded_all_refbase_positions_df["MappedBases"].apply(list)
+    expanded_all_refbase_positions_df["MappedBases"] = (
+        expanded_all_refbase_positions_df["MappedBases"].apply(list)
+    )
 
     # now is the time the df is really expanded
     expanded_all_refbase_positions_df = expanded_all_refbase_positions_df.explode(
@@ -3665,7 +4804,7 @@ fig = px.histogram(
 fig.update_layout(
     width=600,
     height=500,
-    showlegend=False
+    showlegend=False,
     # barmode='overlay' # Overlay both histograms
 )
 
@@ -3729,7 +4868,7 @@ fig.update_xaxes(dtick=1)
 fig.update_layout(
     width=700,
     height=400,
-    showlegend=False
+    showlegend=False,
     # barmode='overlay' # Overlay both histograms
 )
 
@@ -3757,10 +4896,10 @@ all_machine_noise_df
 all_pooled_per_chrom_machine_noise_df = (
     all_machine_noise_df.groupby("Chrom")[["Matches", "Mismatches"]].sum().reset_index()
 )
-all_pooled_per_chrom_machine_noise_df[
-    "%PooledMachineNoise"
-] = all_pooled_per_chrom_machine_noise_df.apply(
-    lambda x: 100 * x["Mismatches"] / x["Matches"], axis=1
+all_pooled_per_chrom_machine_noise_df["%PooledMachineNoise"] = (
+    all_pooled_per_chrom_machine_noise_df.apply(
+        lambda x: 100 * x["Mismatches"] / x["Matches"], axis=1
+    )
 )
 all_pooled_per_chrom_machine_noise_df = all_pooled_per_chrom_machine_noise_df.merge(
     tmr50_alignment_stats_df.loc[:, ["Chrom"]], on="Chrom", how="right"
@@ -3987,6 +5126,32 @@ multiple_logos_from_fasta_files(
 #     (tmr1000_max_distinct_proteins_df["NumOfProteins"] >= 50)
 #     & (tmr1000_max_distinct_proteins_df["Chrom"].isin(tmr1000_chroms))
 # ].shape[0] / len(tmr1000_chroms)
+
+# %%
+x = max_distinct_proteins_df.loc[
+    max_distinct_proteins_df["IsNeural"] == "Yes", "NumOfProteins"
+]
+y = max_distinct_proteins_df.loc[
+    max_distinct_proteins_df["IsNeural"] == "No", "NumOfProteins"
+]
+statistic, pv = scipy.stats.mannwhitneyu(x, y)
+statistic, pv
+
+# %%
+max_distinct_proteins_df.loc[
+    (max_distinct_proteins_df["IsNeuralNew"] == "Yes")
+    & (max_distinct_proteins_df["IsNeural"] == "Yes")
+]
+
+# %%
+x = max_distinct_proteins_df.loc[
+    max_distinct_proteins_df["IsNeuralNew"] == "Yes", "NumOfProteins"
+]
+y = max_distinct_proteins_df.loc[
+    max_distinct_proteins_df["IsNeuralNew"] == "No", "NumOfProteins"
+]
+statistic, pv = scipy.stats.mannwhitneyu(x, y)
+statistic, pv
 
 # %%
 df = (
@@ -5046,18 +6211,31 @@ fig.update_layout(
 
 fig.show()
 
+# %%
+
+# %%
+
+# %%
+
 # %% [markdown]
 # ### Distinct isoforms per cell
 
 # %%
-f1_5plus_exapnded_max_expression_dfs[0]
+# f1_5plus_exapnded_max_expression_dfs[0]
 
 # %%
-len(f1_5plus_exapnded_max_expression_dfs)
+# len(f1_5plus_exapnded_max_expression_dfs)
+
+# %%
+f1_exapnded_max_expression_dfs[0]
+
+# %%
+len(f1_exapnded_max_expression_dfs)
 
 # %%
 copies_df = (
-    pd.concat(f1_5plus_exapnded_max_expression_dfs)
+    # pd.concat(f1_5plus_exapnded_max_expression_dfs)
+    pd.concat(f1_exapnded_max_expression_dfs)
     .groupby(
         [
             "Chrom",
@@ -5072,47 +6250,594 @@ copies_df = (
     )
     .size()
     .reset_index(name="Copies")
+    .merge(neuronality_of_annotaion_df, on="Annotation", how="left")
 )
 
 copies_df
 
 # %%
+copies_df
+
+# %%
+copies_df["Copies"].sum() <= raw_reads_info_df.shape[0]
+
+# %%
+raw_reads_info_df
+
+# %%
+reads_mapped_to_edited_positions_per_cell_df = (
+    copies_df.groupby(["Sample", "Neuronal", "Annotation", "CB"], dropna=False)[
+        "Copies"
+    ]
+    .sum()
+    .reset_index(name="Reads")
+)
+reads_mapped_to_edited_positions_per_cell_df
+
+# %%
+reads_mapped_to_edited_positions_per_annotation_df = (
+    copies_df.groupby(["Sample", "Neuronal", "Annotation"], dropna=False)["Copies"]
+    .sum()
+    .reset_index(name="Reads")
+)
+reads_mapped_to_edited_positions_per_annotation_df
+
+# %%
+reads_mapped_to_edited_positions_per_cell_df.groupby("Sample")["Reads"].describe()
+
+# %%
+reads_mapped_to_edited_positions_per_cell_df.groupby(["Sample", "Annotation"])[
+    "Reads"
+].describe()
+
+# %%
+p = (
+    so.Plot(
+        reads_per_cell_df,
+        x="Reads",
+        # color="Sample"
+    ).add(so.Area(), so.Hist())
+    # .add(so.Bars(), so.Hist())
+    .scale(
+        # x="log",
+        y="log"
+    )
+    # .limit(x=(0, 100))
+    .label(
+        x="Reads per cell",
+        y="Cells",
+        # color="Editing detected in gene",
+    )
+)
+p
+
+# %%
+copies_df.groupby([])
+
+# %%
+ge5_isoforms_per_gene_copies_df = copies_df.loc[
+    copies_df["Chrom"].isin(chroms_with_at_least_5_isoforms)
+]
+ge5_isoforms_per_gene_copies_df
+
+# %%
 copies_df["Copies"].value_counts(dropna=False)
 
 # %%
-copies_df["Annotation"].value_counts(dropna=False)
+ge5_isoforms_per_gene_copies_df["Copies"].value_counts(dropna=False)
 
 # %%
-well_annotated_copies_df = copies_df.loc[~copies_df["Annotation"].isin(["unstable", "not separated"])].dropna(axis=0)
-well_annotated_copies_df
+copies_df["Neuronal"].value_counts(dropna=False)
 
 # %%
-annotation_df = well_annotated_copies_df.groupby(["Sample", "Chrom", condition_col, "Protein"])["Annotation"].unique().reset_index(name="UniqueAnnotations")
-annotation_df["NumOfUniqueAnnotations"] = annotation_df["UniqueAnnotations"].apply(len)
-annotation_df
+ge5_isoforms_per_gene_copies_df["Neuronal"].value_counts(dropna=False)
 
+# %%
+# annotations where it's unknown if the cell is neural
+copies_df.loc[copies_df["Neuronal"].isna(), "Annotation"].value_counts(dropna=False)
+
+# %%
+# annotations where it's unknown if the cell is neural
+ge5_isoforms_per_gene_copies_df.loc[
+    ge5_isoforms_per_gene_copies_df["Neuronal"].isna(), "Annotation"
+].value_counts(dropna=False)
+
+# %%
+# copies_df["Annotation"].value_counts(dropna=False)
+
+# %%
+# num of unique cells per sample
+copies_df.groupby("Sample")["CB"].nunique()
+
+# %%
+# num of unique cells per sample
+ge5_isoforms_per_gene_copies_df.groupby("Sample")["CB"].nunique()
+
+# %%
+# %time
+
+ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_dfs = {}
+
+for sample in samples:
+
+    per_sample_copies_df = ge5_isoforms_per_gene_copies_df.loc[
+        ge5_isoforms_per_gene_copies_df["Sample"] == sample
+    ].drop(columns=["SeuratCluster", "Annotation"])
+    unique_chroms_per_sample = per_sample_copies_df["Chrom"].unique().tolist()
+
+    for chrom in unique_chroms_per_sample:
+
+        one_gene_diversity_of_isoforms_per_cell_df = (
+            per_sample_copies_df.loc[per_sample_copies_df["Chrom"] == chrom]
+            .pivot(
+                index=["Sample", "Chrom", condition_col, "Protein"],
+                columns="CB",
+                values="Copies",
+            )
+            .rename_axis(None, axis=1)
+        )
+
+        ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_dfs[(sample, chrom)] = (
+            one_gene_diversity_of_isoforms_per_cell_df
+        )
+
+ic(len(ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_dfs));
+
+# %%
+# df = list(ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_dfs.values())[
+#     0
+# ].fillna(0)
+# df
+
+# %%
+# def report_chi_2_assumptions(sample, chrom, df):
+#     df = df.fillna(0)
+
+#     row_sums = df.sum(axis=1).values.reshape(-1, 1)  # Sum of each row
+#     col_sums = df.sum(axis=0).values.reshape(1, -1)  # Sum of each column
+#     total = df.values.sum()  # Total sum of all elements
+
+#     expected = (row_sums @ col_sums) / total  # Compute expected values matrix
+#     expected_df = pd.DataFrame(expected, index=df.index, columns=df.columns)
+
+#     num_of_all_cells = expected_df.shape[0] * expected_df.shape[1]
+#     num_of_cells_with_expected_ge_5 = expected_df.map(lambda x: x >= 5).sum().sum()
+#     num_of_cells_with_expected_lt_1 = expected_df.map(lambda x: x < 1).sum().sum()
+#     prct_of_cells_with_expected_ge_5 = (
+#         100 * num_of_cells_with_expected_ge_5 / num_of_all_cells
+#     )
+#     prct_of_cells_with_expected_lt_1 = (
+#         100 * num_of_cells_with_expected_lt_1 / num_of_all_cells
+#     )
+
+#     return (
+#         sample,
+#         chrom,
+#         num_of_all_cells,
+#         prct_of_cells_with_expected_ge_5,
+#         prct_of_cells_with_expected_lt_1,
+#     )
+
+# %%
+# with Pool(processes=3) as pool:
+#     per_sample_and_gene_chi_2_assumptions = pool.starmap(
+#         func=report_chi_2_assumptions,
+#         iterable=[
+#             (sample, chrom, df)
+#             for (
+#                 sample,
+#                 chrom,
+#             ), df in ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_dfs.items()
+#             # list(lt5_per_sample_and_gene_diversity_of_isoforms_per_cell_dfs.items())[:30]
+#         ],
+#     )
+# ge5_chi_2_assumptions = pd.DataFrame(
+#     per_sample_and_gene_chi_2_assumptions,
+#     columns=[
+#         "Sample",
+#         "Chrom",
+#         "NumOfCells",
+#         "%CellsWithExpected>=5",
+#         "%CellsWithExpected<1",
+#     ],
+# )
+# ge5_chi_2_assumptions
+
+# %%
+# ge5_chi_2_assumptions.loc[ge5_chi_2_assumptions["NumOfCells"] <= 20]
+
+# %%
+# ge5_chi_2_assumptions.loc[chi_2_assumptions["Chrom"] == "comp178306_c1_seq1"]
+
+# %%
+# ge5_chi_2_assumptions.loc[chi_2_assumptions["%CellsWithExpected>=5"] >= 20]
+
+# %%
+# ge5_chi_2_assumptions.groupby("Sample")["%CellsWithExpected<1"].describe()
 
 # %% jupyter={"source_hidden": true}
-# def jaccard_similarity_matrix(s):
-#     n = len(s)
-#     matrix = np.zeros((n, n))
+# df = list(lt5_per_sample_and_gene_diversity_of_isoforms_per_cell_dfs.values())[0]
+# res = scipy.stats.fisher_exact(df.fillna(0).values)
+# statistic, pval = res.statistic, res.pvalue
+# statistic, pval
 
-#     for i in range(n):
-#         set_i = set(s.iloc[i])
-#         for j in range(i, n):  # Compute only upper triangle
-#             set_j = set(s.iloc[j])
-#             intersection = len(set_i & set_j)
-#             union = len(set_i | set_j)
-#             score = intersection / union if union != 0 else 0
-#             matrix[i, j] = score
-#             matrix[j, i] = score  # Symmetric
+# %% jupyter={"source_hidden": true}
+# df = list(lt5_per_sample_and_gene_diversity_of_isoforms_per_cell_dfs.values())[0]
+# res = scipy.stats.fisher_exact(df.T.fillna(0).values)
+# statistic, pval = res.statistic, res.pvalue
+# statistic, pval
 
-#     return pd.DataFrame(matrix, index=s.index, columns=s.index)
+# %% jupyter={"source_hidden": true}
+# df = list(lt5_per_sample_and_gene_diversity_of_isoforms_per_cell_dfs.values())[0]
+# res = scipy.stats.chi2_contingency(df.fillna(0).values)
+# statistic, pval = res.statistic, res.pvalue
+# statistic, pval
 
-# # Example usage:
-# s = pd.Series([["a", "b"], ["a", "b", "c"], ["c", "e"]])
-# jaccard_matrix = jaccard_similarity_matrix(s)
-# print(jaccard_matrix)
+# %% jupyter={"source_hidden": true}
+# df = list(lt5_per_sample_and_gene_diversity_of_isoforms_per_cell_dfs.values())[0]
+# res = scipy.stats.chi2_contingency(df.T.fillna(0).values)
+# statistic, pval = res.statistic, res.pvalue
+# statistic, pval
+
+# %% jupyter={"source_hidden": true}
+# # %time
+
+
+# # per_sample_and_gene_kruskal_wallis_isoforms_per_cell_results = {}
+# per_sample_and_gene_kruskal_wallis_isoforms_per_cell_results = []
+
+# for (
+#     sample,
+#     chrom,
+# ), df in per_sample_and_gene_kruskal_wallis_isoforms_per_cell_dfs.items():
+#     # ic(sample, chrom)
+#     try:
+#         # # statistic, pval = scipy.stats.kruskal(*df.fillna(0).values, nan_policy="omit")
+#         # test_completed = True
+
+#         statistic, pval = scipy.stats.kruskal(*df.values, nan_policy="omit")
+#         test_completed = True
+
+#         # try:
+#         #     statistic, pval = scipy.stats.kruskal(
+#         #         *df.dropna(axis=1).values, nan_policy="omit"
+#         #     )
+#         #     test_completed = True
+#         # except RuntimeWarning as e:
+#         #     # happens if df.dropna(axis=1).shape[1] < 5
+#         #     if str(e) == "One or more sample arguments is too small; all returned values will be NaN. See documentation for sample size requirements.":
+#         #         statistic = np.nan
+#         #         pval = np.nan
+#         #         test_completed = False
+#         #     else:
+#         #         raise
+
+#     except ValueError as e:
+#         if str(e) == "All numbers are identical in kruskal":
+#             # Handle the ValueError if it has the specific message
+#             statistic = np.nan
+#             pval = 1
+#             test_completed = False
+#             # test_completed = True
+#         else:
+#             # Re-raise the error if the message does not match
+#             raise
+#     # per_sample_and_gene_kruskal_wallis_isoforms_per_cell_results[(sample, chrom)] = (test_completed, statistic, pval)
+#     per_sample_and_gene_kruskal_wallis_isoforms_per_cell_results.append(
+#         (sample, chrom, test_completed, statistic, pval)
+#     )
+
+# per_sample_and_gene_kruskal_wallis_isoforms_per_cell_results_df = pd.DataFrame(
+#     per_sample_and_gene_kruskal_wallis_isoforms_per_cell_results,
+#     columns=["Sample", "Chrom", "TestCompleted", "Statistic", "PVal"],
+# )
+# # ).sort_values(["Sample", "Chrom"], ignore_index=True)
+
+# corrected_dfs = []
+# for sample in samples:
+#     df = per_sample_and_gene_kruskal_wallis_isoforms_per_cell_results_df.loc[
+#         per_sample_and_gene_kruskal_wallis_isoforms_per_cell_results_df["Sample"]
+#         == sample
+#     ].copy()
+#     rejected, corrected_pval = fdrcorrection(df["PVal"])
+#     df["RejectedAfterCorrection"] = rejected
+#     df["CorrectedPVal"] = corrected_pval
+#     corrected_dfs.append(df)
+
+# per_sample_and_gene_kruskal_wallis_isoforms_per_cell_results_df = pd.concat(
+#     corrected_dfs, ignore_index=True
+# )
+
+# per_sample_and_gene_kruskal_wallis_isoforms_per_cell_results_df = (
+#     per_sample_and_gene_kruskal_wallis_isoforms_per_cell_results_df.merge(
+#         copies_df.loc[:, ["Sample", "Chrom", condition_col]].drop_duplicates(),
+#         how="left",
+#     ).loc[
+#         :,
+#         [
+#             "Sample",
+#             "Chrom",
+#             condition_col,
+#             "TestCompleted",
+#             "Statistic",
+#             "PVal",
+#             "RejectedAfterCorrection",
+#             "CorrectedPVal",
+#         ],
+#     ]
+# )
+
+# per_sample_and_gene_kruskal_wallis_isoforms_per_cell_results_df
+
+# %%
+# len(per_sample_and_gene_diversity_of_isoforms_per_cell_results)
+
+# %%
+def calc_exact_fisher_for_chrom_and_sample(
+    sample, chrom, per_sample_and_gene_diversity_of_isoforms_per_cell_df
+):
+    try:
+        res = scipy.stats.fisher_exact(
+            per_sample_and_gene_diversity_of_isoforms_per_cell_df.fillna(0).values
+        )
+        statistic, pval = res.statistic, res.pvalue
+        if (
+            type(statistic) == type(pval) == np.ndarray
+            and len(statistic) == len(pval) == 1
+        ):
+            statistic, pval = statistic[0], pval[0]
+        test_completed = True
+        return (sample, chrom, test_completed, statistic, pval)
+    except:
+        ic(sample, chrom)
+        raise
+
+# %%
+# len(ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_results)
+
+# %% jupyter={"source_hidden": true}
+# # %time
+
+
+# with Pool(processes=3) as pool:
+#     ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_results = pool.starmap(
+#         func=calc_exact_fisher_for_chrom_and_sample,
+#         iterable=[
+#             (sample, chrom, df)
+#             for (
+#                 sample,
+#                 chrom,
+#             ), df in lt5_per_sample_and_gene_diversity_of_isoforms_per_cell_dfs.items()
+#             # list(lt5_per_sample_and_gene_diversity_of_isoforms_per_cell_dfs.items())[:30]
+#         ],
+#     )
+
+# # # per_sample_and_gene_kruskal_wallis_isoforms_per_cell_results = {}
+# # per_sample_and_gene_diversity_of_isoforms_per_cell_results = []
+
+# # i = 0
+# # for (
+# #     sample,
+# #     chrom,
+# # ), df in lt5_per_sample_and_gene_diversity_of_isoforms_per_cell_dfs.items():
+
+# #     # ic(sample, chrom)
+# #     # res = scipy.stats.chi2_contingency(df.fillna(0).values)
+# #     res = scipy.stats.fisher_exact(df.fillna(0).values)
+# #     # statistic, pval = res.statistic, res.pvalue
+# #     statistic, pval = res.statistic[0], res.pvalue[0]
+# #     test_completed = True
+
+# #     per_sample_and_gene_diversity_of_isoforms_per_cell_results.append(
+# #         (sample, chrom, test_completed, statistic, pval)
+# #     )
+
+# #     i += 1
+# #     if i == 10:
+# #         break
+
+# ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_results_df = pd.DataFrame(
+#     ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_results,
+#     columns=["Sample", "Chrom", "TestCompleted", "Statistic", "PVal"],
+# )
+
+# corrected_dfs = []
+# for sample in samples:
+#     df = per_sample_and_gene_diversity_of_isoforms_per_cell_results_df.loc[
+#         per_sample_and_gene_diversity_of_isoforms_per_cell_results_df["Sample"]
+#         == sample
+#     ].copy()
+#     rejected, corrected_pval = fdrcorrection(df["PVal"])
+#     df["RejectedAfterCorrection"] = rejected
+#     df["CorrectedPVal"] = corrected_pval
+#     corrected_dfs.append(df)
+# per_sample_and_gene_diversity_of_isoforms_per_cell_results_df = pd.concat(
+#     corrected_dfs, ignore_index=True
+# )
+
+# ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_results_df = (
+#     per_sample_and_gene_diversity_of_isoforms_per_cell_results_df.merge(
+#         copies_df.loc[:, ["Sample", "Chrom", condition_col]].drop_duplicates(),
+#         how="left",
+#     ).loc[
+#         :,
+#         [
+#             "Sample",
+#             "Chrom",
+#             condition_col,
+#             "TestCompleted",
+#             "Statistic",
+#             "PVal",
+#             "RejectedAfterCorrection",
+#             "CorrectedPVal",
+#         ],
+#     ]
+# )
+
+# ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_results_df
+
+# %%
+# %time
+
+ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_results = []
+
+i = 0
+for (
+    sample,
+    chrom,
+), df in ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_dfs.items():
+
+    # ic(sample, chrom)
+    res = scipy.stats.chi2_contingency(df.fillna(0).values)
+    statistic, pval = res.statistic, res.pvalue
+    # res = scipy.stats.fisher_exact(df.fillna(0).values)
+    # statistic, pval = res.statistic[0], res.pvalue[0]
+    test_completed = True
+
+    ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_results.append(
+        (sample, chrom, test_completed, statistic, pval)
+    )
+
+    i += 1
+    # if i == 10:
+    #     break
+
+ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_results_df = pd.DataFrame(
+    ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_results,
+    columns=["Sample", "Chrom", "TestCompleted", "Statistic", "PVal"],
+)
+
+corrected_dfs = []
+for sample in samples:
+    df = ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_results_df.loc[
+        ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_results_df["Sample"]
+        == sample
+    ].copy()
+    rejected, corrected_pval = fdrcorrection(df["PVal"])
+    df["RejectedAfterCorrection"] = rejected
+    df["CorrectedPVal"] = corrected_pval
+    corrected_dfs.append(df)
+ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_results_df = pd.concat(
+    corrected_dfs, ignore_index=True
+)
+
+ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_results_df = (
+    ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_results_df.merge(
+        copies_df.loc[:, ["Sample", "Chrom", condition_col]].drop_duplicates(),
+        how="left",
+    ).loc[
+        :,
+        [
+            "Sample",
+            "Chrom",
+            condition_col,
+            "TestCompleted",
+            "Statistic",
+            "PVal",
+            "RejectedAfterCorrection",
+            "CorrectedPVal",
+        ],
+    ]
+)
+
+ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_results_df
+
+# %%
+ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_results_df.loc[
+    ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_results_df[
+        "RejectedAfterCorrection"
+    ]
+]
+
+# %%
+# ge5_chi_2_assumptions.loc[ge5_chi_2_assumptions["NumOfCells"] <= 20]
+
+# %%
+ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_results_df.loc[
+    ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_results_df["PVal"] < 0.1
+]
+
+# %% jupyter={"source_hidden": true}
+# rejected_per_sample_and_gene_diversity_of_isoforms_per_cell_results_df = (
+#     per_sample_and_gene_diversity_of_isoforms_per_cell_results_df.loc[
+#         per_sample_and_gene_diversity_of_isoforms_per_cell_results_df[
+#             "RejectedAfterCorrection"
+#         ]
+#     ]
+# )
+
+# assert rejected_per_sample_and_gene_diversity_of_isoforms_per_cell_results_df.loc[
+#     ~rejected_per_sample_and_gene_diversity_of_isoforms_per_cell_results_df[
+#         "TestCompleted"
+#     ]
+# ].empty
+
+# rejected_per_sample_and_gene_diversity_of_isoforms_per_cell_results_df
+
+# %% jupyter={"source_hidden": true}
+# rejected_per_sample_and_gene_diversity_of_isoforms_per_cell_results_df.groupby(
+#     "Sample"
+# ).size()
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+ge5_well_annotated_copies_df = ge5_isoforms_per_gene_copies_df.loc[
+    ~ge5_isoforms_per_gene_copies_df["Annotation"].isin(
+        [
+            "unstable",
+            "not separated",
+            "TBA1",
+            "TBA2",
+            "TBA3",
+            "TBA4",
+            "TBA5",
+            "TBA6",
+            "TBA7",
+            "TBA8",
+        ]
+    )
+].dropna(axis=0)
+# ge5_well_annotated_copies_df = ge5_well_annotated_copies_df.merge(
+#     neuronality_of_annotaion_df, on="Annotation", how="left"
+# )
+assert ge5_well_annotated_copies_df.loc[
+    ge5_well_annotated_copies_df.isna().any(axis=1)
+].empty
+ge5_well_annotated_copies_df
+
+# %%
+ge5_well_annotated_copies_df.groupby("Sample")["Chrom"].nunique()
+
+# %%
+ge5_annotation_df = (
+    ge5_well_annotated_copies_df.groupby(["Sample", "Chrom", condition_col, "Protein"])[
+        "Annotation"
+    ]
+    .unique()
+    .reset_index(name="UniqueAnnotations")
+)
+ge5_annotation_df["NumOfUniqueAnnotations"] = ge5_annotation_df[
+    "UniqueAnnotations"
+].apply(len)
+ge5_annotation_df
+
+# %%
+ge5_annotation_df.groupby("Sample")["Chrom"].nunique()
+
+# %%
+ge5_annotation_df.groupby("Sample")["Chrom"].nunique().sum()
+
+
+# %%
+# annotation_df_2 = well_annotated_copies_df.groupby(["Sample", "Chrom", condition_col, "Protein", "Copies"])["Annotation"].value_counts().reset_index(name="Cells").rename(columns={"Copies": "CopiesPerCell"})
+# annotation_df_2
 
 # %%
 def mean_jaccard_similarity(s):
@@ -5134,21 +6859,28 @@ def mean_jaccard_similarity(s):
 
     return total_score / count if count > 0 else 0
 
+
 # Example usage:
 s = pd.Series([["a", "b"], ["a", "b", "c"], ["c", "e"]])
 mean_jaccard = mean_jaccard_similarity(s)
 print(mean_jaccard)
 
 # %%
-jaccard_annotation_df = annotation_df.groupby(["Sample", "Chrom", condition_col])["UniqueAnnotations"].apply(mean_jaccard_similarity).reset_index(name="AnnotationsJaccardIndex")
-jaccard_annotation_df
+ge5_jaccard_annotation_df = (
+    ge5_annotation_df.groupby(["Sample", "Chrom", condition_col])["UniqueAnnotations"]
+    .apply(mean_jaccard_similarity)
+    .reset_index(name="AnnotationsJaccardIndex")
+)
+ge5_jaccard_annotation_df
 
 # %%
-jaccard_annotation_df.groupby("Sample")["AnnotationsJaccardIndex"].describe().round(2)
+ge5_jaccard_annotation_df.groupby("Sample")["AnnotationsJaccardIndex"].describe().round(
+    2
+)
 
 # %%
 fig = px.histogram(
-    jaccard_annotation_df,
+    ge5_jaccard_annotation_df,
     x="AnnotationsJaccardIndex",
     color="Sample",
     # facet_col="Sample",
@@ -5161,7 +6893,10 @@ fig = px.histogram(
 )
 fig.update_traces(opacity=0.75)
 # fig.update_xaxes(title="Mean Jaccard Index over each<br>isoform's unique annotations", dtick=0.2)
-fig.update_xaxes(title="Min avg Jaccard Index over each<br>gene's isoforms' unique annotations", dtick=0.2)
+fig.update_xaxes(
+    title="Min avg Jaccard Index over each<br>gene's isoforms' unique annotations",
+    dtick=0.2,
+)
 # fig.update_yaxes(title="Genes", dtick=25)
 fig.update_yaxes(title="Genes [%]", dtick=25)
 fig.update_layout(
@@ -5176,7 +6911,7 @@ fig.show()
 
 # %% jupyter={"source_hidden": true}
 fig = px.histogram(
-    jaccard_annotation_df,
+    ge5_jaccard_annotation_df,
     x="AnnotationsJaccardIndex",
     color="Sample",
     # facet_col="Sample",
@@ -5188,7 +6923,10 @@ fig = px.histogram(
     # log_y=True
 )
 fig.update_traces(opacity=0.75)
-fig.update_xaxes(title="Mean Jaccard Index over each<br>gene's isoforms' unique annotations", dtick=0.2)
+fig.update_xaxes(
+    title="Mean Jaccard Index over each<br>gene's isoforms' unique annotations",
+    dtick=0.2,
+)
 # fig.update_xaxes(title="Min avg Jaccard Index over each<br>gene's isoforms' unique annotations", dtick=0.2)
 fig.update_yaxes(title="Genes", dtick=25)
 # fig.update_yaxes(title="Genes [%]", dtick=25)
@@ -5204,7 +6942,7 @@ fig.show()
 
 # %% jupyter={"source_hidden": true}
 fig = px.histogram(
-    jaccard_annotation_df,
+    ge5_jaccard_annotation_df,
     x="AnnotationsJaccardIndex",
     color="Sample",
     # facet_col="Sample",
@@ -5216,12 +6954,13 @@ fig = px.histogram(
     # log_y=True
 )
 fig.update_traces(opacity=0.75)
-fig.update_xaxes(title="Mean Jaccard Index over each<br>gene's isoforms' unique annotations", dtick=0.2)
+fig.update_xaxes(
+    title="Mean Jaccard Index over each<br>gene's isoforms' unique annotations",
+    dtick=0.2,
+)
 # fig.update_xaxes(title="Min avg Jaccard Index over each<br>gene's isoforms' unique annotations", dtick=0.2)
 # fig.update_yaxes(title="Genes", dtick=25)
-fig.update_yaxes(title="Genes [%]", 
-                 dtick=2
-                )
+fig.update_yaxes(title="Genes [%]", dtick=2)
 fig.update_layout(
     width=500,
     height=350,
@@ -5232,10 +6971,6 @@ fig.update_layout(
 )
 fig.show()
 
-
-# %%
-# annotation_df_2 = well_annotated_copies_df.groupby(["Sample", "Chrom", condition_col, "Protein", "Copies"])["Annotation"].value_counts().reset_index(name="Cells").rename(columns={"Copies": "CopiesPerCell"})
-# annotation_df_2
 
 # %%
 def unique_elements_where_nan_equals_nan(elements):
@@ -5250,6 +6985,9 @@ def unique_elements_where_nan_equals_nan(elements):
 
 
 # %%
+# ge5_isoforms_per_gene_copies_df
+
+# %%
 grouped_copies_df = copies_df.groupby(["Chrom", condition_col, "Sample", "CB"])
 
 df1 = grouped_copies_df.agg(
@@ -5261,15 +6999,14 @@ df1 = grouped_copies_df.agg(
 df2 = grouped_copies_df.agg(
     {
         "Protein": list,
-        "SeuratCluster": list,
-        "Annotation": list,
+        "SeuratCluster": lambda x: list(set(x))[0],
+        "Annotation": lambda x: list(set(x))[0],
         "Copies": list,
+        "Neuronal": lambda x: list(set(x))[0],
     }
 ).rename(
     columns={
         "Protein": "Proteins",
-        "SeuratCluster": "SeuratClusterPerProtein",
-        "Annotation": "AnnotationPerProtein",
         "Copies": "CopiesPerProtein",
     }
 )
@@ -5278,55 +7015,207 @@ df2 = grouped_copies_df.agg(
 per_sample_per_cb_copies_df = df1.join(df2).reset_index()
 
 per_sample_per_cb_copies_df.insert(
-    per_sample_per_cb_copies_df.columns.get_loc("SeuratClusterPerProtein") + 1,
-    "UniqueSeuratClusters",
-    per_sample_per_cb_copies_df["SeuratClusterPerProtein"].apply(
-        unique_elements_where_nan_equals_nan
-    ),
+    per_sample_per_cb_copies_df.columns.get_loc("CopiesPerProtein") + 1,
+    "Copies",
+    per_sample_per_cb_copies_df["CopiesPerProtein"].apply(sum),
 )
-per_sample_per_cb_copies_df.insert(
-    per_sample_per_cb_copies_df.columns.get_loc("AnnotationPerProtein") + 1,
-    "UniqueAnnotations",
-    per_sample_per_cb_copies_df["AnnotationPerProtein"].apply(
-        unique_elements_where_nan_equals_nan
-    ),
-)
-# per_sample_per_cb_copies_df.insert(
-#     per_sample_per_cb_copies_df.columns.get_loc("CopiesPerProtein") + 1,
-#     "UniqueCopies",
-#     per_sample_per_cb_copies_df["CopiesPerProtein"].apply(
-#         unique_elements_where_nan_equals_nan
-#     ),
+# per_sample_per_cb_copies_df["Copies-UniqueIsoforms"] = (
+#     per_sample_per_cb_copies_df["Copies"]
+#     - per_sample_per_cb_copies_df["NumOfUniqueProteins"]
 # )
+per_sample_per_cb_copies_df["Copies/UniqueIsoforms"] = (
+    per_sample_per_cb_copies_df["Copies"]
+    / per_sample_per_cb_copies_df["NumOfUniqueProteins"]
+)
+per_sample_per_cb_copies_df["EachReadYieldsUniqueIsoform"] = (
+    per_sample_per_cb_copies_df.apply(
+        lambda x: x["NumOfUniqueProteins"] == x["Copies"], axis=1
+    )
+)
+
+per_sample_per_cb_copies_df.insert(
+    per_sample_per_cb_copies_df.columns.get_loc("Neuronal") + 1,
+    "NeuronalStrRep",
+    per_sample_per_cb_copies_df["Neuronal"].apply(
+        lambda x: "NA" if pd.isna(x) else "Neuronal" if x else "Non-neuronal"
+    ),
+)
 
 per_sample_per_cb_copies_df
 
 # %%
+ge5_per_sample_per_cb_copies_df = per_sample_per_cb_copies_df.loc[
+    per_sample_per_cb_copies_df["Chrom"].isin(chroms_with_at_least_5_isoforms)
+]
+ge5_per_sample_per_cb_copies_df
+
+# %%
+per_sample_per_cb_copies_df["Neuronal"].value_counts(dropna=False)
+
+# %%
+ge5_per_sample_per_cb_copies_df["Neuronal"].value_counts(dropna=False)
+
+# %% jupyter={"source_hidden": true}
+# per_sample_per_cb_copies_df.groupby(
+#     ["Sample", "Copies-UniqueIsoforms"]
+# ).size().reset_index(name="GeneCellCouples").sort_values(
+#     [
+#         "Copies-UniqueIsoforms",
+#         "Sample",
+#     ],
+#     ignore_index=True,
+# )
+
+# %%
+# per_sample_per_cb_copies_df.groupby(
+#     ["Sample", "Copies/UniqueIsoforms"]
+# ).size().reset_index(name="GeneCellCouples").sort_values(
+#     [
+#         "Copies/UniqueIsoforms",
+#         "Sample",
+#     ],
+#     ignore_index=True,
+# )
+
+# %%
 # num of genes found for each cell in each sample
-unique_genes_per_cell_df = per_sample_per_cb_copies_df.groupby(["Sample", "CB"])["Chrom"].nunique().reset_index(name="NumOfUniqueGenes")
+unique_genes_per_cell_df = (
+    per_sample_per_cb_copies_df.groupby(["Sample", "CB"])["Chrom"]
+    .nunique()
+    .reset_index(name="NumOfUniqueGenes")
+)
 unique_genes_per_cell_df
 
 # %%
+# num of genes found for each cell in each sample
+ge5_unique_genes_per_cell_df = (
+    ge5_per_sample_per_cb_copies_df.groupby(["Sample", "CB"])["Chrom"]
+    .nunique()
+    .reset_index(name="NumOfUniqueGenes")
+)
+ge5_unique_genes_per_cell_df
+
+# %%
+all_and_ge5_genes_per_cell_df = pd.concat(
+    [
+        unique_genes_per_cell_df.assign(Genes="All genes"),
+        ge5_unique_genes_per_cell_df.assign(Genes="Genes with 5+ isoforms"),
+    ]
+)
+all_and_ge5_genes_per_cell_df
+
+# %%
 # num of cells found for each gene in each sample
-unique_cells_per_gene_df = per_sample_per_cb_copies_df.groupby(["Sample", "Chrom"])["CB"].nunique().reset_index(name="NumOfUniqueCells")
+unique_cells_per_gene_df = (
+    per_sample_per_cb_copies_df.groupby(["Sample", "Chrom"])["CB"]
+    .nunique()
+    .reset_index(name="NumOfUniqueCells")
+)
 
 unique_cbs_per_sample = per_sample_per_cb_copies_df.groupby(["Sample"])["CB"].unique()
 # unique_cbs_per_sample
-unique_cells_per_gene_df["%UniqueCellsOfAllUniqueCells"] = unique_cells_per_gene_df.apply(lambda x: 100 * x["NumOfUniqueCells"] / unique_cbs_per_sample.loc[x["Sample"]].size, axis=1)
+unique_cells_per_gene_df["%UniqueCellsOfAllUniqueCells"] = (
+    unique_cells_per_gene_df.apply(
+        lambda x: 100
+        * x["NumOfUniqueCells"]
+        / unique_cbs_per_sample.loc[x["Sample"]].size,
+        axis=1,
+    )
+)
 
 unique_cells_per_gene_df
+
+# %%
+# num of cells found for each gene in each sample
+ge5_unique_cells_per_gene_df = (
+    ge5_per_sample_per_cb_copies_df.groupby(["Sample", "Chrom"])["CB"]
+    .nunique()
+    .reset_index(name="NumOfUniqueCells")
+)
+
+ge5_unique_cbs_per_sample = ge5_per_sample_per_cb_copies_df.groupby(["Sample"])[
+    "CB"
+].unique()
+# unique_cbs_per_sample
+ge5_unique_cells_per_gene_df["%UniqueCellsOfAllUniqueCells"] = (
+    ge5_unique_cells_per_gene_df.apply(
+        lambda x: 100
+        * x["NumOfUniqueCells"]
+        / ge5_unique_cbs_per_sample.loc[x["Sample"]].size,
+        axis=1,
+    )
+)
+
+ge5_unique_cells_per_gene_df
 
 # %%
 unique_genes_per_cell_df.groupby("Sample")["NumOfUniqueGenes"].describe().round(2)
 
 # %%
+ge5_unique_genes_per_cell_df.groupby("Sample")["NumOfUniqueGenes"].describe().round(2)
+
+# %%
 unique_cells_per_gene_df.groupby("Sample")["NumOfUniqueCells"].describe().round(1)
+
+# %%
+ge5_unique_cells_per_gene_df.groupby("Sample")["NumOfUniqueCells"].describe().round(1)
 
 # %%
 # unique cells-and-annotation per gene
 
 # %%
-unique_cells_per_gene_df.groupby("Sample")["%UniqueCellsOfAllUniqueCells"].describe().round(2)
+unique_cells_per_gene_df.groupby("Sample")[
+    "%UniqueCellsOfAllUniqueCells"
+].describe().round(2)
+
+# %%
+ge5_unique_cells_per_gene_df.groupby("Sample")[
+    "%UniqueCellsOfAllUniqueCells"
+].describe().round(2)
+
+# %%
+# # width = 4.5
+# width = 5
+# height = 3
+
+# %%
+# p = (
+#     so.Plot(unique_genes_per_cell_df, "NumOfUniqueGenes")
+#     .layout(size=(width, height))
+#     .add(so.Area(), so.Hist(), color="Sample")
+#     .scale(x="log")
+#     .label(x="Unique genes per cell", y="Cells", title="All genes")
+# )
+# p
+
+# %%
+# p = (
+#     so.Plot(ge5_unique_genes_per_cell_df, "NumOfUniqueGenes")
+#     .layout(size=(width, height))
+#     .add(so.Area(), so.Hist(), color="Sample")
+#     .scale(x="log")
+#     .label(x="Unique genes per cell", y="Cells", title="Genes with 5+ isoforms")
+# )
+# p
+
+# %%
+# width = 4.5
+width = 5
+height = 3
+p = (
+    so.Plot(all_and_ge5_genes_per_cell_df, "NumOfUniqueGenes")
+    .facet(row="Genes", wrap=3)
+    .layout(size=(width, height * 2))
+    .add(so.Area(), so.Hist(), color="Sample")
+    .scale(
+        x="log",
+        y=so.Continuous().tick(every=20_000).label(unit=""),
+    )
+    .label(x="Unique genes per cell", y="Cells")
+)
+p
+
+# %%
 
 # %%
 fig = px.histogram(
@@ -5364,7 +7253,7 @@ fig = px.histogram(
     # histnorm="percent",
     # cumulative=True,
     # log_x=True,
-    log_y=True
+    log_y=True,
 )
 fig.update_traces(opacity=0.75)
 fig.update_yaxes(title="Genes")
@@ -5385,11 +7274,13 @@ fig = px.histogram(
     color="Sample",
     # facet_col="Sample",
     # color_discrete_map=color_discrete_map,
-    labels={"%UniqueCellsOfAllUniqueCells": "Unique cells per gene /<br>all unique cells [%]"},
+    labels={
+        "%UniqueCellsOfAllUniqueCells": "Unique cells per gene /<br>all unique cells [%]"
+    },
     histnorm="percent",
     # cumulative=True,
     # log_x=True,
-    log_y=True
+    log_y=True,
 )
 fig.update_traces(opacity=0.75)
 # fig.update_yaxes(title="Genes")
@@ -5409,24 +7300,34 @@ per_sample_per_cb_copies_df.groupby("Sample")["NumOfUniqueProteins"].describe()
 
 # %%
 # mean num of unique isoforms per each cell's genes
-mean_unique_isoforms_per_cell_genes_df = per_sample_per_cb_copies_df.groupby(["Sample", "CB"])["NumOfUniqueProteins"].mean().reset_index(name="MeanNumOfUniqueProteinsPerGene")
+mean_unique_isoforms_per_cell_genes_df = (
+    per_sample_per_cb_copies_df.groupby(["Sample", "CB"])["NumOfUniqueProteins"]
+    .mean()
+    .reset_index(name="MeanNumOfUniqueProteinsPerGene")
+)
 mean_unique_isoforms_per_cell_genes_df
 
 # %%
-mean_unique_isoforms_per_cell_genes_df.groupby("Sample")["MeanNumOfUniqueProteinsPerGene"].describe().round(2)
+mean_unique_isoforms_per_cell_genes_df.groupby("Sample")[
+    "MeanNumOfUniqueProteinsPerGene"
+].describe().round(2)
 
 # %%
 # mean num of unique isoforms per each gene's cells
-mean_unique_isoforms_per_gene_cells_df = per_sample_per_cb_copies_df.groupby(["Sample", "Chrom"])[
-    "NumOfUniqueProteins"
-].mean().reset_index(name="MeanNumOfUniqueProteinsPerCell")
+mean_unique_isoforms_per_gene_cells_df = (
+    per_sample_per_cb_copies_df.groupby(["Sample", "Chrom"])["NumOfUniqueProteins"]
+    .mean()
+    .reset_index(name="MeanNumOfUniqueProteinsPerCell")
+)
 mean_unique_isoforms_per_gene_cells_df
 
 # %%
 # mean_unique_isoforms_per_gene_cells_df["MeanNumOfUniqueProteinsPerCell"].describe()
 
 # %%
-mean_unique_isoforms_per_gene_cells_df.groupby("Sample")["MeanNumOfUniqueProteinsPerCell"].describe().round(2)
+mean_unique_isoforms_per_gene_cells_df.groupby("Sample")[
+    "MeanNumOfUniqueProteinsPerCell"
+].describe().round(2)
 
 # %%
 fig = px.histogram(
@@ -5461,10 +7362,10 @@ fig = px.histogram(
     # color_discrete_map=color_discrete_map,
     labels={"MeanNumOfUniqueProteinsPerCell": "Min unique isoforms per cell (avg)"},
     histnorm="percent",
-    cumulative=True
+    cumulative=True,
 )
 fig.update_traces(opacity=0.75)
-fig.update_traces(cumulative_direction="decreasing", selector=dict(type='histogram'))
+fig.update_traces(cumulative_direction="decreasing", selector=dict(type="histogram"))
 fig.update_xaxes(tick0=0, dtick=10)
 fig.update_yaxes(title="Genes [%]")
 fig.update_layout(
@@ -5481,23 +7382,79 @@ fig.show()
 per_sample_per_cb_copies_df.groupby("Sample")["NumOfUniqueProteins"].describe().round(2)
 
 # %%
-fig = px.histogram(
-    per_sample_per_cb_copies_df,
-    x="NumOfUniqueProteins",
-    color="Sample",
-    # facet_col="Sample",
-    # color_discrete_map=color_discrete_map,
-    labels={"NumOfUniqueProteins": "Unique isoforms per gene-cell couple"},
-    # histnorm="percent",
-    # cumulative=True
-)
+# fig = px.histogram(
+#     per_sample_per_cb_copies_df,
+#     x="NumOfUniqueProteins",
+#     color="Sample",
+#     # facet_col="Sample",
+#     # color_discrete_map=color_discrete_map,
+#     labels={"NumOfUniqueProteins": "Unique isoforms per gene-cell couple"},
+#     # histnorm="percent",
+#     # cumulative=True
+# )
+# fig.update_traces(opacity=0.75)
+# fig.update_xaxes(tick0=0, dtick=10)
+# fig.update_yaxes(title="Gene-cell couples")
+# fig.update_layout(
+#     width=500,
+#     height=350,
+#     template=template,
+#     barmode="overlay",
+#     # title="Num of unique distinct isoforms per sample-gene-cell",
+#     # showlegend=False,
+# )
+# fig.show()
+
+# %%
+# fig = px.histogram(
+#     per_sample_per_cb_copies_df,
+#     x="NumOfUniqueProteins",
+#     color="Sample",
+#     # facet_col="Sample",
+#     # color_discrete_map=color_discrete_map,
+#     labels={"NumOfUniqueProteins": "Min unique isoforms per gene-cell couple"},
+#     histnorm="percent",
+#     cumulative=True
+# )
+# fig.update_traces(opacity=0.75)
+# fig.update_traces(cumulative_direction="decreasing", selector=dict(type='histogram'))
+# fig.update_xaxes(tick0=0, dtick=10)
+# fig.update_yaxes(title="Gene-cell couples [%]")
+# fig.update_layout(
+#     width=500,
+#     height=350,
+#     template=template,
+#     barmode="overlay",
+#     # title="Num of unique distinct isoforms per sample-gene-cell",
+#     # showlegend=False,
+# )
+# fig.show()
+
+# %%
+fig = make_subplots(rows=1, cols=1)
+
+for sample, color in zip(samples, colors):
+    x = per_sample_per_cb_copies_df.loc[
+        per_sample_per_cb_copies_df["Sample"] == sample, "Copies/UniqueIsoforms"
+    ]
+    fig.add_trace(
+        go.Histogram(
+            x=x,
+            marker_color=color,
+            histnorm="percent",
+        ),
+        row=1,
+        col=1,
+    )
+
+
 fig.update_traces(opacity=0.75)
-fig.update_xaxes(tick0=0, dtick=10)
-fig.update_yaxes(title="Gene-cell couples")
+fig.update_xaxes(title="Reads per unique isoform (avg)")
+fig.update_yaxes(title="Gene-cell couples [%]")
 fig.update_layout(
     width=500,
     height=350,
-    template=template,
+    # template=template,
     barmode="overlay",
     # title="Num of unique distinct isoforms per sample-gene-cell",
     # showlegend=False,
@@ -5505,29 +7462,473 @@ fig.update_layout(
 fig.show()
 
 # %%
-fig = px.histogram(
-    per_sample_per_cb_copies_df,
-    x="NumOfUniqueProteins",
-    color="Sample",
-    # facet_col="Sample",
-    # color_discrete_map=color_discrete_map,
-    labels={"NumOfUniqueProteins": "Min unique isoforms per gene-cell couple"},
-    histnorm="percent",
-    cumulative=True
-)
+fig = make_subplots(rows=1, cols=1)
+
+for sample, color in zip(samples, colors):
+    x = ge5_per_sample_per_cb_copies_df.loc[
+        ge5_per_sample_per_cb_copies_df["Sample"] == sample, "Copies/UniqueIsoforms"
+    ]
+    fig.add_trace(
+        go.Histogram(
+            x=x,
+            marker_color=color,
+            histnorm="percent",
+        ),
+        row=1,
+        col=1,
+    )
+
+
 fig.update_traces(opacity=0.75)
-fig.update_traces(cumulative_direction="decreasing", selector=dict(type='histogram'))
-fig.update_xaxes(tick0=0, dtick=10)
+fig.update_xaxes(title="Reads per unique isoform (avg)")
 fig.update_yaxes(title="Gene-cell couples [%]")
 fig.update_layout(
     width=500,
     height=350,
-    template=template,
+    # template=template,
     barmode="overlay",
     # title="Num of unique distinct isoforms per sample-gene-cell",
     # showlegend=False,
 )
 fig.show()
+
+# %%
+# fig = px.histogram(
+#     per_sample_per_cb_copies_df,
+#     x="Copies/UniqueIsoforms",
+#     color="Sample",
+#     # facet_col="Sample",
+#     # color_discrete_map=color_discrete_map,
+#     # labels={"NumOfUniqueGenes": "Unique genes per cell"},
+#     histnorm="percent",
+#     # cumulative=True,
+#     # log_x=True,
+#     # log_y=True
+# )
+# fig.update_traces(opacity=0.75)
+# fig.update_xaxes(title="Reads / unique isoforms")
+# fig.update_yaxes(title="Gene-cell couples")
+# fig.update_layout(
+#     width=500,
+#     height=350,
+#     # template=template,
+#     barmode="overlay",
+#     # title="Num of unique distinct isoforms per sample-gene-cell",
+#     # showlegend=False,
+# )
+# fig.show()
+
+# %%
+# fig = px.histogram(
+#     per_sample_per_cb_copies_df,
+#     x="Copies-UniqueIsoforms",
+#     color="Sample",
+#     # facet_col="Sample",
+#     # color_discrete_map=color_discrete_map,
+#     # labels={"NumOfUniqueGenes": "Unique genes per cell"},
+#     # histnorm="percent",
+#     # cumulative=True,
+#     # log_x=True,
+#     log_y=True,
+# )
+# fig.update_traces(opacity=0.75)
+# fig.update_yaxes(title="Gene-cell Couples")
+# fig.update_layout(
+#     width=500,
+#     height=350,
+#     template=template,
+#     barmode="overlay",
+#     # title="Num of unique distinct isoforms per sample-gene-cell",
+#     # showlegend=False,
+# )
+# fig.show()
+
+# %% editable=true slideshow={"slide_type": ""}
+per_sample_per_copies_stats_df = (
+    per_sample_per_cb_copies_df.groupby(["Sample", "Copies"])
+    .apply(
+        lambda x: 100 * x["EachReadYieldsUniqueIsoform"].sum() / x.size,
+        include_groups=False,
+    )
+    # .round(2)
+    .reset_index(name="RelPrctOfGeneCellCouplesWithXReadsAndXUniqueIsoforms")
+    .merge(
+        per_sample_per_cb_copies_df.groupby(["Sample", "Copies"])
+        .apply(lambda x: x["NumOfUniqueProteins"].mean(), include_groups=False)
+        .reset_index(name="MeanNumOfUniqueProteinsPerGeneCellCoupleWithXReads")
+    )
+)
+per_sample_per_copies_stats_df[
+    "MeanNumOfUniqueProteinsPerGeneCellCoupleWithXReads/Reads"
+] = (
+    per_sample_per_copies_stats_df["MeanNumOfUniqueProteinsPerGeneCellCoupleWithXReads"]
+    / per_sample_per_copies_stats_df["Copies"]
+)
+per_sample_per_copies_stats_df[
+    "Reads/MeanNumOfUniqueProteinsPerGeneCellCoupleWithXReads"
+] = (
+    per_sample_per_copies_stats_df["Copies"]
+    / per_sample_per_copies_stats_df[
+        "MeanNumOfUniqueProteinsPerGeneCellCoupleWithXReads"
+    ]
+)
+per_sample_per_copies_stats_df
+
+# %% jupyter={"source_hidden": true}
+# fig = px.scatter(
+#     per_sample_per_copies_stats_df,
+#     x="Copies",
+#     y="RelPrctOfGeneCellCouplesWithXReadsAndXUniqueIsoforms",
+#     color="Sample",
+#     # log_x=True,
+#     # log_y=True
+#     # marginal_x="box",
+#     # marginal_y="box",
+# )
+# fig.update_traces(opacity=0.75)
+# fig.update_xaxes(title="Reads")
+# # fig.update_yaxes(title="% of gene-cell couples with X reads<br>whose num of unique isoforms<br>is exactly X")
+# # fig.update_yaxes(title="Relative % of gene-cell couples with<br>X reads and exactly X unique isoforms")
+# fig.update_yaxes(
+#     title="Relative % of gene-cell couples<br>with X reads and exactly<br>X unique isoforms"
+# )
+# fig.update_layout(
+#     width=500,
+#     height=350,
+#     template=template,
+#     # barmode="overlay",
+#     # title="Num of unique distinct isoforms per sample-gene-cell",
+#     # showlegend=False,
+# )
+# fig.show()
+
+# %% jupyter={"source_hidden": true}
+# fig = px.scatter(
+#     per_sample_per_copies_stats_df,
+#     x="Copies",
+#     y="MeanNumOfUniqueProteinsPerGeneCellCoupleWithXReads",
+#     color="Sample",
+#     # log_x=True,
+#     # log_y=True
+#     # marginal_x="box",
+#     # marginal_y="box",
+# )
+# fig.update_traces(opacity=0.75)
+# fig.update_xaxes(title="Reads")
+# fig.update_yaxes(title="Unique isoforms per gene-cell<br>couple with X reads (avg)")
+# fig.update_layout(
+#     width=500,
+#     height=350,
+#     template=template,
+#     # barmode="overlay",
+#     # title="Num of unique distinct isoforms per sample-gene-cell",
+#     # showlegend=False,
+# )
+# fig.show()
+
+# %% jupyter={"source_hidden": true}
+fig = px.scatter(
+    per_sample_per_copies_stats_df,
+    x="Copies",
+    y="RelPrctOfGeneCellCouplesWithXReadsAndXUniqueIsoforms",
+    color="Sample",
+    log_x=True,
+    # log_y=True
+    # marginal_x="box",
+    # marginal_y="box",
+)
+fig.update_traces(opacity=0.75)
+fig.update_xaxes(title="Reads")
+# fig.update_yaxes(title="% of gene-cell couples with X reads<br>whose num of unique isoforms<br>is exactly X")
+# fig.update_yaxes(title="Relative % of gene-cell couples with<br>X reads and exactly X unique isoforms")
+fig.update_yaxes(
+    title="Relative % of gene-cell couples<br>with X reads and exactly<br>X unique isoforms"
+)
+fig.update_layout(
+    width=500,
+    height=350,
+    template=template,
+    # barmode="overlay",
+    # title="Num of unique distinct isoforms per sample-gene-cell",
+    # showlegend=False,
+)
+fig.show()
+
+# %%
+fig = px.scatter(
+    per_sample_per_copies_stats_df,
+    x="Copies",
+    y="MeanNumOfUniqueProteinsPerGeneCellCoupleWithXReads",
+    color="Sample",
+    log_x=True,
+    # log_y=True
+    # marginal_x="box",
+    # marginal_y="box",
+)
+fig.update_traces(opacity=0.75)
+fig.update_xaxes(title="Reads")
+fig.update_yaxes(title="Unique isoforms per gene-cell<br>couple with X reads (avg)")
+fig.update_layout(
+    width=500,
+    height=350,
+    template=template,
+    # barmode="overlay",
+    # title="Num of unique distinct isoforms per sample-gene-cell",
+    # showlegend=False,
+)
+fig.show()
+
+# %%
+fig = px.scatter(
+    per_sample_per_copies_stats_df,
+    x="Copies",
+    y="MeanNumOfUniqueProteinsPerGeneCellCoupleWithXReads",
+    facet_col="Sample",
+    color="Neuronal",
+    log_x=True,
+    # log_y=True
+    # marginal_x="box",
+    # marginal_y="box",
+)
+fig.update_traces(opacity=0.75)
+fig.update_xaxes(title="Reads")
+fig.update_yaxes(title="Unique isoforms per gene-cell<br>couple with X reads (avg)")
+fig.update_layout(
+    width=500,
+    height=350,
+    template=template,
+    # barmode="overlay",
+    # title="Num of unique distinct isoforms per sample-gene-cell",
+    # showlegend=False,
+)
+fig.show()
+
+# %% jupyter={"source_hidden": true}
+fig = px.scatter(
+    per_sample_per_copies_stats_df,
+    x="Copies",
+    y="MeanNumOfUniqueProteinsPerGeneCellCoupleWithXReads/Reads",
+    color="Sample",
+    log_x=True,
+    # log_y=True
+    # marginal_x="box",
+    # marginal_y="box",
+    # labels={"MeanNumOfUniqueProteinsPerGeneCellCoupleWithXReads/Reads": ""}
+)
+fig.update_traces(opacity=0.75)
+fig.update_xaxes(title="Reads")
+fig.update_yaxes(
+    title="Unique isoforms per gene-cell<br>couple with X reads (avg)<br>/ reads"
+)
+fig.update_layout(
+    width=500,
+    height=350,
+    template=template,
+    # barmode="overlay",
+    # title="Num of unique distinct isoforms per sample-gene-cell",
+    # showlegend=False,
+)
+fig.show()
+
+# %%
+# fig = px.scatter(
+#     per_sample_per_copies_stats_df,
+#     x="Copies",
+#     y="Reads/MeanNumOfUniqueProteinsPerGeneCellCoupleWithXReads",
+#     color="Sample",
+#     # log_x=True,
+#     # log_y=True
+#     # marginal_x="box",
+#     # marginal_y="box",
+#     # labels={"MeanNumOfUniqueProteinsPerGeneCellCoupleWithXReads/Reads": ""}
+# )
+# fig.update_traces(opacity=0.75)
+# fig.update_xaxes(title="Reads")
+# fig.update_yaxes(
+#     title="Reads /<br>unique isoforms per gene-cell<br>couple with X reads (avg)<br>"
+# )
+# fig.update_layout(
+#     width=500,
+#     height=350,
+#     template=template,
+#     # barmode="overlay",
+#     # title="Num of unique distinct isoforms per sample-gene-cell",
+#     # showlegend=False,
+# )
+# fig.show()
+
+# %%
+rows = 3
+
+fig = make_subplots(
+    rows=rows,
+    # rows=3,
+    cols=1,
+    # subplot_titles=("Plot 1", "Plot 2", "Plot 3", "Plot 4")
+    # shared_xaxes="all",
+    x_title="Reads",
+    vertical_spacing=0.05,
+)
+
+y_cols = [
+    "RelPrctOfGeneCellCouplesWithXReadsAndXUniqueIsoforms",
+    "MeanNumOfUniqueProteinsPerGeneCellCoupleWithXReads",
+    "MeanNumOfUniqueProteinsPerGeneCellCoupleWithXReads/Reads",
+]
+y_titles = [
+    "Relative % of gene-cell couples<br>with X reads and exactly<br>X unique isoforms",
+    "Unique isoforms per gene-cell<br>couple with X reads (avg)",
+    "Unique isoforms per gene-cell<br>couple with X reads (avg)<br>/ reads",
+]
+colors = ["blue", "red"]
+
+mode = "markers"
+opacity = 0.75
+
+for row, (y_col, y_title) in enumerate(zip(y_cols, y_titles), start=1):
+    # add trace
+    for sample, color in zip(samples, colors):
+        x = per_sample_per_copies_stats_df.loc[
+            per_sample_per_copies_stats_df["Sample"] == sample, "Copies"
+        ]
+        y = per_sample_per_copies_stats_df.loc[
+            per_sample_per_copies_stats_df["Sample"] == sample, y_col
+        ]
+        if row == 1:
+            fig.add_trace(
+                go.Scatter(
+                    x=x,
+                    y=y,
+                    mode=mode,
+                    marker_color=color,
+                    opacity=opacity,
+                    name=sample,
+                    legendgroup=sample,
+                ),
+                row=row,
+                col=1,
+            )
+        else:
+            fig.add_trace(
+                go.Scatter(
+                    x=x,
+                    y=y,
+                    mode=mode,
+                    marker_color=color,
+                    opacity=opacity,
+                    showlegend=False,
+                ),
+                row=row,
+                col=1,
+            )
+    # Update yaxis properties
+    fig.update_yaxes(title_text=y_title, row=row, col=1)
+
+# Update xaxis properties
+fig.update_xaxes(
+    type="log",
+)
+
+# Update title and height
+fig.update_layout(
+    template=template,
+    # title_text="Customizing Subplot Axes",
+    width=500,
+    height=300 * rows,
+)
+
+fig.show()
+
+# %% jupyter={"source_hidden": true}
+# base_rows = 3
+# # base_rows = 1
+
+# fig = make_subplots(
+#     rows=base_rows*2,
+#     # rows=3,
+#     cols=1,
+#     row_heights=[0.2, 0.8] * base_rows,
+#     # subplot_titles=("Plot 1", "Plot 2", "Plot 3", "Plot 4")
+#     # shared_xaxes="all",
+#     x_title="Reads",
+#     vertical_spacing=0.05,
+# )
+
+# y_cols = [
+#     "RelPrctOfGeneCellCouplesWithXReadsAndXUniqueIsoforms",
+#     "MeanNumOfUniqueProteinsPerGeneCellCoupleWithXReads",
+#     "MeanNumOfUniqueProteinsPerGeneCellCoupleWithXReads/Reads",
+# ]
+# y_titles = [
+#     "Relative % of gene-cell couples<br>with X reads and exactly<br>X unique isoforms",
+#     "Unique isoforms per gene-cell<br>couple with X reads (avg)",
+#     "Unique isoforms per gene-cell<br>couple with X reads (avg)<br>/ reads",
+# ]
+# colors = ["blue", "red"]
+
+# mode = "markers"
+
+# # main_cols = list(range(1, base_rows * 2, 2))
+# main_cols = list(range(2, base_rows * 2 + 1, 2))
+
+# for y_col, y_title, main_row in zip(y_cols, y_titles, main_cols):
+#     ic(y_col, y_title, main_row)
+#     # add trace
+#     for sample, color in zip(samples, colors):
+#         x = per_sample_per_copies_stats_df.loc[
+#             per_sample_per_copies_stats_df["Sample"] == sample, "Copies"
+#         ]
+#         y = per_sample_per_copies_stats_df.loc[
+#             per_sample_per_copies_stats_df["Sample"] == sample, y_col
+#         ]
+#         if main_row == 2:
+#             fig.add_trace(
+#                 go.Scatter(
+#                     x=x,
+#                     y=y,
+#                     mode=mode,
+#                     marker_color=color,
+#                     name=sample,
+#                     legendgroup=sample,
+#                 ),
+#                 row=main_row,
+#                 col=1,
+#             )
+#         else:
+#             fig.add_trace(
+#                 go.Scatter(x=x, y=y, mode=mode, marker_color=color, showlegend=False),
+#                 row=main_row,
+#                 col=1,
+#             )
+#         fig.add_trace(
+#                 go.Histogram(x=x, marker_color=color, showlegend=False, opacity=0.75),
+#                 row=main_row-1,
+#                 col=1,
+#             )
+#     # Update yaxis properties
+#     fig.update_yaxes(title_text=y_title, row=main_row, col=1)
+#     # break
+
+
+# # Update xaxis properties
+# fig.update_xaxes(
+#     # title_text="Reads",
+#     tick0=0,
+#     dtick=1000,
+#     # range=[0, x.max()],
+#     # type="log",
+# )
+
+# # Update title and height
+# fig.update_layout(
+#     template=template,
+#     # title_text="Customizing Subplot Axes",
+#     width=500,
+#     height=350*base_rows,
+#     barmode="overlay"
+# )
+
+# fig.show()
 
 # %%
 # per_sample_per_cb_copies_df.loc[per_sample_per_cb_copies_df["NumOfUniqueProteins"] == 1].shape[0]
@@ -5545,43 +7946,231 @@ fig.show()
 # per_sample_per_cb_copies_df.loc[per_sample_per_cb_copies_df["NumOfUniqueProteins"] == 5].shape[0]
 
 # %%
-agg_gene_cell_couples_df_1 = per_sample_per_cb_copies_df.groupby(["Sample", "NumOfUniqueProteins"]).agg(
-    NumOfGeneCellCouples=("Chrom", "size"),
-    NumOfUniqueGenes=("Chrom", "nunique"),
-    NumOfUniqueCells=("CB", "nunique")
-).reset_index().rename(columns={"NumOfUniqueProteins": "NumOfUniqueProteinsPerGeneCell"})
+per_sample_per_cb_copies_df
+
+# %%
+agg_gene_cell_couples_df_1 = (
+    per_sample_per_cb_copies_df.groupby(["Sample", "NumOfUniqueProteins"])
+    .agg(
+        NumOfGeneCellCouples=("Chrom", "size"),
+        NumOfUniqueGenes=("Chrom", "nunique"),
+        NumOfUniqueCells=("CB", "nunique"),
+    )
+    .reset_index()
+    .rename(columns={"NumOfUniqueProteins": "NumOfUniqueProteinsPerGeneCell"})
+)
 # agg_gene_cell_couples_df_1
 
 agg_gene_cell_couples_df_2 = (
-    per_sample_per_cb_copies_df
-    .groupby(["Sample", "NumOfUniqueProteins", "Chrom"])
-    ["UniqueProteins"].apply(lambda x: len(set(chain.from_iterable(x))))
+    per_sample_per_cb_copies_df.groupby(["Sample", "NumOfUniqueProteins", "Chrom"])[
+        "UniqueProteins"
+    ]
+    .apply(lambda x: len(set(chain.from_iterable(x))))
     .reset_index(name="NumOfUniqueProteinsPerChrom")
-    .groupby(["Sample", "NumOfUniqueProteins"])
-    ["NumOfUniqueProteinsPerChrom"].apply(list)
+    .groupby(["Sample", "NumOfUniqueProteins"])["NumOfUniqueProteinsPerChrom"]
+    .apply(list)
     .reset_index(name="NumOfUniqueProteinsPerChroms")
     .rename(columns={"NumOfUniqueProteins": "NumOfUniqueProteinsPerGeneCell"})
 )
-agg_gene_cell_couples_df_2["AvgNumOfUniqueProteinsPerGene"] = agg_gene_cell_couples_df_2["NumOfUniqueProteinsPerChroms"].apply(lambda x: sum(x) / len(x))
-agg_gene_cell_couples_df_2["NumOfUniqueProteinsInAllGenes"] = agg_gene_cell_couples_df_2["NumOfUniqueProteinsPerChroms"].apply(sum)
+agg_gene_cell_couples_df_2["AvgNumOfUniqueProteinsPerGene"] = (
+    agg_gene_cell_couples_df_2["NumOfUniqueProteinsPerChroms"].apply(
+        lambda x: sum(x) / len(x)
+    )
+)
+agg_gene_cell_couples_df_2["NumOfUniqueProteinsInAllGenes"] = (
+    agg_gene_cell_couples_df_2["NumOfUniqueProteinsPerChroms"].apply(sum)
+)
 del agg_gene_cell_couples_df_2["NumOfUniqueProteinsPerChroms"]
 # agg_gene_cell_couples_df_2
 
 agg_gene_cell_couples_df = agg_gene_cell_couples_df_1.merge(agg_gene_cell_couples_df_2)
 del agg_gene_cell_couples_df_1, agg_gene_cell_couples_df_2
 
-samples = ["nuclearRNA", "totalRNA"]
 dfs = []
 for sample in samples:
-    df = agg_gene_cell_couples_df.loc[agg_gene_cell_couples_df["Sample"] == sample].sort_values("NumOfUniqueProteinsPerGeneCell", ascending=False)
-    df["DecreasingCummlativeGeneCellCouples%"] = df["NumOfGeneCellCouples"].mul(100).div(df["NumOfGeneCellCouples"].sum()).cumsum()
+    df = agg_gene_cell_couples_df.loc[
+        agg_gene_cell_couples_df["Sample"] == sample
+    ].sort_values("NumOfUniqueProteinsPerGeneCell", ascending=False)
+    df["DecreasingCummlativeGeneCellCouples%"] = (
+        df["NumOfGeneCellCouples"]
+        .mul(100)
+        .div(df["NumOfGeneCellCouples"].sum())
+        .cumsum()
+    )
     dfs.append(df)
-agg_gene_cell_couples_df = pd.concat(dfs).sort_values(["Sample", "NumOfUniqueProteinsPerGeneCell"], ignore_index=True)
+agg_gene_cell_couples_df = pd.concat(dfs).sort_values(
+    ["Sample", "NumOfUniqueProteinsPerGeneCell"], ignore_index=True
+)
 
 agg_gene_cell_couples_df
 
 # %%
-agg_gene_cell_couples_df.groupby("Sample")[["NumOfGeneCellCouples", "NumOfUniqueGenes", "NumOfUniqueCells", "AvgNumOfUniqueProteinsPerGene"]].agg(["count", "mean", "std", "min", "median", "max"]).round(2)
+# ge5_per_sample_per_cb_copies_df
+
+# %%
+ge5_agg_gene_cell_couples_df_1 = (
+    ge5_per_sample_per_cb_copies_df.groupby(["Sample", "NumOfUniqueProteins"])
+    .agg(
+        NumOfGeneCellCouples=("Chrom", "size"),
+        NumOfUniqueGenes=("Chrom", "nunique"),
+        NumOfUniqueCells=("CB", "nunique"),
+    )
+    .reset_index()
+    .rename(columns={"NumOfUniqueProteins": "NumOfUniqueProteinsPerGeneCell"})
+)
+# agg_gene_cell_couples_df_1
+
+ge5_agg_gene_cell_couples_df_2 = (
+    ge5_per_sample_per_cb_copies_df.groupby(["Sample", "NumOfUniqueProteins", "Chrom"])[
+        "UniqueProteins"
+    ]
+    .apply(lambda x: len(set(chain.from_iterable(x))))
+    .reset_index(name="NumOfUniqueProteinsPerChrom")
+    .groupby(["Sample", "NumOfUniqueProteins"])["NumOfUniqueProteinsPerChrom"]
+    .apply(list)
+    .reset_index(name="NumOfUniqueProteinsPerChroms")
+    .rename(columns={"NumOfUniqueProteins": "NumOfUniqueProteinsPerGeneCell"})
+)
+ge5_agg_gene_cell_couples_df_2["AvgNumOfUniqueProteinsPerGene"] = (
+    ge5_agg_gene_cell_couples_df_2["NumOfUniqueProteinsPerChroms"].apply(
+        lambda x: sum(x) / len(x)
+    )
+)
+ge5_agg_gene_cell_couples_df_2["NumOfUniqueProteinsInAllGenes"] = (
+    ge5_agg_gene_cell_couples_df_2["NumOfUniqueProteinsPerChroms"].apply(sum)
+)
+del ge5_agg_gene_cell_couples_df_2["NumOfUniqueProteinsPerChroms"]
+# agg_gene_cell_couples_df_2
+
+ge5_agg_gene_cell_couples_df = ge5_agg_gene_cell_couples_df_1.merge(
+    ge5_agg_gene_cell_couples_df_2
+)
+del ge5_agg_gene_cell_couples_df_1, ge5_agg_gene_cell_couples_df_2
+
+dfs = []
+for sample in samples:
+    df = ge5_agg_gene_cell_couples_df.loc[
+        ge5_agg_gene_cell_couples_df["Sample"] == sample
+    ].sort_values("NumOfUniqueProteinsPerGeneCell", ascending=False)
+    df["DecreasingCummlativeGeneCellCouples%"] = (
+        df["NumOfGeneCellCouples"]
+        .mul(100)
+        .div(df["NumOfGeneCellCouples"].sum())
+        .cumsum()
+    )
+    dfs.append(df)
+ge5_agg_gene_cell_couples_df = pd.concat(dfs).sort_values(
+    ["Sample", "NumOfUniqueProteinsPerGeneCell"], ignore_index=True
+)
+
+ge5_agg_gene_cell_couples_df
+
+# %%
+ge5_neuronal_agg_gene_cell_couples_df_1 = (
+    ge5_per_sample_per_cb_copies_df.groupby(
+        ["Sample", "NumOfUniqueProteins", "Neuronal"], dropna=False
+    )
+    .agg(
+        NumOfGeneCellCouples=("Chrom", "size"),
+        NumOfUniqueGenes=("Chrom", "nunique"),
+        NumOfUniqueCells=("CB", "nunique"),
+    )
+    .reset_index()
+    .rename(columns={"NumOfUniqueProteins": "NumOfUniqueProteinsPerGeneCell"})
+)
+# ge5_neuronal_agg_gene_cell_couples_df_1
+
+ge5_neuronal_agg_gene_cell_couples_df_2 = (
+    ge5_per_sample_per_cb_copies_df.groupby(
+        ["Sample", "NumOfUniqueProteins", "Neuronal", "Chrom"], dropna=False
+    )["UniqueProteins"]
+    .apply(lambda x: len(set(chain.from_iterable(x))))
+    .reset_index(name="NumOfUniqueProteinsPerChrom")
+    .groupby(["Sample", "NumOfUniqueProteins", "Neuronal"], dropna=False)[
+        "NumOfUniqueProteinsPerChrom"
+    ]
+    .apply(list)
+    .reset_index(name="NumOfUniqueProteinsPerChroms")
+    .rename(columns={"NumOfUniqueProteins": "NumOfUniqueProteinsPerGeneCell"})
+)
+ge5_neuronal_agg_gene_cell_couples_df_2["AvgNumOfUniqueProteinsPerGene"] = (
+    ge5_neuronal_agg_gene_cell_couples_df_2["NumOfUniqueProteinsPerChroms"].apply(
+        lambda x: sum(x) / len(x)
+    )
+)
+ge5_neuronal_agg_gene_cell_couples_df_2["NumOfUniqueProteinsInAllGenes"] = (
+    ge5_neuronal_agg_gene_cell_couples_df_2["NumOfUniqueProteinsPerChroms"].apply(sum)
+)
+del ge5_neuronal_agg_gene_cell_couples_df_2["NumOfUniqueProteinsPerChroms"]
+# ge5_neuronal_agg_gene_cell_couples_df_2
+
+ge5_neuronal_agg_gene_cell_couples_df = ge5_neuronal_agg_gene_cell_couples_df_1.merge(
+    ge5_neuronal_agg_gene_cell_couples_df_2
+)
+del ge5_neuronal_agg_gene_cell_couples_df_1, ge5_neuronal_agg_gene_cell_couples_df_2
+# ge5_neuronal_agg_gene_cell_couples_df
+
+samples = ["nuclearRNA", "totalRNA"]
+dfs = []
+for sample in samples:
+    df = ge5_neuronal_agg_gene_cell_couples_df.loc[
+        ge5_neuronal_agg_gene_cell_couples_df["Sample"] == sample
+    ].sort_values("NumOfUniqueProteinsPerGeneCell", ascending=False)
+    # per neuronal/non-neuronal/NA separately
+    unique_neuronalities_per_sample = df["Neuronal"].unique()
+    for neuronality in unique_neuronalities_per_sample:
+        if pd.isna(neuronality):
+            df_of_one_neuronality = df.loc[df["Neuronal"].isna()].copy()
+        else:
+            df_of_one_neuronality = df.loc[df["Neuronal"].eq(neuronality)].copy()
+        df_of_one_neuronality["DecreasingCummlativeGeneCellCouples%"] = (
+            df_of_one_neuronality["NumOfGeneCellCouples"]
+            .mul(100)
+            .div(df_of_one_neuronality["NumOfGeneCellCouples"].sum())
+            .cumsum()
+        )
+        dfs.append(df_of_one_neuronality)
+ge5_neuronal_agg_gene_cell_couples_df = pd.concat(dfs).sort_values(
+    ["Sample", "NumOfUniqueProteinsPerGeneCell"], ignore_index=True
+)
+
+ge5_neuronal_agg_gene_cell_couples_df["NeuronalStrRep"] = (
+    ge5_neuronal_agg_gene_cell_couples_df["Neuronal"].apply(
+        lambda x: "NA" if pd.isna(x) else "Neuronal" if x else "Non-neuronal"
+    )
+)
+
+ge5_neuronal_agg_gene_cell_couples_df
+
+# %%
+agg_gene_cell_couples_df.groupby("Sample")[
+    [
+        "NumOfGeneCellCouples",
+        "NumOfUniqueGenes",
+        "NumOfUniqueCells",
+        "AvgNumOfUniqueProteinsPerGene",
+    ]
+].agg(["count", "mean", "std", "min", "median", "max"]).round(2)
+
+# %%
+ge5_agg_gene_cell_couples_df.groupby("Sample")[
+    [
+        "NumOfGeneCellCouples",
+        "NumOfUniqueGenes",
+        "NumOfUniqueCells",
+        "AvgNumOfUniqueProteinsPerGene",
+    ]
+].agg(["count", "mean", "std", "min", "median", "max"]).round(2)
+
+# %%
+ge5_neuronal_agg_gene_cell_couples_df.groupby(["Sample", "Neuronal"], dropna=False)[
+    [
+        "NumOfGeneCellCouples",
+        "NumOfUniqueGenes",
+        "NumOfUniqueCells",
+        "AvgNumOfUniqueProteinsPerGene",
+    ]
+].agg(["count", "mean", "std", "min", "median", "max"]).round(2)
 
 # %%
 fig = px.line(
@@ -5596,16 +8185,12 @@ fig = px.line(
     # histnorm="percent",
     # cumulative=True
     # log_x=True,
-    log_y=True
+    log_y=True,
 )
 fig.update_traces(opacity=0.75, marker_size=4)
 # fig.update_traces(cumulative_direction="decreasing", selector=dict(type='histogram'))
-fig.update_xaxes(
-    tick0=0, dtick=10, 
-    title="Unique isoforms per gene-cell couple")
-fig.update_yaxes(title="Gene-cell couples", 
-                 range=[0, 6]
-                )
+fig.update_xaxes(tick0=0, dtick=10, title="Unique isoforms per gene-cell couple")
+fig.update_yaxes(title="Gene-cell couples", range=[0, 6])
 fig.update_layout(
     width=500,
     height=350,
@@ -5617,6 +8202,226 @@ fig.update_layout(
 fig.show()
 
 # %%
+# width = 4.5
+# height = 4.5
+# p = (
+#     so.Plot(ge5_agg_gene_cell_couples_df, x="NumOfUniqueProteinsPerGeneCell", y="NumOfGeneCellCouples")
+#     .layout(size=(width, height))
+#     .add(so.Line(), color="Sample")
+#     .scale(
+#         y="log",
+#         x=so.Continuous().tick(every=10)
+#     )
+#     .label(x="Unique isoforms per gene-cell couple", y="Gene-cell couples")
+#     .limit(x=(0, None), y=(0, None))
+# )
+# p
+
+# %%
+width = 4.5
+height = 4.5
+p = (
+    so.Plot(
+        ge5_agg_gene_cell_couples_df,
+        x="NumOfUniqueProteinsPerGeneCell",
+        y="NumOfGeneCellCouples",
+        # color="Sample",
+        # linestyle="NeuronalStrRep"
+    )
+    .facet(col="Sample")
+    .layout(size=(width * 2, height))
+    .add(so.Line())
+    .scale(
+        y="log",
+        x=so.Continuous().tick(every=10),
+        # linestyle=so.Nominal(order=["Neuronal", "Non-neuronal", "NA"])
+    )
+    .label(
+        x="Unique isoforms per gene-cell couple",
+        y="Gene-cell couples",
+        # linestyle="Neuronal",
+    )
+    .limit(x=(0, None), y=(0, None))
+)
+p
+
+# %%
+width = 4.5
+height = 4.5
+p = (
+    so.Plot(
+        # ge5_neuronal_agg_gene_cell_couples_df.loc[
+        #     ~ge5_neuronal_agg_gene_cell_couples_df["Neuronal"].isna()
+        # ]
+        ge5_neuronal_agg_gene_cell_couples_df,
+        x="NumOfUniqueProteinsPerGeneCell",
+        y="NumOfGeneCellCouples",
+        # color="Sample",
+        linestyle="NeuronalStrRep",
+    )
+    .facet(col="Sample")
+    .layout(size=(width * 2, height))
+    .add(so.Line())
+    .scale(
+        y="log",
+        x=so.Continuous().tick(every=10),
+        linestyle=so.Nominal(order=["Neuronal", "Non-neuronal", "NA"]),
+    )
+    .label(
+        x="Unique isoforms per gene-cell couple",
+        y="Gene-cell couples",
+        # linestyle="Neuronal",
+        linestyle="",
+    )
+    .limit(x=(0, None), y=(0, None))
+)
+
+
+p
+
+# %% jupyter={"source_hidden": true}
+# g = sns.catplot(
+#     # data=ge5_per_sample_per_cb_copies_df.sort_values(["Neuronal", "Annotation"]),
+#     data=ge5_per_sample_per_cb_copies_df.loc[~ge5_per_sample_per_cb_copies_df["Neuronal"].isna()],
+#     x="Sample",
+#     y="NumOfUniqueProteins",
+#     # hue="NeuronalStrRep",
+#     # hue_order=["Neuronal", "Non-neuronal"],
+#     # kind="boxen",
+#     kind="violin",
+#     fill=False,
+#     # split=True,
+#     # sharex=False
+#     height=3.5,
+#     # height=8,
+#     aspect=1.4,
+#     # legend=False
+# )
+# g.set_axis_labels(y_var="Gene-cell couples with X unique isoforms")
+
+# # # Remove duplicate legend entries (keep only the first one)
+# # handles, labels = g.axes.flat[0].get_legend_handles_labels()  # Get handles from first facet
+# # g._legend.set_title("")  # Alternative method if needed
+# # g._legend.legendHandles = handles  # Ensure only unique handles appear
+
+# g
+
+# %% jupyter={"source_hidden": true}
+# g = sns.catplot(
+#     # data=ge5_per_sample_per_cb_copies_df.sort_values(["Neuronal", "Annotation"]),
+#     data=ge5_per_sample_per_cb_copies_df.loc[~ge5_per_sample_per_cb_copies_df["Neuronal"].isna()],
+#     x="Sample",
+#     y="NumOfUniqueProteins",
+#     hue="NeuronalStrRep",
+#     hue_order=["Neuronal", "Non-neuronal"],
+#     # kind="boxen",
+#     kind="violin",
+#     split=True,
+#     # fill=False,
+#     height=3.5,
+#     # height=8,
+#     aspect=1.4,
+#     # legend=False
+# )
+# g.set_axis_labels(y_var="Gene-cell couples with X unique isoforms")
+
+# # Remove duplicate legend entries (keep only the first one)
+# handles, labels = g.axes.flat[0].get_legend_handles_labels()  # Get handles from first facet
+# g._legend.set_title("")  # Alternative method if needed
+# g._legend.legendHandles = handles  # Ensure only unique handles appear
+
+# g
+
+# %%
+neuronal_order = ["Neuronal", "Non-neuronal", "NA"]
+
+# Convert NeuronalStrRep to a categorical variable with the desired order
+ge5_per_sample_per_cb_copies_df.loc[:, "CatNeuronalStrRep"] = pd.Categorical(
+    ge5_per_sample_per_cb_copies_df["NeuronalStrRep"],
+    categories=neuronal_order,
+    ordered=True,
+)
+
+g = sns.catplot(
+    data=ge5_per_sample_per_cb_copies_df.sort_values(
+        ["CatNeuronalStrRep", "Annotation"]
+    ),  # Sort the dataframe by NeuronalStrRep and Annotation
+    x="NumOfUniqueProteins",
+    y="Annotation",
+    col="Sample",
+    hue="CatNeuronalStrRep",
+    hue_order=neuronal_order,
+    kind="boxen",
+    height=8,
+    aspect=0.6,
+)
+
+del ge5_per_sample_per_cb_copies_df["CatNeuronalStrRep"]
+
+g.set_axis_labels(x_var="Gene-cell couples with X unique isoforms", y_var="Cluster")
+# Remove duplicate legend entries (keep only the first one)
+handles, labels = g.axes.flat[
+    0
+].get_legend_handles_labels()  # Get handles from first facet
+g._legend.set_title("")  # Alternative method if needed
+g._legend.legendHandles = handles  # Ensure only unique handles appear
+
+g
+
+# %% jupyter={"source_hidden": true}
+# # Count the number of observations per category
+# col_order = ["Neuronal", "Non-neuronal", "NA"]
+# # obs_counts = ge5_per_sample_per_cb_copies_df["NeuronalStrRep"].value_counts()
+# obs_counts = ge5_per_sample_per_cb_copies_df.groupby("NeuronalStrRep")["Annotation"].nunique()
+# col_widths = [obs_counts.get(col, 1) for col in col_order]  # Get count, default to 1
+
+# # Normalize widths
+# col_widths = np.array(col_widths) / sum(col_widths)  # Normalize to sum to 1
+
+# # Create subplots with adjusted column widths
+# fig, axes = plt.subplots(ncols=len(col_order), figsize=(12, 5),
+#                          gridspec_kw={"width_ratios": col_widths}, sharey=True)
+
+# # Store legend handles
+# legend_handles_dict = {}
+
+# # Loop through each category and plot separately
+# for ax, col in zip(axes, col_order):
+#     subset = ge5_per_sample_per_cb_copies_df[ge5_per_sample_per_cb_copies_df["NeuronalStrRep"] == col].sort_values("Annotation")
+#     sns.violinplot(data=subset, x="Annotation", y="NumOfUniqueProteins", hue="Sample", split=True, ax=ax, legend=False, fill=False)  # Disable individual legends
+#     ax.set_title(col)
+#     # Remove individual x-axis labels
+#     ax.set_xlabel("")
+#     # Remove individual y-axis labels
+#     ax.set_ylabel("")
+#     # Despine each subplot
+#     sns.despine(ax=ax)
+#     # Rotate x-axis labels safely
+#     plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha="right")
+#     # Capture legend handles only once (from the first plot)
+#     if not legend_handles_dict:
+#         handles, labels = ax.get_legend_handles_labels()
+#         legend_handles_dict = {label: h for h, label in zip(handles, labels)}
+
+# # Reduce gaps between facets
+# plt.subplots_adjust(wspace=0.03)  # Adjust horizontal spacing
+
+# # Create a single legend
+# if legend_handles_dict:
+#     legend_patches = [mpatches.Patch(color=h.get_facecolor()[0], label=label) for label, h in legend_handles_dict.items()]
+#     fig.legend(legend_patches, legend_handles_dict.keys(), title="Sample", loc="upper center", bbox_to_anchor=(0.5, 1.1), ncol=len(legend_handles_dict))
+
+# # Add a single x-axis title
+# fig.supxlabel("Cluster")
+# # Add a single y-axis title
+# fig.supylabel("Gene-cell couples with X unique isoforms")
+
+# plt.tight_layout()
+# plt.show()
+
+# %%
+
+# %% jupyter={"source_hidden": true}
 fig = px.line(
     agg_gene_cell_couples_df,
     x="NumOfUniqueProteinsPerGeneCell",
@@ -5629,16 +8434,15 @@ fig = px.line(
     # histnorm="percent",
     # cumulative=True
     # log_x=True,
-    log_y=True
+    log_y=True,
 )
 fig.update_traces(opacity=0.75, marker_size=4)
 # fig.update_traces(cumulative_direction="decreasing", selector=dict(type='histogram'))
-fig.update_xaxes(
-    tick0=0, dtick=10, 
-    title="Unique isoforms per gene-cell couple")
-fig.update_yaxes(title="Unique cells in gene-cell couples", 
-                 # range=[0, 6]
-                )
+fig.update_xaxes(tick0=0, dtick=10, title="Unique isoforms per gene-cell couple")
+fig.update_yaxes(
+    title="Unique cells in gene-cell couples",
+    # range=[0, 6]
+)
 fig.update_layout(
     width=500,
     height=350,
@@ -5649,7 +8453,7 @@ fig.update_layout(
 )
 fig.show()
 
-# %%
+# %% jupyter={"source_hidden": true}
 fig = px.line(
     agg_gene_cell_couples_df,
     x="NumOfUniqueProteinsPerGeneCell",
@@ -5662,16 +8466,15 @@ fig = px.line(
     # histnorm="percent",
     # cumulative=True
     # log_x=True,
-    log_y=True
+    log_y=True,
 )
 fig.update_traces(opacity=0.75, marker_size=4)
 # fig.update_traces(cumulative_direction="decreasing", selector=dict(type='histogram'))
-fig.update_xaxes(
-    tick0=0, dtick=10, 
-    title="Unique isoforms per gene-cell couple")
-fig.update_yaxes(title="Unique genes in gene-cell couples", 
-                 # range=[0, 6]
-                )
+fig.update_xaxes(tick0=0, dtick=10, title="Unique isoforms per gene-cell couple")
+fig.update_yaxes(
+    title="Unique genes in gene-cell couples",
+    # range=[0, 6]
+)
 fig.update_layout(
     width=500,
     height=350,
@@ -5682,7 +8485,7 @@ fig.update_layout(
 )
 fig.show()
 
-# %%
+# %% jupyter={"source_hidden": true}
 fig = px.line(
     agg_gene_cell_couples_df,
     x="NumOfUniqueProteinsPerGeneCell",
@@ -5699,14 +8502,13 @@ fig = px.line(
 )
 fig.update_traces(opacity=0.75, marker_size=4)
 # fig.update_traces(cumulative_direction="decreasing", selector=dict(type='histogram'))
-fig.update_xaxes(
-    tick0=0, dtick=10, 
-    title="Unique isoforms per gene-cell couple")
-fig.update_yaxes(title="Unique proteins per gene<br>in gene-cell couples (avg)", 
-                 # range=[0, 6]
-                 # tick0=0, 
-                 dtick=10, 
-                )
+fig.update_xaxes(tick0=0, dtick=10, title="Unique isoforms per gene-cell couple")
+fig.update_yaxes(
+    title="Unique proteins per gene<br>in gene-cell couples (avg)",
+    # range=[0, 6]
+    # tick0=0,
+    dtick=10,
+)
 fig.update_layout(
     width=500,
     height=350,
@@ -5717,7 +8519,7 @@ fig.update_layout(
 )
 fig.show()
 
-# %%
+# %% jupyter={"source_hidden": true}
 fig = px.line(
     agg_gene_cell_couples_df,
     x="NumOfUniqueProteinsPerGeneCell",
@@ -5734,9 +8536,10 @@ fig = px.line(
 fig.update_traces(opacity=0.75, marker_size=4)
 # fig.update_traces(cumulative_direction="decreasing", selector=dict(type='histogram'))
 fig.update_xaxes(tick0=0, dtick=10, title="Min unique isoforms per gene-cell couple")
-fig.update_yaxes(title="Gene-cell couples [%]", 
-                 # range=[0, 6]
-                )
+fig.update_yaxes(
+    title="Gene-cell couples [%]",
+    # range=[0, 6]
+)
 fig.update_layout(
     width=500,
     height=350,
@@ -5747,9 +8550,317 @@ fig.update_layout(
 )
 fig.show()
 
+# %% jupyter={"source_hidden": true}
+# # width = 4.5
+# width = 4
+# height = 4
+# p = (
+#     so.Plot(ge5_agg_gene_cell_couples_df, x="NumOfUniqueProteinsPerGeneCell", y="DecreasingCummlativeGeneCellCouples%")
+#     .layout(size=(width, height))
+#     .add(so.Line(), color="Sample")
+#     # .scale(
+#     #     x="log",
+#     #     y=so.Continuous().tick(every=20_000).label(unit=""),
+#     # )
+#     .label(x="Min unique isoforms per gene-cell couple", y="Gene-cell couples [%]")
+#     .limit(x=(0, None), y=(0, 100))
+# )
+# p
+
+# %%
+# width = 4.5
+width = 4.5
+height = 4.5
+p = (
+    so.Plot(
+        ge5_agg_gene_cell_couples_df,
+        x="NumOfUniqueProteinsPerGeneCell",
+        y="DecreasingCummlativeGeneCellCouples%",
+    )
+    .layout(size=(width * 2, height))
+    .add(so.Line())
+    .facet(col="Sample")
+    # .scale(
+    #     x="log",
+    #     y=so.Continuous().tick(every=20_000).label(unit=""),
+    # )
+    .label(x="Min unique isoforms per gene-cell couple", y="Gene-cell couples [%]")
+    .limit(x=(0, None), y=(0, 100))
+)
+p
+
+# %%
+width = 4.5
+height = 4.5
+p = (
+    so.Plot(
+        # ge5_neuronal_agg_gene_cell_couples_df.loc[
+        #     ~ge5_neuronal_agg_gene_cell_couples_df["Neuronal"].isna()
+        # ],
+        ge5_neuronal_agg_gene_cell_couples_df,
+        x="NumOfUniqueProteinsPerGeneCell",
+        y="DecreasingCummlativeGeneCellCouples%",
+        # color="Sample",
+        linestyle="NeuronalStrRep",
+    )
+    .facet(col="Sample")
+    .layout(size=(width * 2, height))
+    .add(so.Line())
+    .scale(linestyle=so.Nominal(order=["Neuronal", "Non-neuronal", "NA"]))
+    .label(
+        x="Min unique isoforms per gene-cell couple",
+        y="Gene-cell couples [%]",
+        linestyle="",
+    )
+    .limit(x=(0, None), y=(0, 100))
+)
+p
+
+
+# %%
+# # width = 4.5
+# width = 4
+# height = 3.5
+# p = (
+#     so.Plot(
+#         ge5_neuronal_agg_gene_cell_couples_df,
+#         x="NumOfUniqueProteinsPerGeneCell",
+#         y="DecreasingCummlativeGeneCellCouples%",
+#         color="Sample",
+#         linestyle="NeuronalStrRep"
+#     )
+#     # .facet(col="Sample", row="NeuronalStrRep")
+#     .layout(size=(width, height))
+#     .add(so.Line())
+#     # .scale(marker=so.Nominal(order=["Neuronal", "Non-neuronal"]))
+#     .label(
+#         x="Min unique isoforms per gene-cell couple",
+#         y="Gene-cell couples [%]",
+#         linestyle="Neuronal",
+#     )
+#     .limit(x=(0, None), y=(0, 100))
+# )
+# p
+
+# %%
+# # width = 4.5
+# width = 4
+# height = 3.5
+# p = (
+#     so.Plot(
+#         ge5_neuronal_agg_gene_cell_couples_df.loc[
+#             ~ge5_neuronal_agg_gene_cell_couples_df["Neuronal"].isna()
+#         ],
+#         x="NumOfUniqueProteinsPerGeneCell",
+#         y="DecreasingCummlativeGeneCellCouples%",
+#         color="Sample",
+#         linestyle="NeuronalStrRep"
+#     )
+#     .facet(col="Sample", row="NeuronalStrRep")
+#     .layout(size=(width * 2, height * 2))
+#     .add(so.Line(), legend=False)
+#     .scale(marker=so.Nominal(order=["Neuronal", "Non-neuronal"]))
+#     .label(
+#         x="Min unique isoforms per gene-cell couple",
+#         y="Gene-cell couples [%]",
+#         linestyle="Neuronal",
+#     )
+#     .limit(x=(0, None), y=(0, 100))
+# )
+# p
+
+# %%
+# # width = 4.5
+# width = 4
+# height = 3.5
+# p = (
+#     so.Plot(
+#         ge5_neuronal_agg_gene_cell_couples_df.loc[
+#             ~ge5_neuronal_agg_gene_cell_couples_df["Neuronal"].isna()
+#         ],
+#         x="NumOfUniqueProteinsPerGeneCell",
+#         y="DecreasingCummlativeGeneCellCouples%",
+#         color="Sample",
+#         # linestyle="NeuronalStrRep"
+#     )
+#     .facet(col="Sample", row="NeuronalStrRep")
+#     .layout(size=(width * 2, height * 2))
+#     # .add(so.Bars())
+#     .add(so.Area(), legend=False)
+#     .scale(marker=so.Nominal(order=["Neuronal", "Non-neuronal"]))
+#     .label(
+#         x="Min unique isoforms per gene-cell couple",
+#         y="Gene-cell couples [%]",
+#         linestyle="Neuronal",
+#     )
+#     .limit(x=(0, None), y=(0, 100))
+# )
+# p
+
+# %%
+# # width = 4.5
+# width = 4
+# height = 4
+# p = (
+#     so.Plot(ge5_neuronal_agg_gene_cell_couples_df, x="NumOfUniqueProteinsPerGeneCell", y="DecreasingCummlativeGeneCellCouples%")
+#     # .facet(row="Neuronal")
+#     .facet(row="NeuronalStrRep", order={"NeuronalStrRep": ["Neuronal", "Non-neuronal", "NA"]})
+#     .layout(size=(width, height*3))
+#     .add(so.Line(), color="Sample")
+#     # .scale(
+#     #     x="log",
+#     #     y=so.Continuous().tick(every=20_000).label(unit=""),
+#     # )
+#     .label(x="Min unique isoforms per gene-cell couple", y="Gene-cell couples [%]")
+#     .limit(x=(0, None), y=(0, 100))
+# )
+# p
+
+# %%
+
 # %%
 
 # %% [markdown]
+# #### 2+ reads per cell
+
+# %%
+def make_agg_gene_cell_couples_x_plus_copies_df(
+    per_sample_per_cb_copies_df, x_plus_copies
+):
+    per_sample_per_cb_x_plus_copies_df = per_sample_per_cb_copies_df.loc[
+        per_sample_per_cb_copies_df["Copies"] >= x_plus_copies
+    ]
+
+    agg_gene_cell_couples_df_1 = (
+        per_sample_per_cb_x_plus_copies_df.groupby(["Sample", "NumOfUniqueProteins"])
+        .agg(
+            NumOfGeneCellCouples=("Chrom", "size"),
+            NumOfUniqueGenes=("Chrom", "nunique"),
+            NumOfUniqueCells=("CB", "nunique"),
+        )
+        .reset_index()
+        .rename(columns={"NumOfUniqueProteins": "NumOfUniqueProteinsPerGeneCell"})
+    )
+    # agg_gene_cell_couples_df_1
+
+    agg_gene_cell_couples_df_2 = (
+        per_sample_per_cb_x_plus_copies_df.groupby(
+            ["Sample", "NumOfUniqueProteins", "Chrom"]
+        )["UniqueProteins"]
+        .apply(lambda x: len(set(chain.from_iterable(x))))
+        .reset_index(name="NumOfUniqueProteinsPerChrom")
+        .groupby(["Sample", "NumOfUniqueProteins"])["NumOfUniqueProteinsPerChrom"]
+        .apply(list)
+        .reset_index(name="NumOfUniqueProteinsPerChroms")
+        .rename(columns={"NumOfUniqueProteins": "NumOfUniqueProteinsPerGeneCell"})
+    )
+    agg_gene_cell_couples_df_2["AvgNumOfUniqueProteinsPerGene"] = (
+        agg_gene_cell_couples_df_2["NumOfUniqueProteinsPerChroms"].apply(
+            lambda x: sum(x) / len(x)
+        )
+    )
+    agg_gene_cell_couples_df_2["NumOfUniqueProteinsInAllGenes"] = (
+        agg_gene_cell_couples_df_2["NumOfUniqueProteinsPerChroms"].apply(sum)
+    )
+    del agg_gene_cell_couples_df_2["NumOfUniqueProteinsPerChroms"]
+    # agg_gene_cell_couples_df_2
+
+    agg_gene_cell_couples_df = agg_gene_cell_couples_df_1.merge(
+        agg_gene_cell_couples_df_2
+    )
+    del agg_gene_cell_couples_df_1, agg_gene_cell_couples_df_2
+
+    samples = ["nuclearRNA", "totalRNA"]
+    dfs = []
+    for sample in samples:
+        df = agg_gene_cell_couples_df.loc[
+            agg_gene_cell_couples_df["Sample"] == sample
+        ].sort_values("NumOfUniqueProteinsPerGeneCell", ascending=False)
+        # df["DecreasingCummlativeGeneCellCouples%"] = df["NumOfGeneCellCouples"].mul(100).div(df["NumOfGeneCellCouples"].sum()).cumsum()
+        df["GeneCellCouples%"] = (
+            df["NumOfGeneCellCouples"].mul(100).div(df["NumOfGeneCellCouples"].sum())
+        )
+        df["DecreasingCummlativeGeneCellCouples%"] = df["GeneCellCouples%"].cumsum()
+        dfs.append(df)
+    agg_gene_cell_couples_df = pd.concat(dfs).sort_values(
+        ["Sample", "NumOfUniqueProteinsPerGeneCell"], ignore_index=True
+    )
+
+    agg_gene_cell_couples_df.insert(
+        agg_gene_cell_couples_df.columns.get_loc("Sample") + 1,
+        # 0,
+        "MinNumOfReadsPerGeneCell",
+        x_plus_copies,
+    )
+
+    return agg_gene_cell_couples_df
+
+
+# %%
+agg_gene_cell_couples_x_plus_copies_dfs = [
+    make_agg_gene_cell_couples_x_plus_copies_df(
+        per_sample_per_cb_copies_df, x_plus_copies
+    )
+    for x_plus_copies in range(1, 6)
+]
+concat_agg_gene_cell_couples_x_plus_copies_df = (
+    pd.concat(agg_gene_cell_couples_x_plus_copies_dfs).sort_values(
+        ["Sample", "MinNumOfReadsPerGeneCell", "NumOfUniqueProteinsPerGeneCell"],
+        ignore_index=True,
+    )
+    # .sort_values(["MinNumOfReadsPerGeneCell", "Sample", "NumOfUniqueProteinsPerGeneCell"], ignore_index=True)
+)
+concat_agg_gene_cell_couples_x_plus_copies_df
+
+# %%
+len(agg_gene_cell_couples_x_plus_copies_dfs)
+
+# %%
+agg_gene_cell_couples_x_plus_copies_dfs[1]
+
+# %%
+agg_gene_cell_couples_x_plus_copies_dfs[4]
+
+# %%
+concat_agg_gene_cell_couples_x_plus_copies_df.drop(
+    columns="DecreasingCummlativeGeneCellCouples%"
+).to_csv(
+    Path(max_expression_dir, "ConcatAggGeneCellCouplesXPlusCopies.tsv"),
+    sep="\t",
+    index=False,
+)
+
+# %%
+(
+    concat_agg_gene_cell_couples_x_plus_copies_df.groupby(
+        ["Sample", "MinNumOfReadsPerGeneCell"]
+    )
+    # .agg({
+    #     "NumOfGeneCellCouples": "sum"
+    # })
+    .agg(TotalNumOfGeneCellCouples=("NumOfGeneCellCouples", "sum"))
+)
+
+# %%
+concat_agg_gene_cell_couples_x_plus_copies_df.loc[
+    concat_agg_gene_cell_couples_x_plus_copies_df["NumOfUniqueProteinsPerGeneCell"] <= 5
+].drop(columns=["DecreasingCummlativeGeneCellCouples%"])
+
+# %%
+
+# %%
+# todo retain only True and use this with merge to filter the original table
+per_sample_per_cb_copies_df.loc[(per_sample_per_cb_copies_df["Copies"] >= 2)].groupby(
+    ["Chrom", condition_col, "Sample"]
+)["NumOfUniqueProteins"].apply(lambda x: x.eq(1).all()).reset_index()
+
+# %%
+# todo retain only True and use this with merge to filter the original table
+per_sample_per_cb_copies_df.loc[(per_sample_per_cb_copies_df["Copies"] >= 2)].groupby(
+    ["Chrom", condition_col, "Sample"]
+)["NumOfUniqueProteins"].apply(lambda x: x.eq(1).all()).reset_index(name="")
+
+# %% [markdown] jp-MarkdownHeadingCollapsed=true
 # ### Distinct isoforms per sample
 
 # %%
@@ -6360,7 +9471,7 @@ fig.show()
 # fig.show()
 
 
-# %% [markdown] jp-MarkdownHeadingCollapsed=true
+# %% [markdown]
 # ### Comparing algorithms
 
 # %% [markdown]
@@ -6374,14 +9485,10 @@ max_distinct_proteins_per_transcript_and_alg_df = distinct_unique_proteins_df.lo
     distinct_unique_proteins_df["Fraction"] == 1.0
 ].copy()
 
-max_distinct_proteins_per_transcript_and_alg_df[
-    "MaxNumOfProteins"
-] = max_distinct_proteins_per_transcript_and_alg_df.groupby(
-    [condition_col, "Algorithm"]
-)[
-    "NumOfProteins"
-].transform(
-    max
+max_distinct_proteins_per_transcript_and_alg_df["MaxNumOfProteins"] = (
+    max_distinct_proteins_per_transcript_and_alg_df.groupby(
+        [condition_col, "Algorithm"]
+    )["NumOfProteins"].transform(max)
 )
 max_distinct_proteins_per_transcript_and_alg_df["IsMaxNumOfProteins"] = (
     max_distinct_proteins_per_transcript_and_alg_df["NumOfProteins"]
@@ -6765,7 +9872,7 @@ fig.update_layout(
     template=template,
 )
 
-fig.write_image("%SolutionsDispersion - Octopus.svg", width=600, height=400)
+# fig.write_image("%SolutionsDispersion - Octopus.svg", width=600, height=400)
 
 fig.show()
 
