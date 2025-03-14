@@ -34,7 +34,7 @@ dependencies:
   - jupytext
   
   - more-itertools >= 8.5.0
-  - plotly >= 5.1.0
+  - plotly < 6 # sadly, I encountered this annoying bug: https://github.com/plotly/plotly.py/issues/4997, also need at least 5.1.0
   - matplotlib >= 3.3.4
   - seaborn >= 0.11.0
   - logomaker >= 0.8

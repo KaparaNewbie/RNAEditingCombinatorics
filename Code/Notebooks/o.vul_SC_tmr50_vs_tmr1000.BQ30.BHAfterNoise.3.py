@@ -79,7 +79,7 @@ from EditingUtils.seq import make_fasta_dict
 # %%
 pd.set_option("display.max_columns", 500)
 
-# %% [markdown]
+# %% [markdown] jp-MarkdownHeadingCollapsed=true
 # # Data loading
 
 # %%
@@ -678,7 +678,7 @@ def two_subcolors_from_hex(hex_color, d_r=4, d_g=20, d_b=22, scale_1=1, scale_2=
 template = "plotly_white"
 
 # %%
-# pio.templates.default = template
+pio.templates.default = template
 
 # %%
 so.Plot.config.theme.update(axes_style("whitegrid"))
@@ -778,7 +778,7 @@ fig = px.histogram(
 fig.update_layout(width=800, height=400)
 fig.show()
 
-# %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"}
+# %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"} jp-MarkdownHeadingCollapsed=true
 # ## Positions
 
 # %%
@@ -830,10 +830,6 @@ fig.show()
 # all_positions_df = pd.concat(all_positions_dfs, ignore_index=True)
 # # positions_df.insert(positions_df.columns.get_loc("G")+1, "ATCGs", positions_df.loc[:, ["A", "T", "C", "G"]].sum(axis=1))
 # all_positions_df
-
-# %%
-pd.isna(np.nan)
-
 
 # %%
 def make_concat_all_positions_df(
@@ -1332,42 +1328,6 @@ raw_reads_info_df
 
 # %%
 raw_reads_info_df.groupby(["Sample", "CB"]).size()
-
-# %%
-reads_per_cell_df = (
-    raw_reads_info_df.loc[raw_reads_info_df["Chrom"].isin(chroms)]
-    .groupby(["Sample", "Neuronal", "Annotation", "CB"], dropna=False)
-    .size()
-    .reset_index(name="Reads")
-)
-reads_per_cell_df
-
-# %%
-reads_per_cell_df.groupby("Sample")["Reads"].describe()
-
-# %%
-reads_per_cell_df.groupby(["Sample", "Annotation"])["Reads"].describe()
-
-# %%
-p = (
-    so.Plot(
-        reads_per_cell_df,
-        x="Reads",
-        # color="Sample"
-    ).add(so.Area(), so.Hist())
-    # .add(so.Bars(), so.Hist())
-    .scale(
-        # x="log",
-        y="log"
-    )
-    # .limit(x=(0, 100))
-    .label(
-        x="Reads per cell",
-        y="Cells",
-        # color="Editing detected in gene",
-    )
-)
-p
 
 # %%
 (
@@ -1869,10 +1829,10 @@ raw_reads_info_df["Annotation"].value_counts(dropna=False)
 # # how many cells are missing an expanded annotation
 # well_annotated_cells_df.groupby(["Sample", "MissingExpandedAnnotation"]).size()
 
-# %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"} jp-MarkdownHeadingCollapsed=true
+# %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"}
 # ## Neural expression
 
-# %%
+# %% jupyter={"source_hidden": true}
 neural_vs_non_neural_expression_df = pd.read_csv(
     "/private7/projects/Combinatorics/O.vulgaris/Annotations/NeuralVsNonNeuralExpression.BySalmonAndOrthoFinder.tsv",
     sep="\t",
@@ -1910,7 +1870,7 @@ fig.show()
 
 # %%
 
-# %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"}
+# %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"} jp-MarkdownHeadingCollapsed=true
 # ## Combined neural expression
 
 # %%
@@ -2072,9 +2032,7 @@ complete_combined_per_chrom_neurality_df.loc[
 # %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"}
 # ## Reads
 
-# %%
-
-# %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"}
+# %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"} jp-MarkdownHeadingCollapsed=true
 # ### All
 
 # %% [markdown]
@@ -2092,55 +2050,6 @@ for reads_df, chrom in zip(reads_dfs, chroms):
     reads_df.insert(0, "Chrom", chrom)
 reads_dfs[0]
 
-
-# %%
-# reads_dfs[1]["Read"].tolist()
-
-# %%
-# chrom = "comp1001381_c0_seq1"
-
-# %%
-# one_chrom_edited_positions_df = concat_all_positions_df.loc[
-#     (concat_all_positions_df["Chrom"] == chroms[1])
-#     & (concat_all_positions_df["EditedFinal"])
-# ]
-# one_chrom_edited_positions_df
-
-# %%
-# one_chrom_unique_reads_mapped_to_edited_positions = list(
-#     set(chain.from_iterable(one_chrom_edited_positions_df["Reads"].str.split(",")))
-# )
-# ic(len(one_chrom_unique_reads_mapped_to_edited_positions))
-# one_chrom_unique_reads_mapped_to_edited_positions[:3]
-
-# %%
-# one_chrom_raw_reads_info_df = raw_reads_info_df.loc[raw_reads_info_df["Chrom"] == chrom]
-# # one_chrom_raw_reads_info_df
-
-# one_chrom_old_to_new_reads_df = pd.read_table(
-#     Path(positions_dir, f"{chrom}.OldToNewReads.csv.gz"),
-#     dtype={"OldRead": str, "NewRead": str},
-# )
-# # one_chrom_old_to_new_reads_df
-
-# one_chrom_reads_info_df = (
-#     one_chrom_raw_reads_info_df.merge(
-#         one_chrom_old_to_new_reads_df,
-#         how="left",
-#         left_on="ReadID",
-#         right_on="OldRead",
-#     )
-#     .drop(columns=["ReadID", "OldRead"])
-#     .rename(columns={"NewRead": "Read"})
-# )
-# one_chrom_new_reads_info_df
-
-# %%
-# one_chrom_new_reads_info_df.loc[
-#     one_chrom_new_reads_info_df["Read"].isin(
-#         one_chrom_unique_reads_mapped_to_edited_positions
-#     )
-# ]
 
 # %%
 reads_mapped_to_edited_positions_info_dfs = []
@@ -2879,9 +2788,6 @@ distinct_unique_proteins_df["NumOfReads"].sub(
 # #### Max distinct per fraction
 
 # %%
-distinct_unique_proteins_df
-
-# %%
 # create a temp col which will soon be deleted
 distinct_unique_proteins_df["TempIndex"] = distinct_unique_proteins_df.index
 
@@ -2980,18 +2886,18 @@ max_distinct_proteins_df["IsNeural"] = max_distinct_proteins_df["IsNeural"].fill
     "Missing"
 )
 
-max_distinct_proteins_df = max_distinct_proteins_df.merge(
-    neuronal_reads_per_chrom_df.loc[
-        :, ["Chrom", "ChromNeuronality", "ChromNeuronality2"]
-    ].rename(
-        columns={"ChromNeuronality": "IsNeuralNew", "ChromNeuronality2": "IsNeuralNew2"}
-    ),
-    on="Chrom",
-    how="left",
-)
-max_distinct_proteins_df["IsNeuralNew2"] = max_distinct_proteins_df[
-    "IsNeuralNew2"
-].replace("NA", "Missing")
+# max_distinct_proteins_df = max_distinct_proteins_df.merge(
+#     neuronal_reads_per_chrom_df.loc[
+#         :, ["Chrom", "ChromNeuronality", "ChromNeuronality2"]
+#     ].rename(
+#         columns={"ChromNeuronality": "IsNeuralNew", "ChromNeuronality2": "IsNeuralNew2"}
+#     ),
+#     on="Chrom",
+#     how="left",
+# )
+# max_distinct_proteins_df["IsNeuralNew2"] = max_distinct_proteins_df[
+#     "IsNeuralNew2"
+# ].replace("NA", "Missing")
 
 max_distinct_proteins_df = max_distinct_proteins_df.sort_values(
     "NumOfProteins", ascending=False, ignore_index=True
@@ -3681,16 +3587,12 @@ def simplified_get_f1_exapnded_max_expression_df(
 
 # %%
 f1_exapnded_max_expression_dfs = []
-# f1_5plus_exapnded_max_expression_dfs_2 = []
 
 start_time = time.time()  # Start time of the whole cell
 loop_times = []
 
-# i = 0
-# i = 1119
-# j = 1
-
 try_using_previous_out_file = True
+strictly_use_previous_out_file_wo_verification = True
 
 for i, (chrom, expression_file) in enumerate(
     zip(chroms, expression_files),
@@ -3698,12 +3600,7 @@ for i, (chrom, expression_file) in enumerate(
 ):
     loop_start = time.time()  # Start time of each loop iteration
 
-    # i += 1
     state = "start"
-    # if i >= 1120:
-    #     ic(i, state, chrom)
-    # elif i % 50 == 0:
-    #     ic(i, state)
     if i % 50 == 0 or i == len(chroms):
         ic(i, state)
 
@@ -3713,40 +3610,35 @@ for i, (chrom, expression_file) in enumerate(
 
     out_file = Path(max_expression_dir, f"{chrom}.gz")
 
-    # exapnded_max_expression_df = get_f1_5plus_exapnded_max_expression_df(
-    exapnded_max_expression_df = simplified_get_f1_exapnded_max_expression_df(
-        chrom,
-        expression_file,
-        positions_dir,
-        one_chrom_raw_reads_info_df,
-        max_distinct_proteins_df,
-        sep,
-        condition_col,
-        out_file,
-        try_using_previous_out_file,
-    )
+    if strictly_use_previous_out_file_wo_verification:
+        
+        expanded_max_expression_df = pd.read_csv(
+            out_file, sep=sep, dtype={"Protein": str, "Read": str}
+        )
 
-    f1_exapnded_max_expression_dfs.append(exapnded_max_expression_df)
-    # f1_5plus_exapnded_max_expression_dfs_2.append(expanded_max_expression_df)
+    else:
+
+        expanded_max_expression_df = simplified_get_f1_exapnded_max_expression_df(
+            chrom,
+            expression_file,
+            positions_dir,
+            one_chrom_raw_reads_info_df,
+            max_distinct_proteins_df,
+            sep,
+            condition_col,
+            out_file,
+            try_using_previous_out_file,
+        )
+
+    f1_exapnded_max_expression_dfs.append(expanded_max_expression_df)
 
     state = "end"
-    # if i >= 1140:
-    #     ic(i, state, chrom)
-    # elif i % 50 == 0:
-    #     ic(i, state)
     if i % 50 == 0 or i == len(chroms):
         ic(i, state)
-    # i += 1
-    # j += 1
 
     loop_end = time.time()  # End time of each loop iteration
     loop_times.append(loop_end - loop_start)
-    # if i == 10:
-    #     break
-    # if j == 30:
-    #     break
 
-    # break
 
 end_time = time.time()  # End time of the whole cell
 loop_times = pd.Series(loop_times)
@@ -3761,7 +3653,6 @@ ic(
 )
 
 f1_exapnded_max_expression_dfs[0]
-# f1_5plus_exapnded_max_expression_dfs_2[0]
 
 # %%
 len(f1_exapnded_max_expression_dfs)

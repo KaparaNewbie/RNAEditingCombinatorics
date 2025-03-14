@@ -1301,7 +1301,7 @@ expanded_distinct_unique_proteins_df_2["NumOfReads"].describe()
 #     "NumOfProteins"
 # ].max()
 
-# %% [markdown]
+# %% [markdown] jp-MarkdownHeadingCollapsed=true
 # ## Summary of data loss
 
 # %%
