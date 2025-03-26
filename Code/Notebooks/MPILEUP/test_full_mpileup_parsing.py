@@ -70,9 +70,7 @@ known_sites_file = (
 # problamatic_regions_file = "/private7/projects/Combinatorics/D.pealeii/Alignment/BestN1/CLO-CNS-RESUB.C0x1291.ProbRegions.bed"
 problamatic_regions_file = None
 
-pileup_file = (
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.pileup"
-)
+pileup_file = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.pileup"
 
 
 # %% [markdown]
@@ -80,6 +78,7 @@ pileup_file = (
 
 # %% [markdown]
 # ## Problematic regions & known editing sites
+
 
 # %%
 def positions_df_to_bed(positions_df: pd.DataFrame, strand: str) -> BedTool:
@@ -100,7 +99,6 @@ def positions_df_to_bed(positions_df: pd.DataFrame, strand: str) -> BedTool:
     return positions_bed
 
 
-
 # %%
 def annotate_prolamatic_sites(positions_df, strand, problamatic_regions_file=None):
     if problamatic_regions_file:
@@ -118,7 +116,6 @@ def annotate_prolamatic_sites(positions_df, strand, problamatic_regions_file=Non
     positions_df.insert(
         positions_df.columns.get_loc("Position") + 1, "InProbRegion", in_prob_region
     )
-
 
 
 # %%
@@ -142,9 +139,9 @@ def annotate_known_sites(positions_df, strand, known_sites_file=None):
     )
 
 
-
 # %% [markdown]
 # ## Currently-edited sites
+
 
 # %%
 def count_bases(ref_base, mapped_bases):
@@ -164,7 +161,6 @@ def annotate_base_counts(positions_df):
         result_type="expand",
     ).rename(columns={0: "A", 1: "T", 2: "C", 3: "G"})
     positions_df[["A", "T", "C", "G"]] = atcgs
-
 
 
 # %%
@@ -191,11 +187,11 @@ def position_noise_level(
     base_counts = [a_count, t_count, c_count, g_count]
 
     if sum(base_counts) == 0:
-        noise = np.NaN
+        noise = np.nan
 
     # we only measure noise in positions that don't undergo RNA editing by ADAR
     elif (strand == "+" and ref_base == "A") or (strand == "-" and ref_base == "T"):
-        noise = np.NaN
+        noise = np.nan
 
     else:
         # we measure noise for T positions only on the positive strand
@@ -236,7 +232,6 @@ def annotate_noise(positions_df, strand):
     )
 
 
-
 # %%
 def editing_frequency_per_position(
     ref_base: str, base: str, ref_base_count: int, alt_base_count: int
@@ -247,7 +242,7 @@ def editing_frequency_per_position(
         except ZeroDivisionError:
             freq = 0
     else:
-        freq = np.NaN
+        freq = np.nan
     return freq
 
 
@@ -268,7 +263,6 @@ def annotate_editing_frequency_per_position(positions_df: pd.DataFrame, strand: 
             axis=1,
         ),
     )
-
 
 
 # %%
@@ -300,9 +294,9 @@ def annotate_edited_sites(
     positions_df.insert(positions_df.columns.get_loc("Position") + 1, "Edited", edited)
 
 
-
 # %% [markdown]
 # ## Pileup to positions (finally)
+
 
 # %%
 def pileup_to_positions(
@@ -383,12 +377,11 @@ def pileup_to_positions(
         positions_df["RefBase"] == ref_base, "Noise"
     ].unique()
     assert len(ref_base_noise) == 1 and np.isnan(ref_base_noise[0])
-    
+
     if positions_out_file:
-        positions_df.to_csv(positions_out_file, sep=",", index=False, na_rep=np.NaN)  
+        positions_df.to_csv(positions_out_file, sep=",", index=False, na_rep=np.nan)
 
     return positions_df
-
 
 
 # %%
@@ -477,46 +470,49 @@ positions_df.loc[positions_df["Edited"] & ~positions_df["InProbRegion"]]
 # %% [markdown]
 # # Reads
 
+
 # %%
 def count_values(row, first_pos_loc, value):
     return len(row.iloc[first_pos_loc:].loc[row.iloc[first_pos_loc:] == value])
+
 
 def annotate_edited_positions(df, first_pos_loc):
     df.insert(
         first_pos_loc,
         "EditedPositions",
-        df.apply(lambda row: count_values(row, first_pos_loc, 1), axis="columns")
+        df.apply(lambda row: count_values(row, first_pos_loc, 1), axis="columns"),
     )
+
 
 def annotate_unedited_positions(df, first_pos_loc):
     df.insert(
         first_pos_loc,
         "UneditedPositions",
-        df.apply(lambda row: count_values(row, first_pos_loc, 0), axis="columns")
+        df.apply(lambda row: count_values(row, first_pos_loc, 0), axis="columns"),
     )
+
 
 def annotate_ambigous_positions(df, first_pos_loc):
     df.insert(
         first_pos_loc,
         "AmbigousPositions",
-        df.apply(lambda row: count_values(row, first_pos_loc, -1), axis="columns")
+        df.apply(lambda row: count_values(row, first_pos_loc, -1), axis="columns"),
     )
 
 
 # %%
 def annotate_editing_frequency_per_read(reads_df, new_col_pos, positions_df, strand):
     ref_base = "A" if strand == "+" else "T"
-    all_refbase_positions_df = (
-        positions_df.loc[
-            (positions_df["RefBase"] == ref_base) & 
-            (~positions_df["InProbRegion"])
-        ]
-    )
+    all_refbase_positions_df = positions_df.loc[
+        (positions_df["RefBase"] == ref_base) & (~positions_df["InProbRegion"])
+    ]
     all_refbase_positions = len(all_refbase_positions_df)
     reads_df.insert(
         new_col_pos,
         "EditingFrequency",
-        reads_df.apply(lambda row: row["EditedPositions"] / all_refbase_positions, axis="columns")
+        reads_df.apply(
+            lambda row: row["EditedPositions"] / all_refbase_positions, axis="columns"
+        ),
     )
 
 
@@ -572,7 +568,9 @@ def positions_to_reads(
     reads_df = reads_df.rename(
         columns={
             old_col: pos
-            for old_col, pos in zip(reads_df.columns[1:], edited_positions_df["Position"])
+            for old_col, pos in zip(
+                reads_df.columns[1:], edited_positions_df["Position"]
+            )
         }
     )
     reads_df.insert(0, group_col, group)
@@ -581,7 +579,6 @@ def positions_to_reads(
     annotate_ambigous_positions(reads_df, 4)
     annotate_editing_frequency_per_read(reads_df, 2, positions_df, strand)
     return reads_df
-
 
 
 # %%
@@ -597,14 +594,20 @@ reads_df
 # find_uninformative_cols(reads_df, reads_df.columns[6:])
 
 # %%
-df = reads_df.assign(EditedOrAmbigousPositions = reads_df["EditedPositions"] + reads_df["AmbigousPositions"])
+df = reads_df.assign(
+    EditedOrAmbigousPositions=reads_df["EditedPositions"]
+    + reads_df["AmbigousPositions"]
+)
 df
 
 # %% tags=[]
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 
-df = reads_df.assign(EditedOrAmbigousPositions = reads_df["EditedPositions"] + reads_df["AmbigousPositions"])
+df = reads_df.assign(
+    EditedOrAmbigousPositions=reads_df["EditedPositions"]
+    + reads_df["AmbigousPositions"]
+)
 
 x_title = "Edited sites per read"
 y_title = "Reads"
@@ -679,6 +682,7 @@ fig.show()
 # %% [markdown]
 # # Unique reads ("transcripts")
 
+
 # %%
 def reads_to_unique_reads(reads_df, group_col, first_pos_loc=6):
     # data per read -> data per unique reads, and their supporting individual reads
@@ -719,7 +723,6 @@ def reads_to_unique_reads(reads_df, group_col, first_pos_loc=6):
     return transcripts_df
 
 
-
 # %%
 transcripts_df = reads_to_unique_reads(reads_df, group_col)
 transcripts_df
@@ -750,12 +753,12 @@ fig.show()
 # %% [markdown]
 # The goal is to have each 1-3 positions in the reads_df belong to an original AA.
 
+
 # %%
 def make_fasta_dict(fasta_file: Union[Path, str]) -> dict[str, Seq.Seq]:
     records = SeqIO.parse(Path(fasta_file).absolute(), "fasta")
     fasta_dict = {record.id: record.seq for record in records}
     return fasta_dict
-
 
 
 # %% jupyter={"source_hidden": true} tags=[]
@@ -837,7 +840,8 @@ def filter_triplets(possible_triplets, base, pos):
         return possible_triplets
     else:
         return [triplet for triplet in possible_triplets if triplet[pos] == base]
-    
+
+
 def guided_translation(
     x1: str,
     y1: str,
@@ -875,7 +879,6 @@ def guided_translation(
     return amino_acids
 
 
-
 # %%
 def guided_translation_2(
     x1: str,
@@ -893,7 +896,7 @@ def guided_translation_2(
 
     Use the original triplet as a template in case any of the bases in the new triplet is None. This is the case for each reference base other than A.
     When an A base is marked as -1, it could be either A or G in the read.
-    
+
     Return a set of all possible translations of amino acids in case any of the new bases equals -1.
     """
     if x2 is None:
@@ -914,8 +917,8 @@ def guided_translation_2(
             # possible_triplets = [triplet for triplet in possible_triplets if triplet[pos] == base]
             possible_bases_in_pos = [base]
         possible_triplets = [
-            triplet 
-            for triplet in possible_triplets 
+            triplet
+            for triplet in possible_triplets
             if triplet[pos] in possible_bases_in_pos
         ]
 
@@ -924,7 +927,6 @@ def guided_translation_2(
     amino_acids = ",".join(amino_acids)
 
     return amino_acids
-
 
 
 # %% [markdown]
@@ -940,7 +942,7 @@ x2, y2, z2 = [None, -1, "G"]  # L, P, Q, R
 ic(guided_translation(x1, y1, z1, x2, y2, z2))
 
 x2, y2, z2 = [None, -1, -1]  # L, P, H, Q, R
-ic(guided_translation(x1, y1, z1, x2, y2, z2));
+ic(guided_translation(x1, y1, z1, x2, y2, z2))
 
 # %%
 x1, y1, z1 = ["C", "A", "A"]  # Q
@@ -952,7 +954,7 @@ x2, y2, z2 = [None, -1, "G"]  # Q, R
 ic(guided_translation_2(x1, y1, z1, x2, y2, z2))
 
 x2, y2, z2 = [None, -1, -1]  # Q, R
-ic(guided_translation_2(x1, y1, z1, x2, y2, z2));
+ic(guided_translation_2(x1, y1, z1, x2, y2, z2))
 
 # %% [markdown]
 # Y tests
@@ -970,7 +972,7 @@ x2, y2, z2 = [None, -1, None]  # C,F,S,Y
 ic(guided_translation(x1, y1, z1, x2, y2, z2))
 
 x2, y2, z2 = [None, -1, None]  # C,Y
-ic(guided_translation_2(x1, y1, z1, x2, y2, z2));
+ic(guided_translation_2(x1, y1, z1, x2, y2, z2))
 
 
 # %%
@@ -978,9 +980,10 @@ def find_uninformative_cols(df, cols):
     return [col for col in cols if len(df[col].unique()) == 1]
 
 
-
 # %%
-def annotate_min_max_non_syns(df, transalted_orf_length, original_aas, first_aa_pos, new_cols_first_pos=None):
+def annotate_min_max_non_syns(
+    df, transalted_orf_length, original_aas, first_aa_pos, new_cols_first_pos=None
+):
     def min_non_syns_in_row(row):
         return sum(
             [1 for aa, original_aa in zip(row, original_aas) if original_aa not in aa]
@@ -995,7 +998,7 @@ def annotate_min_max_non_syns(df, transalted_orf_length, original_aas, first_aa_
     max_non_syns = df.iloc[:, first_aa_pos:].apply(max_non_syns_in_row, axis="columns")
 
     assert max_non_syns.ge(min_non_syns).all()
-    
+
     min_non_syns_frequency = min_non_syns / transalted_orf_length
     max_non_syns_frequency = max_non_syns / transalted_orf_length
 
@@ -1004,7 +1007,6 @@ def annotate_min_max_non_syns(df, transalted_orf_length, original_aas, first_aa_
     df.insert(new_cols_first_pos + 1, "MaxNonSyns", max_non_syns)
     df.insert(new_cols_first_pos + 2, "MinNonSynsFrequency", min_non_syns_frequency)
     df.insert(new_cols_first_pos + 3, "MaxNonSynsFrequency", max_non_syns_frequency)
-
 
 
 # %%
@@ -1082,7 +1084,9 @@ proteins_df = transcripts_df.iloc[:, :first_pos_loc].merge(proteins_df, on="Tran
 # )  # remove cols with a single AA
 # proteins_df = proteins_df.drop(uninformative_cols, axis="columns")
 
-annotate_min_max_non_syns(proteins_df, transalted_orf_length, original_aas, first_pos_loc, 1)
+annotate_min_max_non_syns(
+    proteins_df, transalted_orf_length, original_aas, first_pos_loc, 1
+)
 
 # uninformative_cols = find_uninformative_cols(
 #     proteins_df, proteins_df.columns[first_pos_loc:]
@@ -1097,16 +1101,26 @@ proteins_df
 # %%
 
 # %%
-transcripts_df.loc[(transcripts_df["EditedPositions"] == 0) & (transcripts_df["AmbigousPositions"] == 0)].iloc[:, :8]
+transcripts_df.loc[
+    (transcripts_df["EditedPositions"] == 0)
+    & (transcripts_df["AmbigousPositions"] == 0)
+].iloc[:, :8]
 
 # %%
-transcripts_df.loc[(transcripts_df["EditedPositions"] == 0) & (transcripts_df["AmbigousPositions"] == 0)].iloc[:, 8:]
+transcripts_df.loc[
+    (transcripts_df["EditedPositions"] == 0)
+    & (transcripts_df["AmbigousPositions"] == 0)
+].iloc[:, 8:]
 
 # %%
-proteins_df.loc[(proteins_df["EditedPositions"] == 0) & (proteins_df["AmbigousPositions"] == 0)].iloc[:, :12]
+proteins_df.loc[
+    (proteins_df["EditedPositions"] == 0) & (proteins_df["AmbigousPositions"] == 0)
+].iloc[:, :12]
 
 # %%
-proteins_df.loc[(proteins_df["EditedPositions"] == 0) & (proteins_df["AmbigousPositions"] == 0)].iloc[:, 12:]
+proteins_df.loc[
+    (proteins_df["EditedPositions"] == 0) & (proteins_df["AmbigousPositions"] == 0)
+].iloc[:, 12:]
 
 # %%
 
@@ -1251,29 +1265,31 @@ unique_proteins_df.insert(
         ].transform(lambda x: ",".join(x))
     ),
 )
-unique_proteins_df = unique_proteins_df.drop("Reads", axis="columns").rename(columns={"Reads2": "Reads"})
+unique_proteins_df = unique_proteins_df.drop("Reads", axis="columns").rename(
+    columns={"Reads2": "Reads"}
+)
 unique_proteins_df.insert(
     unique_proteins_df.columns.get_loc("Reads") + 1,
     "NumOfReads",
-    unique_proteins_df["Reads"].apply(lambda x: len(x.split(",")))
+    unique_proteins_df["Reads"].apply(lambda x: len(x.split(","))),
 )
 first_pos_loc += 1
 
 unique_proteins_df = (
     unique_proteins_df.loc[
-        ~unique_proteins_df.duplicated(subset=unique_proteins_df.columns[first_pos_loc:])
+        ~unique_proteins_df.duplicated(
+            subset=unique_proteins_df.columns[first_pos_loc:]
+        )
     ]
     .sort_values("NumOfReads", ascending=False)
     .reset_index(drop=True)
 )
 assert proteins_df["NumOfReads"].sum() == unique_proteins_df["NumOfReads"].sum()
-assert (
-    sum(proteins_df["NumOfReads"] * proteins_df["MinNonSyns"]) == 
-    sum(unique_proteins_df["NumOfReads"] * unique_proteins_df["MinNonSyns"])
+assert sum(proteins_df["NumOfReads"] * proteins_df["MinNonSyns"]) == sum(
+    unique_proteins_df["NumOfReads"] * unique_proteins_df["MinNonSyns"]
 )
-assert (
-    sum(proteins_df["NumOfReads"] * proteins_df["MaxNonSyns"]) == 
-    sum(unique_proteins_df["NumOfReads"] * unique_proteins_df["MaxNonSyns"])
+assert sum(proteins_df["NumOfReads"] * proteins_df["MaxNonSyns"]) == sum(
+    unique_proteins_df["NumOfReads"] * unique_proteins_df["MaxNonSyns"]
 )
 
 unique_proteins_df.insert(

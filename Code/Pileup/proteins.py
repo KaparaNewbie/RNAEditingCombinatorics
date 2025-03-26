@@ -459,10 +459,10 @@ def proteins_and_unique_proteins(
     unique_proteins_df = proteins_to_unique_proteins(proteins_df, group_col)
 
     if proteins_out_file:
-        proteins_df.to_csv(proteins_out_file, sep=sep, index=False, na_rep=np.NaN)
+        proteins_df.to_csv(proteins_out_file, sep=sep, index=False, na_rep=np.nan)
     if unique_proteins_out_file:
         unique_proteins_df.to_csv(
-            unique_proteins_out_file, sep=sep, index=False, na_rep=np.NaN
+            unique_proteins_out_file, sep=sep, index=False, na_rep=np.nan
         )
 
     return proteins_df, unique_proteins_df
@@ -489,10 +489,10 @@ def multisample_proteins_and_unique_proteins(
     unique_proteins_df = multisample_proteins_to_unique_proteins(proteins_df, group_col)
 
     if proteins_out_file:
-        proteins_df.to_csv(proteins_out_file, sep=sep, index=False, na_rep=np.NaN)
+        proteins_df.to_csv(proteins_out_file, sep=sep, index=False, na_rep=np.nan)
     if unique_proteins_out_file:
         unique_proteins_df.to_csv(
-            unique_proteins_out_file, sep=sep, index=False, na_rep=np.NaN
+            unique_proteins_out_file, sep=sep, index=False, na_rep=np.nan
         )
 
     return proteins_df, unique_proteins_df

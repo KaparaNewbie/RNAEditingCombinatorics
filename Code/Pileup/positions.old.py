@@ -240,12 +240,12 @@ def position_noise_level(
     base_counts = [a_count, t_count, c_count, g_count]
 
     if sum(base_counts) == 0:
-        noise = np.NaN
+        noise = np.nan
 
     # we only measure noise in positions that don't undergo RNA editing by ADAR
     # todo: in futurue versions, do consider adenosine positions if the most abundant base is not G
     elif (strand == "+" and ref_base == "A") or (strand == "-" and ref_base == "T"):
-        noise = np.NaN
+        noise = np.nan
 
     else:
         # we measure noise for T positions only on the positive strand
@@ -299,7 +299,7 @@ def annotate_noise(positions_df, strand):
 #         except ZeroDivisionError:
 #             freq = 0
 #     else:
-#         freq = np.NaN
+#         freq = np.nan
 #     return freq
 
 
@@ -312,7 +312,7 @@ def editing_frequency_per_position(
         except ZeroDivisionError:
             freq = 0
     else:
-        freq = np.NaN
+        freq = np.nan
     return freq
 
 
@@ -519,7 +519,7 @@ def pileup_to_positions(
 
     if positions_out_file:
         positions_df.to_csv(
-            positions_out_file, sep=out_files_sep, index=False, na_rep=np.NaN
+            positions_out_file, sep=out_files_sep, index=False, na_rep=np.nan
         )
 
     if not keep_pileup_file:
@@ -751,7 +751,7 @@ def multisample_pileups_to_positions_old(
 
     if positions_out_file:
         positions_df.to_csv(
-            positions_out_file, sep=out_files_sep, index=False, na_rep=np.NaN
+            positions_out_file, sep=out_files_sep, index=False, na_rep=np.nan
         )
 
     if not keep_pileup_file:
@@ -1282,7 +1282,7 @@ def multisample_pileups_to_positions_part_3(
 
     if positions_out_file:
         positions_df.to_csv(
-            positions_out_file, sep=out_files_sep, index=False, na_rep=np.NaN
+            positions_out_file, sep=out_files_sep, index=False, na_rep=np.nan
         )
 
     if not keep_pileup_files:

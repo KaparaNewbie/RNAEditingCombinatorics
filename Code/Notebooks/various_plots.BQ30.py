@@ -531,7 +531,8 @@ edited_cols = [f"Edited_{col_suffix}" for col_suffix in col_suffixes]
 # %%
 def current_study_min_max_positions(merged_ref_base_positions_df):
     currently_edited_positions = merged_ref_base_positions_df.loc[
-        (merged_ref_base_positions_df["Edited_PacBio"]) | (merged_ref_base_positions_df["Edited_Illumina"]),
+        (merged_ref_base_positions_df["Edited_PacBio"])
+        | (merged_ref_base_positions_df["Edited_Illumina"]),
     ].sort_values("Position")["Position"]
     min_position = currently_edited_positions.iloc[0]
     max_position = currently_edited_positions.iloc[-1]
@@ -577,15 +578,17 @@ merged_ref_base_positions_df = merged_ref_base_positions_df.sort_values(
     ["Chrom", "Position"]
 ).reset_index(drop=True)
 
-current_study_min_x, current_study_max_x = current_study_min_max_positions(merged_ref_base_positions_df)
+current_study_min_x, current_study_max_x = current_study_min_max_positions(
+    merged_ref_base_positions_df
+)
 merged_ref_base_positions_df = merged_ref_base_positions_df.loc[
-    (merged_ref_base_positions_df["Position"] >= current_study_min_x) &
-    (merged_ref_base_positions_df["Position"] <= current_study_max_x)
+    (merged_ref_base_positions_df["Position"] >= current_study_min_x)
+    & (merged_ref_base_positions_df["Position"] <= current_study_max_x)
 ]
 merged_ref_base_positions_df = merged_ref_base_positions_df.loc[
-    (merged_ref_base_positions_df["Edited_PacBio"]) |
-    (merged_ref_base_positions_df["Edited_Illumina"]) |
-    (merged_ref_base_positions_df["Edited_Known"])
+    (merged_ref_base_positions_df["Edited_PacBio"])
+    | (merged_ref_base_positions_df["Edited_Illumina"])
+    | (merged_ref_base_positions_df["Edited_Known"])
 ]
 
 merged_ref_base_positions_df
@@ -677,7 +680,7 @@ for row in [1, 2]:
 fig.update_yaxes(
     range=[0, 100],
     tick0=0,
-    dtick=20
+    dtick=20,
     # range=[0, 100], tick0=0, dtick=20,
     # tick0=0, dtick=20
     # range=[0, 2],
@@ -756,7 +759,7 @@ for row in [1, 2]:
 
         x = df["Position"]
         y = df[editing_percent_col]
-        
+
         if row == 1:
             fig.add_trace(
                 go.Scatter(
@@ -787,11 +790,12 @@ for row in [1, 2]:
                     y=y,
                     # mode="lines+markers",
                     mode="markers",
-                    marker=dict(color=color, 
-                                opacity=0.7, 
-                                # size=4,
-                                size=6
-                               ),
+                    marker=dict(
+                        color=color,
+                        opacity=0.7,
+                        # size=4,
+                        size=6,
+                    ),
                     showlegend=False,
                 ),
                 row=row,
@@ -808,7 +812,7 @@ lowest_y_greater_than_0 = (
             :, ["%Editing_PacBio", "%Editing_Illumina", "%Editing_Known"]
         ].values.reshape(-1)
     )
-    .replace(0, np.NaN)
+    .replace(0, np.nan)
     .min()
 )
 
@@ -831,7 +835,7 @@ fig.update_layout(
     width=width,
     height=height,
     legend=dict(
-        orientation="h", 
+        orientation="h",
         x=0.83,
         y=0.8,
         xref="container",
@@ -850,7 +854,9 @@ fig.show()
 
 # %%
 cat_merged_ref_base_positions_df = merged_ref_base_positions_df.copy()
-cat_merged_ref_base_positions_df["Position"] = cat_merged_ref_base_positions_df["Position"].astype(str)
+cat_merged_ref_base_positions_df["Position"] = cat_merged_ref_base_positions_df[
+    "Position"
+].astype(str)
 cat_merged_ref_base_positions_df
 
 # %%
@@ -871,7 +877,6 @@ fig = make_subplots(
 
 # current_study_min_x = end
 # current_study_max_x = start
-
 
 
 # colors = [
@@ -930,9 +935,10 @@ for row in [1, 2]:
                 go.Bar(
                     x=x,
                     y=y,
-                    marker=dict(color=color, 
-                                opacity=0.7,
-                               ),
+                    marker=dict(
+                        color=color,
+                        opacity=0.7,
+                    ),
                     showlegend=False,
                 ),
                 row=row,
@@ -942,9 +948,9 @@ for row in [1, 2]:
 # ic(current_study_min_x, current_study_max_x)
 
 fig.update_xaxes(
-    type='category',
-    title_standoff = 70,
-    automargin=False
+    type="category",
+    title_standoff=70,
+    automargin=False,
     # range=[current_study_min_x, current_study_max_x],
 )
 
@@ -954,15 +960,11 @@ lowest_y_greater_than_0 = (
             :, ["%Editing_PacBio", "%Editing_Illumina", "%Editing_Known"]
         ].values.reshape(-1)
     )
-    .replace(0, np.NaN)
+    .replace(0, np.nan)
     .min()
 )
 
-fig["layout"]["yaxis"].update(
-    range=[0, 100],
-    tick0=0,
-    dtick=20
-)
+fig["layout"]["yaxis"].update(range=[0, 100], tick0=0, dtick=20)
 
 fig["layout"]["yaxis2"].update(
     range=[np.log(lowest_y_greater_than_0) / np.log(10), 2],
@@ -975,7 +977,7 @@ height = width * 500 / 1100
 
 fig.update_annotations(
     font_size=14,
-    # yshift=-50, 
+    # yshift=-50,
 )
 
 fig.update_layout(
@@ -983,20 +985,23 @@ fig.update_layout(
     width=width,
     height=height,
     legend=dict(
-        orientation="h", 
+        orientation="h",
         x=0.85,
         y=0.8,
         xref="container",
         yref="container",
         xanchor="right",
     ),
-    barmode='overlay', 
+    barmode="overlay",
     xaxis={
-        'categoryorder':'array', 
-        'categoryarray':cat_merged_ref_base_positions_df["Position"].astype(int).sort_values().astype(str).tolist()
+        "categoryorder": "array",
+        "categoryarray": cat_merged_ref_base_positions_df["Position"]
+        .astype(int)
+        .sort_values()
+        .astype(str)
+        .tolist(),
     },
-    bargap=0
-    
+    bargap=0,
 )
 
 # fig.write_image(
@@ -1448,19 +1453,29 @@ len(seqs)
 # );
 
 # %%
-_sub_titles = [f"Squid's {sub_title}" for sub_title in ["Long-reads", "Short-reads", "pooled data"]]
+_sub_titles = [
+    f"Squid's {sub_title}" for sub_title in ["Long-reads", "Short-reads", "pooled data"]
+]
 multiple_logos_from_fasta_files(
     fasta_files, main_title, _sub_titles, out_file, width=14, height=4, dpi=300
-);
+)
 
 # %%
 _sub_titles_2 = ["Long-reads", "Short-reads"]
-out_file_2 = "ADAR motif of all currently-edited sites -  PacBio vs Illumina - Squid.svg"
+out_file_2 = (
+    "ADAR motif of all currently-edited sites -  PacBio vs Illumina - Squid.svg"
+)
 fasta_files_2 = fasta_files[:2]
 main_title_2 = "Squid"
 multiple_logos_from_fasta_files(
-    fasta_files_2, main_title_2, _sub_titles_2, out_file_2, width=0.66*14, height=4, dpi=300
-);
+    fasta_files_2,
+    main_title_2,
+    _sub_titles_2,
+    out_file_2,
+    width=0.66 * 14,
+    height=4,
+    dpi=300,
+)
 
 # %% [markdown]
 # # Pooled editing levels comparisons - squid
@@ -1677,9 +1692,9 @@ merged_ref_base_positions_df = merged_ref_base_positions_df.drop(
     ["EditingFrequency", "EditingFrequencyKnown"], axis=1
 )
 
-merged_ref_base_positions_df["Transcript-Platform"] = merged_ref_base_positions_df["Transcript-Platform"].apply(
-    lambda x: "GRIA2-PacBio" if x == "GRIA-PacBio" else x
-)
+merged_ref_base_positions_df["Transcript-Platform"] = merged_ref_base_positions_df[
+    "Transcript-Platform"
+].apply(lambda x: "GRIA2-PacBio" if x == "GRIA-PacBio" else x)
 
 merged_ref_base_positions_df
 
@@ -1714,6 +1729,7 @@ def editing_status_color(
         return edited_color
     else:
         return known_editing_color
+
 
 # %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"} jupyter={"source_hidden": true}
 # # todo retain nan rows and turn nans to 0?
@@ -1852,7 +1868,7 @@ fig = make_subplots(
     # x_title="% current editing",
     # y_title="% known editing",
     x_title="Editing level (targeted sequencing) [%]",
-    y_title="Previously reported editing level [%]"
+    y_title="Previously reported editing level [%]",
 )
 
 # all_colors = all_df.apply(
@@ -1891,17 +1907,19 @@ for (x, y), name, color in zip(xs_ys, names, colors):
 # x_all = all_df["%Editing"].fillna(0)
 # y_all = all_df["%EditingKnown"].fillna(0)
 
-pearson_df = all_df.loc[:, ["%Editing", "%EditingKnown"]].reset_index(drop=True).dropna()
+pearson_df = (
+    all_df.loc[:, ["%Editing", "%EditingKnown"]].reset_index(drop=True).dropna()
+)
 x_all = pearson_df["%Editing"]
 y_all = pearson_df["%EditingKnown"]
 
 r, pv = scipy.stats.pearsonr(x_all, y_all)
 
 if pv > 0:
-    pearson_text = text=f"Pearson's r = {r:.2g}<br>p-value = {pv:.2g}"
+    pearson_text = text = f"Pearson's r = {r:.2g}<br>p-value = {pv:.2g}"
 else:
     # guarnteed as explained here: https://stackoverflow.com/questions/45914221/minimal-p-value-for-scipy-stats-pearsonr
-    pearson_text=f"Pearson's r = {r:.2g}<br>p-value < 1E-22"
+    pearson_text = f"Pearson's r = {r:.2g}<br>p-value < 1E-22"
 
 
 fig.add_annotation(
@@ -2206,9 +2224,9 @@ for (
             },
             inplace=True,
         )
-        editable_aas_per_platform_and_condition[
-            (platform, condition)
-        ] = unique_proteins_df.iloc[:, unique_proteins_first_col_pos:].shape[1]
+        editable_aas_per_platform_and_condition[(platform, condition)] = (
+            unique_proteins_df.iloc[:, unique_proteins_first_col_pos:].shape[1]
+        )
 
         distinct_unique_proteins_df = pd.read_csv(
             distinct_unique_proteins_file, sep=sep
@@ -2445,7 +2463,7 @@ for platform, condition in editable_aas_per_platform_and_condition:
     x_corresponding_y_max = [x.iloc[y.argmax()]]
 
     name = "GRIA2" if condition == "GRIA" and platform == "Long-reads" else condition
-    
+
     fig.add_trace(
         go.Scatter(
             x=x_corresponding_y_max,
@@ -2469,10 +2487,10 @@ r, pv = scipy.stats.pearsonr(x, y)
 
 # pearson_text = f"<b>Pearson's r</b><br>p-val = {pv:.2e}<br>ρ = {r:.2g}"
 if pv > 0:
-    pearson_text = text=f"Pearson's r = {r:.2g}<br>p-value = {pv:.2g}"
+    pearson_text = text = f"Pearson's r = {r:.2g}<br>p-value = {pv:.2g}"
 else:
     # guarnteed as explained here: https://stackoverflow.com/questions/45914221/minimal-p-value-for-scipy-stats-pearsonr
-    pearson_text=f"Pearson's r = {r:.2g}<br>p-value < 1E-22"
+    pearson_text = f"Pearson's r = {r:.2g}<br>p-value < 1E-22"
 
 fig.add_annotation(
     x=27,
@@ -2495,7 +2513,7 @@ fig.update_yaxes(
 )
 
 width = 700
-height = width* 650 / 700
+height = width * 650 / 700
 
 fig.update_layout(
     # legend_font=dict(size=8),
@@ -2574,9 +2592,9 @@ illumina_merged_assignment_df[condition_col] = (
 # illumina_merged_assignment_df
 
 pacbio_merged_assignment_df = pd.read_table(pacbio_merged_assignment_file)
-pacbio_merged_assignment_df[condition_col] = pacbio_merged_assignment_df[condition_col].apply(
-        lambda x: "GRIA2" if x == "GRIA" else x
-    )
+pacbio_merged_assignment_df[condition_col] = pacbio_merged_assignment_df[
+    condition_col
+].apply(lambda x: "GRIA2" if x == "GRIA" else x)
 pacbio_merged_assignment_df
 
 # %%
@@ -2856,12 +2874,12 @@ for platform, condition, assignment_df in zip(
 
 fig.update_xaxes(
     type="log",
-    tickfont=dict(size=0.7*font_size),
+    tickfont=dict(size=0.7 * font_size),
     tickangle=20,
 )
 fig.update_yaxes(
     # type="log",
-    tickfont=dict(size=0.7*font_size),
+    tickfont=dict(size=0.7 * font_size),
     # range=[np.log10(y_min), np.log10(y_max)], nticks=6
 )
 
@@ -2871,8 +2889,8 @@ width = 1200
 height = 650
 
 fig.update_layout(
-    legend_font=dict(size=0.5*font_size),
-    legend_grouptitlefont=dict(size=0.5*font_size),
+    legend_font=dict(size=0.5 * font_size),
+    legend_grouptitlefont=dict(size=0.5 * font_size),
     # legend_font=dict(size=6),
     # legend_grouptitlefont=dict(size=8),
     # legend_tracegroupgap=4,
@@ -2881,7 +2899,7 @@ fig.update_layout(
     template=template,
     width=width,
     height=height,
-    margin=dict(l=120, r=40, t=60, b=80)
+    margin=dict(l=120, r=40, t=60, b=80),
 )
 
 fig.write_image(
@@ -3016,9 +3034,17 @@ max_octopus_noise = ceil(octopus_noise_df["%Noise"].max())
 max_noise = ic(max([max_squid_noise, max_octopus_noise]))
 
 # %%
-column_widths = [len(pacbio_conditions), len(illumina_conditions), len(illumina_conditions)/2]
+column_widths = [
+    len(pacbio_conditions),
+    len(illumina_conditions),
+    len(illumina_conditions) / 2,
+]
 # subplot_titles = ["Squid's Long-reads", "Squids' Short-reads", "Whole-transcriptome octopus data"]
-subplot_titles = ["Squids'<br>Long-reads", "Squids'<br>Short-reads", "Whole-transcriptome<br>octopus data"]
+subplot_titles = [
+    "Squids'<br>Long-reads",
+    "Squids'<br>Short-reads",
+    "Whole-transcriptome<br>octopus data",
+]
 
 fig = make_subplots(
     rows=1,
@@ -3038,7 +3064,7 @@ for platform, condition, noise_df in zip(
 ):
     x = noise_df[condition_col]
     y = noise_df["%Noise"]
-    
+
     color = platforms_color_map[platform][condition]
     col = 1 if platform == "Long-reads" else 2
 
@@ -3066,19 +3092,21 @@ for platform, condition, noise_df in zip(
         row=1,
         col=col,
     )
-    
-    fig.update_xaxes(row=1, col=col, title_text="Gene", tickangle = 30, tickfont=dict(size=10))
+
+    fig.update_xaxes(
+        row=1, col=col, title_text="Gene", tickangle=30, tickfont=dict(size=10)
+    )
     fig.update_yaxes(row=1, col=col, range=[0, max_noise])
-    
+
     # ic(platform, condition)
     # ic(x)
     # ic(y)
     # break
 
 fig.update_yaxes(row=1, col=1, title_text="Per-site noise level [%]")
-    
+
 fig.add_trace(
-        go.Histogram(
+    go.Histogram(
         y=octopus_noise_df["%Noise"],
         marker_color="black",
         # opacity=0.5
@@ -3087,14 +3115,16 @@ fig.add_trace(
     col=3,
 )
 fig.update_xaxes(row=1, col=3, title_text="Genes", type="log")
-fig.update_yaxes(row=1, col=3, title_text="Per-gene noise level [%]", range=[0, max_noise])
+fig.update_yaxes(
+    row=1, col=3, title_text="Per-gene noise level [%]", range=[0, max_noise]
+)
 
-    
+
 # fig.update_xaxes(
-#         tickangle = 30, 
+#         tickangle = 30,
 #     # title_standoff = 10,
 #     tickfont=dict(size=10)
-# )    
+# )
 
 # fig.update_yaxes(type="log",
 #                  # range=[np.log10(y_min), np.log10(y_max)], nticks=6
@@ -3103,7 +3133,7 @@ width = 1200
 height = 450
 
 fig.update_annotations(
-    # yshift=20, 
+    # yshift=20,
     font_size=14
 )
 
@@ -3114,7 +3144,7 @@ fig.update_layout(
     template=template,
     width=width,
     height=height,
-    showlegend=False
+    showlegend=False,
 )
 
 fig.write_image(
@@ -3148,7 +3178,7 @@ fig.show()
 # ):
 #     x = noise_df[condition_col]
 #     y = noise_df["%Noise"]
-    
+
 #     color = platforms_color_map[platform][condition]
 #     col = 1 if platform == "Long-reads" else 2
 
@@ -3176,18 +3206,18 @@ fig.show()
 #         row=1,
 #         col=col,
 #     )
-    
-    
+
+
 #     # ic(platform, condition)
 #     # ic(x)
 #     # ic(y)
 #     # break
 
 # fig.update_xaxes(
-#         tickangle = 30, 
+#         tickangle = 30,
 #     # title_standoff = 10,
 #     tickfont=dict(size=10)
-# )    
+# )
 
 # # fig.update_yaxes(type="log",
 # #                  # range=[np.log10(y_min), np.log10(y_max)], nticks=6
@@ -3279,18 +3309,25 @@ platforms_conditions = [pacbio_conditions, illumina_conditions]
 # ## Max distinct
 
 # %%
-pacbio_max_distinct_proteins_df = pd.read_table(pacbio_merged_max_distinct_proteins_file)
-illumina_max_distinct_proteins_df = pd.read_table(illumina_merged_max_distinct_proteins_file)
+pacbio_max_distinct_proteins_df = pd.read_table(
+    pacbio_merged_max_distinct_proteins_file
+)
+illumina_max_distinct_proteins_df = pd.read_table(
+    illumina_merged_max_distinct_proteins_file
+)
 
-merged_max_distinct_df = pd.concat([pacbio_max_distinct_proteins_df, illumina_max_distinct_proteins_df])
+merged_max_distinct_df = pd.concat(
+    [pacbio_max_distinct_proteins_df, illumina_max_distinct_proteins_df]
+)
 merged_max_distinct_df["Color"] = merged_max_distinct_df.apply(
-    lambda x: platforms_color_map[x["Platform"]][x[condition_col]],
-    axis=1
+    lambda x: platforms_color_map[x["Platform"]][x[condition_col]], axis=1
 )
 merged_max_distinct_df
 
 # %%
-column_widths = [len(conditions) for conditions in [pacbio_conditions, illumina_conditions]]
+column_widths = [
+    len(conditions) for conditions in [pacbio_conditions, illumina_conditions]
+]
 
 font_size = 28
 
@@ -3308,9 +3345,13 @@ fig = make_subplots(
     horizontal_spacing=0.04,
     column_widths=column_widths,
 )
-                                             
-for col, (platform, platform_conditions) in enumerate(zip(platforms, platforms_conditions), start=1):
-    platform_df = merged_max_distinct_df.loc[merged_max_distinct_df["Platform"] == platform]
+
+for col, (platform, platform_conditions) in enumerate(
+    zip(platforms, platforms_conditions), start=1
+):
+    platform_df = merged_max_distinct_df.loc[
+        merged_max_distinct_df["Platform"] == platform
+    ]
     for condition in platform_conditions:
         condition_df = platform_df.loc[platform_df[condition_col] == condition]
         x = condition_df[condition_col]
@@ -3328,20 +3369,20 @@ for col, (platform, platform_conditions) in enumerate(zip(platforms, platforms_c
             row=1,
             col=col,
         )
-        
-        
+
+
 fig.update_xaxes(
-        tickangle = 30, 
+    tickangle=30,
     # title_standoff = 10,
     # tickfont=dict(size=10),
     title_font=dict(size=font_size),
-    title_standoff=100
-)    
+    title_standoff=100,
+)
 
 fig.update_yaxes(
     title_font=dict(size=font_size),
-    tickfont=dict(size=0.7*font_size),
-    title_standoff=100
+    tickfont=dict(size=0.7 * font_size),
+    title_standoff=100,
 )
 
 fig.update_annotations(font_size=font_size)
@@ -3357,7 +3398,7 @@ fig.update_layout(
     width=width,
     height=height,
     showlegend=False,
-    margin=dict(l=120, r=20, t=60, b=80)
+    margin=dict(l=120, r=20, t=60, b=80),
 )
 
 fig.write_image(
@@ -3378,10 +3419,14 @@ pacbio_merged_distinct_proteins_file = "DistinctProteins.PacBio.tsv"
 
 pacbio_distinct_proteins_df = pd.read_table(pacbio_merged_distinct_proteins_file)
 illumina_distinct_proteins_df = pd.read_table(illumina_merged_distinct_proteins_file)
-illumina_distinct_proteins_df[condition_col] = illumina_distinct_proteins_df[condition_col].str.split("_", expand=True).iloc[:, 0]
+illumina_distinct_proteins_df[condition_col] = (
+    illumina_distinct_proteins_df[condition_col].str.split("_", expand=True).iloc[:, 0]
+)
 illumina_distinct_proteins_df = illumina_distinct_proteins_df.sort_values(condition_col)
 
-merged_distinct_df = pd.concat([pacbio_distinct_proteins_df, illumina_distinct_proteins_df])
+merged_distinct_df = pd.concat(
+    [pacbio_distinct_proteins_df, illumina_distinct_proteins_df]
+)
 # merged_distinct_df["Color"] = merged_distinct_df.apply(
 #     lambda x: platforms_color_map[x["Platform"]][x[condition_col]],
 #     axis=1
@@ -3406,9 +3451,10 @@ font_size = 28
 
 # Initialize figure with subplots
 fig = make_subplots(
-    rows=1, cols=2, 
-    print_grid=False, 
-    x_title=x_axis_name, 
+    rows=1,
+    cols=2,
+    print_grid=False,
+    x_title=x_axis_name,
     y_title=y_axis_name,
     shared_yaxes="all",
     subplot_titles=platforms,
@@ -3431,26 +3477,27 @@ dscam_legend_names = [
 ]
 
 
+for col, (platform, platform_conditions) in enumerate(
+    zip(platforms, platforms_conditions), start=1
+):
 
-for col, (platform, platform_conditions) in enumerate(zip(platforms, platforms_conditions), start=1):
-    
     # add all conditions under a sequencing platform
-    
+
     platform_df = merged_distinct_df.loc[merged_distinct_df["Platform"] == platform]
-    
-    
-    
+
     for condition in platform_conditions:
-        
-        condition_df = platform_df.loc[platform_df[condition_col] == condition].sort_values(["Fraction", "NumOfProteins"], ascending=False).drop_duplicates(
-            "Fraction", ignore_index=True
+
+        condition_df = (
+            platform_df.loc[platform_df[condition_col] == condition]
+            .sort_values(["Fraction", "NumOfProteins"], ascending=False)
+            .drop_duplicates("Fraction", ignore_index=True)
         )
-        
+
         x_measured = condition_df["NumOfReads"]
         y_measured = condition_df["NumOfProteins"]
         color = platforms_color_map[platform][condition]
         name = condition
-        
+
         fig.add_trace(
             go.Scatter(
                 x=x_measured,
@@ -3469,31 +3516,33 @@ for col, (platform, platform_conditions) in enumerate(zip(platforms, platforms_c
                 name=name,
             ),
             row=1,
-            col=col
-        )    
+            col=col,
+        )
 
     # add dscam data to compare it with the platform
 
     platform_maximal_x = platform_df["NumOfReads"].max()
-    
+
     showlegend = col == 2
-    
+
     fig.add_trace(
         go.Scatter(
             x=[0.05 * platform_maximal_x, 1.05 * platform_maximal_x],
             y=[dscam_ys[0], dscam_ys[0]],
             mode="lines",
             line=dict(
-                color=dscam_colors[0], dash=dscam_dashes[0], width=dscam_dashed_lined_width
+                color=dscam_colors[0],
+                dash=dscam_dashes[0],
+                width=dscam_dashed_lined_width,
             ),
             opacity=0.6,
             legendgroup="Drosophila’s DSCAM",  # this can be any string
             legendgrouptitle_text="Drosophila’s DSCAM",
             name=dscam_legend_names[0],
-            showlegend=showlegend
+            showlegend=showlegend,
         ),
         row=1,
-        col=col
+        col=col,
     )
     fig.add_trace(
         go.Scatter(
@@ -3501,7 +3550,9 @@ for col, (platform, platform_conditions) in enumerate(zip(platforms, platforms_c
             y=[dscam_ys[1], dscam_ys[1]],
             mode="lines",
             line=dict(
-                color=dscam_colors[1], dash=dscam_dashes[1], width=dscam_dashed_lined_width
+                color=dscam_colors[1],
+                dash=dscam_dashes[1],
+                width=dscam_dashed_lined_width,
             ),
             opacity=0.6,
             legendgroup="Drosophila’s DSCAM",  # this can be any string
@@ -3510,18 +3561,18 @@ for col, (platform, platform_conditions) in enumerate(zip(platforms, platforms_c
             showlegend=showlegend,
         ),
         row=1,
-        col=col
+        col=col,
     )
 
 
 fig.update_xaxes(
-    tickfont=dict(size=0.7*font_size),
+    tickfont=dict(size=0.7 * font_size),
     tickangle=20,
     # tickangle=10,
     # type="log"
 )
 fig.update_yaxes(
-    tickfont=dict(size=0.7*font_size),
+    tickfont=dict(size=0.7 * font_size),
     # type="log"
 )
 
@@ -3532,18 +3583,18 @@ fig.update_annotations(font_size=font_size)
 # height = width*650/900
 
 width = 1250
-height = width*700/900
+height = width * 700 / 900
 
 fig.update_layout(
     template=template,
-    legend_font=dict(size=0.7*font_size),
-    legend_grouptitlefont=dict(size=0.7*font_size),
+    legend_font=dict(size=0.7 * font_size),
+    legend_grouptitlefont=dict(size=0.7 * font_size),
     # legend_font=dict(size=14),
     # legend_grouptitlefont=dict(size=16),
     # legend_tracegroupgap=4,
     width=width,
     height=height,
-    margin=dict(l=120, r=40, t=60, b=80)
+    margin=dict(l=120, r=40, t=60, b=80),
 )
 # fig.write_image("Distinct unique proteins vs. sequencing depth - Illumina.png", format='png',engine='kaleido')
 fig.write_image(
@@ -3630,7 +3681,9 @@ octopus_dispersion_df
 octopus_dispersion_df["%SolutionsDispersion"].describe()
 
 # %%
-octopus_dispersion_df.loc[octopus_dispersion_df["%SolutionsDispersion"] > 0].sort_values("%SolutionsDispersion")
+octopus_dispersion_df.loc[
+    octopus_dispersion_df["%SolutionsDispersion"] > 0
+].sort_values("%SolutionsDispersion")
 
 # %%
 # described_octopus_dispersion_df = octopus_dispersion_df["%SolutionsDispersion"].describe()
@@ -3640,13 +3693,25 @@ octopus_dispersion_df.loc[octopus_dispersion_df["%SolutionsDispersion"] > 0].sor
 # dispersion_quartiles
 
 # %%
-percent_of_octopus_genes_with_nonzero_dispersion = 100 * len(octopus_dispersion_df.loc[octopus_dispersion_df["%SolutionsDispersion"] > 0]) / len(octopus_dispersion_df)
+percent_of_octopus_genes_with_nonzero_dispersion = (
+    100
+    * len(octopus_dispersion_df.loc[octopus_dispersion_df["%SolutionsDispersion"] > 0])
+    / len(octopus_dispersion_df)
+)
 percent_of_octopus_genes_with_nonzero_dispersion
 
 # %%
-column_widths = [len(pacbio_conditions), len(illumina_conditions), len(illumina_conditions)/2]
+column_widths = [
+    len(pacbio_conditions),
+    len(illumina_conditions),
+    len(illumina_conditions) / 2,
+]
 # subplot_titles = ["Squid's Long-reads", "Squids' Short-reads", "Whole-transcriptome octopus data"]
-subplot_titles = ["Squids'<br>Long-reads", "Squids'<br>Short-reads", "Whole-transcriptome<br>octopus data"]
+subplot_titles = [
+    "Squids'<br>Long-reads",
+    "Squids'<br>Short-reads",
+    "Whole-transcriptome<br>octopus data",
+]
 
 fig = make_subplots(
     rows=1,
@@ -3660,25 +3725,34 @@ fig = make_subplots(
     horizontal_spacing=0.06,
     column_widths=column_widths,
 )
-                 
+
 dispersion_dfs = [pacbio_dispersion_df, illumina_dispersion_df, octopus_dispersion_df]
 x_titles = ["Gene", "Gene", "Genes"]
 platforms_conditions = [pacbio_conditions, illumina_conditions, None]
 platforms = ["Long-reads", "Short-reads", None]
 
-max_squid_dispersion = ceil(max([pacbio_dispersion_df["%SolutionsDispersion"].max(), illumina_dispersion_df["%SolutionsDispersion"].max()]))
+max_squid_dispersion = ceil(
+    max(
+        [
+            pacbio_dispersion_df["%SolutionsDispersion"].max(),
+            illumina_dispersion_df["%SolutionsDispersion"].max(),
+        ]
+    )
+)
 
-for col, (dispersion_df, x_title, platform, platform_conditions) in enumerate(zip(dispersion_dfs, x_titles, platforms, platforms_conditions), start=1):
-    
+for col, (dispersion_df, x_title, platform, platform_conditions) in enumerate(
+    zip(dispersion_dfs, x_titles, platforms, platforms_conditions), start=1
+):
+
     if col != 3:
-    
+
         for condition in platform_conditions:
             condition_df = dispersion_df.loc[dispersion_df[condition_col] == condition]
             x = condition_df[condition_col]
             y = condition_df["%SolutionsDispersion"]
             # colors = condition_df["Color"]
             # ic(platform, platforms_color_map[platform], condition)
-            
+
             color = platforms_color_map[platform][condition]
             fig.add_trace(
                 go.Bar(
@@ -3693,9 +3767,11 @@ for col, (dispersion_df, x_title, platform, platform_conditions) in enumerate(zi
                 row=1,
                 col=col,
             )
-        fig.update_xaxes(row=1, col=col, title_text=x_title, tickangle = 30, tickfont=dict(size=10))
+        fig.update_xaxes(
+            row=1, col=col, title_text=x_title, tickangle=30, tickfont=dict(size=10)
+        )
         fig.update_yaxes(row=1, col=col, range=[0, max_squid_dispersion])
-    
+
     else:
         fig.add_trace(
             go.Histogram(
@@ -3706,7 +3782,12 @@ for col, (dispersion_df, x_title, platform, platform_conditions) in enumerate(zi
             row=1,
             col=col,
         )
-        fig.update_xaxes(row=1, col=col, title_text=x_title, type="log", )
+        fig.update_xaxes(
+            row=1,
+            col=col,
+            title_text=x_title,
+            type="log",
+        )
 
 # f = fig.full_figure_for_development(warn=False)
 # f_data = f.data[-1]
@@ -3753,7 +3834,7 @@ for col, (dispersion_df, x_title, platform, platform_conditions) in enumerate(zi
 #     row=1,
 #     col=3
 # )
-        
+
 fig.update_annotations(yshift=20, font_size=14)
 
 width = 1200
@@ -3767,7 +3848,7 @@ fig.update_layout(
     height=height,
     showlegend=False,
     title_y=0.95,
-    # automargin=True, 
+    # automargin=True,
     # yref='paper'
 )
 
@@ -3802,21 +3883,21 @@ illumina_mi = pd.read_table(illumina_mi_file).values
 
 # %%
 sns_colorscale = [
-    [0.0, '#3f7f93'], #cmap = sns.diverging_palette(220, 10, as_cmap = True)
- [0.071, '#5890a1'],
- [0.143, '#72a1b0'],
- [0.214, '#8cb3bf'],
- [0.286, '#a7c5cf'],
- [0.357, '#c0d6dd'],
- [0.429, '#dae8ec'],
- [0.5, '#f2f2f2'],
- [0.571, '#f7d7d9'],
- [0.643, '#f2bcc0'],
- [0.714, '#eda3a9'],
- [0.786, '#e8888f'],
- [0.857, '#e36e76'],
- [0.929, '#de535e'],
- [1.0, '#d93a46']
+    [0.0, "#3f7f93"],  # cmap = sns.diverging_palette(220, 10, as_cmap = True)
+    [0.071, "#5890a1"],
+    [0.143, "#72a1b0"],
+    [0.214, "#8cb3bf"],
+    [0.286, "#a7c5cf"],
+    [0.357, "#c0d6dd"],
+    [0.429, "#dae8ec"],
+    [0.5, "#f2f2f2"],
+    [0.571, "#f7d7d9"],
+    [0.643, "#f2bcc0"],
+    [0.714, "#eda3a9"],
+    [0.786, "#e8888f"],
+    [0.857, "#e36e76"],
+    [0.929, "#de535e"],
+    [1.0, "#d93a46"],
 ]
 
 # %%
@@ -3842,30 +3923,26 @@ fig = make_subplots(
 fig.add_trace(
     go.Heatmap(
         z=pacbio_corr,
-        xgap=1, 
+        xgap=1,
         ygap=1,
         coloraxis="coloraxis",
     ),
     row=1,
-    col=1
+    col=1,
 )
 
 fig.add_trace(
     go.Heatmap(
         z=illumina_corr,
-        xgap=1, 
+        xgap=1,
         ygap=1,
         coloraxis="coloraxis",
     ),
     row=1,
-    col=2
+    col=2,
 )
 
-fig.update_xaxes(
-    showticklabels=False,
-    showgrid=False,
-    zeroline=False
-)
+fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=False)
 
 fig.update_yaxes(
     showgrid=False,
@@ -3880,11 +3957,11 @@ height = 600
 fig.update_layout(
     width=width,
     height=height,
-    template=template, 
+    template=template,
     coloraxis=dict(
         # colorscale='deep_r'
         # colorscale=sns_colorscale,
-        colorscale='RdBu',
+        colorscale="RdBu",
         colorbar_thickness=20,
         colorbar_ticklen=3,
         # cmid=0,
@@ -3901,7 +3978,7 @@ fig.update_layout(
     title=dict(
         x=0.1,
         text="Site-Site correlations (PCLO)",
-  ),
+    ),
 )
 
 fig.write_image(
@@ -3924,30 +4001,26 @@ fig = make_subplots(
 fig.add_trace(
     go.Heatmap(
         z=pacbio_mi,
-        xgap=1, 
+        xgap=1,
         ygap=1,
         coloraxis="coloraxis",
     ),
     row=1,
-    col=1
+    col=1,
 )
 
 fig.add_trace(
     go.Heatmap(
         z=illumina_mi,
-        xgap=1, 
+        xgap=1,
         ygap=1,
         coloraxis="coloraxis",
     ),
     row=1,
-    col=2
+    col=2,
 )
 
-fig.update_xaxes(
-    showticklabels=False,
-    showgrid=False,
-    zeroline=False
-)
+fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=False)
 
 fig.update_yaxes(
     showgrid=False,
@@ -3964,11 +4037,11 @@ height = 600
 fig.update_layout(
     width=width,
     height=height,
-    template=template, 
+    template=template,
     coloraxis=dict(
-        # colorscale='deep_r', 
-        colorscale='RdBu',
-        # colorbar_x=0.43, 
+        # colorscale='deep_r',
+        colorscale="RdBu",
+        # colorbar_x=0.43,
         # colorbar_thickness=23,
         # colorscale=sns_colorscale,
         colorbar_thickness=20,
@@ -3982,7 +4055,7 @@ fig.update_layout(
         x=0.1,
         text="Mutual information (PCLO)",
         # font=dict(size=18)
-  ),
+    ),
     # font_size=16,
 )
 
@@ -4056,12 +4129,16 @@ illumina_df = pd.read_table(illumina_file)
 illumina_df
 
 pacbio_df = pd.read_table(pacbio_file)
-pacbio_df[condition_col] = pacbio_df[condition_col].apply(lambda x: x if x != "GRIA" else "GRIA2")
+pacbio_df[condition_col] = pacbio_df[condition_col].apply(
+    lambda x: x if x != "GRIA" else "GRIA2"
+)
 # pacbio_df.insert(0, "Platform")
 pacbio_df
 
 # %%
-column_widths = [len(conditions) for conditions in [pacbio_conditions, illumina_conditions]]
+column_widths = [
+    len(conditions) for conditions in [pacbio_conditions, illumina_conditions]
+]
 
 fig = make_subplots(
     rows=1,
@@ -4079,8 +4156,10 @@ fig = make_subplots(
 
 shannon_dfs = [pacbio_df, illumina_df]
 
-for col, (shannon_df, platform, conditions) in enumerate(zip(shannon_dfs, platforms, platforms_conditions), start=1):
-    
+for col, (shannon_df, platform, conditions) in enumerate(
+    zip(shannon_dfs, platforms, platforms_conditions), start=1
+):
+
     colors = [platforms_color_map[platform][condition] for condition in conditions]
 
     fig.add_trace(
@@ -4097,13 +4176,15 @@ for col, (shannon_df, platform, conditions) in enumerate(zip(shannon_dfs, platfo
             # width=0.3
         ),
         row=1,
-        col=col
+        col=col,
     )
 
     fig.add_trace(
         go.Bar(
             x=conditions,
-            y=shannon_df.loc[shannon_df["EntropyName"] == "Hypothetical", "EntropyValue"],
+            y=shannon_df.loc[
+                shannon_df["EntropyName"] == "Hypothetical", "EntropyValue"
+            ],
             marker_color=colors,
             marker_pattern_shape="",
             # text=non_syns_per_max_sol_exp_df,
@@ -4114,9 +4195,9 @@ for col, (shannon_df, platform, conditions) in enumerate(zip(shannon_dfs, platfo
             textfont=dict(size=20),
         ),
         row=1,
-        col=col
+        col=col,
     )
-    
+
 # Add single entropy traces for legend
 fig.add_trace(
     go.Bar(
@@ -4197,7 +4278,6 @@ fig.update_layout(
         x=0.99,
         orientation="h",
         # itemwidth=40,
-        
     ),
 )
 

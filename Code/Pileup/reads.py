@@ -584,11 +584,11 @@ def multisample_reads_to_unique_reads(reads_df, first_pos_loc=7):
 #     unique_reads_df = reads_to_unique_reads(reads_df, group_col)
 
 #     if reads_out_file:
-#         reads_df.to_csv(reads_out_file, sep=out_files_sep, index=False, na_rep=np.NaN)
+#         reads_df.to_csv(reads_out_file, sep=out_files_sep, index=False, na_rep=np.nan)
 
 #     if unique_reads_out_file:
 #         unique_reads_df.to_csv(
-#             unique_reads_out_file, sep=out_files_sep, index=False, na_rep=np.NaN
+#             unique_reads_out_file, sep=out_files_sep, index=False, na_rep=np.nan
 #         )
 
 #     return reads_df, unique_reads_df
@@ -614,11 +614,11 @@ def reads_and_unique_reads(
         unique_reads_df = reads_to_unique_reads(reads_df, group_col)
 
         if reads_out_file:
-            reads_df.to_csv(reads_out_file, sep=sep, index=False, na_rep=np.NaN)
+            reads_df.to_csv(reads_out_file, sep=sep, index=False, na_rep=np.nan)
 
         if unique_reads_out_file:
             unique_reads_df.to_csv(
-                unique_reads_out_file, sep=sep, index=False, na_rep=np.NaN
+                unique_reads_out_file, sep=sep, index=False, na_rep=np.nan
             )
     except ValueError:  # will be raised if len(edited_positions_df) == 0
         pass
@@ -658,11 +658,11 @@ def multisample_reads_and_unique_reads_old(
         unique_reads_df = multisample_reads_to_unique_reads(reads_df)
 
         if reads_out_file:
-            reads_df.to_csv(reads_out_file, sep=sep, index=False, na_rep=np.NaN)
+            reads_df.to_csv(reads_out_file, sep=sep, index=False, na_rep=np.nan)
 
         if unique_reads_out_file:
             unique_reads_df.to_csv(
-                unique_reads_out_file, sep=sep, index=False, na_rep=np.NaN
+                unique_reads_out_file, sep=sep, index=False, na_rep=np.nan
             )
     except (
         ValueError
@@ -704,11 +704,11 @@ def multisample_reads_and_unique_reads(
         unique_reads_df = multisample_reads_to_unique_reads(reads_df)
 
         if reads_out_file:
-            reads_df.to_csv(reads_out_file, sep=sep, index=False, na_rep=np.NaN)
+            reads_df.to_csv(reads_out_file, sep=sep, index=False, na_rep=np.nan)
 
         if unique_reads_out_file:
             unique_reads_df.to_csv(
-                unique_reads_out_file, sep=sep, index=False, na_rep=np.NaN
+                unique_reads_out_file, sep=sep, index=False, na_rep=np.nan
             )
     except (
         ValueError

@@ -1,7 +1,7 @@
 """
 This script is an updated version of create_transcript_pileup.py.
 It should perform pileup on the complete ORF of each gene, and then create 4 matrices:
-1. Reads (0/1/NaN per base) 
+1. Reads (0/1/NaN per base)
 2. Unique reads ("Transcripts")
 3. Proteins (derived from Reads by translation)
 4. Unique proteins
@@ -132,7 +132,7 @@ def main(
     prob_regions_beds = list(
         map(
             lambda path: BedTool(path) if path else None,
-            data_table[prob_regions_bed_col].replace({np.NaN: ""}),
+            data_table[prob_regions_bed_col].replace({np.nan: ""}),
         )
     )
     # prob_regions_beds = [BedTool(path) for path in data_table[prob_regions_bed_col]]

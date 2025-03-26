@@ -246,12 +246,12 @@ def position_noise_level(
     base_counts = [a_count, t_count, c_count, g_count]
 
     if sum(base_counts) == 0:
-        noise = np.NaN
+        noise = np.nan
 
     # we only measure noise in positions that don't undergo RNA editing by ADAR
     # todo: in futurue versions, do consider adenosine positions if the most abundant base is not G
     elif (strand == "+" and ref_base == "A") or (strand == "-" and ref_base == "T"):
-        noise = np.NaN
+        noise = np.nan
 
     else:
         # we measure noise for T positions only on the positive strand
@@ -305,7 +305,7 @@ def annotate_noise(positions_df, strand):
 #         except ZeroDivisionError:
 #             freq = 0
 #     else:
-#         freq = np.NaN
+#         freq = np.nan
 #     return freq
 
 
@@ -318,7 +318,7 @@ def editing_frequency_per_position(
         except ZeroDivisionError:
             freq = 0
     else:
-        freq = np.NaN
+        freq = np.nan
     return freq
 
 
@@ -688,7 +688,7 @@ def simulate_complete_and_corresponding_partially_unknown_basic_positions_df(
         "?" * tot_cov for tot_cov in partially_unknown_total_coverage.values
     ]
     partially_unknown_as_nan_editing_status_df = (
-        partially_unknown_editing_status_df.replace(-1, np.NaN)
+        partially_unknown_editing_status_df.replace(-1, np.nan)
     )
     partially_unkown_reads = [
         ",".join(
@@ -801,7 +801,7 @@ def finalize_basic_simulated_positions_df(
 
     if positions_out_file:
         positions_df.to_csv(
-            positions_out_file, sep=out_files_sep, index=False, na_rep=np.NaN
+            positions_out_file, sep=out_files_sep, index=False, na_rep=np.nan
         )
 
     return positions_df
@@ -958,7 +958,7 @@ def pileup_to_positions(
 
     if positions_out_file:
         positions_df.to_csv(
-            positions_out_file, sep=out_files_sep, index=False, na_rep=np.NaN
+            positions_out_file, sep=out_files_sep, index=False, na_rep=np.nan
         )
 
     if not keep_pileup_file:
@@ -1190,7 +1190,7 @@ def multisample_pileups_to_positions_old(
 
     if positions_out_file:
         positions_df.to_csv(
-            positions_out_file, sep=out_files_sep, index=False, na_rep=np.NaN
+            positions_out_file, sep=out_files_sep, index=False, na_rep=np.nan
         )
 
     if not keep_pileup_file:
@@ -1618,10 +1618,7 @@ def get_covered_and_uncovered_coding_non_adenosines_in_transcript(
             result_type="expand",
         ).rename(columns={0: "RefBaseCount", 1: "AltBaseCount"})
     except Exception as e:
-        raise ValueError(
-            f"{chrom}: {e}"
-        )
-
+        raise ValueError(f"{chrom}: {e}")
 
     covered_coding_non_adenosines_positions_df[["RefBaseCount", "AltBaseCount"]] = (
         ref_and_alt_base_counts_df
@@ -1663,7 +1660,7 @@ def get_covered_and_uncovered_coding_non_adenosines_in_transcript(
 
 
 def write_df_to_outfile(df: pd.DataFrame, out_file: Path, sep: str):
-    df.to_csv(out_file, sep=sep, index=False, na_rep=np.NaN)
+    df.to_csv(out_file, sep=sep, index=False, na_rep=np.nan)
 
 
 def multisample_pileups_to_positions_part_1(
@@ -1829,7 +1826,7 @@ def multisample_pileups_to_positions_part_1(
     # only then calculate noise
     annotate_noise(positions_df, strand)
 
-    positions_df.to_csv(positions_file, sep=out_files_sep, index=False, na_rep=np.NaN)
+    positions_df.to_csv(positions_file, sep=out_files_sep, index=False, na_rep=np.nan)
 
     # return positions_df
 
@@ -1899,10 +1896,10 @@ def multisample_pileups_to_positions_part_2(
 
     else:
         positions_df[binom_noise_pval_col] = positions_df["RefBase"].apply(
-            lambda x: 1.0 if x != ref_base else np.NaN
+            lambda x: 1.0 if x != ref_base else np.nan
         )
         positions_df[bh_noise_pval_col] = positions_df["RefBase"].apply(
-            lambda x: 1.0 if x != ref_base else np.NaN
+            lambda x: 1.0 if x != ref_base else np.nan
         )
         # because all([np.nan]) == True
         positions_df[bh_noisy_col] = False
@@ -1970,7 +1967,7 @@ def multisample_pileups_to_positions_part_2(
     annotate_editing_frequency_per_position(positions_df, strand)
     annotate_edited_sites(positions_df, strand, noise_threshold, denovo_detection)
 
-    positions_df.to_csv(positions_file, sep=sep, index=False, na_rep=np.NaN)
+    positions_df.to_csv(positions_file, sep=sep, index=False, na_rep=np.nan)
 
 
 def annotate_noisy_sites_final_decision(
@@ -2075,10 +2072,10 @@ def multisample_pileups_to_positions_part_3(
         )  # because all([np.nan]) == True
     else:
         positions_df[binom_editing_pval_col] = positions_df["RefBase"].apply(
-            lambda x: 1.0 if x == ref_base else np.NaN
+            lambda x: 1.0 if x == ref_base else np.nan
         )
         positions_df[bh_editing_pval_col] = positions_df["RefBase"].apply(
-            lambda x: 1.0 if x == ref_base else np.NaN
+            lambda x: 1.0 if x == ref_base else np.nan
         )
         positions_df[bh_editing_col] = False  # because all([np.nan]) == True
 
@@ -2140,7 +2137,7 @@ def multisample_pileups_to_positions_part_3(
         editing_cols.append("BelowEditingFreq1")
     annotate_edited_sites_final_decision(positions_df, bh_editing_col, editing_cols)
 
-    positions_df.to_csv(positions_file, sep=sep, index=False, na_rep=np.NaN)
+    positions_df.to_csv(positions_file, sep=sep, index=False, na_rep=np.nan)
 
     if not keep_pileup_files:
         for pileup_file in pileup_files:

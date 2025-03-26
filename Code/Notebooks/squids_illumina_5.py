@@ -291,6 +291,7 @@ from EditingUtils.seq import make_fasta_dict
 # %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"}
 # # Ploting utils
 
+
 # %%
 def rgb_change(r, g, b, d_r, d_g, d_b, scale):
     # todo: allow both changes to be in the same direction by modifying the given scale?
@@ -327,7 +328,7 @@ def two_subcolors_from_hex(hex_color, d_r=4, d_g=20, d_b=22, scale_1=1, scale_2=
 
 
 # %%
-ic(conditions);
+ic(conditions)
 
 # %% papermill={"duration": 0.054755, "end_time": "2022-02-01T09:42:46.304499", "exception": false, "start_time": "2022-02-01T09:42:46.249744", "status": "completed"}
 # plotly consts
@@ -367,6 +368,7 @@ zerolinewidth = 4
 #
 #     Accepts two color tuples and returns a list of n_colors colors which form the intermediate colors between lowcolor and highcolor from linearly interpolating through RGB space. If colortype is ‘rgb’ the function will return a list of colors in the same form.
 #
+
 
 # %%
 def n_repetitions_colormap(subcolors_discrete_map, condition, n_repetitions):
@@ -509,9 +511,9 @@ subprocess.run(build_db_cmd, shell=True, cwd=blast_dir)
 #     Number of database sequences to show alignments for
 #     Default = `250'
 #     * Incompatible with:  max_target_seqs
-#     
+#
 #     -max_target_seqs <Integer, >=1>
-#    Maximum number of aligned sequences to keep 
+#    Maximum number of aligned sequences to keep
 #     (value of 5 or more is recommended)
 #     Default = `500'
 #      * Incompatible with:  num_descriptions, num_alignments
@@ -572,9 +574,11 @@ for blast_df in blast_dfs:
         lambda x: "+" if x == "plus" else "-"
     )
     blast_df[["sstart", "send"]] = blast_df.apply(
-        lambda x: (x["sstart"], x["send"])
-        if x["sstart"] < x["send"]
-        else (x["send"], x["sstart"]),
+        lambda x: (
+            (x["sstart"], x["send"])
+            if x["sstart"] < x["send"]
+            else (x["send"], x["sstart"])
+        ),
         axis=1,
         result_type="expand",
     )
@@ -1464,9 +1468,11 @@ long_data_loss_df["Stage"] = long_data_loss_df["Stage"].apply(
 )
 
 long_data_loss_df["StageType"] = long_data_loss_df.apply(
-    lambda x: "DataProcessing"
-    if x["Stage"] in ["Unique reads", "Distinct unique proteins<br>(mean)"]
-    else "Results",
+    lambda x: (
+        "DataProcessing"
+        if x["Stage"] in ["Unique reads", "Distinct unique proteins<br>(mean)"]
+        else "Results"
+    ),
     axis=1,
 )
 
@@ -1617,7 +1623,7 @@ fig.show()
 # ### Correlation matrix
 
 # %%
-reads_w_nan_dfs = [reads_df.replace({-1: np.NaN}) for reads_df in reads_dfs]
+reads_w_nan_dfs = [reads_df.replace({-1: np.nan}) for reads_df in reads_dfs]
 reads_w_nan_dfs[0]
 
 
@@ -2090,7 +2096,7 @@ sns.heatmap(
 title = f"Normalized mutual information between editing sites in squid's Short-reads {shortened_conditions[pclo_index]}"
 plt.title(title)
 
-fig.savefig(f"{title}.svg", dpi=400);
+fig.savefig(f"{title}.svg", dpi=400)
 
 # %%
 fig = px.histogram(
@@ -2135,7 +2141,7 @@ fig = px.histogram(
 fig.update_layout(
     barmode="overlay",
     width=1000,
-    height=450
+    height=450,
     #     # showlegend=False,
 )
 fig.update_traces(opacity=0.7)
@@ -2704,7 +2710,9 @@ fig = px.histogram(
 # fig.update_layout(showlegend=False, yaxis_title="Positions")
 fig.update_layout(showlegend=False)
 fig.update_yaxes(title="Positions")
-fig.for_each_annotation(lambda a: a.update(text=a.text.replace(f"{condition_col}=", "")))
+fig.for_each_annotation(
+    lambda a: a.update(text=a.text.replace(f"{condition_col}=", ""))
+)
 
 fig.show()
 
@@ -3675,14 +3683,10 @@ max_distinct_proteins_per_transcript_and_alg_df = distinct_unique_proteins_df.lo
     distinct_unique_proteins_df["Fraction"] == 1.0
 ].copy()
 
-max_distinct_proteins_per_transcript_and_alg_df[
-    "MaxNumOfProteins"
-] = max_distinct_proteins_per_transcript_and_alg_df.groupby(
-    [condition_col, "Algorithm"]
-)[
-    "NumOfProteins"
-].transform(
-    max
+max_distinct_proteins_per_transcript_and_alg_df["MaxNumOfProteins"] = (
+    max_distinct_proteins_per_transcript_and_alg_df.groupby(
+        [condition_col, "Algorithm"]
+    )["NumOfProteins"].transform(max)
 )
 max_distinct_proteins_per_transcript_and_alg_df["IsMaxNumOfProteins"] = (
     max_distinct_proteins_per_transcript_and_alg_df["NumOfProteins"]
@@ -3891,7 +3895,7 @@ fig.update_layout(
     width=1350,
     # # height=300
     # # width=800,
-    height=430
+    height=430,
     # barmode='overlay' # Overlay both histograms
 )
 
@@ -4114,10 +4118,10 @@ min_max_fraction_1_distinct_prots_df = (
     .agg(["min", "max"])
     .reset_index()
 )
-min_max_fraction_1_distinct_prots_df[
-    "%SolutionsDispersion"
-] = min_max_fraction_1_distinct_prots_df.apply(
-    lambda x: 100 * (x["max"] - x["min"]) / x["max"], axis=1
+min_max_fraction_1_distinct_prots_df["%SolutionsDispersion"] = (
+    min_max_fraction_1_distinct_prots_df.apply(
+        lambda x: 100 * (x["max"] - x["min"]) / x["max"], axis=1
+    )
 )
 min_max_fraction_1_distinct_prots_df[condition_col] = (
     min_max_fraction_1_distinct_prots_df[condition_col]
@@ -5510,6 +5514,7 @@ def find_rand_maximal_solution(
 
 #     return percentile_df
 
+
 # %%
 def choose_sample_solutions(
     expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
@@ -6555,6 +6560,7 @@ SeqIO.write(
 
 # %% [markdown]
 # ##### Clustering functions
+
 
 # %%
 def update_cell(
@@ -7815,9 +7821,11 @@ for (
                     y=points[simplex, 1],
                     # mode='lines+markers',
                     mode="lines",
-                    line=dict(color=color, width=2, dash="dash")
-                    if unique_label == "*"
-                    else dict(color=color, width=2),
+                    line=(
+                        dict(color=color, width=2, dash="dash")
+                        if unique_label == "*"
+                        else dict(color=color, width=2)
+                    ),
                     # marker=dict(
                     #     color=color,
                     #     size=4,
@@ -7921,10 +7929,10 @@ for (
         relative_expression_df.groupby("HDBSCAN labels").sum().reset_index()
     )
     # format hdbscan clusters' names
-    hdbscan_groups_summed_expression_df[
-        "HDBSCAN labels"
-    ] = hdbscan_groups_summed_expression_df["HDBSCAN labels"].apply(
-        lambda x: hdbscan_labels_dict[x]
+    hdbscan_groups_summed_expression_df["HDBSCAN labels"] = (
+        hdbscan_groups_summed_expression_df["HDBSCAN labels"].apply(
+            lambda x: hdbscan_labels_dict[x]
+        )
     )
 
     x = hdbscan_groups_summed_expression_df["HDBSCAN labels"]
@@ -8064,6 +8072,7 @@ fig.show()
 # )
 
 # shannon_df
+
 
 # %%
 def calc_data_entropy_new(assignment_df, prcnt_exp_col):
@@ -8278,16 +8287,32 @@ fig.show()
 # %%
 for assignment_df in assignment_dfs:
     assignment_df["300 most expressed"] = assignment_df.index < 300
-    assignment_df["1000 least expressed"] = assignment_df.index >= assignment_df.shape[0] - 1000
+    assignment_df["1000 least expressed"] = (
+        assignment_df.index >= assignment_df.shape[0] - 1000
+    )
 merged_assignment_df = pd.concat(assignment_dfs).reset_index(drop=True)
-merged_assignment_df = merged_assignment_df.loc[merged_assignment_df["300 most expressed"] | merged_assignment_df["1000 least expressed"]]
-merged_assignment_df["Abundancy"] = merged_assignment_df["300 most expressed"].apply(lambda x: "300 most expressed" if x else "1000 least expressed")
+merged_assignment_df = merged_assignment_df.loc[
+    merged_assignment_df["300 most expressed"]
+    | merged_assignment_df["1000 least expressed"]
+]
+merged_assignment_df["Abundancy"] = merged_assignment_df["300 most expressed"].apply(
+    lambda x: "300 most expressed" if x else "1000 least expressed"
+)
 merged_assignment_df
 
 # %%
-assert merged_assignment_df.loc[merged_assignment_df["300 most expressed"]].shape[0] == len(conditions) * 300
-assert merged_assignment_df.loc[merged_assignment_df["1000 least expressed"]].shape[0] == len(conditions) * 1000
-assert merged_assignment_df.loc[merged_assignment_df["300 most expressed"] & merged_assignment_df["1000 least expressed"]].empty
+assert (
+    merged_assignment_df.loc[merged_assignment_df["300 most expressed"]].shape[0]
+    == len(conditions) * 300
+)
+assert (
+    merged_assignment_df.loc[merged_assignment_df["1000 least expressed"]].shape[0]
+    == len(conditions) * 1000
+)
+assert merged_assignment_df.loc[
+    merged_assignment_df["300 most expressed"]
+    & merged_assignment_df["1000 least expressed"]
+].empty
 
 
 # %%
@@ -8311,7 +8336,9 @@ es_in_rare_vs_abundant_isoforms_df["AdjustdedPV"] = adjusted
 es_in_rare_vs_abundant_isoforms_df
 
 # %%
-merged_assignment_df.groupby([condition_col, "Abundancy"])["EditedPositions"].agg(["mean", "median"])
+merged_assignment_df.groupby([condition_col, "Abundancy"])["EditedPositions"].agg(
+    ["mean", "median"]
+)
 
 # %%
 # cols = min(4, len(conditions))
@@ -8348,19 +8375,20 @@ for condition, (row, col) in zip(conditions, row_col_iter):
             # jitter=0.05
         ),
         row=row,
-        col=col
+        col=col,
         # col=1,
     )
 # fig.update_yaxes(zerolinewidth=zerolinewidth, tickmode="linear", tick0=0, dtick=0.2)
 
 fig.update_xaxes(
-        # tickangle = 90,
-        # title_text = "Month",
-        # title_font = {"size": 20},
-        title_standoff = 50)
+    # tickangle = 90,
+    # title_text = "Month",
+    # title_font = {"size": 20},
+    title_standoff=50
+)
 
-width=1200
-height=900
+width = 1200
+height = 900
 
 fig.update_layout(
     template=template,
@@ -8784,4 +8812,3 @@ fig.write_image(
 )
 
 # fig.show()
-

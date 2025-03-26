@@ -1658,7 +1658,7 @@ list(
 # ### Correlation matrix
 
 # %%
-reads_w_nan_dfs = [reads_df.replace({-1: np.NaN}) for reads_df in reads_dfs]
+reads_w_nan_dfs = [reads_df.replace({-1: np.nan}) for reads_df in reads_dfs]
 reads_w_nan_dfs[0]
 
 

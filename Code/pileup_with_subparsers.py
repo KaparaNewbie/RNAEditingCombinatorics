@@ -1,7 +1,7 @@
 """
 This script is an updated version of create_transcript_pileup.py.
 It should perform pileup on the complete ORF of each gene, and then create 4 matrices:
-1. Reads (0/1/NaN per base) 
+1. Reads (0/1/NaN per base)
 2. Unique reads ("Transcripts")
 3. Proteins (derived from Reads by translation)
 4. Unique proteins
@@ -134,14 +134,20 @@ def undirected_sequencing_main(
     if min_known_sites > 0:
         alignments_stats_df = alignments_stats_df.loc[
             (alignments_stats_df["Samples"] >= min_samples)
-            & (alignments_stats_df["MappedReadsPerSample"] >= min_mapped_reads_per_sample)
+            & (
+                alignments_stats_df["MappedReadsPerSample"]
+                >= min_mapped_reads_per_sample
+            )
             & (alignments_stats_df["KnownSites"] >= min_known_sites)
             & (alignments_stats_df["MappedReads"] >= total_mapped_reads)
         ]
     else:
         alignments_stats_df = alignments_stats_df.loc[
             (alignments_stats_df["Samples"] >= min_samples)
-            & (alignments_stats_df["MappedReadsPerSample"] >= min_mapped_reads_per_sample)
+            & (
+                alignments_stats_df["MappedReadsPerSample"]
+                >= min_mapped_reads_per_sample
+            )
             & (alignments_stats_df["MappedReads"] >= total_mapped_reads)
         ]
 
@@ -508,7 +514,7 @@ def simulate_complete_and_corresponding_errored_partially_unknown_main(
     compression_postfix: str,
     # **kwargs,
 ):
-    
+
     # snp_noise_level = 0.1
     # top_x_noisy_positions = 3
     # assurance_factor = 1.5
@@ -517,7 +523,7 @@ def simulate_complete_and_corresponding_errored_partially_unknown_main(
     # min_percent_of_max_coverage = 0.1
     # group_col = "Gene"
     # compression_postfix = ".gz"
-    
+
     if strand != "+":
         raise ValueError("Only positive strand is supported for this simulation")
     parity = "SE"
@@ -713,7 +719,7 @@ def directed_sequencing_main(
     prob_regions_beds = list(
         map(
             lambda path: BedTool(path) if path else None,
-            data_table[prob_regions_bed_col].replace({np.NaN: ""}),
+            data_table[prob_regions_bed_col].replace({np.nan: ""}),
         )
     )
     # prob_regions_beds = [BedTool(path) for path in data_table[prob_regions_bed_col]]
