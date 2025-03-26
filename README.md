@@ -608,12 +608,11 @@ python Code/align.py \
 whole_transcriptome_isoseq \
 --postfix ".hifireads.bam" \
 --known_sites_bed_file D.pealeii/Annotations/Jan2025/D.pea.EditingSites.bed \
-> D.pealeii/Alignment/UMILongReads/align.26.1.2025.out &
+> D.pealeii/Alignment/UMILongReads/align.25.3.2025.out &
 ```
 
 - alu 18
-- 11:41
-- 26.1.2025
+- 16:07
 
 ### Squid long reads w/ UMIs - merged samples
 
@@ -631,11 +630,11 @@ python Code/align.py \
 --threads 15 \
 pacbio \
 --postfix ".hifireads.bam" \
-> D.pealeii/Alignment/UMILongReads.MergedSamples/align.29.1.2025.out &
+> D.pealeii/Alignment/UMILongReads.MergedSamples/align.25.3.2025.out &
 ```
 
-- alu 15
-- 13:28
+- alu 17
+- 16:12
 
 ### Squid short reads
 
@@ -1333,10 +1332,10 @@ undirected_sequencing_data \
 --interfix_start ".r64296e203404D01" \
 --cds_regions D.pealeii/Annotations/Jan2025/orfs_squ.bed \
 --min_mapped_reads_per_position 0 \
-> D.pealeii/MpileupAndTranscripts/UMILongReads/pileup.29.1.25.out &
+> D.pealeii/MpileupAndTranscripts/UMILongReads/pileup.25.3.25.out &
 ```
 
-- alu 13
+- alu 18
 - 14:38
 
 Checking number of unique proteins:
@@ -1351,7 +1350,7 @@ zcat /private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongRea
 ### Distinct proteins
 
 ```bash
-tmux new -s COMB18
+tmux new -s COMB17
 
 COMB
 
@@ -1361,7 +1360,7 @@ INFILES=$(echo D.pealeii/MpileupAndTranscripts/UMILongReads/ProteinsFiles/*.uniq
 
 julia \
 --project=. \
---threads 80 --proc 10 \
+--threads 60 --proc 10 \
 Code/Simulations/maximal_independent_set_5.jl \
 --infiles $INFILES \
 --postfix_to_remove .unique_proteins.csv.gz \
@@ -1374,7 +1373,7 @@ Code/Simulations/maximal_independent_set_5.jl \
 --algrepetitions 2 \
 --algs Ascending Descending \
 --run_solve_threaded \
-2>&1 | tee D.pealeii/MpileupAndTranscripts/UMILongReads/DistinctProteins/DistinctProteins.Regular.30.1.2025.log
+2>&1 | tee D.pealeii/MpileupAndTranscripts/UMILongReads/DistinctProteins/DistinctProteins.Regular.25.3.2025.log
 ```
 
 #### Expression levels
@@ -1394,7 +1393,7 @@ mkdir $UMI_DIR/ExpressionLevels
 nohup \
 julia \
 --project=. \
---threads 60 \
+--threads 30 \
 Code/Simulations/expressionlevels.jl \
 --distinctfilesfofn $UMI_DIR/DistinctProteinsForExpressionLevels.txt \
 --allprotsfilesfofn $UMI_DIR/UniqueProteinsForExpressionLevels.txt \
@@ -1402,7 +1401,7 @@ Code/Simulations/expressionlevels.jl \
 --firstcolpos 16 \
 --fractions 0.2 0.4 0.6 0.8 1.0 \
 --outdir $UMI_DIR/ExpressionLevels \
-> $UMI_DIR/expressionlevels.2.2.25.out &
+> $UMI_DIR/expressionlevels.26.3.25.out &
 ```
 
 - alu18
@@ -1435,11 +1434,11 @@ nohup python Code/pileup_with_subparsers.py \
 directed_sequencing_data \
 --data_table D.pealeii/Alignment/UMILongReads.MergedSamples/DataTable.Squid.MergedUMILongReads.csv \
 --cds_regions D.pealeii/Annotations/Jan2025/orfs_squ.bed \
-> D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/pileup.29.1.25.out &
+> D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/pileup.25.3.25.out &
 ```
 
 - alu 17
-- 13:55
+- 19:26
 
 > (combinatorics) [kobish@alu17 Combinatorics]$ zcat /private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz | wc -l
 > 147741
@@ -1453,7 +1452,7 @@ directed_sequencing_data \
 ##### Distinct isoforms
 
 ```bash
-tmux new -s COMB13
+tmux new -s COMB18
 
 COMB
 
@@ -1476,7 +1475,7 @@ Code/Simulations/maximal_independent_set_5.jl \
 --algrepetitions 2 \
 --algs Ascending Descending \
 --run_solve_threaded \
-2>&1 | tee D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/DistinctProteins.Regular.29.1.2025.log
+2>&1 | tee D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/DistinctProteins.Regular.25.3.2025.log
 ```
 
 - alu 13
@@ -1522,17 +1521,16 @@ julia \
 --project=. \
 --threads 40 \
 Code/Simulations/expressionlevels.jl \
---distinctfiles $UMI_DIR/ADAR1.Merged.DistinctUniqueProteins.29.01.2025-22:57:33.csv $UMI_DIR/IQEC.Merged.DistinctUniqueProteins.29.01.2025-18:40:32.csv \
+--distinctfiles $UMI_DIR/ADAR1.Merged.DistinctUniqueProteins.26.03.2025-04:39:41.csv $UMI_DIR/IQEC.Merged.DistinctUniqueProteins.26.03.2025-00:27:18.csv \
 --allprotsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
 --samplenames ADAR1 IQEC1 \
 --firstcolpos 15 \
 --fractions 0.2 0.4 0.6 0.8 1.0 \
 --outdir $UMI_DIR \
-> $UMI_DIR/expressionlevels.2.2.25.out &
+> $UMI_DIR/expressionlevels.26.3.25.out &
 ```
-* alu13
-* 16:02
 
+- alu18
 
 ## O.vul single-cell data
 
