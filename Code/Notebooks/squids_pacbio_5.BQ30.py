@@ -697,6 +697,11 @@ unique_proteins_dfs[1].loc[:, cols_which_contain_blosum62_nonsyn_2]
 # %%
 
 # %% [markdown]
+# #### Dissimilar
+
+# %%
+
+# %% [markdown]
 # ### Distinct unique proteins
 
 # %%
@@ -9385,62 +9390,136 @@ assignment_dissimilar_dfs_by_dissimilarity_and_condition = {
 assignment_dissimilar_dfs_by_dissimilarity_and_condition[("Miyata", "GRIA")]
 
 # %%
-distinct_dissimilar_dfs_by_dissimilarity_and_condition = {
-    (dissimilarity, condition): df
-    for (dissimilarity, condition), df in zip(
-        product(dissimilarities, conditions),
-        distinct_dissimilar_miyata_proteins_dfs
-        + distinct_dissimilar_grantham_proteins_dfs,
-    )
-}
-distinct_dissimilar_dfs_by_dissimilarity_and_condition[("Miyata", "GRIA")]
-
-# %%
-# distinct_dissimilar_miyata_proteins_dfs[0]
-
-# %%
-# distinct_dissimilar_grantham_proteins_dfs
+# distinct_dissimilar_dfs_by_dissimilarity_and_condition = {
+#     (dissimilarity, condition): df
+#     for (dissimilarity, condition), df in zip(
+#         product(dissimilarities, conditions),
+#         distinct_dissimilar_miyata_proteins_dfs
+#         + distinct_dissimilar_grantham_proteins_dfs,
+#     )
+# }
+# distinct_dissimilar_dfs_by_dissimilarity_and_condition[("Miyata", "GRIA")]
 
 # %% [markdown]
 # ##### Clustering: kmeans
 
 # %%
-dissimilar_weighted_exp_clustering_input_dfs = [
-    prepare_ml_input_df_new(
-        assignment_df,
-        unique_proteins_df,
-        unique_proteins_first_col_pos,
-    )
-    for assignment_df, unique_proteins_df in zip(assignment_dfs, unique_proteins_dfs)
-]
+# dissimilar_weighted_exp_clustering_input_dfs = [
+#     prepare_ml_input_df_new(
+#         assignment_df,
+#         unique_proteins_df,
+#         unique_proteins_first_col_pos,
+#     )
+#     for assignment_df, unique_proteins_df in zip(assignment_dfs, unique_proteins_dfs)
+# ]
 
-weighted_exp_tsne_input_dfs[0]
+dissimilar_weighted_exp_clustering_input_dfs = {}
+
+for condition, unique_proteins_df in zip(conditions, unique_proteins_dfs):
+    for dissimilarity in dissimilarities:
+        assignment_df = assignment_dissimilar_dfs_by_dissimilarity_and_condition[
+            (dissimilarity, condition)
+        ]
+        dissimilar_weighted_exp_clustering_input_df = prepare_ml_input_df_new(
+            assignment_df,
+            unique_proteins_df,
+            unique_proteins_first_col_pos,
+        )
+        dissimilar_weighted_exp_clustering_input_dfs[(dissimilarity, condition)] = (
+            dissimilar_weighted_exp_clustering_input_df
+        )
+
+
+dissimilar_weighted_exp_clustering_input_dfs[("Miyata", "GRIA")]
 
 # %%
-X = weighted_exp_tsne_input_dfs[0].iloc[:, ML_INPUT_FIRST_COL_POS_NEW:].values
+X = (
+    dissimilar_weighted_exp_clustering_input_dfs[("Miyata", "GRIA")]
+    .iloc[:, ML_INPUT_FIRST_COL_POS_NEW:]
+    .values
+)
 X
-
-# %%
-# weighted_exp_tsne_input_dfs
 
 # %%
 X.shape
 
 # %%
-cluster_sizes = list(range(10, 510, 10))  # 10, 20, ..., 500
-# cluster_sizes = list(range(10, 60, 10)) # 10, 20, ..., 50
+X.shape[0]
 
 # %%
-conditions_Xs = [
-    weighted_exp_tsne_input_df.iloc[:, ML_INPUT_FIRST_COL_POS_NEW:].values
-    for weighted_exp_tsne_input_df in weighted_exp_tsne_input_dfs
+kmeans = [
+    MiniBatchKMeans(
+        n_clusters=n_clusters,
+        init="k-means++",
+        n_init=5,
+        verbose=0,
+        random_state=rng,
+    ).fit(X)
+    for n_clusters in cluster_sizes
 ]
+kmeans[0]
+
+# %%
+print(kmeans[0])
+
+# %%
+len(kmeans)
+
+# %%
+# dissimilar_cluster_sizes = list(range(10, 510, 10))  # 10, 20, ..., 500
+dissimilar_cluster_sizes = list(range(10, 260, 10))  # 10, 20, ..., 260
+
+# %%
+dissimilarity_condition_Xs = {
+    (dissimilarity, condition): df.iloc[:, ML_INPUT_FIRST_COL_POS_NEW:].values
+    for (
+        dissimilarity,
+        condition,
+    ), df in dissimilar_weighted_exp_clustering_input_dfs.items()
+}
+
+dissimilarity_condition_Xs[("Miyata", "GRIA")]
+
+# %%
+# rng = np.random.RandomState(seed)
+
+# dissimilarity_condition_kmeans = {}
+
+# for (
+#     dissimilarity,
+#     condition,
+# ), X in dissimilarity_condition_Xs.items():
+
+#     ic(dissimilarity, condition)
+
+#     kmeans_per_cluster_size = []
+
+#     for n_clusters in cluster_sizes:
+#         # ic(n_clusters)
+#         if
+#         try:
+
+#             kmeans = MiniBatchKMeans(
+#                 n_clusters=n_clusters,
+#                 init="k-means++",
+#                 n_init=5,
+#                 verbose=0,
+#                 random_state=rng,
+#             ).fit(X)
+#             kmeans_per_cluster_size.append(kmeans)
+#         except e:
+#             ic(n_clusters)
+#             raise e
+
+#     dissimilarity_condition_kmeans[(dissimilarity, condition)] = kmeans_per_cluster_size
+
+# dissimilarity_condition_kmeans[("Miyata", "GRIA")]
 
 # %%
 rng = np.random.RandomState(seed)
 
-conditions_kmeans = [
-    [
+dissimilarity_condition_kmeans = {
+    (dissimilarity, condition): [
         MiniBatchKMeans(
             n_clusters=n_clusters,
             init="k-means++",
@@ -9448,92 +9527,207 @@ conditions_kmeans = [
             verbose=0,
             random_state=rng,
         ).fit(X)
-        for n_clusters in cluster_sizes
+        for n_clusters in dissimilar_cluster_sizes
     ]
-    for X in conditions_Xs
-]
-# kmeans[0]
+    for (
+        dissimilarity,
+        condition,
+    ), X in dissimilarity_condition_Xs.items()
+}
+
+# dissimilarity_condition_kmeans[("Miyata", "GRIA")]
 
 # %%
-conditions_kmeans_silhouette_scores = [
-    [silhouette_score(X, km.labels_) for km in condition_kmeans]
-    for condition_kmeans, X in zip(conditions_kmeans, conditions_Xs)
-]
-# kmeans_silhouette_scores[0]
-
-# %%
-cols = min(facet_col_wrap, len(conditions), 5)
-rows = ceil(len(conditions) / cols)
-row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
-
-fig = make_subplots(
-    rows=rows,
-    cols=cols,
-    subplot_titles=fixed_conditions,
-    shared_xaxes=True,
-    shared_yaxes=True,
-    x_title="Number of clusters (k)",
-    y_title="Mean silhouette score<br>of MiniBatchKMeans",
-    # column_titles=["Mean silhouette score", "Inertia score"],
-    # row_titles=conditions
-)
-
-# min_x = None
-# max_x = 0
-# max_y = 0
-
-marker_size = 3
-line_width = 0.5
-
-x = cluster_sizes
+dissimilarity_condition_kmeans_silhouette_scores = {}
 
 for (
-    (row, col),
+    dissimilarity,
     condition,
-    kmeans,
-    kmeans_silhouette_scores,
-) in zip(
-    row_col_iter,
-    conditions,
-    conditions_kmeans,
-    conditions_kmeans_silhouette_scores,
-):
-    color = color_discrete_map[condition]
+), X in dissimilarity_condition_Xs.items():
+    kms = dissimilarity_condition_kmeans[(dissimilarity, condition)]
+    silhouette_scores = [silhouette_score(X, km.labels_) for km in kms]
+    dissimilarity_condition_kmeans_silhouette_scores[(dissimilarity, condition)] = (
+        silhouette_scores
+    )
 
+# dissimilarity_condition_kmeans_silhouette_scores[("Miyata", "GRIA")]
+
+# %%
+assert (
+    distinct_dissimilar_grantham_proteins_df["CutoffScore"].value_counts()[100]
+    == distinct_dissimilar_grantham_proteins_df.shape[0]
+)
+
+_distinct_dissimilar_dfs = {
+    "Miyata": distinct_dissimilar_miyata_proteins_df,
+    "Grantham 100": distinct_dissimilar_grantham_proteins_df,
+}
+
+# _distinctions = {"Miyata": 1, "Grantham": 2}
+_distinctions = ["Miyata", "Grantham 100"]
+_dissimilar_colormaps = {
+    condition: n_repetitions_colormap(
+        subcolors_discrete_map, condition, len(_distinct_dissimilar_dfs)
+    )
+    for condition in conditions
+}
+symbol_per_distinction = {"Miyata": "square-dot", "Grantham 100": "diamond"}
+same_fill_color_per_distinction = {"Miyata": True, "Grantham 100": False}
+# n_similarities = 2
+# fill_color_similarities = [True] * n_similarities + [False] * (
+#     len(symbols) - n_similarities
+# )
+# marker_size = 5
+# marker_line_width = 2
+marker_size = 4
+marker_line_width = 0.5
+nticks = 6
+
+# maximal_x = 0
+# maximal_y = 0
+
+fig = make_subplots(
+    rows=1,
+    cols=len(dissimilarities),
+    print_grid=False,
+    subplot_titles=dissimilarities,
+    shared_xaxes=True,
+    shared_yaxes=True,
+    x_title="Number of dissimilar clusters (k)",
+    y_title="Mean silhouette score<br>of MiniBatchKMeans",
+)
+
+
+for col, dissimilarity in enumerate(dissimilarities, start=1):
+    for condition in conditions:
+
+        color = color_discrete_map[condition]
+
+        kmeans_silhouette_scores = dissimilarity_condition_kmeans_silhouette_scores[
+            (dissimilarity, condition)
+        ]
+
+        fig.add_trace(
+            go.Scattergl(
+                # go.Scatter(
+                x=dissimilar_cluster_sizes,
+                y=kmeans_silhouette_scores,
+                mode="markers",
+                marker=dict(
+                    color=color,
+                    # color=labels[clustered],
+                    # colorscale="Blackbody",
+                    # line_width=line_width,
+                    size=marker_size,
+                    line=dict(width=marker_line_width, color=color),
+                ),
+                showlegend=False,
+            ),
+            row=1,
+            col=col,
+        )
+
+        # maximal_x = max(maximal_x, x_measured.max())
+        # maximal_y = max(maximal_y, y_measured.max())
+
+    # distinction_max_y = _distinct_df["NumOfProteins"].max()
+    # # distinction_max_y_rounded = round_to_natural_new(distinction_max_y)
+    # dtick = round_to_natural_new(distinction_max_y / nticks)
+
+    # fig.update_yaxes(
+    #     row=1,
+    #     col=col,
+    #     #  range=[0, None],
+    #     range=[0, None],
+    #     dtick=dtick,
+    #     nticks=nticks,
+    # )
+
+    # distinction_max_y = _distinct_df["NumOfProteins"].max()
+    # distinction_max_y_rounded = round_to_natural_new(distinction_max_y)
+    # dtick = int(round_to_natural_new(distinction_max_y / nticks))
+    # tickvals = list(range(0, distinction_max_y_rounded + dtick, dtick))
+    # ic(distinction_max_y, distinction_max_y_rounded, dtick, tickvals)
+
+    # fig.update_yaxes(
+    #     row=1,
+    #     col=col,
+    #     #  range=[0, None],
+    #     range=[0, distinction_max_y_rounded],
+    #     tickvals=tickvals,
+    #     # dtick=dtick,
+    #     # nticks=nticks,
+    # )
+
+
+# add empty traces for legend
+for fixed_condition, condition in zip(fixed_conditions, conditions):
+    color = color_discrete_map[condition]
     fig.add_trace(
-        go.Scattergl(
-            # go.Scatter(
-            x=x,
-            y=kmeans_silhouette_scores,
+        go.Scatter(
+            x=[None],
+            y=[None],
             mode="markers",
             marker=dict(
                 color=color,
-                # color=labels[clustered],
-                # colorscale="Blackbody",
-                line_width=line_width,
-                size=marker_size,
+                size=6,
+                # symbol=symbol,
+                line=dict(width=marker_line_width, color=color),
             ),
+            name=fixed_condition,
         ),
-        row=row,
-        col=col,
+        row=1,
+        col=1,
     )
 
-fig.update_yaxes(rangemode="tozero", tick0=0.0, dtick=0.01)
-
-fig.update_layout(
-    title_text="Long-reads",
-    title_x=0.15,
-    # title_y=0.95,
-    template=template,
-    showlegend=False,
-    width=600,
-    height=350,
+fig.update_yaxes(
+    rangemode="tozero",
+    range=[0, None],
+    #  tick0=0.0, dtick=0.01
 )
 
+width = 800
+height = 470
+
+fig.update_layout(
+    template=template,
+    # title="Squid's Long-reads",
+    title="Long-reads",
+    title_x=0.15,
+    #     autosize=False,
+    #     # margin_r=200,
+    # legend=dict(
+    #     orientation="h",
+    #     entrywidth=90,
+    #     yanchor="bottom",
+    #     # y=1.02,
+    #     y=0.15,
+    #     xanchor="right",
+    #     x=0.8,
+    #     # # orientation="h",
+    #     # yanchor="bottom",
+    #     # y=0.1,
+    #     # xanchor="left",
+    #     # # x=0.95,
+    #     # x=0.1,
+    #     # # itemsizing='constant'
+    # ),
+    # # legend_grouptitlefont_size=12,
+    # # legend_font=dict(size=12),
+    # legend_tracegroupgap=0,
+    height=height,
+    width=width,
+)
+# fig.write_image(
+#     "Distinct dissimilar proteins vs. sequencing depth - PacBio.svg",
+#     height=height,
+#     width=width,
+# )
+
 fig.write_image(
-    "Mean silhouette score of MiniBatchKMeans vs. K size - PacBio.svg",
-    width=600,
-    height=350,
+    "Mean silhouette score of MiniBatchKMeans vs. K size - PacBio - dissimilar.svg",
+    height=height,
+    width=width,
 )
 
 fig.show()
