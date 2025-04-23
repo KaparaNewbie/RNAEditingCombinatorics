@@ -1721,8 +1721,397 @@ Code/Simulations/expressionlevels.jl \
 > $SC_1000_DIR/expressionlevels.2.2.25.out &
 ```
 
+
 - alu18
 - 12:45
+
+
+### total_mapped_reads 50 - neuronal
+
+#### Pileup
+
+```bash
+
+OUT_DIR=O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50.Neuronal
+ALIGNMENT_DIR=/private10/Projects/David/Kobi_octupus/splitSites/neuronal_reads/
+
+mkdir -p $OUT_DIR
+
+nohup python Code/pileup_with_subparsers.py \
+--transcriptome O.vulgaris/Annotations/orfs_oct.fa \
+--known_editing_sites O.vulgaris/Annotations/O.vul.EditingSites.bed \
+--exclude_flags 2304 \
+--parity SE \
+--min_bq 30 \
+--out_dir $OUT_DIR \
+--processes 20 \
+--threads 5 \
+--gz_compression \
+undirected_sequencing_data \
+--alignments_stats_table $ALIGNMENT_DIR/neuronal_summary.tsv \
+--total_mapped_reads 50 \
+--alternative_hypothesis larger \
+--final_editing_scheme "BH after noise thresholding" \
+--disregard_alt_base_freq_1 \
+--main_by_chrom_dir $ALIGNMENT_DIR \
+--interfix_start ".comp" \
+--cds_regions O.vulgaris/Annotations/orfs_oct.bed \
+--min_mapped_reads_per_position 0 \
+> $OUT_DIR/pileup.10.4.25.out &
+```
+
+- alu 18
+- 11:45
+
+#### Distinct proteins
+
+```bash
+tmux new -s COMB18
+
+COMB
+
+BASE_DIR=O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50.Neuronal
+OUT_DIR=$BASE_DIR/DistinctProteins
+
+INFILES=$(echo $BASE_DIR/ProteinsFiles/*.unique_proteins.csv.gz)
+
+mkdir $OUT_DIR
+
+julia \
+--project=. \
+--threads 60 --proc 8 \
+Code/Simulations/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .unique_proteins.csv.gz \
+--idcol Protein \
+--firstcolpos 16 \
+--datatype Proteins \
+--outdir $OUT_DIR \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee $OUT_DIR/DistinctProteins.regular.10.4.25.log
+```
+
+#### Expression levels
+
+```bash
+tmux a -t COMB18 
+
+python \
+Code/Simulations/prepare_fofns_for_expression.py \
+--proteins_dir  $BASE_DIR/ProteinsFiles \
+--distinct_proteins_dir $BASE_DIR/DistinctProteins \
+--proteins_postfix ".gz"
+
+mkdir $BASE_DIR/ExpressionLevels
+
+nohup \
+julia \
+--project=. \
+--threads 60 \
+Code/Simulations/expressionlevels.jl \
+--distinctfilesfofn $BASE_DIR/DistinctProteins/DistinctProteinsForExpressionLevels.txt \
+--allprotsfilesfofn $BASE_DIR/DistinctProteins/UniqueProteinsForExpressionLevels.txt \
+--samplenamesfile $BASE_DIR/DistinctProteins/ChromsNamesForExpressionLevels.txt \
+--firstcolpos 16 \
+--fractions 0.2 0.4 0.6 0.8 1.0 \
+--outdir $BASE_DIR/ExpressionLevels \
+> $BASE_DIR/expressionlevels.30.1.25.out &
+```
+
+- alu18
+
+### total_mapped_reads 1000 - neuronal
+
+#### Pileup
+
+```bash
+mkdir -p O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage1000
+
+nohup python Code/pileup_with_subparsers.py \
+--transcriptome O.vulgaris/Annotations/orfs_oct.fa \
+--known_editing_sites O.vulgaris/Annotations/O.vul.EditingSites.bed \
+--exclude_flags 2304 \
+--parity SE \
+--min_bq 30 \
+--out_dir O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage1000 \
+--processes 20 \
+--threads 5 \
+--gz_compression \
+undirected_sequencing_data \
+--alignments_stats_table /private10/Projects/David/Kobi_octupus/splitSites/Whole_collapsed_sample.regatedByChromBySampleSummary.tsv \
+--total_mapped_reads 1000 \
+--alternative_hypothesis larger \
+--final_editing_scheme "BH after noise thresholding" \
+--disregard_alt_base_freq_1 \
+--main_by_chrom_dir /private10/Projects/David/Kobi_octupus/splitSites/Whole_collapsed_sample \
+--interfix_start ".comp" \
+--cds_regions O.vulgaris/Annotations/orfs_oct.bed \
+--min_mapped_reads_per_position 0 \
+> O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage1000/pileup.27.1.25.out &
+```
+
+- alu 18
+- 27.1.25
+- 11:09
+
+#### Distinct proteins
+
+```bash
+tmux new -s COMB13
+
+COMB
+
+mkdir O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage1000/DistinctProteins
+
+INFILES=$(echo O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage1000/ProteinsFiles/*.unique_proteins.csv.gz)
+
+julia \
+--project=. \
+--threads 80 --proc 10 \
+Code/Simulations/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .unique_proteins.csv.gz \
+--idcol Protein \
+--firstcolpos 16 \
+--datatype Proteins \
+--outdir O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage1000/DistinctProteins \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage1000/DistinctProteins.regular.29.1.2025.log
+```
+
+#### Expression levels
+
+```bash
+SC_1000_DIR=O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage1000
+
+python \
+Code/Simulations/prepare_fofns_for_expression.py \
+--proteins_dir $SC_1000_DIR/ProteinsFiles \
+--distinct_proteins_dir $SC_1000_DIR/DistinctProteins \
+--proteins_postfix ".gz" \
+--out_dir $SC_1000_DIR
+
+mkdir $SC_1000_DIR/ExpressionLevels
+
+nohup \
+julia \
+--project=. \
+--threads 60 \
+Code/Simulations/expressionlevels.jl \
+--distinctfilesfofn $SC_1000_DIR/DistinctProteinsForExpressionLevels.txt \
+--allprotsfilesfofn $SC_1000_DIR/UniqueProteinsForExpressionLevels.txt \
+--samplenamesfile $SC_1000_DIR/ChromsNamesForExpressionLevels.txt \
+--firstcolpos 16 \
+--fractions 0.2 0.4 0.6 0.8 1.0 \
+--outdir $SC_1000_DIR/ExpressionLevels \
+> $SC_1000_DIR/expressionlevels.2.2.25.out &
+```
+
+- alu18
+- 12:45
+
+
+### total_mapped_reads 50 - non-neuronal
+
+#### Pileup
+
+```bash
+
+OUT_DIR=O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50.NonNeuronal
+ALIGNMENT_DIR=/private10/Projects/David/Kobi_octupus/splitSites/non_neuronal_reads
+
+mkdir -p $OUT_DIR
+
+nohup python Code/pileup_with_subparsers.py \
+--transcriptome O.vulgaris/Annotations/orfs_oct.fa \
+--known_editing_sites O.vulgaris/Annotations/O.vul.EditingSites.bed \
+--exclude_flags 2304 \
+--parity SE \
+--min_bq 30 \
+--out_dir $OUT_DIR \
+--processes 20 \
+--threads 5 \
+--gz_compression \
+undirected_sequencing_data \
+--alignments_stats_table $ALIGNMENT_DIR/non_neuronal_summary.tsv \
+--total_mapped_reads 50 \
+--alternative_hypothesis larger \
+--final_editing_scheme "BH after noise thresholding" \
+--disregard_alt_base_freq_1 \
+--main_by_chrom_dir $ALIGNMENT_DIR \
+--interfix_start ".comp" \
+--cds_regions O.vulgaris/Annotations/orfs_oct.bed \
+--min_mapped_reads_per_position 0 \
+> $OUT_DIR/pileup.10.4.25.out &
+```
+
+- alu 16
+- 11:50
+
+#### Distinct proteins
+
+```bash
+tmux new -s COMB16
+
+COMB
+
+BASE_DIR=O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50.NonNeuronal
+OUT_DIR=$BASE_DIR/DistinctProteins
+
+INFILES=$(echo $BASE_DIR/ProteinsFiles/*.unique_proteins.csv.gz)
+
+mkdir $OUT_DIR
+
+julia \
+--project=. \
+--threads 60 --proc 8 \
+Code/Simulations/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .unique_proteins.csv.gz \
+--idcol Protein \
+--firstcolpos 16 \
+--datatype Proteins \
+--outdir $OUT_DIR \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee $OUT_DIR/DistinctProteins.regular.10.4.25.log
+```
+
+#### Expression levels
+
+```bash
+tmux a -t COMB16
+
+python \
+Code/Simulations/prepare_fofns_for_expression.py \
+--proteins_dir  $BASE_DIR/ProteinsFiles \
+--distinct_proteins_dir $BASE_DIR/DistinctProteins \
+--proteins_postfix ".gz"
+
+mkdir $BASE_DIR/ExpressionLevels
+
+nohup \
+julia \
+--project=. \
+--threads 60 \
+Code/Simulations/expressionlevels.jl \
+--distinctfilesfofn $BASE_DIR/DistinctProteins/DistinctProteinsForExpressionLevels.txt \
+--allprotsfilesfofn $BASE_DIR/DistinctProteins/UniqueProteinsForExpressionLevels.txt \
+--samplenamesfile $BASE_DIR/DistinctProteins/ChromsNamesForExpressionLevels.txt \
+--firstcolpos 16 \
+--fractions 0.2 0.4 0.6 0.8 1.0 \
+--outdir $BASE_DIR/ExpressionLevels \
+> $BASE_DIR/expressionlevels.30.1.25.out &
+```
+
+- alu18
+- 19:51
+
+### total_mapped_reads 1000 - non-neuronal
+
+#### Pileup
+
+```bash
+mkdir -p O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage1000
+
+nohup python Code/pileup_with_subparsers.py \
+--transcriptome O.vulgaris/Annotations/orfs_oct.fa \
+--known_editing_sites O.vulgaris/Annotations/O.vul.EditingSites.bed \
+--exclude_flags 2304 \
+--parity SE \
+--min_bq 30 \
+--out_dir O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage1000 \
+--processes 20 \
+--threads 5 \
+--gz_compression \
+undirected_sequencing_data \
+--alignments_stats_table /private10/Projects/David/Kobi_octupus/splitSites/Whole_collapsed_sample.regatedByChromBySampleSummary.tsv \
+--total_mapped_reads 1000 \
+--alternative_hypothesis larger \
+--final_editing_scheme "BH after noise thresholding" \
+--disregard_alt_base_freq_1 \
+--main_by_chrom_dir /private10/Projects/David/Kobi_octupus/splitSites/Whole_collapsed_sample \
+--interfix_start ".comp" \
+--cds_regions O.vulgaris/Annotations/orfs_oct.bed \
+--min_mapped_reads_per_position 0 \
+> O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage1000/pileup.27.1.25.out &
+```
+
+- alu 18
+- 27.1.25
+- 11:09
+
+#### Distinct proteins
+
+```bash
+tmux new -s COMB13
+
+COMB
+
+mkdir O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage1000/DistinctProteins
+
+INFILES=$(echo O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage1000/ProteinsFiles/*.unique_proteins.csv.gz)
+
+julia \
+--project=. \
+--threads 80 --proc 10 \
+Code/Simulations/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .unique_proteins.csv.gz \
+--idcol Protein \
+--firstcolpos 16 \
+--datatype Proteins \
+--outdir O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage1000/DistinctProteins \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage1000/DistinctProteins.regular.29.1.2025.log
+```
+
+#### Expression levels
+
+```bash
+SC_1000_DIR=O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage1000
+
+python \
+Code/Simulations/prepare_fofns_for_expression.py \
+--proteins_dir $SC_1000_DIR/ProteinsFiles \
+--distinct_proteins_dir $SC_1000_DIR/DistinctProteins \
+--proteins_postfix ".gz" \
+--out_dir $SC_1000_DIR
+
+mkdir $SC_1000_DIR/ExpressionLevels
+
+nohup \
+julia \
+--project=. \
+--threads 60 \
+Code/Simulations/expressionlevels.jl \
+--distinctfilesfofn $SC_1000_DIR/DistinctProteinsForExpressionLevels.txt \
+--allprotsfilesfofn $SC_1000_DIR/UniqueProteinsForExpressionLevels.txt \
+--samplenamesfile $SC_1000_DIR/ChromsNamesForExpressionLevels.txt \
+--firstcolpos 16 \
+--fractions 0.2 0.4 0.6 0.8 1.0 \
+--outdir $SC_1000_DIR/ExpressionLevels \
+> $SC_1000_DIR/expressionlevels.2.2.25.out &
+```
+
+- alu18
+- 12:45
+
 
 # Simulations
 
