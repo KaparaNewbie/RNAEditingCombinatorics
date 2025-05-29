@@ -6462,6 +6462,7 @@ fig.update_yaxes(
 )
 
 width = 800
+# width = 650
 height = 800
 
 fig.update_layout(
@@ -6477,36 +6478,203 @@ fig.update_layout(
     # legend_font=dict(size=10),
     # legend_grouptitlefont=dict(size=12),
     # showlegend=False,
-    # legend={
-    #     # "title": "By country",
-    #     "xref": "container",
-    #     "yref": "container",
-    #     # "xref": "paper",
-    #     # "yref": "paper",
-    #     "y": 0.9,
-    #     # "bgcolor": "Orange",
-    # },
-    # legend1={
-    #     # "title": "By continent",
-    #     "xref": "container",
-    #     "yref": "container",
-    #     # "xref": "paper",
-    #     # "yref": "paper",
-    #     "y": 0.5,
-    #     # "bgcolor": "Gold",
-    # },
+    #     legend={
+    #         "title": "Coverage per gene",
+    #         # "xref": "container",
+    #         # "yref": "container",
+    #         # "xref": "paper",
+    #         # "yref": "paper",
+    #         "y": 0.9,
+    #         # "bgcolor": "Orange",
+    #     },
+    #     legend1={
+    #         "title": "Cells",
+    #         # "xref": "container",
+    #         # "yref": "container",
+    #         # "xref": "paper",
+    #         # "yref": "paper",
+    #         # "y": 0.5,
+    #         # "bgcolor": "Gold",
+    #     },
 )
 
-# fig.write_image(
-#     "Distinct proteins per gene vs. % of genes - log(y) - Octopus.svg",
-#     width=width,
-#     height=height,
-# )
+fig.write_image(
+    "Distinct proteins per gene vs. prct of genes - log(y) - Octopus - Single-cell.svg",
+    width=width,
+    height=height,
+)
 
 fig.show()
 
 # %%
-np.log(10) / np.log(10)
+font_size = 24
+
+neural_conditions = ["Yes", "No"]
+neural_trace_names = ["Neural", "Non-neural"]
+neural_color_discrete_map = {
+    "Yes": "red",
+    "No": "rgb(0,170,255)",  # kind of azure
+}
+neural_dfs = []
+for neural_df in [
+    neuronal_max_distinct_proteins_df,
+    non_neuronal_max_distinct_proteins_df,
+]:
+    neural_df = (
+        neural_df.loc[:, ["NumOfProteins"]]
+        .sort_values("NumOfProteins")
+        .reset_index(drop=True)
+    )
+    neural_df["CummulativeTranscripts"] = 100 * (neural_df.index + 1) / len(neural_df)
+    neural_df["CummulativeTranscripts"] = neural_df["CummulativeTranscripts"][
+        ::-1
+    ].values
+    neural_df = neural_df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
+    neural_dfs.append(neural_df)
+
+y_min = 1
+
+# tmr50_legendtitle = "50 reads"
+# tmr1000_legendtitle = "1000 reads"
+# legend_title_text = "Minimum coverage per gene      "
+
+marker_size = 4
+
+fig = make_subplots(
+    rows=1,
+    cols=1,
+    # x_title="Distinct proteins per gene",
+    x_title="Distinct protein isoforms per gene",
+    y_title="% of genes",
+    shared_yaxes=True,
+    shared_xaxes=True,
+    # vertical_spacing=facet_row_spacing / 2.5,
+    # horizontal_spacing=facet_col_spacing * 1.5,
+    vertical_spacing=0.05,
+    # horizontal_spacing=0.025,
+)
+
+
+neural_conditions = ["Yes", "No"]
+neural_trace_names = ["Neural", "Non-neural"]
+
+for neural_condition, neural_trace_name, neural_df in zip(
+    neural_conditions, neural_trace_names, neural_dfs
+):
+
+    x = neural_df["NumOfProteins"]
+    y = neural_df["CummulativeTranscripts"]
+    color = neural_color_discrete_map[neural_condition]
+
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=y,
+            mode="lines+markers",
+            marker=dict(color=color, size=marker_size),
+            line=dict(color=color, dash="dash", width=0.5),
+            name=neural_trace_name,
+            # legendgroup=tmr50_legendtitle,  # this can be any string
+            # legendgrouptitle_text=tmr50_legendtitle,
+            legend="legend1",
+        ),
+        # row=1, col=2
+        row=1,
+        col=1,
+    )
+
+    y_min = min(y_min, y.min())
+
+
+x = neuronal_max_distinct_proteins_df["NumOfProteins"]
+y = non_neuronal_max_distinct_proteins_df["NumOfProteins"]
+statistic, pv = scipy.stats.mannwhitneyu(x, y)
+if pv < 10**-22:
+    # neural_vs_non_text = f"<b>Mann-Whitney U between<br>neural to non-neural cells</b><br>p-val < 1E-22<br>statistic = {statistic:.2g}"
+    neural_vs_non_text = "<b>p-val < 1E-22</b><br>(Mann-Whitney U)"
+else:
+    # neural_vs_non_text = f"<b>Mann-Whitney U between<br>neural to non-neural cells</b><br>p-val = {pv:.2e}<br>statistic = {statistic:.2g}"
+    neural_vs_non_text = f"p-val = {pv:.2e} (Mann-Whitney U)"
+
+fig.update_annotations(font_size=font_size)
+
+fig.add_annotation(
+    x=np.log(10) / np.log(10),
+    # y=np.log(1) / np.log(10),
+    y=np.log(10) / np.log(10),
+    xref="x",
+    yref="y",
+    text=neural_vs_non_text,
+    bgcolor="white",
+    borderpad=4,
+    # font=dict(size=11),
+    font=dict(size=0.7 * font_size),
+    opacity=0.8,
+    showarrow=False,
+    row=1,
+    col=1,
+)
+
+fig.update_xaxes(type="log", range=[0, None], tickfont=dict(size=0.7 * font_size))
+fig.update_yaxes(
+    type="log",
+    # range=[-2, 2.2]
+    range=[np.log(y_min) * 1.1 / np.log(10), 2.2],
+    tickfont=dict(size=0.7 * font_size),
+)
+
+# fig.update_annotations(font_size=font_size)
+
+# width = 800
+width = 900
+# width = 650
+# height = 800
+height = 600
+
+fig.update_layout(
+    # xaxis_title="Distinct proteins per transcript",
+    # yaxis_title="% of transcripts",
+    # title="Pooled octopus data",
+    # legend_font=dict(size=0.7 * font_size),
+    legend_font=dict(size=font_size),
+    # title="Single-cell octopus data",
+    title=dict(text="Single-cell octopus data", font=dict(size=font_size * 1.5)),
+    # title_x=0.15,
+    title_y=0.93,
+    template=template,
+    width=width,
+    height=height,
+    legend_title_text="Cells               ",
+    # legend_font=dict(size=10),
+    # legend_grouptitlefont=dict(size=12),
+    # showlegend=False,
+    #     legend={
+    #         "title": "Coverage per gene",
+    #         # "xref": "container",
+    #         # "yref": "container",
+    #         # "xref": "paper",
+    #         # "yref": "paper",
+    #         "y": 0.9,
+    #         # "bgcolor": "Orange",
+    #     },
+    #     legend1={
+    #         "title": "Cells",
+    #         # "xref": "container",
+    #         # "yref": "container",
+    #         # "xref": "paper",
+    #         # "yref": "paper",
+    #         # "y": 0.5,
+    #         # "bgcolor": "Gold",
+    #     },
+)
+
+fig.write_image(
+    "Distinct proteins per gene vs. prct of genes - log(y) - Octopus - Single-cell - bottom panel.svg",
+    width=width,
+    height=height,
+)
+
+fig.show()
 
 # %%
 df = (

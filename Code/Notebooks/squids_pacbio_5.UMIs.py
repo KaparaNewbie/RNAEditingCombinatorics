@@ -4851,7 +4851,7 @@ min_max_fraction_1_distinct_prots_df.to_csv(
 # fig.show()
 
 
-# %% [markdown] toc-hr-collapsed=true jp-MarkdownHeadingCollapsed=true
+# %% [markdown] jp-MarkdownHeadingCollapsed=true toc-hr-collapsed=true
 # #### Jaccard (overlap of solutions)
 
 # %%

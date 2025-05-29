@@ -13,11 +13,13 @@
 #     name: python3
 # ---
 
-# %% [markdown] papermill={"duration": 0.029907, "end_time": "2022-02-01T09:42:43.198426", "exception": false, "start_time": "2022-02-01T09:42:43.168519", "status": "completed"} jp-MarkdownHeadingCollapsed=true
+# %% [markdown] jp-MarkdownHeadingCollapsed=true papermill={"duration": 0.029907, "end_time": "2022-02-01T09:42:43.198426", "exception": false, "start_time": "2022-02-01T09:42:43.168519", "status": "completed"}
 # # Imports
 
 # %%
 code_dir = "/private7/projects/Combinatorics/Code"
+
+# %%
 
 # %%
 # %load_ext autoreload
@@ -583,7 +585,7 @@ tmr1000_distinct_unique_proteins_files = tmr1000_complete_data_df[
 tmr1000_expression_files = tmr1000_complete_data_df["ExpressionFile"].tolist()
 
 
-# %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"} jp-MarkdownHeadingCollapsed=true
+# %% [markdown] jp-MarkdownHeadingCollapsed=true papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"}
 # # Ploting utils
 
 # %%
@@ -636,7 +638,7 @@ def two_subcolors_from_hex(hex_color, d_r=4, d_g=20, d_b=22, scale_1=1, scale_2=
 # ]
 # tissue_to_legendrank = {tissue: x for x, tissue in enumerate(tissues_order, start=1)}
 
-# %% papermill={"duration": 0.054755, "end_time": "2022-02-01T09:42:46.304499", "exception": false, "start_time": "2022-02-01T09:42:46.249744", "status": "completed"} jupyter={"source_hidden": true}
+# %% jupyter={"source_hidden": true} papermill={"duration": 0.054755, "end_time": "2022-02-01T09:42:46.304499", "exception": false, "start_time": "2022-02-01T09:42:46.249744", "status": "completed"}
 # # # plotly consts
 # # color_sequence = px.colors.qualitative.Pastel
 # # # color_sequence = px.colors.qualitative.D3
@@ -723,7 +725,7 @@ so.Plot.config.theme.update(axes_style("whitegrid"))
 # %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"}
 # # Data preprocessing
 
-# %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"} jp-MarkdownHeadingCollapsed=true
+# %% [markdown] jp-MarkdownHeadingCollapsed=true papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"}
 # ## Known sites
 
 # %%
@@ -778,7 +780,7 @@ fig = px.histogram(
 fig.update_layout(width=800, height=400)
 fig.show()
 
-# %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"} jp-MarkdownHeadingCollapsed=true
+# %% [markdown] jp-MarkdownHeadingCollapsed=true papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"}
 # ## Positions
 
 # %%
@@ -1233,7 +1235,7 @@ neuronality_of_annotaion_df = pd.DataFrame(
             "HC",
             "IGL1-OA",
             "IGL2-GLUT/DOP",
-            "IGL2-GLUT/DOP",
+            # "IGL2-GLUT/DOP",
             "IGL3",
             "IGL4-L11",
             "OA",
@@ -1270,7 +1272,7 @@ neuronality_of_annotaion_df = pd.DataFrame(
             "No",
             "Yes",
             "Yes",
-            "Yes",
+            # "Yes",
             "Yes",
             "Yes",
             "Yes",
@@ -1292,11 +1294,18 @@ neuronality_of_annotaion_df = pd.DataFrame(
 neuronality_of_annotaion_df["Neuronal"] = neuronality_of_annotaion_df[
     "NeuronalStrRep"
 ].apply(lambda x: True if x == "Yes" else False)
-neuronality_of_annotaion_df = neuronality_of_annotaion_df.drop_duplicates(
-    ignore_index=True
-)
-# .replace({"Yes": True, "No": False})
+# neuronality_of_annotaion_df = neuronality_of_annotaion_df.drop_duplicates(
+#     ignore_index=True
+# )
+# # .replace({"Yes": True, "No": False})
 neuronality_of_annotaion_df
+
+# %%
+neuronality_of_annotaion_df.to_csv(
+    "/private7/projects/Combinatorics/Code/Data/NeuronalityOfAnnotation.tsv",
+    sep=sep,
+    index=False,
+)
 
 # %%
 neuronality_of_annotaion_df["NeuronalStrRep"].value_counts(dropna=False)
@@ -1870,7 +1879,7 @@ fig.show()
 
 # %%
 
-# %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"} jp-MarkdownHeadingCollapsed=true
+# %% [markdown] jp-MarkdownHeadingCollapsed=true papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"}
 # ## Combined neural expression
 
 # %%
@@ -2032,7 +2041,7 @@ complete_combined_per_chrom_neurality_df.loc[
 # %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"}
 # ## Reads
 
-# %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"} jp-MarkdownHeadingCollapsed=true
+# %% [markdown] jp-MarkdownHeadingCollapsed=true papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"}
 # ### All
 
 # %% [markdown]
@@ -2303,7 +2312,7 @@ num_of_reads_in_reads_files.sum()
 # edited_reads_dfs[0]
 
 
-# %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"} jp-MarkdownHeadingCollapsed=true
+# %% [markdown] jp-MarkdownHeadingCollapsed=true papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"}
 # ### Unique
 
 # %% papermill={"duration": 0.126539, "end_time": "2022-02-01T09:42:47.923363", "exception": false, "start_time": "2022-02-01T09:42:47.796824", "status": "completed"}
@@ -2417,7 +2426,7 @@ num_of_reads_comparison_df["%Decrease"].describe()
 # %%
 # expanded_unique_reads_dfs[0].columns
 
-# %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"} jp-MarkdownHeadingCollapsed=true
+# %% [markdown] jp-MarkdownHeadingCollapsed=true papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"}
 # ### Unique - TMR 1000
 
 # %% papermill={"duration": 0.126539, "end_time": "2022-02-01T09:42:47.923363", "exception": false, "start_time": "2022-02-01T09:42:47.796824", "status": "completed"}
@@ -3936,7 +3945,7 @@ raise Error("don't run the notebook from this point")
 # %% [markdown] papermill={"duration": 0.045853, "end_time": "2022-02-01T09:42:48.953594", "exception": false, "start_time": "2022-02-01T09:42:48.907741", "status": "completed"}
 # # Results
 
-# %% [markdown] papermill={"duration": 0.124528, "end_time": "2022-02-01T09:43:10.054394", "exception": false, "start_time": "2022-02-01T09:43:09.929866", "status": "completed"} jp-MarkdownHeadingCollapsed=true
+# %% [markdown] jp-MarkdownHeadingCollapsed=true papermill={"duration": 0.124528, "end_time": "2022-02-01T09:43:10.054394", "exception": false, "start_time": "2022-02-01T09:43:09.929866", "status": "completed"}
 # ## Positions
 
 # %% [markdown] papermill={"duration": 0.149848, "end_time": "2022-02-01T09:43:12.800733", "exception": false, "start_time": "2022-02-01T09:43:12.650885", "status": "completed"}

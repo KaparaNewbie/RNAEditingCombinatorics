@@ -32,6 +32,8 @@ from math import ceil
 import math
 from multiprocessing import Pool
 from pathlib import Path
+import time
+from urllib.error import HTTPError
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -56,6 +58,7 @@ from sklearn.manifold import TSNE
 from sklearn.metrics import mean_squared_error, r2_score, silhouette_score
 from sklearn.preprocessing import StandardScaler
 from Bio import Seq
+from Bio.ExPASy import ScanProsite
 
 sys.path.append(str(Path(code_dir).absolute()))
 from Alignment.alignment_utils import (
@@ -181,6 +184,9 @@ code_dir = "/private7/projects/Combinatorics/Code"
 seed = 1892
 transcriptome_file = (
     "/private7/projects/Combinatorics/D.pealeii/Annotations/orfs_squ.fa"
+)
+proteome_file = (
+    "/private7/projects/Combinatorics/D.pealeii/Annotations/orfs_squ.protein.fa"
 )
 primers_for = ["CTGATCACAACGATGTGTTGGTCG", "AGTCTTAGACTCGCCTGTTACGCCC"]
 primers_rev = ["AAAAACCTTGTAACAGCCATTCCTGC", "CATGCTGAATTGCACCCATGCAGC"]
@@ -2788,6 +2794,294 @@ fig.update_layout(showlegend=False, yaxis_title="Positions")
 fig.show()
 
 
+# %% [markdown]
+# ### Editing in motifs
+
+# %%
+transcriptome_dict = make_fasta_dict(transcriptome_file)
+
+# %%
+proteome_dict = make_fasta_dict(proteome_file)
+
+# %%
+proteins_seqs_dict = {
+    condition: proteome_dict[chrom] for chrom, condition in zip(chroms, conditions)
+}
+proteins_seqs_dict
+
+# %%
+transcriptome_dict[chroms[0]][starts[0] : ends[0]].translate()
+
+# %%
+proteins_seqs_dict["GRIA"]
+
+
+# %%
+def transcript_pos_to_aa_index(orf_start, orf_end, transcript_pos):
+    """
+    Given a transcript's ORF start and end coordinates (0-based, end-exclusive),
+    and a specific position in that transcript,
+    return the 0-based amino acid index corresponding
+    to that position in the ORF, or None if not in a codon.
+    """
+    # Check if position is within the ORF
+    if not (orf_start <= transcript_pos < orf_end):
+        return None
+    # Compute offset from ORF start
+    offset = transcript_pos - orf_start
+    # Only positions that are part of a codon (i.e., within ORF)
+    aa_index = offset // 3
+    # Check if the codon is complete (avoid partial codons at the end)
+    codon_start = orf_start + aa_index * 3
+    if codon_start + 3 > orf_end:
+        return None
+    return aa_index
+
+
+# orf_start = 0
+# orf_end = 2999
+# for transcript_pos in range(8):
+#     aa_index = transcript_pos_to_aa_index(orf_start, orf_end, transcript_pos)
+#     ic(transcript_pos, aa_index)
+
+# %%
+def scan_with_retries(seq, max_retries=5, base_delay=5, backoff_factor=2):
+    if seq.endswith("*"):
+        seq = seq[:-1]
+    delay = base_delay
+    for attempt in range(max_retries):
+        try:
+            return ScanProsite.scan(seq=seq)
+        except HTTPError as e:
+            print(f"ScanProsite HTTPError: {e}. Attempt {attempt+1}/{max_retries}")
+            if attempt < max_retries - 1:
+                time.sleep(delay)
+                delay *= backoff_factor
+            else:
+                raise
+
+
+prosite_handles = [
+    scan_with_retries(proteins_seqs_dict[condition]) for condition in conditions
+]
+per_condition_prosite_results = {
+    condition: ScanProsite.read(handle)
+    for condition, handle in zip(conditions, prosite_handles)
+}
+per_condition_prosite_results
+
+# %%
+for condition in conditions:
+    for result in per_condition_prosite_results[condition]:
+        if "level_tag" in result:
+            if result["level_tag"] == "(-1)":
+                continue
+        print(
+            f"{result['signature_ac']}: {proteins_seqs_dict[condition][result['start'] - 1 : result['stop']]}, "
+            f"from {result['start']} to {result['stop']} "
+            f"(score = {result['score']})"
+        )
+
+# %%
+processed_prosite_results_lines = []
+for condition, chrom in zip(conditions, chroms):
+    for result in per_condition_prosite_results[condition]:
+        signature_start = result["start"] - 1
+        signature_end = result["stop"]
+        accession = result["signature_ac"]
+        score = result.get("score", result.get("level_tag", None))
+        try:
+            score = result["score"]
+        except KeyError:
+            score = result["level_tag"]
+            if score != "(-1)":
+                raise ValueError(
+                    f"Unexpected score format: {score} for {result['signature_ac']}"
+                )
+            score = -1
+        line = [condition, chrom, accession, score, signature_start, signature_end]
+        processed_prosite_results_lines.append(line)
+processed_prosite_results_df = pd.DataFrame(
+    processed_prosite_results_lines,
+    columns=[
+        condition_col,
+        "Chrom",
+        "SignatureAccession",
+        "SignatureScore",
+        "SignatureStart",
+        "SignatureEnd",
+    ],
+)
+processed_prosite_results_df
+
+# %%
+# edited_positions_dfs = [df.loc[(df["Edited"]) & (df["CDS"])] for df in positions_dfs]
+# concat_edited_positions_df = pd.concat(edited_positions_dfs).reset_index(drop=True)
+concat_edited_positions_df = pd.concat(
+    [
+        df.loc[(df["Edited"]) & (df["CDS"])].drop(
+            columns=[
+                "CDS",
+                "InProbRegion",
+                "RefBase",
+                "Phred",
+                "MappedBases",
+                "Noise",
+                "Edited",
+                "Reads",
+                "TotalCoverage",
+                "A",
+                "T",
+                "C",
+                "G",
+                "KnownEditing",
+            ]
+        )
+        for df in positions_dfs
+    ]
+).reset_index(drop=True)
+
+concat_edited_positions_df["ORFStart"] = concat_edited_positions_df.apply(
+    lambda x: starts[conditions.index(x[condition_col])], axis=1
+)
+concat_edited_positions_df["ORFEnd"] = concat_edited_positions_df.apply(
+    lambda x: ends[conditions.index(x[condition_col])], axis=1
+)
+
+concat_edited_positions_df["AAPosition"] = concat_edited_positions_df.apply(
+    lambda x: transcript_pos_to_aa_index(x["ORFStart"], x["ORFEnd"], x["Position"]),
+    axis=1,
+)
+
+# add info about the possible signatures of each gene into each position
+concat_edited_positions_df = concat_edited_positions_df.merge(
+    processed_prosite_results_df, how="left"
+)
+
+concat_edited_positions_df["PositionInSignature"] = concat_edited_positions_df.apply(
+    lambda x: x["SignatureStart"] <= x["AAPosition"] < x["SignatureEnd"], axis=1
+)
+
+# make sure no position is in more than one signature
+assert (
+    concat_edited_positions_df.groupby([condition_col, "Position"])[
+        "PositionInSignature"
+    ]
+    .sum()
+    .ge(2)
+    .value_counts()[False]
+    == concat_edited_positions_df.drop_duplicates([condition_col, "Position"]).shape[0]
+)
+
+concat_edited_positions_df = concat_edited_positions_df.drop_duplicates(
+    [condition_col, "Position", "PositionInSignature"],
+    ignore_index=True,
+)
+
+concat_edited_positions_df.loc[
+    ~concat_edited_positions_df["PositionInSignature"],
+    [
+        "SignatureScore",
+        "SignatureAccession",
+        "SignatureStart",
+        "SignatureEnd",
+    ],
+] = np.nan
+
+# update the "PositionInSignature" column to indicate if the position is in a significant signature
+concat_edited_positions_df["PositionInSignature"] = concat_edited_positions_df.apply(
+    lambda x: (
+        "No"
+        if not x["PositionInSignature"]
+        else "Yes" if x["SignatureScore"] != -1 else "NA"
+    ),
+    axis=1,
+)
+
+concat_edited_positions_df
+
+# %%
+fig = px.histogram(
+    concat_edited_positions_df,
+    facet_col=condition_col,
+    x="PositionInSignature",
+    # y="EditingFrequency",
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    category_orders=category_orders | {"PositionInSignature": ["No", "Yes", "NA"]},
+    template=template,
+    # title="Prosite signatures scores in edited positions",
+    # labels={"SignatureScore": "Signature score"},
+)
+fig.update_yaxes(dtick=20)
+fig.update_layout(
+    width=600,
+    height=400,
+    showlegend=False,
+)
+fig.show()
+
+# %%
+fig = px.box(
+    concat_edited_positions_df,
+    facet_col=condition_col,
+    x="PositionInSignature",
+    y="EditingFrequency",
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    category_orders=category_orders | {"PositionInSignature": ["No", "Yes", "NA"]},
+    template=template,
+    # title="Prosite signatures scores in edited positions",
+    # labels={"SignatureScore": "Signature score"},
+)
+fig.update_layout(
+    width=600,
+    height=400,
+    showlegend=False,
+)
+fig.show()
+
+# %%
+chroms_with_at_least_one_significant_signature = (
+    concat_edited_positions_df.loc[
+        concat_edited_positions_df["PositionInSignature"].eq("Yes"),
+    ]["Chrom"]
+    .unique()
+    .tolist()
+)
+
+len(chroms_with_at_least_one_significant_signature)
+
+# %%
+significat_singatures_concat_edited_positions_df = concat_edited_positions_df.loc[
+    concat_edited_positions_df["Chrom"].isin(
+        chroms_with_at_least_one_significant_signature
+    )
+]
+significat_singatures_concat_edited_positions_df
+
+# %%
+singatures_statistics_df = (
+    significat_singatures_concat_edited_positions_df.groupby([condition_col, "Chrom"])
+    .apply(
+        lambda x: scipy.stats.mannwhitneyu(
+            x.loc[x["PositionInSignature"] == "Yes", "EditingFrequency"],
+            x.loc[x["PositionInSignature"] == "No", "EditingFrequency"],
+        ),
+        include_groups=False,
+    )
+    .reset_index()
+    .rename(columns={0: "TestResult"})
+)
+
+singatures_statistics_df[["TestStatistic", "PVal"]] = singatures_statistics_df[
+    "TestResult"
+].apply(lambda x: pd.Series([x.statistic, x.pvalue]))
+singatures_statistics_df = singatures_statistics_df.drop(columns=["TestResult"])
+
+
+singatures_statistics_df
+
 # %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"}
 # ## Num of distinct unique proteins
 
@@ -3043,7 +3337,9 @@ out_files = ["DistinctProteins.PacBio.tsv", "MaxDistinctProteinsF1.PacBio.tsv"]
 for df, out_file in zip(dfs, out_files):
     df = df.copy()
     df.insert(0, "Platform", "Long-reads")
-    df.loc[:, condition_col] = df.loc[:, condition_col].apply(lambda x: "GRIA2" if x == "GRIA" else x)
+    df.loc[:, condition_col] = df.loc[:, condition_col].apply(
+        lambda x: "GRIA2" if x == "GRIA" else x
+    )
     df.to_csv(out_file, sep="\t", index=False)
 
 # %%
@@ -3811,9 +4107,13 @@ fig.show()
 
 # %%
 df3_fixed = (
-    expanded_distinct_unique_proteins_df_2
-    .groupby([condition_col, "Fraction", "Protein"])
-    .agg(NumOfSolutions=("Protein", "size"), MeanAmbigousPositions=("MeanAmbigousPositions", "mean"))
+    expanded_distinct_unique_proteins_df_2.groupby(
+        [condition_col, "Fraction", "Protein"]
+    )
+    .agg(
+        NumOfSolutions=("Protein", "size"),
+        MeanAmbigousPositions=("MeanAmbigousPositions", "mean"),
+    )
     .reset_index()
     .rename(columns={"NumOfSolutions": "#SolutionIncluded"})
 )
@@ -3926,7 +4226,7 @@ for (
             x=x,
             y=y,
             # histfunc="avg",
-            histnorm='percent',
+            histnorm="percent",
             cumulative_enabled=True,
             marker_color=color_discrete_map[condition],
             name=condition,
@@ -3964,14 +4264,10 @@ max_distinct_proteins_per_transcript_and_alg_df = distinct_unique_proteins_df.lo
     distinct_unique_proteins_df["Fraction"] == 1.0
 ].copy()
 
-max_distinct_proteins_per_transcript_and_alg_df[
-    "MaxNumOfProteins"
-] = max_distinct_proteins_per_transcript_and_alg_df.groupby(
-    [condition_col, "Algorithm"]
-)[
-    "NumOfProteins"
-].transform(
-    max
+max_distinct_proteins_per_transcript_and_alg_df["MaxNumOfProteins"] = (
+    max_distinct_proteins_per_transcript_and_alg_df.groupby(
+        [condition_col, "Algorithm"]
+    )["NumOfProteins"].transform(max)
 )
 max_distinct_proteins_per_transcript_and_alg_df["IsMaxNumOfProteins"] = (
     max_distinct_proteins_per_transcript_and_alg_df["NumOfProteins"]
@@ -4361,10 +4657,10 @@ min_max_fraction_1_distinct_prots_df = (
     .agg(["min", "max"])
     .reset_index()
 )
-min_max_fraction_1_distinct_prots_df[
-    "%SolutionsDispersion"
-] = min_max_fraction_1_distinct_prots_df.apply(
-    lambda x: 100 * (x["max"] - x["min"]) / x["max"], axis=1
+min_max_fraction_1_distinct_prots_df["%SolutionsDispersion"] = (
+    min_max_fraction_1_distinct_prots_df.apply(
+        lambda x: 100 * (x["max"] - x["min"]) / x["max"], axis=1
+    )
 )
 min_max_fraction_1_distinct_prots_df
 
@@ -4411,7 +4707,9 @@ fig.show()
 
 # %%
 min_max_fraction_1_distinct_prots_df.insert(0, "Platform", "Long-reads")
-min_max_fraction_1_distinct_prots_df.to_csv("Dispersion.PacBio.tsv", sep="\t", index=False)
+min_max_fraction_1_distinct_prots_df.to_csv(
+    "Dispersion.PacBio.tsv", sep="\t", index=False
+)
 
 # %%
 # fig = go.Figure(
@@ -4878,6 +5176,7 @@ fig = go.Figure(
             # tickvals=[1, 2, 3],
             ticktext=["NA", "Not-edited", "Edited"],
             len=0.3,
+            # orientation="h",
         ),
     )
 )
@@ -4889,12 +5188,12 @@ fig.update_xaxes(
 fig.add_annotation(
     showarrow=False,
     text="Editing sites",
-    xref="paper", 
+    xref="paper",
     yref="paper",
-    x=0.47, 
+    x=0.47,
     y=-0.1,
     # font=dict(size=18)
-    font=dict(size=comb_heatmap_font_size)
+    font=dict(size=comb_heatmap_font_size),
 )
 
 fig.update_yaxes(
@@ -4911,29 +5210,30 @@ width = 650
 # height = 700
 height = 600
 
-fig.update_layout(height=height, 
-                  width=width, 
-                  template=template, 
-                  # font_size=16,
-                  font_size=comb_heatmap_font_size,
-                  # grid_xside="bottom plot",
-                  # title=dict(
-                  #     # automargin=True, 
-                  #     # yref='paper',
-                  #     # yref='container',
-                  #     y=0.93,
-                  #     x=0.47,
-                  #     # yanchor="top"
-                  #     # text="Editable amino acids in squid's PCLO (Long-reads)",
-                  #     text="Editing sites",
-                  #     font=dict(size=18)
-                  # ),
-                 )
+fig.update_layout(
+    height=height,
+    width=width,
+    template=template,
+    # font_size=16,
+    font_size=comb_heatmap_font_size,
+    # grid_xside="bottom plot",
+    # title=dict(
+    #     # automargin=True,
+    #     # yref='paper',
+    #     # yref='container',
+    #     y=0.93,
+    #     x=0.47,
+    #     # yanchor="top"
+    #     # text="Editable amino acids in squid's PCLO (Long-reads)",
+    #     text="Editing sites",
+    #     font=dict(size=18)
+    # ),
+)
 
 fig.write_image(
     "Combinatorics of top 100 expressed unique reads in PCLO - PacBio.svg",
-    height=height, 
-    width=width
+    height=height,
+    width=width,
 )
 
 fig.show()
@@ -7769,32 +8069,32 @@ def run_hdbscan(
 ):
     rng = np.random.RandomState(seed)
 
-#     conditions_hdbscan_labels = [
-#         HDBSCAN(
-#             min_samples=min_samples,
-#             min_cluster_size=min_cluster_size,
-#         ).fit_predict(weighted_conditions_umap.values)
-#         for weighted_conditions_umap in weighted_conditions_umaps
-#     ]
+    #     conditions_hdbscan_labels = [
+    #         HDBSCAN(
+    #             min_samples=min_samples,
+    #             min_cluster_size=min_cluster_size,
+    #         ).fit_predict(weighted_conditions_umap.values)
+    #         for weighted_conditions_umap in weighted_conditions_umaps
+    #     ]
 
-#     return conditions_hdbscan_labels
+    #     return conditions_hdbscan_labels
 
     conditions_hdbscan_labels = []
     conditions_medoids = []
-    
+
     for weighted_conditions_umap in weighted_conditions_umaps:
-        
+
         hdb = HDBSCAN(
             min_samples=min_samples,
             min_cluster_size=min_cluster_size,
-            store_centers="medoid"
+            store_centers="medoid",
         )
         hdb.fit(weighted_conditions_umap.values)
         labels = hdb.labels_
         medoids = hdb.medoids_
         conditions_hdbscan_labels.append(labels)
         conditions_medoids.append(medoids)
-        
+
     return conditions_hdbscan_labels, conditions_medoids
 
 
@@ -8819,8 +9119,7 @@ fig.add_trace(
 
 fig.update_yaxes(title_text="Entropy")
 fig.update_xaxes(
-    title="Gene",
-    tickfont=dict(size=10)
+    title="Gene", tickfont=dict(size=10)
 )  # https://plotly.com/python/axes/#set-axis-label-rotation-and-font
 
 # fig.update_traces(
@@ -8920,18 +9219,16 @@ fig = go.Figure(
     )
 )
 
-fig.update_xaxes(
-    showticklabels=False
-)
+fig.update_xaxes(showticklabels=False)
 
 fig.add_annotation(
     showarrow=False,
     text="Editable codons",
-    xref="paper", 
+    xref="paper",
     yref="paper",
-    x=0.47, 
+    x=0.47,
     y=-0.1,
-    font=dict(size=18)
+    font=dict(size=18),
 )
 
 fig.update_yaxes(
@@ -8943,22 +9240,25 @@ fig.update_yaxes(
     range=[1, 100],
 )
 
-fig.update_layout(height=700, width=650, template=template, 
-                  font_size=16,
-                  # title=dict(
-                  #     # automargin=True, 
-                  #     # yref='paper',
-                  #     # yref='container',
-                  #     y=0.93,
-                  #     x=0.4,
-                  #     # yanchor="top"
-                  #     # text="Editable amino acids in squid's PCLO (Long-reads)",
-                  #     # text="Editable amino acids",
-                  #     # text="Most expressed PCLO protein isoforms",
-                  #     text=" sss",
-                  #     font=dict(size=18)
-                  # ),
-                 )
+fig.update_layout(
+    height=700,
+    width=650,
+    template=template,
+    font_size=16,
+    # title=dict(
+    #     # automargin=True,
+    #     # yref='paper',
+    #     # yref='container',
+    #     y=0.93,
+    #     x=0.4,
+    #     # yanchor="top"
+    #     # text="Editable amino acids in squid's PCLO (Long-reads)",
+    #     # text="Editable amino acids",
+    #     # text="Most expressed PCLO protein isoforms",
+    #     text=" sss",
+    #     font=dict(size=18)
+    # ),
+)
 
 fig.write_image(
     "Combinatorics of top 100 expressed proteins in PCLO - PacBio.svg",
@@ -9467,7 +9767,8 @@ len(kmeans)
 
 # %%
 # dissimilar_cluster_sizes = list(range(10, 510, 10))  # 10, 20, ..., 500
-dissimilar_cluster_sizes = list(range(10, 260, 10))  # 10, 20, ..., 260
+# dissimilar_cluster_sizes = list(range(10, 260, 10))  # 10, 20, ..., 260
+dissimilar_cluster_sizes = list(range(3, 51, 1))  # 10, 20, ..., 260
 
 # %%
 dissimilarity_condition_Xs = {
@@ -9679,6 +9980,13 @@ for fixed_condition, condition in zip(fixed_conditions, conditions):
         row=1,
         col=1,
     )
+
+fig.update_xaxes(
+    rangemode="tozero",
+    range=[0, None],
+    #  tick0=0.0,
+    dtick=10,
+)
 
 fig.update_yaxes(
     rangemode="tozero",

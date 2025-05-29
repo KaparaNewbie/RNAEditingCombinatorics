@@ -31,6 +31,9 @@ from itertools import chain, combinations, product
 from math import ceil
 from multiprocessing import Pool
 from pathlib import Path
+import time
+from urllib.error import HTTPError
+
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -42,6 +45,7 @@ import scipy.stats
 import seaborn as sns
 import umap
 from Bio import Seq
+from Bio.ExPASy import ScanProsite
 from icecream import ic
 from matplotlib_venn import venn2, venn3
 from plotly.subplots import make_subplots
@@ -122,8 +126,8 @@ proteins_editing_col = "MinNonSyns"
 
 # distinct files with available supporting reads
 distinct_unique_proteins_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.DistinctUniqueProteins.29.01.2025-22:57:33.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.DistinctUniqueProteins.29.01.2025-18:40:32.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.DistinctUniqueProteins.26.03.2025-04:39:41.csv",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.DistinctUniqueProteins.26.03.2025-00:27:18.csv",
 ]
 
 # distinct_unique_proteins_fraction01_files = [
@@ -187,6 +191,9 @@ transcriptome_file = (
 #     "AAAAACCTTGTAACAGCCATTCCTGC",
 #     "CATGCTGAATTGCACCCATGCAGC"
 # ]
+
+out_dir = Path("/private7/projects/Combinatorics/Code/Notebooks")
+
 
 # %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"}
 # # Ploting utils
@@ -425,7 +432,13 @@ reads_dfs[0]
 # %%
 pd.concat(
     [reads_df[[condition_col, "EditedPositions"]] for reads_df in reads_dfs],
-).rename(columns={"EditedPositions": "EditedPositionsPerRead"}).groupby(condition_col).agg(['mean', 'std']).round(2)
+).rename(columns={"EditedPositions": "EditedPositionsPerRead"}).groupby(
+    condition_col
+).agg(
+    ["mean", "std"]
+).round(
+    2
+)
 
 # %%
 ambigous_positions_in_reads_df = pd.concat(
@@ -435,7 +448,7 @@ ambigous_positions_in_reads_df = pd.concat(
 # ambigous_positions_in_reads_df
 
 # %%
-ambigous_positions_in_reads_df.groupby(condition_col).agg(['mean', 'std']).round(2)
+ambigous_positions_in_reads_df.groupby(condition_col).agg(["mean", "std"]).round(2)
 
 # %%
 fig = px.histogram(
@@ -443,32 +456,43 @@ fig = px.histogram(
     x="NAsPerRead",
     color=condition_col,
     color_discrete_map=color_discrete_map,
-    labels={"NAsPerRead": "NAs / read"}
+    labels={"NAsPerRead": "NAs / read"},
     # histnorm="percent"
 )
 fig.update_traces(opacity=0.75)
 fig.update_yaxes(title="Reads")
-fig.update_layout(width=500, height=350, template=template, barmode='overlay', title="Squid's UMI long-reads - merged samples")
+fig.update_layout(
+    width=500,
+    height=350,
+    template=template,
+    barmode="overlay",
+    title="Squid's UMI long-reads - merged samples",
+)
 fig.show()
 
 # %%
+ambigous_positions_in_reads_df
+
+# %%
 # % of reads with at least 1 ambigous position
-100 * ambigous_positions_in_reads_df.gt(0).sum() / len(ambigous_positions_in_reads_df)
+100 * ambigous_positions_in_reads_df["NAsPerRead"].gt(0).sum() / len(
+    ambigous_positions_in_reads_df
+)
 
 # %%
-ambigous_positions_in_reads_df.mean()
+ambigous_positions_in_reads_df["NAsPerRead"].mean()
 
 # %%
-ambigous_positions_in_reads_df.std()
+ambigous_positions_in_reads_df["NAsPerRead"].std()
 
 # %%
-ambigous_positions_in_reads_df.median()
+ambigous_positions_in_reads_df["NAsPerRead"].median()
 
 # %%
-iqr(ambigous_positions_in_reads_df)
+iqr(ambigous_positions_in_reads_df["NAsPerRead"])
 
 # %%
-np.percentile(ambigous_positions_in_reads_df, [25, 75])
+np.percentile(ambigous_positions_in_reads_df["NAsPerRead"], [25, 75])
 
 # %%
 # edited_reads_dfs = [
@@ -935,9 +959,9 @@ expanded_distinct_unique_proteins_df_2 = (
     )
 )
 
-expanded_distinct_unique_proteins_df_2[
-    "Reads"
-] = expanded_distinct_unique_proteins_df_2["Reads"].str.split(",")
+expanded_distinct_unique_proteins_df_2["Reads"] = (
+    expanded_distinct_unique_proteins_df_2["Reads"].str.split(",")
+)
 
 
 per_solution_expanded_distinct_unique_proteins_dfs_2 = [
@@ -2862,6 +2886,292 @@ fig.update_layout(showlegend=False, yaxis_title="Positions")
 fig.show()
 
 
+# %% [markdown]
+# ### Editing in motifs
+
+# %%
+transcriptome_dict = make_fasta_dict(transcriptome_file)
+
+# %%
+proteins_seqs_dict = {
+    condition: transcriptome_dict[chrom][start:end].translate()
+    for chrom, start, end, condition in zip(chroms, starts, ends, conditions)
+}
+proteins_seqs_dict
+
+# %%
+print(proteins_seqs_dict[conditions[0]])
+
+# %%
+print(proteins_seqs_dict[conditions[1]])
+
+
+# %%
+def transcript_pos_to_aa_index(orf_start, orf_end, transcript_pos):
+    """
+    Given a transcript's ORF start and end coordinates (0-based, end-exclusive),
+    and a specific position in that transcript,
+    return the 0-based amino acid index corresponding
+    to that position in the ORF, or None if not in a codon.
+    """
+    # Check if position is within the ORF
+    if not (orf_start <= transcript_pos < orf_end):
+        return None
+    # Compute offset from ORF start
+    offset = transcript_pos - orf_start
+    # Only positions that are part of a codon (i.e., within ORF)
+    aa_index = offset // 3
+    # Check if the codon is complete (avoid partial codons at the end)
+    codon_start = orf_start + aa_index * 3
+    if codon_start + 3 > orf_end:
+        return None
+    return aa_index
+
+
+# orf_start = 0
+# orf_end = 2999
+# for transcript_pos in range(8):
+#     aa_index = transcript_pos_to_aa_index(orf_start, orf_end, transcript_pos)
+#     ic(transcript_pos, aa_index)
+
+# %%
+def scan_with_retries(seq, max_retries=5, base_delay=5, backoff_factor=2):
+    if seq.endswith("*"):
+        seq = seq[:-1]
+    delay = base_delay
+    for attempt in range(max_retries):
+        try:
+            return ScanProsite.scan(seq=seq)
+        except HTTPError as e:
+            print(f"ScanProsite HTTPError: {e}. Attempt {attempt+1}/{max_retries}")
+            if attempt < max_retries - 1:
+                time.sleep(delay)
+                delay *= backoff_factor
+            else:
+                raise
+
+
+prosite_handles = [
+    scan_with_retries(proteins_seqs_dict[condition]) for condition in conditions
+]
+per_condition_prosite_results = {
+    condition: ScanProsite.read(handle)
+    for condition, handle in zip(conditions, prosite_handles)
+}
+per_condition_prosite_results
+
+# %%
+for condition in conditions:
+    for result in per_condition_prosite_results[condition]:
+        if "level_tag" in result:
+            if result["level_tag"] == "(-1)":
+                continue
+        print(
+            f"{result['signature_ac']}: {proteins_seqs_dict[condition][result['start'] - 1 : result['stop']]}, "
+            f"from {result['start']} to {result['stop']} "
+            f"(score = {result['score']})"
+        )
+
+# %%
+processed_prosite_results_lines = []
+for condition, chrom in zip(conditions, chroms):
+    for result in per_condition_prosite_results[condition]:
+        signature_start = result["start"] - 1
+        signature_end = result["stop"]
+        accession = result["signature_ac"]
+        score = result.get("score", result.get("level_tag", None))
+        try:
+            score = result["score"]
+        except KeyError:
+            score = result["level_tag"]
+            if score != "(-1)":
+                raise ValueError(
+                    f"Unexpected score format: {score} for {result['signature_ac']}"
+                )
+            score = -1
+        line = [condition, chrom, accession, score, signature_start, signature_end]
+        processed_prosite_results_lines.append(line)
+processed_prosite_results_df = pd.DataFrame(
+    processed_prosite_results_lines,
+    columns=[
+        condition_col,
+        "Chrom",
+        "SignatureAccession",
+        "SignatureScore",
+        "SignatureStart",
+        "SignatureEnd",
+    ],
+)
+processed_prosite_results_df
+
+# %%
+# edited_positions_dfs = [df.loc[(df["Edited"]) & (df["CDS"])] for df in positions_dfs]
+# concat_edited_positions_df = pd.concat(edited_positions_dfs).reset_index(drop=True)
+concat_edited_positions_df = pd.concat(
+    [
+        df.loc[(df["Edited"]) & (df["CDS"])].drop(
+            columns=[
+                "CDS",
+                "InProbRegion",
+                "RefBase",
+                "Phred",
+                "MappedBases",
+                "Noise",
+                "Edited",
+                "Reads",
+                "TotalCoverage",
+                "A",
+                "T",
+                "C",
+                "G",
+                "KnownEditing",
+            ]
+        )
+        for df in positions_dfs
+    ]
+).reset_index(drop=True)
+
+concat_edited_positions_df["ORFStart"] = concat_edited_positions_df.apply(
+    lambda x: starts[conditions.index(x[condition_col])], axis=1
+)
+concat_edited_positions_df["ORFEnd"] = concat_edited_positions_df.apply(
+    lambda x: ends[conditions.index(x[condition_col])], axis=1
+)
+
+concat_edited_positions_df["AAPosition"] = concat_edited_positions_df.apply(
+    lambda x: transcript_pos_to_aa_index(x["ORFStart"], x["ORFEnd"], x["Position"]),
+    axis=1,
+)
+
+# add info about the possible signatures of each gene into each position
+concat_edited_positions_df = concat_edited_positions_df.merge(
+    processed_prosite_results_df, how="left"
+)
+
+concat_edited_positions_df["PositionInSignature"] = concat_edited_positions_df.apply(
+    lambda x: x["SignatureStart"] <= x["AAPosition"] < x["SignatureEnd"], axis=1
+)
+
+# make sure no position is in more than one signature
+assert (
+    concat_edited_positions_df.groupby([condition_col, "Position"])[
+        "PositionInSignature"
+    ]
+    .sum()
+    .ge(2)
+    .value_counts()[False]
+    == concat_edited_positions_df.drop_duplicates([condition_col, "Position"]).shape[0]
+)
+
+concat_edited_positions_df = concat_edited_positions_df.drop_duplicates(
+    [condition_col, "Position", "PositionInSignature"],
+    ignore_index=True,
+)
+
+concat_edited_positions_df.loc[
+    ~concat_edited_positions_df["PositionInSignature"],
+    [
+        "SignatureScore",
+        "SignatureAccession",
+        "SignatureStart",
+        "SignatureEnd",
+    ],
+] = np.nan
+
+# update the "PositionInSignature" column to indicate if the position is in a significant signature
+concat_edited_positions_df["PositionInSignature"] = concat_edited_positions_df.apply(
+    lambda x: (
+        "No"
+        if not x["PositionInSignature"]
+        else "Yes" if x["SignatureScore"] != -1 else "NA"
+    ),
+    axis=1,
+)
+
+concat_edited_positions_df
+
+# %%
+fig = px.histogram(
+    concat_edited_positions_df,
+    facet_col=condition_col,
+    x="PositionInSignature",
+    # y="EditingFrequency",
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    category_orders=category_orders | {"PositionInSignature": ["No", "Yes", "NA"]},
+    template=template,
+    # title="Prosite signatures scores in edited positions",
+    # labels={"SignatureScore": "Signature score"},
+)
+fig.update_yaxes(dtick=20)
+fig.update_layout(
+    width=600,
+    height=400,
+    showlegend=False,
+)
+fig.show()
+
+# %%
+fig = px.box(
+    concat_edited_positions_df,
+    facet_col=condition_col,
+    x="PositionInSignature",
+    y="EditingFrequency",
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    category_orders=category_orders | {"PositionInSignature": ["No", "Yes", "NA"]},
+    template=template,
+    # title="Prosite signatures scores in edited positions",
+    # labels={"SignatureScore": "Signature score"},
+)
+fig.update_layout(
+    width=600,
+    height=400,
+    showlegend=False,
+)
+fig.show()
+
+# %%
+chroms_with_at_least_one_significant_signature = (
+    concat_edited_positions_df.loc[
+        concat_edited_positions_df["PositionInSignature"].eq("Yes"),
+    ]["Chrom"]
+    .unique()
+    .tolist()
+)
+
+len(chroms_with_at_least_one_significant_signature)
+
+# %%
+significat_singatures_concat_edited_positions_df = concat_edited_positions_df.loc[
+    concat_edited_positions_df["Chrom"].isin(
+        chroms_with_at_least_one_significant_signature
+    )
+]
+significat_singatures_concat_edited_positions_df
+
+# %%
+singatures_statistics_df = (
+    significat_singatures_concat_edited_positions_df.groupby([condition_col, "Chrom"])
+    .apply(
+        lambda x: scipy.stats.mannwhitneyu(
+            x.loc[x["PositionInSignature"] == "Yes", "EditingFrequency"],
+            x.loc[x["PositionInSignature"] == "No", "EditingFrequency"],
+        ),
+        include_groups=False,
+    )
+    .reset_index()
+    .rename(columns={0: "TestResult"})
+)
+
+singatures_statistics_df[["TestStatistic", "PVal"]] = singatures_statistics_df[
+    "TestResult"
+].apply(lambda x: pd.Series([x.statistic, x.pvalue]))
+singatures_statistics_df = singatures_statistics_df.drop(columns=["TestResult"])
+
+
+singatures_statistics_df
+
 # %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"}
 # ## Num of distinct unique proteins
 
@@ -3111,15 +3421,18 @@ fig.show()
 # #### Saving distinct proteins dfs
 
 # %%
-# dfs = [distinct_unique_proteins_df, max_distinct_proteins_df]
-# out_files = ["DistinctProteins.PacBio.tsv", "MaxDistinctProteinsF1.PacBio.tsv"]
-# for df, out_file in zip(dfs, out_files):
-#     df = df.copy()
-#     df.insert(0, "Platform", "Long-reads")
-#     df.loc[:, condition_col] = df.loc[:, condition_col].apply(
-#         lambda x: "GRIA2" if x == "GRIA" else x
-#     )
-#     df.to_csv(out_file, sep="\t", index=False)
+dfs = [distinct_unique_proteins_df, max_distinct_proteins_df]
+out_files = [
+    Path(out_dir, "DistinctProteins.PacBio.UMI.tsv"),
+    Path(out_dir, "MaxDistinctProteinsF1.PacBio.UMI.tsv"),
+]
+for df, out_file in zip(dfs, out_files):
+    df = df.copy()
+    df.insert(0, "Platform", "Long-reads")
+    df.loc[:, condition_col] = df.loc[:, condition_col].apply(
+        lambda x: "GRIA2" if x == "GRIA" else x
+    )
+    df.to_csv(out_file, sep="\t", index=False)
 
 # %%
 # fig = make_subplots(
@@ -4493,7 +4806,7 @@ min_max_fraction_1_distinct_prots_df.to_csv(
 # fig.show()
 
 
-# %% [markdown] toc-hr-collapsed=true jp-MarkdownHeadingCollapsed=true
+# %% [markdown] jp-MarkdownHeadingCollapsed=true toc-hr-collapsed=true
 # #### Jaccard (overlap of solutions)
 
 # %%
