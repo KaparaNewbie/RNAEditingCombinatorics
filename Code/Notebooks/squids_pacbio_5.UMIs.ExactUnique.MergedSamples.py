@@ -1441,12 +1441,6 @@ max_expression_df["FlattenedAllReadsStatuses"] = max_expression_df.apply(
     axis=1,
 )
 
-assert (
-    max_expression_df["FlattenedAllReads"]
-    .apply(len)
-    .eq(max_expression_df["FlattenedAllReadsStatuses"].apply(len))
-    .all()
-)
 
 max_expression_df
 
@@ -1497,45 +1491,53 @@ fig.update_layout(
 fig.show()
 
 # %%
-max_expression_df.drop(
+
+# %%
+
+
+max_expression_df["AdditionalSupportingReadsIDs"] = max_expression_df[
+    "AdditionalSupportingReadsIDs"
+].apply(lambda x: sorted(set(chain.from_iterable(x))))
+
+max_expression_df["AllReads"] = max_expression_df.apply(
+    lambda x: x["Reads"] + x["AdditionalSupportingReadsIDs"], axis=1
+)
+max_expression_df["AllReadsStatuses"] = max_expression_df.apply(
+    lambda x: ["Original"] * len(x["Reads"])
+    + ["Additional"] * len(x["AdditionalSupportingReadsIDs"]),
+    axis=1,
+)
+max_expression_df = max_expression_df.drop(
     columns=[
         "Reads",
-        "NumOfReads",
         "AdditionalSupportingReadsIDs",
-        "AdditionalSupportingProteinsIDs",
     ]
 )
+assert (
+    max_expression_df["AllReads"]
+    .apply(len)
+    .eq(max_expression_df["AllReadsStatuses"].apply(len))
+    .all()
+)
+max_expression_df
 
 # %%
-max_expression_df.drop(
-    columns=[
-        "Reads",
-        "NumOfReads",
-        "AdditionalSupportingReadsIDs",
-        "AdditionalSupportingProteinsIDs",
-    ]
-).columns
+max_expression_df["TotalWeightedSupportingReads"].describe()
 
 # %%
-expanded_max_expression_df = (
-    max_expression_df.drop(
-        columns=[
-            "Reads",
-            "NumOfReads",
-            "AdditionalSupportingReadsIDs",
-            "AdditionalSupportingProteinsIDs",
-        ]
-    )
-    .explode(
-        ["FlattenedAllReads", "FlattenedAllReadsStatuses"],
-        ignore_index=True,
-    )
-    .rename(
-        columns={
-            "FlattenedAllReads": "Read",
-            "FlattenedAllReadsStatuses": "ReadStatus",
-        }
-    )
+max_expression_df.loc[
+    max_expression_df
+]
+
+# %%
+expanded_max_expression_df = max_expression_df.explode(
+    ["AllReads", "AllReadsStatuses"],
+    ignore_index=True,
+).rename(
+    columns={
+        "AllReads": "Read",
+        "AllReadsStatuses": "ReadStatus",
+    }
 )
 # some proteins may not be supported by additional reads
 expanded_max_expression_df = expanded_max_expression_df.loc[
@@ -1544,18 +1546,12 @@ expanded_max_expression_df = expanded_max_expression_df.loc[
         & (expanded_max_expression_df["ReadStatus"].eq("Additional"))
     )
 ]
-# assert (
-#     expanded_max_expression_df.shape[0]
-#     == expanded_max_expression_df.drop_duplicates().shape[0]
-# )
-
-expanded_max_expression_df
-
-# %%
 assert (
     expanded_max_expression_df.shape[0]
-    == expanded_max_expression_df.astype(str).drop_duplicates().shape[0]
+    == expanded_max_expression_df.drop_duplicates().shape[0]
 )
+
+expanded_max_expression_df
 
 # %%
 individual_mapped_bams_dir
@@ -1725,6 +1721,634 @@ fig = px.histogram(
     log_y=True,
 )
 fig.show()
+
+
+# %% [markdown]
+# ## Expression levels (max, f1, expanded)
+
+# %%
+def remove_wrapping_quote_marks_from_elements(elements):
+    return [x[1:-1] for x in elements]
+
+
+# %%
+# number of chroms with at least 5 distinct proteins
+chroms_with_at_least_5_isoforms = max_distinct_proteins_df.loc[
+    max_distinct_proteins_df["NumOfProteins"] >= 5, "Chrom"
+].tolist()
+ic(len(chroms_with_at_least_5_isoforms));
+
+
+# %%
+# chroms_and_exp_files_of_chroms_with_at_least_5_isoforms_sorted_as_all_chroms = [
+#     (chrom, expression_file)
+#     for chrom, expression_file in zip(chroms, expression_files)
+#     if chrom in chroms_with_at_least_5_isoforms
+# ]
+
+# %%
+# chrom
+
+# %%
+# concat_f1_5plus_max_expression_df
+
+# %%
+# concat_f1_5plus_max_expression_df["Chrom"].nunique()
+
+# %%
+def get_f1_max_expression_df(
+    expression_file, chrom, max_distinct_proteins_df, sep, condition_col
+):
+    expression_df = pd.read_csv(
+        expression_file,
+        sep=sep,
+        dtype={
+            "#Solution": str,
+            "AdditionalSupportingReadsIDs": str,
+            "AdditionalSupportingProteinsIDs": str,
+        },
+    )
+    expression_df = expression_df.loc[expression_df["Fraction"] == 1].reset_index(
+        drop=True
+    )
+
+    expression_df = expression_df.drop(
+        columns=[
+            "#Solution",
+            "AmbigousPositions",
+            "EditedPositions",
+            "EditingFrequency",
+            "Index",
+            "NumOfUniqueReads",
+            "Samples",
+            "UneditedPositions",
+            "UniqueReads",
+            "AdditionalEqualSupportingReads",
+            "TotalEqualSupportingReads",
+            "MinNonSyns",
+            "MaxNonSyns",
+            "MinNonSynsFrequency",
+            "MaxNonSynsFrequency",
+            "AdditionalWeightedSupportingReads",
+            "TotalWeightedSupportingReads",
+            # "TotalAdditionalSupportingProteins"
+        ]
+    )
+
+    expression_df.insert(0, "Chrom", chrom)
+    expression_df = expression_df.merge(
+        max_distinct_proteins_df.loc[
+            max_distinct_proteins_df["Chrom"] == chrom,
+            [
+                "Chrom",
+                condition_col,
+                "Fraction",
+                "FractionRepetition",
+                "Algorithm",
+                "AlgorithmRepetition",
+            ],
+        ],
+        how="right",
+    )
+
+    expression_df = expression_df.drop(
+        columns=["Fraction", "FractionRepetition", "Algorithm", "AlgorithmRepetition"]
+    )
+
+    expression_df["Reads"] = (
+        expression_df["Reads"]
+        .str.removeprefix("SubString{String}[")
+        .str.removesuffix("]")
+        .str.split(", ")
+        .apply(remove_wrapping_quote_marks_from_elements)
+    )
+    expression_df["AdditionalSupportingReadsIDs"] = expression_df[
+        "AdditionalSupportingReadsIDs"
+    ].apply(lambda x: "" if pd.isna(x) else [y.split(",") for y in x.split(";")])
+    expression_df["AdditionalSupportingProteinsIDs"] = expression_df[
+        "AdditionalSupportingProteinsIDs"
+    ].apply(lambda x: "" if pd.isna(x) else x.split(","))
+
+    return expression_df
+
+
+# %%
+# def get_f1_5plus_exapnded_max_expression_df(
+#     chrom,
+#     expression_file,
+#     positions_dir,
+#     one_chrom_raw_reads_info_df,
+#     max_distinct_proteins_df,
+#     sep,
+#     condition_col,
+#     out_file=None,
+#     try_using_existing_out_file=True,
+# ):
+#     if out_file is not None and try_using_existing_out_file:
+#         try:
+#             expanded_max_expression_df = pd.read_csv(
+#                 out_file, sep=sep, dtype={"Protein": str, "Read": str}
+#             )
+#             if not expanded_max_expression_df.empty:
+#                 return expanded_max_expression_df
+#         except (FileNotFoundError, EOFError):
+#             pass
+
+#     one_chrom_old_to_new_reads_file = Path(
+#         positions_dir, f"{chrom}.OldToNewReads.csv.gz"
+#     )
+#     one_chrom_old_to_new_reads_df = pd.read_table(
+#         one_chrom_old_to_new_reads_file, dtype={"OldRead": str, "NewRead": str}
+#     )
+#     one_chrom_new_reads_info_df = (
+#         one_chrom_raw_reads_info_df.merge(
+#             one_chrom_old_to_new_reads_df,
+#             how="left",
+#             left_on="ReadID",
+#             right_on="OldRead",
+#         )
+#         .drop(columns=["ReadID", "OldRead"])
+#         .rename(columns={"NewRead": "Read"})
+#     )
+
+#     max_expression_df = get_f1_max_expression_df(
+#         expression_file, chrom, max_distinct_proteins_df, sep, condition_col
+#     )
+
+#     # explode per additional supporting protein
+#     supposed_num_of_rows_after_explosion = (
+#         max_expression_df["AdditionalSupportingProteins"].sum()
+#         + max_expression_df.loc[
+#             max_expression_df["AdditionalSupportingProteins"] == 0
+#         ].shape[0]
+#     )
+#     expanded_max_expression_df = (
+#         max_expression_df.explode(
+#             ["AdditionalSupportingReadsIDs", "AdditionalSupportingProteinsIDs"],
+#             ignore_index=True,
+#         ).drop(
+#             columns=["AdditionalSupportingProteins", "AdditionalSupportingProteinsIDs"]
+#         )
+#         # .rename(
+#         #     columns={
+#         #         "AdditionalSupportingProteinsIDs": "AdditionalSupportingProteinID",
+#         #         # "AdditionalSupportingProteins": "TotalAdditionalSupportingProteins",
+#         #     }
+#         # )
+#     )
+#     assert expanded_max_expression_df.shape[0] == supposed_num_of_rows_after_explosion
+
+#     # further explode the df s.t. for each protein,
+#     # there are (newly_supporting_proteins x newly_supproting_reads) rows
+#     supposed_num_of_rows_after_explosion = (
+#         expanded_max_expression_df["AdditionalSupportingReadsIDs"].apply(len).sum()
+#     ) + expanded_max_expression_df.loc[
+#         expanded_max_expression_df["AdditionalSupportingReadsIDs"].apply(len).eq(0)
+#     ].shape[
+#         0
+#     ]
+#     expanded_max_expression_df = expanded_max_expression_df.explode(
+#         ["AdditionalSupportingReadsIDs"], ignore_index=True
+#     ).rename(columns={"AdditionalSupportingReadsIDs": "AdditionalSupportingReadID"})
+#     assert expanded_max_expression_df.shape[0] == supposed_num_of_rows_after_explosion
+
+#     # further explode the df by theoriginally supporting reads
+#     # s.t. there's a row for each original read of
+#     # each protein and each of that protein's newly supporting reads
+#     supposed_num_of_rows_after_explosion = expanded_max_expression_df[
+#         "NumOfReads"
+#     ].sum()
+#     expanded_max_expression_df = (
+#         expanded_max_expression_df.explode(["Reads"], ignore_index=True)
+#         .rename(columns={"Reads": "Read"})
+#         .drop(columns=["NumOfReads"])
+#     )
+#     assert expanded_max_expression_df.shape[0] == supposed_num_of_rows_after_explosion
+#     assert (
+#         expanded_max_expression_df.groupby(["Protein", "Read"])
+#         .size()
+#         .eq(
+#             expanded_max_expression_df.groupby(["Protein", "Read"])[
+#                 "AdditionalSupportingReadID"
+#             ].nunique()
+#         )
+#         .all()
+#     )
+
+#     # now melt the df s.t. for each protein,
+#     # each row consists of one read - an original or an additional one
+#     supposed_num_of_rows_after_melt = expanded_max_expression_df.shape[0] * 2
+#     expanded_max_expression_df = expanded_max_expression_df.melt(
+#         id_vars=[
+#             "Chrom",
+#             condition_col,
+#             "Protein",
+#         ],
+#         value_vars=["Read", "AdditionalSupportingReadID"],
+#         var_name="ReadStatus",
+#     )
+#     expanded_max_expression_df["ReadStatus"] = expanded_max_expression_df[
+#         "ReadStatus"
+#     ].replace({"Read": "Original", "AdditionalSupportingReadID": "Additional"})
+#     expanded_max_expression_df = expanded_max_expression_df.rename(
+#         columns={"value": "Read"}
+#     )
+#     assert expanded_max_expression_df.shape[0] == supposed_num_of_rows_after_melt
+#     # some proteins are not supported by additional reads
+#     expanded_max_expression_df = expanded_max_expression_df.loc[
+#         ~(
+#             (expanded_max_expression_df["Read"].eq(""))
+#             & (expanded_max_expression_df["ReadStatus"].eq("Additional"))
+#         )
+#     ]
+#     # due to the melt, some original/additional reads shows more than once
+#     expanded_max_expression_df = expanded_max_expression_df.drop_duplicates(
+#         ignore_index=True
+#     )
+
+#     # merge info per read - new and additional ones alike
+#     expanded_max_expression_df = expanded_max_expression_df.merge(
+#         one_chrom_new_reads_info_df, how="left"
+#     )
+
+#     if expanded_max_expression_df.empty:
+#         raise Exception(f"the resulting df of {chrom = } is empty!")
+
+#     if out_file is not None:
+#         expanded_max_expression_df.to_csv(out_file, sep=sep, index=False)
+
+#     return expanded_max_expression_df
+
+# %%
+def simplified_get_f1_exapnded_max_expression_df(
+    chrom,
+    expression_file,
+    positions_dir,
+    one_chrom_raw_reads_info_df,
+    max_distinct_proteins_df,
+    sep,
+    condition_col,
+    out_file=None,
+    try_using_existing_out_file=True,
+):
+    if out_file is not None and try_using_existing_out_file:
+        try:
+            expanded_max_expression_df = pd.read_csv(
+                out_file, sep=sep, dtype={"Protein": str, "Read": str}
+            )
+            if not expanded_max_expression_df.empty:
+                return expanded_max_expression_df
+        except (FileNotFoundError, EOFError):
+            pass
+
+    one_chrom_old_to_new_reads_file = Path(
+        positions_dir, f"{chrom}.OldToNewReads.csv.gz"
+    )
+    one_chrom_old_to_new_reads_df = pd.read_table(
+        one_chrom_old_to_new_reads_file, dtype={"OldRead": str, "NewRead": str}
+    )
+    one_chrom_new_reads_info_df = (
+        one_chrom_raw_reads_info_df.merge(
+            one_chrom_old_to_new_reads_df,
+            how="left",
+            left_on="ReadID",
+            right_on="OldRead",
+        )
+        .drop(columns=["ReadID", "OldRead"])
+        .rename(columns={"NewRead": "Read"})
+    )
+
+    max_expression_df = get_f1_max_expression_df(
+        expression_file, chrom, max_distinct_proteins_df, sep, condition_col
+    )
+    max_expression_df = max_expression_df.drop(
+        columns=[
+            "NumOfReads",
+            "AdditionalSupportingProteinsIDs",
+            "AdditionalSupportingProteins",
+        ]
+    )
+    max_expression_df["AdditionalSupportingReadsIDs"] = max_expression_df[
+        "AdditionalSupportingReadsIDs"
+    ].apply(lambda x: sorted(set(chain.from_iterable(x))))
+    max_expression_df["AllReads"] = max_expression_df.apply(
+        lambda x: x["Reads"] + x["AdditionalSupportingReadsIDs"], axis=1
+    )
+    max_expression_df["AllReadsStatuses"] = max_expression_df.apply(
+        lambda x: ["Original"] * len(x["Reads"])
+        + ["Additional"] * len(x["AdditionalSupportingReadsIDs"]),
+        axis=1,
+    )
+    max_expression_df = max_expression_df.drop(
+        columns=[
+            "Reads",
+            "AdditionalSupportingReadsIDs",
+        ]
+    )
+    assert (
+        max_expression_df["AllReads"]
+        .apply(len)
+        .eq(max_expression_df["AllReadsStatuses"].apply(len))
+        .all()
+    )
+
+    expanded_max_expression_df = max_expression_df.explode(
+        ["AllReads", "AllReadsStatuses"],
+        ignore_index=True,
+    ).rename(
+        columns={
+            "AllReads": "Read",
+            "AllReadsStatuses": "ReadStatus",
+        }
+    )
+    # some proteins are not supported by additional reads
+    expanded_max_expression_df = expanded_max_expression_df.loc[
+        ~(
+            (expanded_max_expression_df["Read"].eq(""))
+            & (expanded_max_expression_df["ReadStatus"].eq("Additional"))
+        )
+    ]
+    assert (
+        expanded_max_expression_df.shape[0]
+        == expanded_max_expression_df.drop_duplicates().shape[0]
+    )
+    # merge info per read - new and additional ones alike
+    expanded_max_expression_df = expanded_max_expression_df.merge(
+        one_chrom_new_reads_info_df, how="left"
+    )
+
+    if expanded_max_expression_df.empty:
+        raise Exception(f"the resulting df of {chrom = } is empty!")
+
+    if out_file is not None:
+        expanded_max_expression_df.to_csv(out_file, sep=sep, index=False)
+
+    return expanded_max_expression_df
+
+
+# %%
+# chroms_with_at_least_5_isoforms
+
+# %%
+# # x = 1130
+# x = 1129
+
+# (
+#     chrom,
+#     expression_file,
+# ) = chroms_and_exp_files_of_chroms_with_at_least_5_isoforms_sorted_as_all_chroms[x]
+# chrom, expression_file
+
+# %%
+# one_chrom_raw_reads_info_df = raw_reads_info_df.loc[raw_reads_info_df["Chrom"] == chrom]
+# one_chrom_raw_reads_info_df
+
+# %%
+# one_chrom_raw_reads_info_df["Neuronal"].value_counts(dropna=False)
+
+# %%
+# copies_df
+
+# %%
+# out_file = Path(max_expression_dir, f"{chrom}.gz")
+# ic(out_file)
+# # assert not out_file.exists()
+# assert out_file.exists()
+
+# %%
+# one_chrom_old_to_new_reads_file = Path(positions_dir, f"{chrom}.OldToNewReads.csv.gz")
+# one_chrom_old_to_new_reads_df = pd.read_table(
+#     one_chrom_old_to_new_reads_file, dtype={"OldRead": str, "NewRead": str}
+# )
+# one_chrom_new_reads_info_df = (
+#     one_chrom_raw_reads_info_df.merge(
+#         one_chrom_old_to_new_reads_df,
+#         how="left",
+#         left_on="ReadID",
+#         right_on="OldRead",
+#     )
+#     .drop(columns=["ReadID", "OldRead"])
+#     .rename(columns={"NewRead": "Read"})
+# )
+
+# %%
+# max_expression_df = get_f1_max_expression_df(
+#     expression_file, chrom, max_distinct_proteins_df, sep, condition_col
+# )
+# max_expression_df = max_expression_df.drop(
+#     columns=[
+#         "NumOfReads",
+#         "AdditionalSupportingProteinsIDs",
+#         "AdditionalSupportingProteins",
+#     ]
+# )
+# max_expression_df["AdditionalSupportingReadsIDs"] = max_expression_df[
+#     "AdditionalSupportingReadsIDs"
+# ].apply(lambda x: sorted(set(chain.from_iterable(x))))
+# max_expression_df["AllReads"] = max_expression_df.apply(
+#     lambda x: x["Reads"] + x["AdditionalSupportingReadsIDs"], axis=1
+# )
+# max_expression_df["AllReadsStatuses"] = max_expression_df.apply(
+#     lambda x: ["Original"] * len(x["Reads"])
+#     + ["Additional"] * len(x["AdditionalSupportingReadsIDs"]),
+#     axis=1,
+# )
+# max_expression_df = max_expression_df.drop(
+#     columns=[
+#         "Reads",
+#         "AdditionalSupportingReadsIDs",
+#     ]
+# )
+# assert max_expression_df["AllReads"].apply(len).eq(max_expression_df["AllReadsStatuses"].apply(len)).all()
+# max_expression_df
+
+# %%
+# expanded_max_expression_df = (
+#     max_expression_df.explode(
+#         ["AllReads", "AllReadsStatuses"],
+#         ignore_index=True,
+#     )
+#     # .drop(columns=["AdditionalSupportingProteins", "AdditionalSupportingProteinsIDs"])
+#     .rename(
+#         columns={
+#             "AllReads": "Read",
+#             "AllReadsStatuses": "ReadStatus",
+#         }
+#     )
+# )
+
+# # some proteins are not supported by additional reads
+# expanded_max_expression_df = expanded_max_expression_df.loc[
+#     ~(
+#         (expanded_max_expression_df["Read"].eq(""))
+#         & (expanded_max_expression_df["ReadStatus"].eq("Additional"))
+#     )
+# ]
+
+# assert expanded_max_expression_df.shape[0] == expanded_max_expression_df.drop_duplicates().shape[0]
+
+# # merge info per read - new and additional ones alike
+# expanded_max_expression_df = expanded_max_expression_df.merge(
+#     one_chrom_new_reads_info_df, how="left"
+# )
+# expanded_max_expression_df
+
+# %%
+# f1_5plus_exapnded_max_expression_dfs = []
+# # f1_5plus_exapnded_max_expression_dfs_2 = []
+
+# start_time = time.time()  # Start time of the whole cell
+# loop_times = []
+
+# # i = 0
+# # i = 1119
+# # j = 1
+
+# try_using_previous_out_file = True
+
+# for i, (chrom, expression_file) in enumerate(
+#     chroms_and_exp_files_of_chroms_with_at_least_5_isoforms_sorted_as_all_chroms,
+#     start=1,
+# ):
+#     loop_start = time.time()  # Start time of each loop iteration
+
+#     # i += 1
+#     state = "start"
+#     # if i >= 1120:
+#     #     ic(i, state, chrom)
+#     # elif i % 50 == 0:
+#     #     ic(i, state)
+#     if i % 50 == 0 or i == len(
+#         chroms_and_exp_files_of_chroms_with_at_least_5_isoforms_sorted_as_all_chroms
+#     ):
+#         ic(i, state)
+
+#     one_chrom_raw_reads_info_df = raw_reads_info_df.loc[
+#         raw_reads_info_df["Chrom"] == chrom
+#     ]
+
+#     out_file = Path(max_expression_dir, f"{chrom}.gz")
+
+#     # exapnded_max_expression_df = get_f1_5plus_exapnded_max_expression_df(
+#     exapnded_max_expression_df = simplified_get_f1_exapnded_max_expression_df(
+#         chrom,
+#         expression_file,
+#         positions_dir,
+#         one_chrom_raw_reads_info_df,
+#         max_distinct_proteins_df,
+#         sep,
+#         condition_col,
+#         out_file,
+#         try_using_previous_out_file,
+#     )
+
+#     f1_5plus_exapnded_max_expression_dfs.append(exapnded_max_expression_df)
+#     # f1_5plus_exapnded_max_expression_dfs_2.append(expanded_max_expression_df)
+
+#     state = "end"
+#     # if i >= 1140:
+#     #     ic(i, state, chrom)
+#     # elif i % 50 == 0:
+#     #     ic(i, state)
+#     if i % 50 == 0 or i == len(
+#         chroms_and_exp_files_of_chroms_with_at_least_5_isoforms_sorted_as_all_chroms
+#     ):
+#         ic(i, state)
+#     # i += 1
+#     # j += 1
+
+#     loop_end = time.time()  # End time of each loop iteration
+#     loop_times.append(loop_end - loop_start)
+#     # if i == 10:
+#     #     break
+#     # if j == 30:
+#     #     break
+
+#     # break
+
+# end_time = time.time()  # End time of the whole cell
+# loop_times = pd.Series(loop_times)
+# print(f"Total execution time: {end_time - start_time:.2f} seconds")
+# print(f"Mean execution time: {loop_times.mean():.2f} seconds")
+# print(f"Median execution time: {loop_times.median():.2f} seconds")
+
+# ic(
+#     len(f1_5plus_exapnded_max_expression_dfs),
+#     len(chroms_with_at_least_5_isoforms),
+#     len(f1_5plus_exapnded_max_expression_dfs) == len(chroms_with_at_least_5_isoforms),
+# )
+
+# f1_5plus_exapnded_max_expression_dfs[0]
+# # f1_5plus_exapnded_max_expression_dfs_2[0]
+
+# %%
+f1_exapnded_max_expression_dfs = []
+
+start_time = time.time()  # Start time of the whole cell
+loop_times = []
+
+try_using_previous_out_file = True
+strictly_use_previous_out_file_wo_verification = True
+
+for i, (chrom, expression_file) in enumerate(
+    zip(chroms, expression_files),
+    start=1,
+):
+    loop_start = time.time()  # Start time of each loop iteration
+
+    state = "start"
+    if i % 50 == 0 or i == len(chroms):
+        ic(i, state)
+
+    one_chrom_raw_reads_info_df = raw_reads_info_df.loc[
+        raw_reads_info_df["Chrom"] == chrom
+    ]
+
+    out_file = Path(max_expression_dir, f"{chrom}.gz")
+
+    if strictly_use_previous_out_file_wo_verification:
+        
+        expanded_max_expression_df = pd.read_csv(
+            out_file, sep=sep, dtype={"Protein": str, "Read": str}
+        )
+
+    else:
+
+        expanded_max_expression_df = simplified_get_f1_exapnded_max_expression_df(
+            chrom,
+            expression_file,
+            positions_dir,
+            one_chrom_raw_reads_info_df,
+            max_distinct_proteins_df,
+            sep,
+            condition_col,
+            out_file,
+            try_using_previous_out_file,
+        )
+
+    f1_exapnded_max_expression_dfs.append(expanded_max_expression_df)
+
+    state = "end"
+    if i % 50 == 0 or i == len(chroms):
+        ic(i, state)
+
+    loop_end = time.time()  # End time of each loop iteration
+    loop_times.append(loop_end - loop_start)
+
+
+end_time = time.time()  # End time of the whole cell
+loop_times = pd.Series(loop_times)
+print(f"Total execution time: {end_time - start_time:.2f} seconds")
+print(f"Mean execution time: {loop_times.mean():.2f} seconds")
+print(f"Median execution time: {loop_times.median():.2f} seconds")
+
+ic(
+    len(f1_exapnded_max_expression_dfs),
+    len(chroms),
+    len(f1_exapnded_max_expression_dfs) == len(chroms),
+)
+
+f1_exapnded_max_expression_dfs[0]
 
 # %% [markdown] jp-MarkdownHeadingCollapsed=true
 # ## Summary of data loss

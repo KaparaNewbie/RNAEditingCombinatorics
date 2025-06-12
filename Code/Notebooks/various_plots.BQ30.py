@@ -3685,6 +3685,358 @@ fig.show()
 height
 
 # %% [markdown]
+# # Combined editing in motifs plots for squid long-reads
+
+# %%
+condition_col = "Gene"
+platforms = ["Long-reads", "Short-reads"]
+
+pacbio_conditions = ["GRIA2", "PCLO", "ADAR1", "IQEC1"]
+
+# illumina_conditions = [
+#     "RUSC2_MOUSE",
+#     "TRIM2_BOVIN",
+#     "CA2D3_MOUSE",
+#     "ABL_DROME",
+#     "DGLA_HUMAN",
+#     "K0513_MOUSE",
+#     "KCNAS_DROME",
+#     "ACHA4_MOUSE",
+#     "ANR17_HUMAN",
+#     "TWK7_CAEEL",
+#     "SCN1_HETBL",
+#     "CACB2_RABIT",
+#     "RIMS2_RAT",
+#     "PCLO_CHICK",
+#     "DOP1_HUMAN",
+#     "IQEC1_HUMAN",
+#     "CSKI1_MOUSE",
+#     "MTUS2_HUMAN",
+#     "ROBO2_HUMAN",
+# ]
+# illumina_conditions = [condition.split("_")[0] for condition in illumina_conditions]
+
+pacbio_color_sequence = px.colors.qualitative.G10
+pacbio_color_discrete_map = {
+    condition: color
+    for condition, color in zip(pacbio_conditions, pacbio_color_sequence)
+}
+
+# %%
+in_dir = Path("/private7/projects/Combinatorics/Code/Notebooks")
+
+# illumina_merged_distinct_proteins_file = Path(in_dir, "DistinctProteins.Illumina.tsv")
+pacbio_editing_in_motifs_file = Path(in_dir, "EditingInMotifs.PacBio.tsv")
+pacbio_umi_editing_in_motifs_file = Path(
+    in_dir,
+    "EditingInMotifs.PacBio.UMI.tsv",
+)
+
+# illumina_merged_max_distinct_proteins_file = Path(
+#     in_dir, "MaxDistinctProteinsF1.Illumina.tsv"
+# )
+
+# %%
+platforms_color_map = {
+    platform: color_map
+    for platform, color_map in zip(
+        platforms,
+        [
+            pacbio_color_discrete_map,
+            # illumina_color_discrete_map
+        ],
+    )
+}
+platforms_color_map
+
+# %%
+platforms_conditions = [
+    pacbio_conditions,
+    # illumina_conditions
+]
+
+# %%
+# pacbio_max_distinct_proteins_df = pd.read_table(pacbio_merged_max_distinct_proteins_file)
+pacbio_concat_signature_positions_df = pd.concat(
+    [
+        pd.read_table(
+            pacbio_editing_in_motifs_file,
+            dtype={"Edited": bool, "PositionInSignature": str},
+            na_filter=False,
+        ),
+        pd.read_table(
+            pacbio_umi_editing_in_motifs_file,
+            dtype={"Edited": bool, "PositionInSignature": str},
+            na_filter=False,
+        ),
+    ]
+)
+# illumina_max_distinct_proteins_df = pd.read_table(
+#     illumina_merged_max_distinct_proteins_file
+# )
+
+# merged_max_distinct_df = pd.concat(
+#     [pacbio_max_distinct_proteins_df, illumina_max_distinct_proteins_df]
+# )
+# merged_max_distinct_df["Color"] = merged_max_distinct_df.apply(
+#     lambda x: platforms_color_map[x["Platform"]][x[condition_col]], axis=1
+# )
+# merged_max_distinct_df
+
+pacbio_concat_signature_positions_df["Color"] = (
+    pacbio_concat_signature_positions_df.apply(
+        lambda x: platforms_color_map[x["Platform"]][x[condition_col]],
+        axis=1,
+    )
+)
+
+pacbio_concat_signature_positions_df
+
+# %%
+pacbio_concat_signature_positions_df["PositionInSignature"].value_counts(dropna=False)
+
+# %%
+pacbio_concat_signature_positions_proportion_df = (
+    pacbio_concat_signature_positions_df.groupby([condition_col, "Edited"])[
+        "PositionInSignature"
+    ]
+    .value_counts(normalize=True)
+    .mul(100)
+    .reset_index()
+    .rename(columns={"proportion": "%OfSites"})
+)
+
+pacbio_concat_signature_positions_proportion_df[
+    "Edited"
+] = pacbio_concat_signature_positions_proportion_df["Edited"].apply(
+    # lambda x: "Edited" if x else "Not edited"
+    lambda x: "Edited" if x else "Not<br>edited"
+)
+
+pacbio_concat_signature_positions_proportion_df
+
+# %%
+df = pacbio_concat_signature_positions_proportion_df.loc[
+    pacbio_concat_signature_positions_proportion_df["PositionInSignature"].eq("No")
+]
+
+df
+
+# %%
+df[condition_col].apply(lambda x: pacbio_color_discrete_map[x])
+
+# %%
+pacbio_color_discrete_map
+
+# %%
+x = [df[condition_col].values, df["Edited"].values]
+y = df["%OfSites"].values
+
+x
+
+# %%
+y
+
+
+# %%
+def signature_editing_test(signature_positions_df):
+    edited_in_signature = signature_positions_df.loc[
+        signature_positions_df["Edited"]
+        & signature_positions_df["PositionInSignature"].eq("Yes")
+    ].shape[0]
+    not_edited_in_signature = signature_positions_df.loc[
+        ~signature_positions_df["Edited"]
+        & signature_positions_df["PositionInSignature"].eq("Yes")
+    ].shape[0]
+    edited_outside_signature = signature_positions_df.loc[
+        signature_positions_df["Edited"]
+        & signature_positions_df["PositionInSignature"].eq("No")
+    ].shape[0]
+    not_edited_outside_signature = signature_positions_df.loc[
+        ~signature_positions_df["Edited"]
+        & signature_positions_df["PositionInSignature"].eq("No")
+    ].shape[0]
+
+    if edited_in_signature + not_edited_in_signature == 0:
+        return np.nan
+
+    table = [
+        [edited_in_signature, edited_outside_signature],
+        [not_edited_in_signature, not_edited_outside_signature],
+    ]
+
+    oddsratio, pvalue = scipy.stats.fisher_exact(
+        table,
+        # alternative="greater"
+    )  # "greater" tests for enrichment
+
+    edited_to_non_edited_in_signature_ratio = (
+        edited_in_signature / not_edited_in_signature
+    )
+    edited_to_non_edited_outside_signature_ratio = (
+        edited_outside_signature / not_edited_outside_signature
+    )
+
+    # return (
+    #     oddsratio,
+    #     pvalue,
+    #     edited_to_non_edited_in_signature_ratio,
+    #     edited_to_non_edited_outside_signature_ratio,
+    # )
+
+    return pvalue
+
+
+# %%
+# Prepare to collect p-values for annotation
+fisher_pvals = {}
+
+# We'll compare "Yes" vs "No" for each condition (Gene)
+for condition in pacbio_concat_signature_positions_df[condition_col].unique():
+    df = pacbio_concat_signature_positions_df[
+        pacbio_concat_signature_positions_df[condition_col] == condition
+    ]
+    pvalue = signature_editing_test(df)
+    fisher_pvals[condition] = pvalue
+
+fisher_pvals
+
+# %%
+fig = go.Figure()
+
+font_size = 14
+
+for edited_in_siganture, marker_pattern_shape in zip(
+    ["No", "Yes", "NA"], ["", "/", "."]
+):
+    df = pacbio_concat_signature_positions_proportion_df.loc[
+        pacbio_concat_signature_positions_proportion_df["PositionInSignature"]
+        == edited_in_siganture
+    ]
+    x = [df[condition_col].values, df["Edited"].values]
+    y = df["%OfSites"].values
+
+    colors = df[condition_col].apply(lambda x: pacbio_color_discrete_map[x])
+
+    fig.add_trace(
+        go.Bar(
+            x=x,
+            y=y,
+            name=edited_in_siganture,
+            marker_pattern_shape=marker_pattern_shape,
+            marker_color=colors,
+            showlegend=False,
+        )
+    )
+
+# Add a black and white legend for pattern shapes: ["No", "Yes", "NA"] and patterns ["", "/", "."]
+legend_labels = ["No", "Yes", "NA"]
+legend_patterns = ["", "/", "."]
+legend_colors = ["black"] * 3  # All black
+
+for label, pattern in zip(legend_labels, legend_patterns):
+    fig.add_trace(
+        go.Bar(
+            x=[None],
+            y=[None],
+            marker=dict(
+                color="black",
+                line_color="black",
+                pattern_fillmode="replace",
+                pattern_shape=pattern,
+            ),
+            name=label,
+            showlegend=True,
+        )
+    )
+
+# --- In your plotting code, after the bars are added, annotate p-values ---
+
+for condition, pval in fisher_pvals.items():
+    if np.isnan(pval):
+        continue
+    fig.add_annotation(
+        x=(condition, "Edited"),  # <-- tuple for grouped bar x-axis
+        xshift=-35,
+        # x=[
+        #     [condition] * 2,
+        #     ["Not<br>edited", "Edited"],
+        # ],  # <-- tuple for grouped bar x-axis
+        y=101,  # adjust as needed
+        # text=f"p = {pval:.2e}" if not np.isnan(pval) else "n/a",
+        text=f"p-val = {pval:.3g}",
+        showarrow=False,
+        font=dict(color="black", size=font_size),
+        yanchor="bottom",
+    )
+
+fig.update_xaxes(tickangle=30)
+
+fig.update_yaxes(
+    title="% of coding adenosines",
+    # title_font=dict(size=font_size),
+    #     tickfont=dict(size=0.7 * font_size)
+)
+
+# fig.update_yaxes(
+#     title_font=dict(size=font_size),
+#     tickfont=dict(size=0.7 * font_size),
+#     title_standoff=100,
+# )
+
+# fig.update_annotations(font_size=font_size)
+
+width = 800
+height = 450
+
+fig.update_layout(
+    barmode="relative",
+    width=width,
+    height=height,
+    template=template,
+    legend=dict(
+        title_text="In signature   ",
+    ),
+    # barcornerradius=15,
+)
+
+fig.write_image(
+    Path(out_dir, "Editing in domains - PacBio.svg"),
+    width=width,
+    height=height,
+)
+
+
+fig.show()
+
+# %%
+fig = px.bar(
+    pacbio_concat_signature_positions_proportion_df,
+    x="Edited",
+    y="%OfSites",
+    color=condition_col,
+    color_discrete_map=pacbio_color_discrete_map,
+    pattern_shape="PositionInSignature",
+    #  pattern_shape_map={
+    #  "China": ".", "Canada": "/", "South Korea": "+"
+    #  },
+    pattern_shape_sequence=["", "/", "."],
+    facet_col=condition_col,
+)
+
+width = 700
+height = 450
+
+fig.update_layout(
+    width=width,
+    height=height,
+    template=template,
+)
+
+
+fig.show()
+
+# %% [markdown]
 # # Combined dispersion plots
 
 # %%

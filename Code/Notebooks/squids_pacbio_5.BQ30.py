@@ -34,6 +34,7 @@ from multiprocessing import Pool
 from pathlib import Path
 import time
 from urllib.error import HTTPError
+import subprocess
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -59,6 +60,7 @@ from sklearn.metrics import mean_squared_error, r2_score, silhouette_score
 from sklearn.preprocessing import StandardScaler
 from Bio import Seq
 from Bio.ExPASy import ScanProsite
+import pysam
 
 sys.path.append(str(Path(code_dir).absolute()))
 from Alignment.alignment_utils import (
@@ -181,6 +183,7 @@ known_sites_file = (
 samtools_path = "/home/alu/kobish/anaconda3/envs/combinatorics/bin/samtools"
 threads = 20
 code_dir = "/private7/projects/Combinatorics/Code"
+out_dir = "/private7/projects/Combinatorics/Code/Notebooks"
 seed = 1892
 transcriptome_file = (
     "/private7/projects/Combinatorics/D.pealeii/Annotations/orfs_squ.fa"
@@ -2536,6 +2539,320 @@ plt.show()
 
 
 # %% [markdown]
+# ### Per-position coverage
+
+# %%
+mapped_bams_dir = Path(
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30"
+)
+# mapped_bam_files = list(mapped_bams_dir.glob("*.bam"))
+# mapped_bam_files
+
+# %%
+mapped_bam_files = [
+    file
+    for condition in conditions
+    for file in mapped_bams_dir.glob("*.bam")
+    if condition in file.name
+]
+mapped_bam_files
+
+# %%
+coverage_depth_files = [
+    Path(mapped_bams_dir, f"{condition}.CoverageDepth.tsv") for condition in conditions
+]
+coverage_depth_files
+
+# %%
+for condition, chrom, coverage_depth_file in zip(
+    conditions, chroms, coverage_depth_files
+):
+    gene_mapped_bam_files = [
+        file for file in mapped_bam_files if condition in file.name
+    ]
+    gene_mapped_bam_files = " ".join(str(file) for file in gene_mapped_bam_files)
+    cmd = f"samtools depth -a -H --min-BQ 30 -r {chrom} -o {coverage_depth_file} {gene_mapped_bam_files}"
+    print(cmd)
+    subprocess.run(cmd, shell=True, check=True)
+
+
+# %%
+def get_read_and_target_aligned_starts_and_ends(aligned_read_target_pairs):
+    # aligned_read_target_pairs = read.get_aligned_pairs(matches_only=True)
+    aligned_read_start, aligned_target_start = aligned_read_target_pairs[0]
+    aligned_read_end, aligned_target_end = aligned_read_target_pairs[-1]
+    aligned_read_end += 1
+    aligned_target_end += 1
+    return (
+        aligned_read_start,
+        aligned_read_end,
+        aligned_target_start,
+        aligned_target_end,
+    )
+
+
+# %%
+mapped_bam_dfs = []
+
+for condition, bam_file in zip(conditions, mapped_bam_files):
+
+    # sample = bam_file.name.split(".")[0]
+    # gene = sample[3:]
+    # repeat = sample[2]
+
+    # expected_chrom = chrom_per_gene_dict[gene]
+
+    with pysam.AlignmentFile(
+        bam_file,
+        "rb",
+        threads=10,
+        # check_sq=False,
+        # require_index=False,
+        # index_filename=str(Path(bam_file.parent, f"{bam_file.name}.pbi")),
+    ) as samfile:
+        reads = [read for read in samfile]
+        reads_names = [read.query_name for read in reads]
+        reads_seqs = [read.get_forward_sequence() for read in reads]
+        reads_seqs_lengths = [len(seq) for seq in reads_seqs]
+        # read_quality_tags = [read.get_tag("rq") for read in reads]
+        # reads_mapped_to_positive_strand = [read.is_forward for read in reads]
+        # mapped_strands = ["+" if read.is_forward else "-" for read in reads]
+        # reads_soft_clipped_seqs = [read.query_sequence for read in reads]
+        # reads_soft_clipped_lengths = [len(seq) for seq in reads_soft_clipped_seqs]
+        # aligned_seqs = [read.query_alignment_sequence for read in reads]
+        # aligned_seqs_lengths = [len(seq) for seq in aligned_seqs]
+        # mapped_chroms = [read.reference_name for read in reads]
+        # mapped_genes = [gene_by_chrom_dict[read.reference_name] for read in reads]
+        # aligned_pairs = [
+        #     read.get_aligned_pairs(matches_only=False, with_cigar=True)
+        #     for read in reads
+        # ]
+
+        all_reads_and_targets_aligned_starts_and_ends = [
+            get_read_and_target_aligned_starts_and_ends(
+                read.get_aligned_pairs(matches_only=True)
+            )
+            for read in reads
+        ]
+
+        df = pd.DataFrame(
+            {
+                condition_col: condition,
+                # "Gene": gene,
+                # "Repeat": repeat,
+                "Read": reads_names,
+                "Seq": reads_seqs,
+                "SeqLength": reads_seqs_lengths,
+                # "ReadQuality": read_quality_tags,
+                # "MappedStrand": mapped_strands,
+                # "RTGStrand": mapped_strands,
+                # "SoftClippedSeq": reads_soft_clipped_seqs,
+                # "SoftClippedSeqLength": reads_soft_clipped_lengths,
+                # "AlignedSeq": aligned_seqs,
+                # "AlignedSeqLength": aligned_seqs_lengths,
+                # "ExpectedChrom": expected_chrom,
+                # "MappedChrom": mapped_chroms,
+                # "MappedGene": mapped_genes,
+            }
+        )
+
+        alignment_boundries_df = pd.DataFrame(
+            all_reads_and_targets_aligned_starts_and_ends,
+            columns=["ReadStart", "ReadEnd", "GeneStart", "GeneEnd"],
+            # columns=["RTGReadStart", "RTGReadEnd", "RTGGeneStart", "RTGGeneEnd"],
+        )
+
+        df = pd.concat([df, alignment_boundries_df], axis=1)
+
+        mapped_bam_dfs.append(df)
+
+        # break
+
+concat_mapped_bams_df = pd.concat(mapped_bam_dfs, ignore_index=True)
+concat_mapped_bams_df
+
+# %%
+gene_cov_dfs = []
+
+for condition, chrom, coverage_depth_file in zip(
+    conditions, chroms, coverage_depth_files
+):
+    with open(coverage_depth_file) as f:
+        header_line = f.readline().lstrip("#").strip()
+        colnames = header_line.split("\t")
+        colnames = ["Chrom", "Position"] + [
+            colname.split("/")[-1].split(".")[0] for colname in colnames[2:]
+        ]
+
+    gene_cov_df = pd.read_table(
+        coverage_depth_file,
+        comment=None,  # don't ignore lines starting with #
+        names=colnames,
+        skiprows=1,  # skip the header line as data
+    )
+    gene_cov_df["Position"] = gene_cov_df["Position"] - 1
+    gene_cov_df = gene_cov_df.melt(
+        id_vars=["Chrom", "Position"],
+        var_name="Sample",
+        value_name="Coverage",
+    )
+    gene_cov_df = gene_cov_df.groupby("Position")["Coverage"].sum().reset_index()
+    gene_cov_df = gene_cov_df.rename(columns={"Coverage": "Reads"})
+
+    max_mapped_reads_per_gene = concat_mapped_bams_df.loc[
+        concat_mapped_bams_df[condition_col].eq(condition)
+    ].shape[0]
+
+    gene_cov_df["%OfAllMappedReads"] = (
+        100 * gene_cov_df["Reads"] / max_mapped_reads_per_gene
+    ).round(2)
+
+    gene_cov_dfs.append(gene_cov_df)
+
+gene_cov_dfs[0]
+
+# %%
+gene_cov_dfs[1]
+
+# %%
+for condition, gene_cov_df in zip(conditions, gene_cov_dfs):
+    fig = px.area(
+        gene_cov_df,
+        x="Position",
+        y="Reads",
+        title=condition,
+        labels={"Reads": "Mapped reads"},
+    )
+    max_mapped_reads_per_gene = concat_mapped_bams_df.loc[
+        concat_mapped_bams_df[condition_col].eq(condition)
+    ].shape[0]
+    last_position_per_gene = gene_cov_df["Position"].max()
+    fig.add_shape(
+        type="line",
+        x0=0,
+        x1=last_position_per_gene,
+        y0=max_mapped_reads_per_gene,
+        y1=max_mapped_reads_per_gene,
+        line=dict(
+            color="LightSeaGreen",
+            width=4,
+            dash="dashdot",
+        ),
+    )
+    fig.update_xaxes(dtick=250)
+    fig.update_yaxes(dtick=10_000)
+    fig.update_layout(
+        width=1200,
+        height=500,
+        template=template,
+    )
+    fig.show()
+
+# %%
+main_mapping_boundaries_per_gene = []
+for gene_cov_df in gene_cov_dfs:
+    main_mapping_boundaries = (
+        gene_cov_df.loc[gene_cov_df["Reads"].gt(25_000), "Position"]
+        .agg(["min", "max"])
+        .values
+    )
+    main_mapping_boundaries_per_gene.append(main_mapping_boundaries)
+main_mapping_boundaries_per_gene
+
+# %%
+for condition, main_mapping_boundaries in zip(
+    conditions, main_mapping_boundaries_per_gene
+):
+    main_mapping_boundary_start, main_mapping_boundary_end = main_mapping_boundaries
+    max_mapped_reads_per_gene = concat_mapped_bams_df.loc[
+        concat_mapped_bams_df[condition_col].eq(condition)
+    ].shape[0]
+    df = concat_mapped_bams_df.loc[concat_mapped_bams_df[condition_col].eq(condition)]
+    reads_spanning_from_main_mapping_boundaries_from_start_to_end = df.loc[
+        (df["GeneStart"].eq(main_mapping_boundary_start))
+        & (df["GeneEnd"].sub(1).eq(main_mapping_boundary_end))
+    ].shape[0]
+    prct_reads_spanning_from_main_mapping_boundaries_from_start_to_end = np.round(
+        100
+        * reads_spanning_from_main_mapping_boundaries_from_start_to_end
+        / max_mapped_reads_per_gene,
+        2,
+    )
+    ic(
+        condition,
+        # main_mapping_boundary_start,
+        # main_mapping_boundary_end,
+        reads_spanning_from_main_mapping_boundaries_from_start_to_end,
+        prct_reads_spanning_from_main_mapping_boundaries_from_start_to_end,
+    )
+
+# %%
+mapping_stats_df = concat_mapped_bams_df.copy()
+mapping_stats_df["ReadAlignmentLength"] = (
+    mapping_stats_df["ReadEnd"] - mapping_stats_df["ReadStart"]
+)
+mapping_stats_df
+
+# %%
+mapping_stats_df.groupby(condition_col)[
+    ["SeqLength", "ReadAlignmentLength", "GeneStart", "GeneEnd"]
+].describe().round(2)
+
+# %%
+fig = px.scatter(
+    mapping_stats_df,
+    x="ReadLength",
+    y="ReadAlignmentLength",
+    color="Gene",
+    # facet_col="MappedGene",
+    facet_col_spacing=0.05,
+    labels={
+        "ReadLength": "Read length [bp]",
+        "ReadAlignmentLength": "Read alignment length [bp]",
+        "MappedGene": "Mapped gene",
+    },
+    trendline="ols",
+    opacity=0.5,
+)
+fig.update_layout(
+    width=600,
+    height=600,
+    # title="Read alignment length vs. read length",
+)
+fig.show()
+
+# %%
+# fig = px.histogram(
+#     mapping_stats_df,
+#     x="ReadLength",
+#     y="ReadAlignmentLength",
+#     histfunc="avg",
+#     color="Gene",
+#     # facet_col="MappedGene",
+#     # facet_col_spacing=0.05,
+#     labels={
+#         "ReadLength": "Read length [bp]",
+#         "ReadAlignmentLength": "Read alignment length [bp]",
+#         # "MappedGene": "Mapped gene",
+#     },
+#     # trendline="ols",
+# )
+# fig.update_layout(
+#     width=600,
+#     height=600,
+#     # title="Read alignment length vs. read length",
+# )
+# fig.show()
+
+# %%
+mapping_stats_df.groupby("Gene")[
+
+# %%
+mapping_stats_df.loc[:, ["Gene", "ReadLength", "ReadAlignmentLength"]].groupby(
+    "Gene"
+).describe().round(2).T
+
+# %% [markdown]
 # ### Editing vs. coverage
 
 # %%
@@ -2801,13 +3118,25 @@ fig.show()
 transcriptome_dict = make_fasta_dict(transcriptome_file)
 
 # %%
-proteome_dict = make_fasta_dict(proteome_file)
+# proteome_dict = make_fasta_dict(proteome_file)
+
+# proteins_seqs_dict = {
+#     condition: proteome_dict[chrom] for chrom, condition in zip(chroms, conditions)
+# }
+# proteins_seqs_dict
+
+# %%
+chroms
 
 # %%
 proteins_seqs_dict = {
-    condition: proteome_dict[chrom] for chrom, condition in zip(chroms, conditions)
+    condition: transcriptome_dict[chrom][start:end].translate()
+    for chrom, start, end, condition in zip(chroms, starts, ends, conditions)
 }
 proteins_seqs_dict
+
+# %%
+print(proteins_seqs_dict["GRIA"])
 
 # %%
 transcriptome_dict[chroms[0]][starts[0] : ends[0]].translate()
@@ -2915,9 +3244,12 @@ processed_prosite_results_df = pd.DataFrame(
 processed_prosite_results_df
 
 # %%
+positions_dfs[0].loc[positions_dfs[0]["RefBase"] == "A"]
+
+# %%
 # edited_positions_dfs = [df.loc[(df["Edited"]) & (df["CDS"])] for df in positions_dfs]
 # concat_edited_positions_df = pd.concat(edited_positions_dfs).reset_index(drop=True)
-concat_edited_positions_df = pd.concat(
+concat_edited_signature_positions_df = pd.concat(
     [
         df.loc[(df["Edited"]) & (df["CDS"])].drop(
             columns=[
@@ -2941,45 +3273,57 @@ concat_edited_positions_df = pd.concat(
     ]
 ).reset_index(drop=True)
 
-concat_edited_positions_df["ORFStart"] = concat_edited_positions_df.apply(
-    lambda x: starts[conditions.index(x[condition_col])], axis=1
+concat_edited_signature_positions_df["ORFStart"] = (
+    concat_edited_signature_positions_df.apply(
+        lambda x: starts[conditions.index(x[condition_col])], axis=1
+    )
 )
-concat_edited_positions_df["ORFEnd"] = concat_edited_positions_df.apply(
-    lambda x: ends[conditions.index(x[condition_col])], axis=1
+concat_edited_signature_positions_df["ORFEnd"] = (
+    concat_edited_signature_positions_df.apply(
+        lambda x: ends[conditions.index(x[condition_col])], axis=1
+    )
 )
 
-concat_edited_positions_df["AAPosition"] = concat_edited_positions_df.apply(
-    lambda x: transcript_pos_to_aa_index(x["ORFStart"], x["ORFEnd"], x["Position"]),
-    axis=1,
+concat_edited_signature_positions_df["AAPosition"] = (
+    concat_edited_signature_positions_df.apply(
+        lambda x: transcript_pos_to_aa_index(x["ORFStart"], x["ORFEnd"], x["Position"]),
+        axis=1,
+    )
 )
 
 # add info about the possible signatures of each gene into each position
-concat_edited_positions_df = concat_edited_positions_df.merge(
+concat_edited_signature_positions_df = concat_edited_signature_positions_df.merge(
     processed_prosite_results_df, how="left"
 )
 
-concat_edited_positions_df["PositionInSignature"] = concat_edited_positions_df.apply(
-    lambda x: x["SignatureStart"] <= x["AAPosition"] < x["SignatureEnd"], axis=1
+concat_edited_signature_positions_df["PositionInSignature"] = (
+    concat_edited_signature_positions_df.apply(
+        lambda x: x["SignatureStart"] <= x["AAPosition"] < x["SignatureEnd"], axis=1
+    )
 )
 
 # make sure no position is in more than one signature
 assert (
-    concat_edited_positions_df.groupby([condition_col, "Position"])[
+    concat_edited_signature_positions_df.groupby([condition_col, "Position"])[
         "PositionInSignature"
     ]
     .sum()
     .ge(2)
     .value_counts()[False]
-    == concat_edited_positions_df.drop_duplicates([condition_col, "Position"]).shape[0]
+    == concat_edited_signature_positions_df.drop_duplicates(
+        [condition_col, "Position"]
+    ).shape[0]
 )
 
-concat_edited_positions_df = concat_edited_positions_df.drop_duplicates(
-    [condition_col, "Position", "PositionInSignature"],
-    ignore_index=True,
+concat_edited_signature_positions_df = (
+    concat_edited_signature_positions_df.drop_duplicates(
+        [condition_col, "Position", "PositionInSignature"],
+        ignore_index=True,
+    )
 )
 
-concat_edited_positions_df.loc[
-    ~concat_edited_positions_df["PositionInSignature"],
+concat_edited_signature_positions_df.loc[
+    ~concat_edited_signature_positions_df["PositionInSignature"],
     [
         "SignatureScore",
         "SignatureAccession",
@@ -2989,20 +3333,22 @@ concat_edited_positions_df.loc[
 ] = np.nan
 
 # update the "PositionInSignature" column to indicate if the position is in a significant signature
-concat_edited_positions_df["PositionInSignature"] = concat_edited_positions_df.apply(
-    lambda x: (
-        "No"
-        if not x["PositionInSignature"]
-        else "Yes" if x["SignatureScore"] != -1 else "NA"
-    ),
-    axis=1,
+concat_edited_signature_positions_df["PositionInSignature"] = (
+    concat_edited_signature_positions_df.apply(
+        lambda x: (
+            "No"
+            if not x["PositionInSignature"]
+            else "Yes" if x["SignatureScore"] != -1 else "NA"
+        ),
+        axis=1,
+    )
 )
 
-concat_edited_positions_df
+concat_edited_signature_positions_df
 
 # %%
 fig = px.histogram(
-    concat_edited_positions_df,
+    concat_edited_signature_positions_df,
     facet_col=condition_col,
     x="PositionInSignature",
     # y="EditingFrequency",
@@ -3022,8 +3368,467 @@ fig.update_layout(
 fig.show()
 
 # %%
+# edited_positions_dfs = [df.loc[(df["Edited"]) & (df["CDS"])] for df in positions_dfs]
+# concat_edited_positions_df = pd.concat(edited_positions_dfs).reset_index(drop=True)
+concat_signature_positions_df = pd.concat(
+    [
+        df.loc[(df["CDS"]) & (df["RefBase"].eq("A"))].drop(
+            columns=[
+                "CDS",
+                "InProbRegion",
+                "RefBase",
+                "Phred",
+                "MappedBases",
+                "Noise",
+                # "Edited",
+                "Reads",
+                "TotalCoverage",
+                "A",
+                "T",
+                "C",
+                "G",
+                "KnownEditing",
+            ]
+        )
+        for df in positions_dfs
+    ]
+).reset_index(drop=True)
+
+concat_signature_positions_df["ORFStart"] = concat_signature_positions_df.apply(
+    lambda x: starts[conditions.index(x[condition_col])], axis=1
+)
+concat_signature_positions_df["ORFEnd"] = concat_signature_positions_df.apply(
+    lambda x: ends[conditions.index(x[condition_col])], axis=1
+)
+
+concat_signature_positions_df["AAPosition"] = concat_signature_positions_df.apply(
+    lambda x: transcript_pos_to_aa_index(x["ORFStart"], x["ORFEnd"], x["Position"]),
+    axis=1,
+)
+
+# add info about the possible signatures of each gene into each position
+concat_signature_positions_df = concat_signature_positions_df.merge(
+    processed_prosite_results_df, how="left"
+)
+
+concat_signature_positions_df["PositionInSignature"] = (
+    concat_signature_positions_df.apply(
+        lambda x: x["SignatureStart"] <= x["AAPosition"] < x["SignatureEnd"], axis=1
+    )
+)
+
+# make sure no position is in more than one signature
+assert (
+    concat_signature_positions_df.groupby([condition_col, "Position"])[
+        "PositionInSignature"
+    ]
+    .sum()
+    .ge(2)
+    .value_counts()[False]
+    == concat_signature_positions_df.drop_duplicates([condition_col, "Position"]).shape[
+        0
+    ]
+)
+
+concat_signature_positions_df = concat_signature_positions_df.drop_duplicates(
+    [condition_col, "Position", "PositionInSignature"],
+    ignore_index=True,
+)
+
+concat_signature_positions_df.loc[
+    ~concat_signature_positions_df["PositionInSignature"],
+    [
+        "SignatureScore",
+        "SignatureAccession",
+        "SignatureStart",
+        "SignatureEnd",
+    ],
+] = np.nan
+
+# update the "PositionInSignature" column to indicate if the position is in a significant signature
+concat_signature_positions_df["PositionInSignature"] = (
+    concat_signature_positions_df.apply(
+        lambda x: (
+            "No"
+            if not x["PositionInSignature"]
+            else "Yes" if x["SignatureScore"] != -1 else "NA"
+        ),
+        axis=1,
+    )
+)
+
+concat_signature_positions_df
+
+# %%
+concat_signature_positions_df.insert(0, "Platform", "Long-reads")
+concat_signature_positions_df.loc[:, condition_col] = concat_signature_positions_df.loc[
+    :, condition_col
+].apply(lambda x: "GRIA2" if x == "GRIA" else x)
+concat_signature_positions_df.to_csv(
+    Path(
+        out_dir,
+        "EditingInMotifs.PacBio.tsv",
+    ),
+    sep="\t",
+    index=False,
+)
+concat_signature_positions_df
+
+# %%
+
+# %%
+concat_signature_positions_df.groupby([condition_col, "PositionInSignature"])
+
+# %%
+fig = px.histogram(
+    concat_signature_positions_df,
+    facet_col=condition_col,
+    x="PositionInSignature",
+    # y="EditingFrequency",
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    pattern_shape="Edited",
+    # pattern_shape_sequence=[".", "/"],
+    pattern_shape_sequence=["", "/"],
+    category_orders=category_orders | {"PositionInSignature": ["No", "Yes", "NA"]},
+    template=template,
+    # title="Prosite signatures scores in edited positions",
+    # labels={"SignatureScore": "Signature score"},
+)
+# fig.update_yaxes(dtick=20)
+fig.update_layout(
+    width=600,
+    height=400,
+    # showlegend=False,
+)
+fig.show()
+
+
+# %%
+def signature_editing_test(signature_positions_df):
+    edited_in_signature = signature_positions_df.loc[
+        signature_positions_df["Edited"]
+        & signature_positions_df["PositionInSignature"].eq("Yes")
+    ].shape[0]
+    not_edited_in_signature = signature_positions_df.loc[
+        ~signature_positions_df["Edited"]
+        & signature_positions_df["PositionInSignature"].eq("Yes")
+    ].shape[0]
+    edited_outside_signature = signature_positions_df.loc[
+        signature_positions_df["Edited"]
+        & signature_positions_df["PositionInSignature"].eq("No")
+    ].shape[0]
+    not_edited_outside_signature = signature_positions_df.loc[
+        ~signature_positions_df["Edited"]
+        & signature_positions_df["PositionInSignature"].eq("No")
+    ].shape[0]
+
+    table = [
+        [edited_in_signature, edited_outside_signature],
+        [not_edited_in_signature, not_edited_outside_signature],
+    ]
+
+    oddsratio, pvalue = scipy.stats.fisher_exact(
+        table, alternative="greater"
+    )  # "greater" tests for enrichment
+
+    edited_to_non_edited_in_signature_ratio = (
+        edited_in_signature / not_edited_in_signature
+    )
+    edited_to_non_edited_outside_signature_ratio = (
+        edited_outside_signature / not_edited_outside_signature
+    )
+
+    return (
+        oddsratio,
+        pvalue,
+        edited_to_non_edited_in_signature_ratio,
+        edited_to_non_edited_outside_signature_ratio,
+    )
+
+# %%
+# Distribution of min & max estimates of non-syn substitutions per *read*
+
+
+# fixed_conditions = ["GRIA2", "PCLO"]
+
+cols = min(facet_col_wrap, len(conditions), 4)
+rows = ceil(len(conditions) / cols)
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
+
+x_title = "Adenosine in signature"
+y_title = "Reads"
+# title_text = "Distribution of min & max estimates of non-syn substitutions per read"
+
+edited_pattern_shape_dict = {False: "", True: "/"}
+
+fig = make_subplots(
+    rows=rows,
+    cols=cols,
+    # subplot_titles=conditions,
+    subplot_titles=fixed_conditions,
+    shared_yaxes=True,
+    x_title=x_title,
+    y_title=y_title,
+)
+
+# min_x = None
+# max_x = 0
+# max_y = 0
+
+# col_names = ["MinNonSyns", "MaxNonSyns"]
+# estimate_names = ["Min", "Max"]
+
+
+# for (row, col), condition, proteins_df in zip(
+#     row_col_iter, conditions, non_syns_per_read_dfs
+# ):
+for (row, col), condition, fixed_condition in zip(
+    row_col_iter, conditions, fixed_conditions
+):
+    signature_positions_df = concat_signature_positions_df.loc[
+        concat_signature_positions_df[condition_col] == condition
+    ]
+
+    # outside signature
+    edited_outside_signature = signature_positions_df.loc[
+        signature_positions_df["Edited"]
+        & signature_positions_df["PositionInSignature"].eq("No")
+    ].shape[0]
+    not_edited_outside_signature = signature_positions_df.loc[
+        ~signature_positions_df["Edited"]
+        & signature_positions_df["PositionInSignature"].eq("No")
+    ].shape[0]
+    # inside signature
+    edited_in_signature = signature_positions_df.loc[
+        signature_positions_df["Edited"]
+        & signature_positions_df["PositionInSignature"].eq("Yes")
+    ].shape[0]
+    not_edited_in_signature = signature_positions_df.loc[
+        ~signature_positions_df["Edited"]
+        & signature_positions_df["PositionInSignature"].eq("Yes")
+    ].shape[0]
+    # non significant signature
+    edited_in_na = signature_positions_df.loc[
+        signature_positions_df["Edited"]
+        & signature_positions_df["PositionInSignature"].eq("NA")
+    ].shape[0]
+    not_edited_in_na = signature_positions_df.loc[
+        ~signature_positions_df["Edited"]
+        & signature_positions_df["PositionInSignature"].eq("NA")
+    ].shape[0]
+
+    # # outside signature
+    # fig.add_trace(
+    #     go.Bar(
+    #         x=["No"],
+    #         y=[edited_outside_signature],
+    #         marker_color=color_discrete_map[condition],
+    #         marker_pattern_shape=edited_pattern_shape_dict[True],
+    #         # name=f"{fixed_condition}, {estimate_name}",
+    #     ),
+    #     row=row,
+    #     col=col,
+    # )
+    # fig.add_trace(
+    #     go.Bar(
+    #         x=["No"],
+    #         y=[not_edited_outside_signature],
+    #         marker_color=color_discrete_map[condition],
+    #         marker_pattern_shape=edited_pattern_shape_dict[False],
+    #         # name=f"{fixed_condition}, {estimate_name}",
+    #     ),
+    #     row=row,
+    #     col=col,
+    # )
+    # # inside signature
+    # fig.add_trace(
+    #     go.Bar(
+    #         x=["Yes"],
+    #         y=[edited_in_signature],
+    #         marker_color=color_discrete_map[condition],
+    #         marker_pattern_shape=edited_pattern_shape_dict[True],
+    #         # name=f"{fixed_condition}, {estimate_name}",
+    #     ),
+    #     row=row,
+    #     col=col,
+    # )
+    # fig.add_trace(
+    #     go.Bar(
+    #         x=["Yes"],
+    #         y=[not_edited_in_signature],
+    #         marker_color=color_discrete_map[condition],
+    #         marker_pattern_shape=edited_pattern_shape_dict[False],
+    #         # name=f"{fixed_condition}, {estimate_name}",
+    #     ),
+    #     row=row,
+    #     col=col,
+    # )
+    # # non significant signature
+    # fig.add_trace(
+    #     go.Bar(
+    #         x=["NA"],
+    #         y=[edited_in_na],
+    #         marker_color=color_discrete_map[condition],
+    #         marker_pattern_shape=edited_pattern_shape_dict[True],
+    #         # name=f"{fixed_condition}, {estimate_name}",
+    #     ),
+    #     row=row,
+    #     col=col,
+    # )
+    # fig.add_trace(
+    #     go.Bar(
+    #         x=["NA"],
+    #         y=[not_edited_in_na],
+    #         marker_color=color_discrete_map[condition],
+    #         marker_pattern_shape=edited_pattern_shape_dict[False],
+    #         # name=f"{fixed_condition}, {estimate_name}",
+    #     ),
+    #     row=row,
+    #     col=col,
+    # )
+
+    fig.add_trace(
+        go.Bar(
+            x=["Edited"] * 3,
+            y=[edited_outside_signature, edited_in_signature, edited_in_na],
+            marker_color=color_discrete_map[condition],
+            # marker_pattern_shape=edited_pattern_shape_dict[True],
+            # marker_pattern_shape=".",
+            pattern_shape_sequence=[".", "x", "+"],
+            # name=f"{fixed_condition}, {estimate_name}",
+        ),
+        row=row,
+        col=col,
+    )
+    fig.add_trace(
+        go.Bar(
+            x=["Not edited"] * 3,
+            y=[not_edited_outside_signature, not_edited_in_signature, not_edited_in_na],
+            marker_color=color_discrete_map[condition],
+            # marker_pattern_shape=edited_pattern_shape_dict[True],
+            # marker_pattern_shape="/",
+            pattern_shape_sequence=[".", "x", "+"],
+            # name=f"{fixed_condition}, {estimate_name}",
+        ),
+        row=row,
+        col=col,
+    )
+
+# add mean lines + text (and also keep track of max_y)
+
+# f = fig.full_figure_for_development(warn=False)
+# data_traces = {}
+# for condition in fixed_conditions:
+#     for estimate_name in estimate_names:
+#         name = f"{condition}, {estimate_name}"
+#         for data in f.data:
+#             if data.name == name:
+#                 data_traces[name] = data
+#                 continue
+# for (row, col), condition in zip(row_col_iter, fixed_conditions):
+#     for estimate_name in estimate_names:
+#         name = f"{condition}, {estimate_name}"
+#         data = data_traces[name]
+#         x = data.x
+#         xbins = f.data[0].xbins
+#         plotbins = list(
+#             np.arange(
+#                 start=xbins["start"],
+#                 stop=xbins["end"] + xbins["size"],
+#                 step=xbins["size"],
+#             )
+#         )
+#         counts, bins = np.histogram(list(x), bins=plotbins)
+#         max_count = max(counts)
+#         max_y = max(max_y, max_count)
+#         x_mean = np.mean(x)
+#         x_std = np.std(x)
+#         fig.add_trace(
+#             go.Scatter(
+#                 x=[x_mean, x_mean, x_mean],
+#                 y=[0, max_count, max_count * 1.1],
+#                 mode="lines+text",
+#                 line=dict(
+#                     color="white",
+#                     # dash="dash",
+#                     dash="dot",
+#                     width=4,
+#                 ),
+#                 # text=["", "", f"{x_mean:.0f}"],
+#                 text=["", "", f"{x_mean:.0f}±{x_std:.0f}"],
+#                 textposition="top center",
+#                 textfont=dict(size=10),
+#             ),
+#             row=row,
+#             col=col,
+#         )
+
+# ic(max_y)
+
+# # add legends
+
+# for (row, col), condition in zip(row_col_iter, conditions):
+#     for i, (col_name, estimate_name) in enumerate(zip(col_names, estimate_names)):
+#         fig.add_trace(
+#             go.Scatter(
+#                 x=[0.75 * max_x],
+#                 # y=[(0.13 * max_y) - (1_000 * i)],
+#                 y=[(0.7 * max_y) - (1_000 * i)],
+#                 mode="markers+text",
+#                 marker=dict(
+#                     color=subcolors_discrete_map[condition][i],
+#                     size=9,
+#                     # opacity=0.7,
+#                     symbol="square",
+#                     # line=dict(width=0),
+#                 ),
+#                 text=estimate_name,
+#                 textposition="middle right",
+#                 textfont=dict(size=9),
+#             ),
+#             row=row,
+#             col=col,
+#         )
+
+# fig.update_traces(opacity=0.75)  # Reduce opacity to see both histograms
+# # fig.update_xaxes(range=[min_x * 0.9, max_x * 1.1])
+# fig.update_xaxes(range=[0, max_x])
+# fig.update_yaxes(range=[0, max_y * 1.2])
+
+width = max(350 * cols, 800)
+height = max(230 * rows, 330)
+
+fig.update_layout(
+    template=template,
+    barmode="overlay",  # Overlay both histograms
+    title_text="Squid's Long-reads",
+    title_x=0.1,
+    # title_y=0.95,
+    # showlegend=False,
+    height=height,
+    width=width,
+)
+
+# fig.write_image(
+#     f"{title_text} - PacBio.svg",
+#     height=height,
+#     width=width,
+# )
+
+fig.show()
+
+# %%
+signature_positions_df = concat_signature_positions_df.loc[
+    concat_signature_positions_df[condition_col] == conditions[1]
+]
+# signature_positions_df
+
+# %%
+
+# %%
 fig = px.box(
-    concat_edited_positions_df,
+    concat_edited_signature_positions_df,
     facet_col=condition_col,
     x="PositionInSignature",
     y="EditingFrequency",
@@ -3043,8 +3848,8 @@ fig.show()
 
 # %%
 chroms_with_at_least_one_significant_signature = (
-    concat_edited_positions_df.loc[
-        concat_edited_positions_df["PositionInSignature"].eq("Yes"),
+    concat_edited_signature_positions_df.loc[
+        concat_edited_signature_positions_df["PositionInSignature"].eq("Yes"),
     ]["Chrom"]
     .unique()
     .tolist()
@@ -3053,11 +3858,13 @@ chroms_with_at_least_one_significant_signature = (
 len(chroms_with_at_least_one_significant_signature)
 
 # %%
-significat_singatures_concat_edited_positions_df = concat_edited_positions_df.loc[
-    concat_edited_positions_df["Chrom"].isin(
-        chroms_with_at_least_one_significant_signature
-    )
-]
+significat_singatures_concat_edited_positions_df = (
+    concat_edited_signature_positions_df.loc[
+        concat_edited_signature_positions_df["Chrom"].isin(
+            chroms_with_at_least_one_significant_signature
+        )
+    ]
+)
 significat_singatures_concat_edited_positions_df
 
 # %%
@@ -5700,28 +6507,27 @@ def find_rand_maximal_solution(
 #     return percentile_df
 
 # %%
-def choose_sample_solutions(
-    expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
-):
-    return (
-        expression_df.loc[
-            expression_df["Algorithm"].isin(allowed_algorithms),
-            [
-                condition_col,
-                "#Solution",
-                "Fraction",
-                "FractionRepetition",
-                "Algorithm",
-                "AlgorithmRepetition",
-            ],
-        ]
-        .groupby(["Algorithm", "#Solution"])
-        .sample()
-        .groupby("Algorithm")
-        .sample(3, random_state=seed)
-        .reset_index(drop=True)["#Solution"]
-    )
-
+# def choose_sample_solutions(
+#     expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
+# ):
+#     return (
+#         expression_df.loc[
+#             expression_df["Algorithm"].isin(allowed_algorithms),
+#             [
+#                 condition_col,
+#                 "#Solution",
+#                 "Fraction",
+#                 "FractionRepetition",
+#                 "Algorithm",
+#                 "AlgorithmRepetition",
+#             ],
+#         ]
+#         .groupby(["Algorithm", "#Solution"])
+#         .sample()
+#         .groupby("Algorithm")
+#         .sample(3, random_state=seed)
+#         .reset_index(drop=True)["#Solution"]
+#     )
 
 # %%
 maximal_solutions = [
@@ -5774,6 +6580,54 @@ for assignment_df in assignment_dfs:
     ].cumsum()
 
 assignment_dfs[0]
+
+# %%
+
+# %%
+
+# %%
+max_expression_df = pd.concat(assignment_dfs, ignore_index=True)
+max_expression_df
+
+# %%
+max_expression_df.groupby(condition_col).apply(
+    lambda x: x["Reads"].apply(len).describe(),
+    include_groups=False,
+).round(2).T
+
+# %%
+max_expression_df.groupby(condition_col).apply(
+    lambda x: x["AdditionalSupportingReadsIDs"].apply(len).describe(),
+    include_groups=False,
+).round(2).T
+
+# %%
+max_expression_df.groupby(condition_col).apply(
+    lambda x: x["AdditionalSupportingProteins"].describe(),
+    include_groups=False,
+).round(2).T
+
+# %%
+fig = px.histogram(
+    max_expression_df,
+    x="TotalWeightedSupportingReads",
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    log_y=True,
+)
+fig.update_traces(opacity=0.75)
+fig.update_layout(
+    width=800,
+    height=550,
+    template=template,
+)
+fig.show()
+
+# %%
+
+# %%
+
+# %%
 
 # %%
 assignment_dfs[0].columns

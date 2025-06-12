@@ -18,9 +18,11 @@
 
 # %%
 from collections import Counter, defaultdict
-from itertools import chain, product
+from itertools import chain, product, repeat
+import itertools
 from multiprocessing import Pool
 from pathlib import Path
+import subprocess
 
 import numpy as np
 import pandas as pd
@@ -44,11 +46,17 @@ pd.set_option("display.max_columns", 500)
 unmapped_bams_dir = Path(
     "/private7/projects/Combinatorics/D.pealeii/Data/RawWithUMIs/30-1097162729/CCS"
 )
-
-# %%
 mapped_bams_dir = Path(
     "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads"
 )
+
+# %%
+unmapped_bam_files = list(unmapped_bams_dir.glob("*.bam"))
+unmapped_bam_files
+
+# %%
+mapped_bam_files = list(mapped_bams_dir.glob("*.bam"))
+mapped_bam_files
 
 # %%
 min_read_quality = 0.998
@@ -97,6 +105,62 @@ genes_seq_dict = {
     "ADAR1": "ATGGCGAACTCTAATCTATCTTCTTCCATGAATCAAAACATGGCTCACATGGGTGGTGGGAGTTTAGTAAATGGCTACTACAAACAAGTACCATATTCAGGTGGAAGAAGCCGAAATGCAAGTGGTAGGTCCGGTAGTCGTGGCCGCGGCAAACCTGCAGTCAGGGAAACTAGTTTGAATGTTCATCCAGAATGGGAAGAGCGTATTGTAAACTACCTTGCCCACAAAACTCATCCTGTAAAGACCATGGAGCTGGCACGCCTCGTGAATGTTCGCTCACGCAAAGAAGTGAATCCCACTTTGTACAGCATGGACAGACGAGGTCTTATCAGGAAACATGGAATGCAACCTCCGACATGGGTAATTGCAGACCCACCCCAATCTCACGGCGGATACAACCAAAATGAGACACACTATTCAAGTAGCCCAGGAATTTACCAGCATAGTCCGGTTTCGAGAACTCCTCAGAACTTTTATCCCAATAATCGAGAGAGTTATCGAGGACACAAAGCTCCAAATAGTAATTACCCGCGCTCCAAACGGACTTCATACAGGAATGACTGGCATAACTTTTGCTCCCCTCCATCTCACATGTACCCAGAGGGCAAAAATGAATCTTTGATCTATAGTCACAGTAACAAAGATAATGAGATGTTATCAATGGGAAACGCTAGTTCTCCAAACAGATTGCGGTCTGAAAGTTGTAGCCCAGATGAATGTGAAGCGCTGGAAACAGCCATTGCAAATTATCCACATAGTGGTGGGTATGGCCAGGGTTACTCAGGACATTTCCCTGTAACCCCAGAACCAAAGCAAACTGGCAAGAGAAGGAGAAATTGTGATAACTTTGGTTTACAACAACATCCATCAAATGGTACGATGCCGATGAAAAACAGTGAGAAGATCCAACAGAAAAAATTGGAATTTCAGGATGAAAGATATTATGATGCAAGCTACCCATCCTATTCTGGAAATTTTACTATGAACTATGCAAATCATTTTGATATGCCTGTCTATCATCCGATAGACCGGGAGGACCCGAAGGATACTCCACCTCCGTCACGTGTGTCAATGGACTTGATAAAAAAGGATTCCAAGGACATCTCGTCACATGAACGAATCTCTCCCAAGAGGAATTCAAACAGTAAGGGTTGTAATTCTGACGCTCATGACCCACAGGCAAGAGTTATTTCCTTCCTGGATAAAACTATGAATGGCTCTGCGAAGTCACGAGAAATCGCCAAGCATACAAGTCTTTCTCTGGAAGATACCCAGAAGATATTGCATAGTTTGTGTAAGAAGAAAATAGTCGCAACAATTGGTGAAGATATCTACATAATGGCTAAAAATGCAGCCAGTTATGAGACTGAGATTCCAGCAGGAAAAAACTCCTCATCAAACATGAATTCAAACATGGCACGCCAGTTCTCCAGTGGAAATCGGCAGCCCCCTGCGCCCCCACATGTACTATTGGCGGATAATGGCATCAATTCCGGCAGCATGAAAAACGTTTATTTCCAGGGTAATAATGCTCCCAAACAATCTGGGTCCAACTCGAGTGAATCAAAATCAGCACAGAGCCAGGTGGGCAGAAGCCCTCATCTACCCCCTTCCCCTCATGAACTATTAGCAAAGGACCCAATTTTCAAGGGAGACATTACTGCACCCAATACAAACGCTTCAAAGGACTACAACCAGTCGTCATCATCTTCGTCAGCATCCTTGTCGTCCTCAACGTCAAAGAACTCAAGGTGGAATAGCAACACTGCAGCGACAGAGAGTTCCAGAGCTCCAAACACGACCTCTGCTTCAACATCGTCAACTACATCATTTGCTCCCACTCCTAGTAAGTCTGCCTCTAATTCAAAACAGACTGCTCCTAGTCCCAAGCAACCATCTCCAAGTCCTAAGCAGAACACCCCTAAGAGTTCCAAGAGTTCCAAAAGTTCCAAGCAGAGAGCCACAAGCCCCAAACAAAACAGCACTCCTAGCTCCCAGGCGTCCTCTCAGTCAAACTCCAATACTACTACAACTGCCACCTCAAGCAGCAGCAAAAATAATAAAAATAACAACAATAACAACACCTCAGTAGAGAATTTGCAAGATGCCCTCAAAAATGTGTCTATCTCGTCCCCGACTGAGACTACTGAGAGCAAAACGCCCACATTGGCCGAGATCAAGGCGGCAGCAGTGGCGCAGGCGTTGGCCGACAAAGCGGCTGAGAAAGGAGCTGACAAGTCTGGTACTGATTCATTGGCACCAAATCTACAGATCACCTCAGAAAGTTTCGCCGCTCTCAACAAAAATCCAGTTAGCGCACTGATGGAATATGCTCAACAGCGACACTTACCCGTTGAATTTAAGCTTTTGTCACACAGAGGACCTTCTCATCGACCGTTGTTCAAATTTGCCGTGATTCTTGGTAAACGCCAGTTCCCCAGTATGGAGTGCAACAGTAAGAAGGATGGTAAGAAAGAGGCAGCCGATCTGACATTGCGCATTCTCATTGCTGAAGGACAGTATCAACTGGAGAACACCGTCTCAGCATTGAAAACAATTCCACCTGCTGAAATGACACATTTCGACAAAATGGCTGCCTTGAGTCACCAGGCATTTAACAACATTGCCTTGCAAATCCCTGAGAACCTTGCTGGGAGAAAGGTCATCGCTGCTTTGGTGATGAAGCGATCACCAACGGATACGGGAATTGTTATCAGTGTTGGAACTGGTAACCGCTGTTTAACCGGTGATCATTTGAGTTTGGAAGGCAACAGTGTCAATGACTCTCATGCTGAAATAATCACACGCCGAGGTTTTCTGAGATATCTGTACAAACATTTACTGGAGTATGATCCCGAAAAACCCCATGACCTATTTGAGAAAGGTGAACGTAGTCTTTGCCGGATAAAAACCAACATTACATTCCATCTGTATATATCAACTGCTCCTTGTGGTGATGGAGCACTTTTTTCACCCAGGGATACCGACTCCAGTAATGTGAAAGTGGATGAGGAAAATAAGCACGTCCATAATCCGACTTTTTCAAGCAGTGTTCAGGGATTGCTGAGAACCAAAGTGGAAGGAGGTGAAGGGACCATTCCAATAGATGCTGATTTCACTGAACAAACATGGGATGGAATTCAACGAGGTGAAAGATTGCGCACAATGTCATGTTCAGATAAAATATGTCGATGGAACGTTGTTGGTCTGCAAGGAGCTTTGCTTAGTCACTTTGTGGAACCAATCTACCTGGAATCTCTGACATTAGGTTATCTTTATGATCATGGCCACTTAGCACGAGCTGTTTGCTGCCGTATTGAACGGGGAGAGGCCTCTGTCAACCAACTACTACCTGAGGGCTACCGATTGAACCATCCTTGGCTTGGCAGAGTTACTGCTTGTGATCCACCTAGAGAAACCCAAAAGACGAAATCGTTAAGTATCAACTGGTGCTATGATGATGAAAAGTCTGAAGTTCTCGATGGTACAGCAGGCATCTGTTACACAGCGATTGAGAAAAATCTCTTCTCTCGCTTAACAAAGCACAGCTTATATGAAGAATTCAAAAAAGTGTGTCAGAAATTTGAACGCGAGGACTTGATGAATGTCACTTCTTACAACAAAGCCAAGATGATGGCCATTCCTTTCCAGACTGCCAAAAACGTAATGTTGAAAAAACTCAAGGAAAACAACTGCGGAACTTGGGTGTCAAAACCTATTGAGGAGGAGATGTTTACGTAG",
     "IQEC": "AAAAAAAAGAAAAGAAAAAGAAAAGAGGTTTTTTTACTTTATATTATTAATATATATTTGTAATTAACCTACCAAAGGCCTAATTGTGGGCATTTCCGGATTTTACACTGTTGCTCGCTTGTTTTCTTTCTCCCGTGACAAACCAAATGAATAGAACATTAAAAAAGGGGAAATGTTTCTTACTTGTATGTTGCCGATTACACTACGACCATGGTCACAAATAGACACACTATGGTCTACGGCCTGGACGCCCACAAAAAGCTCGCTTACCCCTTTTACACCTGTGGCTGGACGTCTTTCACCGAAAAAAGAAACGATACTGGTCATATCTTCACCCCCAAATTTTGACTAAACAAACGCAAAAATCACTAACACAATCGATAACAACTAGTACTTACTACTACTATATTCTCTTATTTAGAATTATTACTTACTACCTTCAATCATTCAGTGGTTGTCTTATCAACCAAAAAATTATAATACAAGCTGTAGTAAGATTTTTCAGTCACATAGTCTTTTTTTTGTATATTTTTTAGTAACAATTAAGTGGGTAACTACTGTTTGTTAACAACACTTACTTAACTAATGATTTACAACTAGTTATATTTACTTGCAATTAAATGACTGCTGTCGATTATATTTTTACACACACACAAACACTAAAACACATGACATAGTACCCTAATACATTATTATTACTATTACACCCACGTACTATAAACAATCTAATTTATTCTTTACTGCTGTCATTTTATTTATTTCCTTCCCCAGAACCCTTGTAATTATTAAATTGGTTAATTAATTACCCTACTGCTTATTAGCGCTGTGGACTACCCAAGGATACTAATTTCTGAAAACATCGACGCCTTTTAAAAATTCACTAGGACGGATTATTATTACCAATTATAATTTAATAACCCCAAAACGTTTTATTTCCATGTTGTGCCCTATTCAAGATATTATTTTTATCACAAATACTTGAAACTAAACCAGCACCAGCCAAATCAACACGATGGAATTACCACCTCAGGAAGGTGTCACAAGCGCCAGGTCAAGTGAGGACCTACTTCAAGGAAAGGCGCGTCCTGTTGCCAGTGGAAACGGCTGCAGCAAAGAGCTTGGCCGCCCAAAGGGAGTTAATCAAAACAGCTCGACTGCTGGTGCTGCAGTCCCCAATGGCACCACCCCCTCCCCTCTCCCCACCCCAACACCAACAGCAACCAATGCCCAGCGGGCGCAGGTTCAAAGGCAACGCTCGTTCAAAAGAACAGACGATGAACTAATAAAACGGTCGCGCGTGCAGTCCAGCTCCTATGAGCTCTCCCAAGACTTGCAAGAAAAGCAATTGGAAATGCTCGAGCGGAAATATGGCGGAACAATACGAGCTCGACGTGCAGCGCGAGTAATCCAGAGAGCGTTTCGCAAATATTGTATGAATAAGAATTTTGAGAAATTGAGAAACTCAGTCGGCGAACGTCGATTGTCCAAACGGCTATCCGAACTTGGACGGAGCAATACCGTTTGGACTGACCGCATAAGTTCGGATATGCAGTTTACAATGGGAGGTACAGCATTACAAAATACAGACTCAAAGATTGACCAATTGTCACAGGAGAATGTGCGTAAGCGAATCGCAGAGATTGAATCCCGAAAGAATTTGGATAACAAGCTCCACCACCAATTGTCTTTAGACCCTTCATTGAAGATTGACAACCTCAAGCGAACACAACGAAAGGAAAGGAGGCGTTTGGAAAGGTCGATGGAGATAGATTTAACGGACATTCCCACCGAAAACGTGAAGGAGGAGGAGCGAGAAGAGAAATGTAGTGCCCAGTTGGCTGCCTCCATCGCCGCGGAAACGAATAACAATAGAAACTCTTACCCAGAGCTTAATGACAGTAGTGCCAGTGACTCCCCACAAGCAACGCCCGTGGAGAGCACAGTTGATTTGCATAGTTTAGATTTTGAAAATTTGCTTGAGAGCAAAGAGACTGATATTTTGACAGATAGTTTCCATAGTGACAGTATCCATAGCGATGGGAGCCAGGAGACTGGGTCCCTGATAGGCCATCACAAGCCTCAAGCCCTGTCTCTGTCAATGGAACTTGAGCCCCGGTTGCACAATGTGGTTAGTAAAGATCTGCATGGGTCCTGTGATAGTATGGGTAGGTTGTACCCGGAGTCGGGGGTCTCAGAGATCCCCTCTGAGGTCCAGATCAAAGTTGATCTGGCCTCCCCCGAGGACACCGGACTGGACGATCAGAAGACCCTGAATGAAGAGACTGTAAAATATTACATGAACACAAAGGTGAAATTACGTGGCGGTGGTAGTAGTGGTGTTAATAGCGGCGGTGGAGGTGGCGGGGGCAGCGTACGTGATATTAAGGACAAGAAAGGTGTGATGCCACACCGAGGACCAGAGGCATCTCCGATTTGGAAACGAAAGAGTGCCACTAACTCAACAGTGTCAGTCGTGAATAAAGGTGAGGTGAAGCGAATGAGCAACATCTCAGAGACGAGCGAACCAGAAAGTTTGGATGGCCAGTGTTCAAGTTCCCCCAGCTCTGATAATGTGAGTTCGGAGAACATAAGTATAGGCAGTGAGACTAGTATAAGTTATCAAAGGAAAATCCGTATCAGCGTCACAAACGACCAACACATGACGAGGATTGGCGATCGGGAAAGGAAGCGACTGTATAGAATTGGGTTGAATTTATTTAACAAAAAACCAGAAAAGGGCCTCCGCTTCCTCATAGAACGTGGTTTTGTTGATCAATCTCCACCAAATATCGCCAAATTTCTGATTACACGAAAAGGACTTAGTAAACAGATGATTGGGGAGTACCTTGGGAACTTACAGATTCAACTGAACCAAGATGTCTTAGATTTCTTTGCTGAGGAAATAGATTTGTCAGGACTCCAAGTGGATGTAGCACTTCGAAAGTTCCAGTCCTTCTTCAGAATGCCGGGAGAAGCACAGAAAATTGAAAAACTAATGGAGGCATTTGCCCATCGATATTGTATATGCAACCCTGACCAAATAAAAAACTTCCGAAACCCAGACACTATCTTCCTGCTGGCCTTTGCTATCATCATGCTCAACACAGACCTGCATAATTCCAACATCAAAACAGAAAAGCGAATGAAACTAGAAGACTTTATCAAAAACCTCAGAGGAATTGATGAAACAGAAGATATTGACCGTGACTTATTACGAGGAATATATGAACGGATCCGTGCCCAAGAGTTTCAGCCAGGAGTAGATCATCAGTCTCAAGTAATGAAGGTTGAACAGACCATTGTAGGCAAAAAACCACAACTGGCTTTACCACACAGACGCCTTGTTTGCTACTGCCGCCTTTATGAAATTCATGATCCCTACAAAAAAGAGAAAATTGGTCTTCATCAGCGTGAAGTATTTCTTTTTAATGACATCATTCTTATTACAAAAATTTTTAGCAAGAAAAAAACAGGAATCACCTACTCCTTCAAGCAGTCCTTCTCCTTGTATGGCATGCAGGTGTATCTGTTTGGAACAGCTCATTACCAATATGGTATTAGGTTGTCCAGTAACGGCAAGGTGCTAATTACGTTCAACGCTAGGAATGACCATGATAGGCAGAAATTTGTCGAAGATCTCAAAGAAGCCATTTTAGAGACCACCGGCTTAGAAAGCTTACGGATCGAAGAGGAATTGCAACGACATCGTGCCACTCACAACACCATTGATGACGACTCTCGAGTCTTGATTTATGACGTTTTAAAGCCATCAGATCCTGCGGTAAATAGGCTCTCTGCACCTGAGTGTGGTTTGAAGAAGTCTGCTTTGTCCAATTCTCTCCTTGACCTCTGTGAAGGTCAAGGAATGAAGAGAGAGGACAGTGGAGGATCTCTCGACAGTGGTGTGATTCTGTTTGGTGGTGTGAAAGTACGCATATCTCAGTGCAAACTGAGTGAAATCAGTCATCTGCTCTTCTCCCAGGCGTCAGTGGGAACGGTGAGCGGTCACAGTCGTGATGATTCTGTCTCCACCATTCTAAATCCTCATCGGGGATCCATTCTTCATACGAACCCAGCCACCCATGAACGCTGCCATTCTTCAATATCTGTTTCTTCAACACGGCCCAACAATCCCAAGCGAATGACAGAACCGGCCACTCTTAGCCGAAGTAGCAGCAGCAGCAGCAGCAACAAC",
 }
+
+# %%
+expected_barcode_locations_on_gene_dict = {}
+
+for gene in genes:
+
+    aligner = Align.PairwiseAligner(
+        # match_score=1.0, mismatch_score=-2.0, gap_score = -2.5,
+        mode="local",  # otherwise we'd get scattered matches of the primer across the read
+        scoring="blastn",
+        # scoring="megablast"
+    )
+
+    barcode_seq = primers_dict[gene]
+    gene_seq = genes_seq_dict[gene]
+
+    alignments = aligner.align(gene_seq, barcode_seq, strand="-")
+    assert (
+        len(alignments) == 1
+    ), f"Expected exactly one alignment for {gene}, got {len(alignments)}"
+    alignment = alignments[0]
+    print(gene)
+    print(alignment)
+    btr_read_coords = alignment.aligned[0][0]
+    expected_barcode_locations_on_gene_dict[gene] = btr_read_coords
+
+expected_barcode_locations_on_gene_dict
+
+
+# %% [markdown]
+# # Utility functions
+
+# %%
+def get_read_object_from_bam_files(
+    read_name: str, bam_files: list[Path], sample: str = None
+):
+    if sample is not None:
+        bam_files = [bam_file for bam_file in bam_files if sample in bam_file.name]
+    for bam_file in bam_files:
+        with pysam.AlignmentFile(
+            bam_file,
+            "rb",
+            threads=10,
+        ) as samfile:
+            for read in samfile:
+                if read.query_name == read_name:
+                    return read
+    return None
+
+
+# test the function with a specific read name
+read_name = "m64296e_241222_071206/74516384/ccs"
+get_read_object_from_bam_files(read_name, mapped_bam_files)
+
+# %% [markdown]
+# ![image.png](attachment:image.png)
 
 # %% [markdown]
 # # Unmapped BAMs
@@ -1299,7 +1363,7 @@ f_r_iqec_bam_dfs.loc[~f_r_iqec_bam_dfs["UMISeqIsSubstringOfOther"]].groupby(
 #
 
 # %%
-mapped_bam_files = list(mapped_bams_dir.glob("*.bam"))
+# mapped_bam_files = list(mapped_bams_dir.glob("*.bam"))
 mapped_bam_files
 
 # %%
@@ -1661,13 +1725,16 @@ concat_mapped_bams_df = pd.concat(mapped_bam_dfs, ignore_index=True)
 concat_mapped_bams_df
 
 # %%
-# concat_alignments_df
+concat_mapped_bams_df.groupby("Gene").size()
 
 # %%
 
 # %%
 mapped_bam_file = mapped_bam_files[0]
 mapped_bam_file
+
+# %%
+mapped_bam_files
 
 # %%
 # example of read mapped to the - strand
@@ -1730,69 +1797,6 @@ aligned_target_end += 1
 # %% [markdown]
 # # Concat BAMs
 #
-
-# %% jupyter={"source_hidden": true}
-# concat_bams_df = (
-#     concat_unmapped_bams_df.drop(
-#         columns=["RawBarcodeSeq", "CorrectedBarcodeSeq", "BarcodeTag"]
-#     )
-#     # .rename(columns={"Seq": "UnalignedSeq", "ReadLength": "UnalignedSeqLength"})
-#     # .rename(columns={"ReadLength": "SeqLength"})
-#     .rename(columns={"Seq": "RawSeq", "ReadLength": "RawSeqLength"}).merge(
-#         concat_mapped_bams_df
-#         # .rename(columns={"Seq": "AlignedSeq", "ReadLength": "AlignedSeqLength"})
-#         ,
-#         how="outer",
-#         indicator="indicator",
-#     )
-# )
-
-# # make sure all aligned reads also appear in the unaligned reads' bams
-# assert concat_bams_df["indicator"].value_counts()["right_only"] == 0
-
-# concat_bams_df.insert(
-#     concat_bams_df.columns.get_loc("Read") + 1,
-#     "Mapped",
-#     concat_bams_df["indicator"].apply(lambda x: True if x == "both" else False),
-# )
-
-# # after using this col for validating a correct merge,
-# # and for determining wether a read is edited,
-# # we don't need it anymore
-# del concat_bams_df["indicator"]
-
-# concat_bams_df["%AlignedSeqLength/RawSeqLength"] = (
-#     concat_bams_df["AlignedSeqLength"].mul(100).div(concat_bams_df["RawSeqLength"])
-# )
-
-# # make sure that for mapped reads whose soft-clipped aligned seq is of the
-# # same length as the original ("Raw") seq, these sequences are also identical
-# # (this is due to the rev-comp of the soft-clipped seqs before)
-# assert (
-#     concat_bams_df.loc[
-#         (concat_bams_df["Mapped"])
-#         & (concat_bams_df["RawSeqLength"] == concat_bams_df["SoftClippedSeqLength"]),
-#         "RawSeq",
-#     ]
-#     .eq(
-#         concat_bams_df.loc[
-#             (concat_bams_df["Mapped"])
-#             & (
-#                 concat_bams_df["RawSeqLength"] == concat_bams_df["SoftClippedSeqLength"]
-#             ),
-#             "SoftClippedSeq",
-#         ]
-#     )
-#     .all()
-# )
-
-# concat_bams_df.insert(
-#     concat_bams_df.columns.get_loc("ReadQuality") + 1,
-#     "HighQualityRead",
-#     concat_bams_df["ReadQuality"].ge(min_read_quality),
-# )
-
-# concat_bams_df
 
 # %%
 concat_bams_df = (
@@ -2329,400 +2333,87 @@ def align_reads_to_barcode_by_parallel_batches(
     concat_alignments_df = pd.concat(alignments_dfs, ignore_index=True)
     return concat_alignments_df
 
-# %%
-# alignments_df_1_2_b = align_reads_to_barcode_by_parallel_batches(
-#     processes,
-#     pd.concat([split_df_1, split_df_2], ignore_index=True),
-#     gene,
-#     barcode,
-#     barcode_seq,
-#     first_n_alignments_per_strand=first_n_alignments_per_strand,
-#     debug_mode=False,
-#     batches_per_process=10,
-# )
-# alignments_df_1_2_b
 
 # %%
-
-# %%
-
-# %%
-# processes = 10
-# first_n_alignments_per_strand = 100
-# debug_mode = False
-
-# aligner = Align.PairwiseAligner(
-#     # match_score=1.0, mismatch_score=-2.0, gap_score = -2.5,
-#     mode="local",  # otherwise we'd get scattered matches of the primer across the read
-#     scoring="blastn",
-#     # scoring="megablast"
-# )
-
-# %%
-# gene = genes[0]
-
-# barcode = gene
-# # query_name = barcode
-# barcode_seq = primers_dict[barcode]
-
-# %%
-# one_gene_bams_df = concat_bams_df.loc[(concat_bams_df["Gene"].eq(gene))]
-# one_gene_bams_df
-
-# %%
-# batches_per_process = 10
-# # first_n_alignments_per_strand = 10
-# debug_mode = False
-# n = processes * batches_per_process
-
-# # Compute split indices
-# split_sizes = [
-#     len(one_gene_bams_df) // n + (i < len(one_gene_bams_df) % n) for i in range(n)
-# ]
-# split_indices = [0] + list(pd.Series(split_sizes).cumsum())
-
-# # Split DataFrame
-# split_dfs = [
-#     one_gene_bams_df.iloc[split_indices[i] : split_indices[i + 1]] for i in range(n)
-# ]
-
-# assert pd.concat(split_dfs).equals(one_gene_bams_df)
-# assert sum(len(df) for df in split_dfs) == len(one_gene_bams_df)
-
-# # split_df = split_dfs[0].iloc[:3]
-# # split_df = split_dfs[0]
-# # split_df
-
-# %%
-# split_df_1 = split_dfs[0]
-# split_df_2 = split_dfs[1]
-
-# %%
-# split_df_1
-
-# %%
-# split_df_2
-
-# %%
-# 2257 + 2257
-
-# %%
-# pd.concat([split_df_1, split_df_2], ignore_index=True)
-
-# %%
-# alignments_df_1 = align_reads_to_barcode_one_batch(
-#     one_gene_bams_df=split_df_1,
-#     gene=gene,
-#     barcode=barcode,  # primer name
-#     barcode_seq=barcode_seq,  # primer seq
-#     first_n_alignments_per_strand=first_n_alignments_per_strand,
-#     debug_mode=debug_mode,
-# )
-
-# alignments_df_1
-
-# %%
-# alignments_df_2 = align_reads_to_barcode_one_batch(
-#     one_gene_bams_df=split_df_2,
-#     gene=gene,
-#     barcode=barcode,  # primer name
-#     barcode_seq=barcode_seq,  # primer seq
-#     first_n_alignments_per_strand=first_n_alignments_per_strand,
-#     debug_mode=debug_mode,
-# )
-
-# alignments_df_2
-
-# %%
-# alignments_df_1_2_a = pd.concat([alignments_df_1, alignments_df_2], ignore_index=True)
-# alignments_df_1_2_a
-
-# %%
-# alignments_df_1_2_b = align_reads_to_barcode_by_parallel_batches(
-#     processes,
-#     pd.concat([split_df_1, split_df_2], ignore_index=True),
-#     gene,
-#     barcode,
-#     barcode_seq,
-#     first_n_alignments_per_strand=first_n_alignments_per_strand,
-#     debug_mode=False,
-#     batches_per_process=10,
-# )
-# alignments_df_1_2_b
-
-# %%
-# .shape[0] == alignments_df_1_2.shape[0]
-
-# %%
-# alignments_df["BTRNumOfAllAlignmentsPerStrand"].describe()
-
-# %%
-# alignments_df.loc[
-#     (alignments_df["Gene"].eq(alignments_df["MappedGene"]))
-#     & (alignments_df["BTRNumOfAllAlignmentsPerStrand"].gt(1))
-# ]["BTRNumOfAllAlignmentsPerStrand"].describe()
-
-# %%
-# read = "m64296e_241222_071206/100007945/ccs"
-
-# test_df = concat_bams_df.loc[concat_bams_df["Read"].eq(read)]
-# test_df
-
-# %%
-# gene = test_df.iloc[0]["Gene"]
-# barcode = gene
-# barcode_seq = primers_dict[barcode]
-
-# alignments_df = test_df.apply(
-#     lambda x: find_first_n_pairwise_alignments_for_barcode_and_read(
-#         x["Sample"],
-#         x["Gene"],
-#         x["Repeat"],
-#         aligner,
-#         barcode,
-#         x["Read"],  # target_name
-#         x["MappedGene"],  # mapped_gene
-#         x[
-#             "MappedStrand"
-#         ],  # genomic_target_strand - the genomic strand to which the read was mapped to
-#         x["ReadStart"],
-#         x["ReadEnd"],
-#         x["GeneStart"],
-#         x["GeneEnd"],
-#         barcode_seq,
-#         x["Seq"],  # read_seq
-#         first_n_alignments_per_strand=first_n_alignments_per_strand,
-#         debug_mode=debug_mode,
-#     ),
-#     axis=1,
-# )
-# alignments_df
-
-# %%
-# sample = test_df.iloc[0]["Sample"]
-# repeat = test_df.iloc[0]["Repeat"]
-# read = test_df.iloc[0]["Read"]
-# mapped_gene = test_df.iloc[0]["MappedGene"]
-# rtg_strand = test_df.iloc[0]["MappedStrand"]
-# rtg_read_start = test_df.iloc[0]["ReadStart"]
-# rtg_read_end = test_df.iloc[0]["ReadEnd"]
-# rtg_gene_start = test_df.iloc[0]["GeneStart"]
-# rtg_gene_end = test_df.iloc[0]["GeneEnd"]
-# read_seq = test_df.iloc[0]["Seq"]
-
-# find_first_n_pairwise_alignments_for_barcode_and_read(
-#     sample,
-#     gene,
-#     repeat,
-#     aligner,
-#     barcode,  # query_name
-#     read,  # target_name
-#     mapped_gene,  # ADAR1, IQEC, Other, Unmapped
-#     rtg_strand,  # the genomic strand to which the read was mapped to
-#     rtg_read_start,
-#     rtg_read_end,
-#     rtg_gene_start,
-#     rtg_gene_end,
-#     barcode_seq,  # query_seq
-#     read_seq,  # target_seq
-#     first_n_alignments_per_strand=first_n_alignments_per_strand,
-#     # debug_mode=True,
-# )
-
-# %%
-
-# %%
-# for strand in STRANDS:
-#     print(f"\n{strand = }")
-
-#     alignments = aligner.align(read_seq, barcode_seq, strand=strand)
-
-#     num_of_alignments = len(alignments)
-#     print(f"{num_of_alignments = }")
-#     for alignment in alignments:
-#         print(alignment)
-#         score = alignment.score
-#         gaps, identities, mismatches = alignment.counts()
-#         alignment_length = alignment.length
-
-#         btr_read_coords, btr_barcode_coords = alignment.aligned
-
-#         prct_barcode_identity = 100 * identities / len(barcode)
-#         prct_barcode_cov = 100 * (identities + mismatches) / len(barcode)
-
-#         btr_read_coords, btr_barcode_coords = alignment.aligned
-
-#         # num_of_btr_read_coords = len(btr_read_coords)
-#         # num_of_btr_barcode_coords = len(btr_barcode_coords)
-#         # num_of_btr_barcode_gap_openings = num_of_btr_barcode_coords - 1
-
-#         print(
-#             # f"{score = }, {gaps = }, {identities = }, {mismatches = }, "
-#             # f"{alignment_length = } "
-#             f"{prct_barcode_identity = :.2f}, {prct_barcode_cov = :.2f} "
-#             f"{btr_read_coords = }, {btr_barcode_coords = }\n"
-#         )
-
-#     print()
-
-# %%
-# barcode_seq[4:12]
-
-# %%
-# barcode_seq[5:12]
-
-# %%
-# barcode_seq[5:12].reverse_complement()
-
-# %%
-# i = 1
-
-# # ic(split_df.iloc[i])
-
-# sample = split_df.iloc[i]["Sample"]
-# repeat = split_df.iloc[i]["Repeat"]
-# read = split_df.iloc[i]["Read"]
-# mapped_gene = split_df.iloc[i]["MappedGene"]
-# rtg_gene_strand = split_df.iloc[i]["MappedStrand"]
-# rtg_read_start = split_df.iloc[i]["ReadStart"]
-# rtg_read_end = split_df.iloc[i]["ReadEnd"]
-# rtg_gene_start = split_df.iloc[i]["GeneStart"]
-# rtg_gene_end = split_df.iloc[i]["GeneEnd"]
-# read_seq = split_df.iloc[i]["Seq"]
-
-
-# for strand in STRANDS:
-#     print(f"\n{strand = }")
-
-#     alignments = aligner.align(read_seq, barcode_seq, strand=strand)
-
-#     num_of_alignments = len(alignments)
-#     for alignment in alignments:
-#         print(alignment)
-#         score = alignment.score
-#         gaps, identities, mismatches = alignment.counts()
-#         alignment_length = alignment.length
-
-#         btr_read_coords, btr_barcode_coords = alignment.aligned
-
-#         prct_barcode_identity = 100 * identities / len(barcode)
-#         prct_barcode_cov = 100 * (identities + mismatches) / len(barcode)
-
-#         btr_read_coords, btr_barcode_coords = alignment.aligned
-
-#         # num_of_btr_read_coords = len(btr_read_coords)
-#         # num_of_btr_barcode_coords = len(btr_barcode_coords)
-#         # num_of_btr_barcode_gap_openings = num_of_btr_barcode_coords - 1
-
-#         print(
-#             # f"{score = }, {gaps = }, {identities = }, {mismatches = }, "
-#             # f"{alignment_length = } "
-#             f"{prct_barcode_identity = :.2f}, {prct_barcode_cov = :.2f} "
-#             f"{btr_read_coords = }, {btr_barcode_coords = }\n"
-#         )
-
-#     print()
-
-# %%
-# find_first_n_pairwise_alignments_for_barcode_and_read(
-#     sample,
-#     gene,
-#     repeat,
-#     aligner,
-#     query_name,
-#     target_name,
-#     mapped_gene,  # ADAR1, IQEC, Other, Unmapped
-#     genomic_target_strand,  # the genomic strand to which the read was mapped to
-#     rtg_read_start,
-#     rtg_read_end,
-#     rtg_gene_start,
-#     rtg_gene_end,
-#     query_seq,
-#     target_seq,
-#     first_n_alignments_per_strand=10,
-#     debug_mode=False,
-# )
-
-# %%
-# alignments_dfs = split_df.apply(
-#     lambda x: find_first_n_pairwise_alignments_for_barcode_and_read(
-#         x["Sample"],
-#         gene,
-#         x["Repeat"],
-#         aligner,
-#         query_name,
-#         x["Read"],  # target_name
-#         # x["Mapped"],  # target_mapped_to_ref
-#         x["MappedGene"],  # mapped_gene
-#         x[
-#             "MappedStrand"
-#         ],  # genomic_target_strand - the genomic strand to which the read was mapped to
-#         x["ReadStart"],
-#         x["ReadEnd"],
-#         x["GeneStart"],
-#         x["GeneEnd"],
-#         query_seq,
-#         # x["SoftClippedSeq"],  # target_seq
-#         x["Seq"],  # target_seq
-#         first_n_alignments_per_strand=first_n_alignments_per_strand,
-#         debug_mode=debug_mode,
-#     ),
-#     axis=1,
-# )
-# alignments_dfs[0]
-
-# %%
-
-# %%
-
-# %%
-def get_genomic_coord_for_read_coord(aligned_pairs, required_read_pos):
-    for read_pos, ref_pos, cigar_op in aligned_pairs:
+def get_genomic_coord_for_read_coord(
+    aligned_pairs,
+    required_read_pos,
+    required_read_pos_is_exclusive_end_pos_of_some_feature_on_the_read=False,
+):
+    if required_read_pos_is_exclusive_end_pos_of_some_feature_on_the_read:
+        required_read_pos -= 1
+    for read_pos, ref_pos, _ in aligned_pairs:  # _ is for CIGAR operation
         if read_pos == required_read_pos:
+            if (
+                required_read_pos_is_exclusive_end_pos_of_some_feature_on_the_read
+                and ref_pos is not None
+            ):
+                ref_pos += 1  # convert back to inclusive end position
             return ref_pos
     return None
 
 
 # %%
-def find_btg_gene_coords(input_df):
+def find_btg_gene_coords_one_sample(input_df, mapped_bam_file, threads=10):
 
-    annotated_dfs = []
+    required_reads = input_df["Read"].unique().tolist()
 
-    all_required_reads = input_df["Read"].values
+    with pysam.AlignmentFile(
+        mapped_bam_file,
+        "rb",
+        threads=threads,
+    ) as samfile:
+        # get all reads in this specific bam file that are in the input_df
+        reads = [read for read in samfile if read.query_name in required_reads]
 
-    for bam_file in mapped_bam_files:
+        # names of reads found in this specific bam file,
+        # in the order they appear in the bam file
+        reads_names = [read.query_name for read in reads]
+        # if len(reads_names) == 0:
+        #     continue
+        aligned_pairs = [
+            read.get_aligned_pairs(matches_only=False, with_cigar=True)
+            for read in reads
+        ]
 
-        with pysam.AlignmentFile(
-            bam_file,
-            "rb",
-            threads=10,
-        ) as samfile:
-            reads = [read for read in samfile if read.query_name in all_required_reads]
-            reads_names = [
-                read.query_name for read in reads
-            ]  # names of reads found in this specific bam file
-            if len(reads_names) == 0:
-                continue
-            aligned_pairs = [
-                read.get_aligned_pairs(matches_only=False, with_cigar=True)
-                for read in reads
-            ]
-            annotated_df = input_df.loc[input_df["Read"].isin(reads_names)].copy()
-            aligned_pairs_series = pd.Series(aligned_pairs, index=reads_names)
-            annotated_df["BTGGeneStart"] = annotated_df.apply(
-                lambda x: get_genomic_coord_for_read_coord(
-                    aligned_pairs_series.loc[x["Read"]], x["BTRReadStart"]
-                ),
-                axis=1,
-            )
-            annotated_df["BTGGeneEnd"] = annotated_df.apply(
-                lambda x: get_genomic_coord_for_read_coord(
-                    aligned_pairs_series.loc[x["Read"]], x["BTRReadEnd"]
-                ),
-                axis=1,
-            )
-            annotated_dfs.append(annotated_df)
+        annotated_df = input_df.loc[input_df["Read"].isin(reads_names)].copy()
 
+        aligned_pairs_series = pd.Series(aligned_pairs, index=reads_names)
+
+        annotated_df["BTGGeneStart"] = annotated_df.apply(
+            lambda x: get_genomic_coord_for_read_coord(
+                aligned_pairs_series.loc[x["Read"]], x["BTRReadStart"]
+            ),
+            axis=1,
+        )
+        # annotated_df["BTGGeneEnd"] = annotated_df.apply(
+        #     lambda x: get_genomic_coord_for_read_coord(
+        #         aligned_pairs_series.loc[x["Read"]], x["BTRReadEnd"] - 1
+        #     ),  # -1 because we want a real coordinate from the current exclusive end
+        #     axis=1,
+        # )
+        annotated_df["BTGGeneEnd"] = annotated_df.apply(
+            lambda x: get_genomic_coord_for_read_coord(
+                aligned_pairs_series.loc[x["Read"]], x["BTRReadEnd"], True
+            ),
+            axis=1,
+        )
+
+        return annotated_df
+
+
+# %%
+def parallel_find_btg_gene_coords(input_df, mapped_bam_files, processes=6, threads=10):
+    """Find `BTGGeneStart` and `BTGGeneEnd` for each read in the input_df."""
+    samples = [bam_file.name.split(".")[0] for bam_file in mapped_bam_files]
+    # input_df = input_df.loc[:, ["Sample", "Read", "BTRReadStart", "BTRReadEnd"]].copy()
+    input_dfs = [input_df.loc[input_df["Sample"].eq(sample)] for sample in samples]
+
+    with Pool(processes=processes) as pool:
+        annotated_dfs = pool.starmap(
+            func=find_btg_gene_coords_one_sample,
+            iterable=zip(input_dfs, mapped_bam_files, itertools.repeat(threads)),
+        )
     concat_annotated_df = pd.concat(annotated_dfs)
     return concat_annotated_df
 
@@ -2782,19 +2473,40 @@ concat_alignments_df.insert(
     concat_alignments_df["BTRReadCoords"].apply(lambda x: x[-1][-1]),
 )
 
-
-# get BTGeneStart and BTGGeneEnd for each read
-concat_alignments_df = find_btg_gene_coords(concat_alignments_df)
+# # get BTGeneStart and BTGGeneEnd for each read
+# concat_alignments_df = find_btg_gene_coords(concat_alignments_df)
 
 concat_alignments_df
 
 # %%
-concat_alignments_df["BTRNumOfAllAlignmentsPerStrand"].describe()
+btg_gene_coords_input_df = concat_alignments_df.loc[
+    :, ["Sample", "Read", "BTRReadStart", "BTRReadEnd"]
+]
+btg_gene_coords_input_df
 
 # %%
-read = "m64296e_241222_071206/100007945/ccs"
+concat_annotated_btg_gene_coords_df = parallel_find_btg_gene_coords(
+    btg_gene_coords_input_df, mapped_bam_files
+)
+concat_annotated_btg_gene_coords_df
 
-concat_alignments_df.loc[concat_alignments_df["Read"].eq(read)]
+# %%
+concat_alignments_df.drop(columns=["BTGGeneStart", "BTGGeneEnd"])
+
+# %%
+concat_annotated_btg_gene_coords_df.drop(
+    columns=["Sample", "Read", "BTRReadStart", "BTRReadEnd"]
+)
+
+# %%
+concat_alignments_df = concat_alignments_df.drop(
+    columns=["BTGGeneStart", "BTGGeneEnd"], errors="ignore"
+).join(
+    concat_annotated_btg_gene_coords_df.drop(
+        columns=["Sample", "Read", "BTRReadStart", "BTRReadEnd"]
+    )
+)
+concat_alignments_df
 
 # %%
 # concat_alignments_df["Read"].value_counts().describe()
@@ -2850,155 +2562,393 @@ assert concat_alignments_df.loc[
 concat_alignments_df
 
 # %%
-{
-    "TargetName": "Read",
-    "QueryName": "Barcode",
-    "TargetSeq": "ReadSeq",
-    "GenomicTargetStrand": "RTGStrand",
-    "TargetStrand": "BTRStrand",
-    "%QueryIdentity": "%BTRBarcodeIdentity",
-    "%QueryCoverage": "%BTRBarcodeCoverage",
-    "TargetSeqLength": "ReadSeqLength",
-    "QuerySeqLength": "BarcodeSeqLength",
-    "AlignmentLength": "BTRAlignmentLength",
-    "AlignedTargetCoords": "BTRReadCoords",
-    "AlignedQueryCoords": "BTRBarcodeCoords",
-    "AlignmentObject": "BTRAlignmentObject",
-    "NumOfAlignedTargetCoords": "NumOfBTRReadCoords",
-    "NumOfAlignedQueryCoords": "NumOfBTRBarcodeCoords",
-    "QueryGapOpenings": "BTRBarcodeGapOpenings",
-    "Score": "BTRScore",
-    "Gaps": "BTRGaps",
-    "Identitites": "BTRIdentitites",
-    "Mismatches": "BTRMismatches",
-}
+read = "m64296e_241222_071206/10027148/ccs"
+
+row = concat_alignments_df.loc[
+    (concat_alignments_df["Read"] == read)
+    & (concat_alignments_df["RTGStrand"] == "-")
+    & (concat_alignments_df["Barcode"].eq(concat_alignments_df["Gene"]))
+    & (concat_alignments_df["BTRStrand"] == "-")
+].iloc[0]
+row
 
 # %%
-concat_alignments_df[["BTRBarcodeGapOpenings", "BTRGaps"]].value_counts(
-    normalize=True
-).mul(100).round(4)
+alignment = row["BTRAlignmentObject"]
+
+print(alignment)
 
 # %%
-concat_alignments_df.loc[
-    concat_alignments_df["BTRBarcodeGapOpenings"] > 0,
-    [
-        "BTRBarcodeGapOpenings",
-        "BTRGaps",
-    ],
-].value_counts()
+row["ReadSeq"][3378:3402]
 
 # %%
-# concat_alignments_df.groupby(["Gene", "Repeat", "QueryName"])[
-#     ["%QueryIdentity", "%QueryCoverage"]
-# ].describe()
+barcode_seq = primers_dict[row["Barcode"]]
+# barcode_seq
+
+score = alignment.score
+gaps, identities, mismatches = alignment.counts()
+alignment_length = alignment.length
+
+prct_barcode_identity = 100 * identities / len(barcode_seq)
+prct_barcode_cov = 100 * (identities + mismatches) / len(barcode_seq)
+
+ic(score, gaps, identities, mismatches, alignment_length)
+ic(prct_barcode_identity, prct_barcode_cov)
 
 # %%
-# concat_alignments_df.groupby(["Gene", "QueryName"])[
-#     ["%QueryIdentity", "%QueryCoverage"]
-# ].describe()
+read_object = get_read_object_from_bam_files(read, mapped_bam_files)
+read_object
 
 # %%
-concat_alignments_df.loc[
-    concat_alignments_df["Gene"].eq(concat_alignments_df["MappedGene"])
-].groupby(
-    [
-        "Gene",
-        "Barcode",
-    ]
-)[
-    ["%BTRBarcodeIdentity", "%BTRBarcodeCoverage"]
-].describe()
+btr_read_coords, btr_barcode_coords = alignment.aligned
+# btr_read_coords
+
+btr_read_start = btr_read_coords[0][0]
+btr_read_end = btr_read_coords[-1][-1]
+btr_read_start, btr_read_end
 
 # %%
-concat_alignments_df.loc[
-    ~concat_alignments_df["Gene"].eq(concat_alignments_df["MappedGene"])
-].groupby(
-    [
-        "Gene",
-        "Barcode",
-    ]
-)[
-    ["%BTRBarcodeIdentity", "%BTRBarcodeCoverage"]
-].describe()
+btr_read_end - btr_read_start
 
 # %%
-concat_alignments_df.groupby(["Gene", "Barcode", "MappedGene"])[
-    ["%BTRBarcodeIdentity", "%BTRBarcodeCoverage"]
-].describe()
+aligned_pairs_df = pd.DataFrame(
+    read_object.get_aligned_pairs(matches_only=False, with_cigar=True),
+    columns=["ReadPos", "RefPos", "Cigar"],
+)
+aligned_pairs_df
 
 # %%
-concat_alignments_df.head()
+aligned_pairs_df.loc[
+    (aligned_pairs_df["ReadPos"] >= btr_read_start)
+    & (aligned_pairs_df["ReadPos"] < btr_read_end)
+]
 
 # %%
-# for gene in genes:
+expected_start, expected_exclusive_end = expected_barcode_locations_on_gene_dict[row["Gene"]]
+ic(expected_start, expected_exclusive_end, expected_exclusive_end - expected_start)
 
-#     density_heatmap_concat_alignments_df = (
-#         concat_alignments_df.loc[concat_alignments_df["Gene"] == gene]
-#         .groupby(
-#             [
-#                 "Gene",
-#                 "MappedGene",
-#                 # "Repeat",
-#                 "QueryName",
-#                 "GenomicTargetStrand",
-#                 "TargetStrand",
-#                 "%QueryCoverage",
-#                 "%QueryIdentity",
-#             ]
-#         )
-#         .size()
-#         .reset_index(name="Matches")
-#     )
-#     density_heatmap_concat_alignments_df["Log10(Matches)"] = np.log10(
-#         density_heatmap_concat_alignments_df["Matches"]
-#     )
-#     density_heatmap_concat_alignments_df["Log2(Matches)"] = np.log2(
-#         density_heatmap_concat_alignments_df["Matches"]
-#     )
+# %%
+observed_start = aligned_pairs_df.loc[
+    aligned_pairs_df["ReadPos"].eq(btr_read_start), "RefPos"
+].values[0]
+observed_inclusive_end = aligned_pairs_df.loc[
+    aligned_pairs_df["ReadPos"].eq(btr_read_end - 1), "RefPos"
+].values[0]
 
-#     for acceptable_mapped_genes_options in [
-#         ["ADAR1", "Other", "IQEC", "Unmapped"],
-#         [gene],
-#     ]:
+ic(observed_start, observed_inclusive_end, observed_inclusive_end - observed_start)
 
-#         fig = px.scatter(
-#             density_heatmap_concat_alignments_df.loc[
-#                 density_heatmap_concat_alignments_df["MappedGene"].isin(
-#                     acceptable_mapped_genes_options
-#                 )
-#             ],
-#             x="%QueryCoverage",
-#             y="%QueryIdentity",
-#             color="QueryName",
-#             size="Matches",
-#             facet_col="GenomicTargetStrand",
-#             facet_col_spacing=0.05,
-#             facet_row="TargetStrand",
-#             facet_row_spacing=0.05,
-#             labels={
-#                 "%QueryCoverage": "Query coverage [%]",
-#                 "%QueryIdentity": "Query identity [%]",
-#                 "QueryName": "Tag",
-#                 "GenomicTargetStrand": "Genomic read strand",
-#                 "TargetStrand": "Relative read strand",
-#             },
-#         )
-#         fig.update_xaxes(range=[0, 105], dtick=10)
-#         fig.update_yaxes(range=[0, 105], dtick=10)
-#         # Reduce opacity to see both histograms
-#         fig.update_traces(opacity=0.7)
-#         # Overlay both histograms
-#         fig.update_layout(
-#             # barmode="overlay",
-#             template="plotly_white",
-#             width=850,
-#             height=600,
-#             title=f"{gene} samples, reads mapped to {", ".join(acceptable_mapped_genes_options)}",
-#             # showlegend=False
-#         )
+# %%
+coverage = min(observed_inclusive_end + 1, expected_exclusive_end) - max(observed_start, expected_start)
+coverage
 
-#         fig.show()
-# # density_heatmap_concat_alignments_df
+# %%
+
+# %% [markdown]
+# # Per-position coverage
+
+# %%
+coverage_depth_files = [
+    Path(mapped_bams_dir, f"{gene}.CoverageDepth.tsv") for gene in genes
+]
+
+# %%
+for (gene, chrom), coverage_depth_file in zip(
+    chrom_per_gene_dict.items(), coverage_depth_files
+):
+    gene_mapped_bam_files = [file for file in mapped_bam_files if gene in file.name]
+    gene_mapped_bam_files = " ".join(str(file) for file in gene_mapped_bam_files)
+    cmd = f"samtools depth -a -H --min-BQ 30 -r {chrom} -o {coverage_depth_file} {gene_mapped_bam_files}"
+    print(cmd)
+    subprocess.run(cmd, shell=True, check=True)
+
+# %%
+gene_cov_dfs = []
+
+for (gene, chrom), coverage_depth_file in zip(
+    chrom_per_gene_dict.items(), coverage_depth_files
+):
+    with open(coverage_depth_file) as f:
+        header_line = f.readline().lstrip("#").strip()
+        colnames = header_line.split("\t")
+        colnames = ["Chrom", "Position"] + [
+            colname.split("/")[-1].split(".")[0] for colname in colnames[2:]
+        ]
+
+    gene_cov_df = pd.read_table(
+        coverage_depth_file,
+        comment=None,  # don't ignore lines starting with #
+        names=colnames,
+        skiprows=1,  # skip the header line as data
+    )
+    gene_cov_df["Position"] = gene_cov_df["Position"] - 1
+    gene_cov_df = gene_cov_df.melt(
+        id_vars=["Chrom", "Position"],
+        var_name="Sample",
+        value_name="Coverage",
+    )
+    gene_cov_df = gene_cov_df.groupby("Position")["Coverage"].sum().reset_index()
+    gene_cov_df = gene_cov_df.rename(columns={"Coverage": "Reads"})
+
+    max_mapped_reads_per_gene = concat_bams_df.loc[
+        (concat_bams_df["Gene"].eq(gene))
+        & (concat_bams_df["Gene"].eq(concat_bams_df["MappedGene"]))
+        & (concat_bams_df["Mapped"])
+    ].shape[0]
+
+    gene_cov_df["%OfAllMappedReads"] = (
+        100 * gene_cov_df["Reads"] / max_mapped_reads_per_gene
+    ).round(2)
+
+    gene_cov_dfs.append(gene_cov_df)
+
+gene_cov_dfs[0]
+
+# %%
+gene_cov_dfs[1]
+
+# %%
+for gene, gene_cov_df in zip(genes, gene_cov_dfs):
+    fig = px.area(
+        gene_cov_df,
+        x="Position",
+        y="Reads",
+        title=gene,
+        labels={"Reads": "Mapped reads"},
+    )
+    max_mapped_reads_per_gene = concat_bams_df.loc[
+        (concat_bams_df["Gene"].eq(gene))
+        & (concat_bams_df["Gene"].eq(concat_bams_df["MappedGene"]))
+        & (concat_bams_df["Mapped"])
+    ].shape[0]
+    last_position_per_gene = gene_cov_df["Position"].max()
+    fig.add_shape(
+        type="line",
+        x0=0,
+        x1=last_position_per_gene,
+        y0=max_mapped_reads_per_gene,
+        y1=max_mapped_reads_per_gene,
+        line=dict(
+            color="LightSeaGreen",
+            width=4,
+            dash="dashdot",
+        ),
+    )
+    expected_barcode_start, expected_barcode_end = (
+        expected_barcode_locations_on_gene_dict[gene]
+    )
+    fig.add_shape(
+        type="line",
+        x0=expected_barcode_start,
+        x1=expected_barcode_start,
+        y0=0,
+        y1=max_mapped_reads_per_gene,
+        line=dict(
+            color="red",
+            width=2,
+            dash="dash",
+        ),
+    )
+    fig.add_shape(
+        type="line",
+        x0=expected_barcode_end - 1,
+        x1=expected_barcode_end - 1,
+        y0=0,
+        y1=max_mapped_reads_per_gene,
+        line=dict(
+            color="red",
+            width=2,
+            dash="dash",
+        ),
+    )
+    fig.update_xaxes(dtick=250)
+    fig.update_yaxes(dtick=25_000)
+    fig.update_layout(
+        width=1200,
+        height=500,
+    )
+    fig.show()
+
+# %%
+for gene, gene_cov_df in zip(genes, gene_cov_dfs):
+    fig = px.area(
+        gene_cov_df,
+        x="Position",
+        y="%OfAllMappedReads",
+        labels={"%OfAllMappedReads": "Mapped reads [%]"},
+        title=gene,
+    )
+    expected_barcode_start, expected_barcode_end = (
+        expected_barcode_locations_on_gene_dict[gene]
+    )
+    fig.add_shape(
+        type="line",
+        x0=expected_barcode_start,
+        x1=expected_barcode_start,
+        y0=0,
+        y1=100,
+        line=dict(
+            color="red",
+            width=2,
+            dash="dash",
+        ),
+    )
+    fig.add_shape(
+        type="line",
+        x0=expected_barcode_end - 1,
+        x1=expected_barcode_end - 1,
+        y0=0,
+        y1=100,
+        line=dict(
+            color="red",
+            width=2,
+            dash="dash",
+        ),
+    )
+    fig.update_xaxes(dtick=250)
+    fig.update_yaxes(dtick=10, range=[0, 101])
+    fig.update_layout(
+        width=1200,
+        height=500,
+    )
+    fig.show()
+
+# %%
+main_mapping_boundaries_per_gene = []
+for gene_cov_df in gene_cov_dfs:
+    main_mapping_boundaries = (
+        gene_cov_df.loc[gene_cov_df["Reads"].gt(25_000), "Position"]
+        .agg(["min", "max"])
+        .values
+    )
+    main_mapping_boundaries_per_gene.append(main_mapping_boundaries)
+main_mapping_boundaries_per_gene
+
+# %%
+for gene, main_mapping_boundaries in zip(genes, main_mapping_boundaries_per_gene):
+    main_mapping_boundary_start, main_mapping_boundary_end = main_mapping_boundaries
+    max_mapped_reads_per_gene = concat_bams_df.loc[
+        (concat_bams_df["Gene"].eq(gene))
+        & (concat_bams_df["Gene"].eq(concat_bams_df["MappedGene"]))
+        & (concat_bams_df["Mapped"])
+    ].shape[0]
+    df = concat_bams_df.loc[concat_bams_df["Gene"].eq(gene)]
+    reads_spanning_from_main_mapping_boundaries_from_start_to_end = df.loc[
+        (df["GeneStart"].le(main_mapping_boundary_start))
+        & (df["GeneEnd"].sub(1).ge(main_mapping_boundary_end))
+    ].shape[0]
+    prct_reads_spanning_from_main_mapping_boundaries_from_start_to_end = np.round(
+        100
+        * reads_spanning_from_main_mapping_boundaries_from_start_to_end
+        / max_mapped_reads_per_gene,
+        2,
+    )
+    ic(
+        gene,
+        # main_mapping_boundary_start,
+        # main_mapping_boundary_end,
+        reads_spanning_from_main_mapping_boundaries_from_start_to_end,
+        prct_reads_spanning_from_main_mapping_boundaries_from_start_to_end,
+    )
+
+# %%
+mapping_stats_df = concat_bams_df.loc[
+    # (concat_bams_df["Gene"].eq(gene))
+    # &
+    (concat_bams_df["Gene"].eq(concat_bams_df["MappedGene"]))
+    & (concat_bams_df["Mapped"])
+].copy()
+mapping_stats_df["ReadAlignmentLength"] = (
+    mapping_stats_df["ReadEnd"] - mapping_stats_df["ReadStart"]
+)
+mapping_stats_df
+
+# %%
+mapping_stats_df.groupby("Gene")[
+    ["ReadLength", "ReadAlignmentLength", "GeneStart", "GeneEnd"]
+].describe().round(2)
+
+# %%
+# fig = px.scatter(
+#     mapping_stats_df,
+#     x="ReadLength",
+#     y="ReadAlignmentLength",
+#     color="Gene",
+#     # facet_col="MappedGene",
+#     facet_col_spacing=0.05,
+#     labels={
+#         "ReadLength": "Read length [bp]",
+#         "ReadAlignmentLength": "Read alignment length [bp]",
+#         "MappedGene": "Mapped gene",
+#     },
+#     trendline="ols",
+#     opacity=0.5,
+# )
+# fig.update_layout(
+#     width=600,
+#     height=600,
+#     # title="Read alignment length vs. read length",
+# )
+# fig.show()
+
+# %%
+# fig = px.histogram(
+#     mapping_stats_df,
+#     x="ReadLength",
+#     y="ReadAlignmentLength",
+#     histfunc="avg",
+#     color="Gene",
+#     # facet_col="MappedGene",
+#     # facet_col_spacing=0.05,
+#     labels={
+#         "ReadLength": "Read length [bp]",
+#         "ReadAlignmentLength": "Read alignment length [bp]",
+#         # "MappedGene": "Mapped gene",
+#     },
+#     # trendline="ols",
+# )
+# fig.update_layout(
+#     width=600,
+#     height=600,
+#     # title="Read alignment length vs. read length",
+# )
+# fig.show()
+
+# %%
+mapping_stats_df.groupby("Gene")[
+
+# %%
+mapping_stats_df.loc[:, ["Gene", "ReadLength", "ReadAlignmentLength"]].groupby(
+    "Gene"
+).describe().round(2).T
+
+# %%
+fig = px.histogram(
+    mapping_stats_df,
+    x="ReadLength",
+    # y="ReadAlignmentLength",
+    # histfunc="avg",
+    color="Gene",
+    histnorm="percent",
+    cumulative=True,
+    facet_col="Gene",
+    # facet_col_spacing=0.05,
+    labels={
+        "ReadLength": "Read length [bp]",
+        # "ReadAlignmentLength": "Read alignment length [bp]",
+        # "MappedGene": "Mapped gene",
+    },
+    # trendline="ols",
+    opacity=0.75,
+)
+
+fig.update_layout(
+    width=1200,
+    height=500,
+    barmode="overlay",
+    # title="Read alignment length vs. read length",
+)
+fig.show()
+
+# %%
 
 # %% [markdown]
 # # Combine barcodes' alignments per read
@@ -5275,20 +5225,6 @@ test_concat_alignments_df = pd.concat(
     ignore_index=True,
 )
 
-test_concat_alignments_df.insert(
-    test_concat_alignments_df.columns.get_loc("BTRReadCoords") + 1,
-    "BTRReadStart",
-    test_concat_alignments_df["BTRReadCoords"].apply(lambda x: x[0][0]),
-)
-test_concat_alignments_df.insert(
-    test_concat_alignments_df.columns.get_loc("BTRReadCoords") + 2,
-    "BTRReadEnd",
-    test_concat_alignments_df["BTRReadCoords"].apply(lambda x: x[-1][-1]),
-)
-test_concat_alignments_df["BTGGeneStart"] = test_concat_alignments_df.apply(
-    lambda x: x["RTGGeneStart"] + (x["BTRReadStart"] - x["RTGReadStart"]), axis=1
-)
-
 test_concat_alignments_df
 
 # %%
@@ -5591,6 +5527,42 @@ concat_alignments_df.loc[
 # ## Construction
 
 # %%
+expected_barcode_locations_on_gene_dict
+
+# %%
+pd.isna([1, 2]).any()
+
+# %%
+pd.isna([1, 2, None]).any()
+
+
+# %%
+def expected_barcode_to_gene_coverage(
+    observed_start: int,
+    observed_inclusive_end: int,
+    expected_start: int,
+    expected_exclusive_end: int,
+):
+    """
+    Calculate the expected coverage of the barcode on the gene based on the expected start and end positions.
+    """
+    if pd.isna(
+        [observed_start, observed_inclusive_end, expected_start, expected_exclusive_end]
+    ).any():
+        return np.nan
+    observed_exclusive_end = observed_inclusive_end + 1  # Adjust for inclusive end
+    if (
+        expected_exclusive_end < observed_start
+        or observed_exclusive_end < expected_start
+    ):
+        return 0.0
+    coverage = min(observed_exclusive_end, expected_exclusive_end) - max(
+        observed_start, expected_start
+    )
+    return 100 * coverage / (expected_exclusive_end - expected_start)
+
+
+# %%
 gene_specific_concat_alignments_df = concat_alignments_df.loc[
     (concat_alignments_df["Barcode"] != "PCR")
     & (concat_alignments_df["Gene"].eq(concat_alignments_df["MappedGene"]))
@@ -5598,38 +5570,81 @@ gene_specific_concat_alignments_df = concat_alignments_df.loc[
     # & (concat_alignments_df["BTRStrand"].eq("-"))
 ].reset_index(drop=True)
 
-gene_specific_concat_alignments_df.insert(
-    gene_specific_concat_alignments_df.columns.get_loc("BTRReadCoords") + 1,
-    "BTRReadStart",
-    gene_specific_concat_alignments_df["BTRReadCoords"].apply(lambda x: x[0][0]),
+gene_specific_concat_alignments_df["BTGExpectedGeneStart"] = (
+    gene_specific_concat_alignments_df.apply(
+        lambda x: expected_barcode_locations_on_gene_dict[x["Gene"]][0], axis=1
+    )
 )
-gene_specific_concat_alignments_df.insert(
-    gene_specific_concat_alignments_df.columns.get_loc("BTRReadCoords") + 2,
-    "BTRReadEnd",
-    gene_specific_concat_alignments_df["BTRReadCoords"].apply(lambda x: x[-1][-1]),
+gene_specific_concat_alignments_df["BTGExpectedGeneEnd"] = (
+    gene_specific_concat_alignments_df.apply(
+        lambda x: expected_barcode_locations_on_gene_dict[x["Gene"]][1], axis=1
+    )
 )
 
-# # gene_specific_concat_alignments_df["BTGGeneStart"] = (
-# #     gene_specific_concat_alignments_df.apply(
-# #         lambda x: x["RTGGeneStart"] + (x["BTRReadStart"] - x["RTGReadStart"]), axis=1
-# #     )
-# # )
-
-# # get BTGeneStart and BTGGeneEnd for each read
-# gene_specific_concat_alignments_df = find_btg_gene_coords(
-#     gene_specific_concat_alignments_df
-# )
+gene_specific_concat_alignments_df["BTG%GeneCoverage"] = (
+    gene_specific_concat_alignments_df.apply(
+        lambda x: expected_barcode_to_gene_coverage(
+            x["BTGGeneStart"],
+            x["BTGGeneEnd"],
+            x["BTGExpectedGeneStart"],
+            x["BTGExpectedGeneEnd"],
+        ),
+        axis=1,
+    )
+)
 
 gene_specific_concat_alignments_df
 
 # %%
-Out[291]
+gene_specific_concat_alignments_df["BTG%GeneCoverage"].value_counts(dropna=False)
 
 # %%
-gene_specific_concat_alignments_df["BTGGeneStart"].describe()
+gene_specific_concat_alignments_df["BTG%GeneCoverage"].value_counts(dropna=False)
 
 # %%
+gene_specific_concat_alignments_df["BTG%GeneCoverage"].describe()
 
+# %%
+gene_specific_concat_alignments_df["BTG%GeneCoverage"].describe()
+
+# %%
+gene_specific_concat_alignments_df.loc[
+    gene_specific_concat_alignments_df["BTGGeneStart"]
+    .sub(gene_specific_concat_alignments_df["BTGExpectedGeneStart"])
+    .abs()
+    .le(2)
+]
+
+# %%
+gene_specific_concat_alignments_df.loc[
+    gene_specific_concat_alignments_df["BTGGeneEnd"]
+    # .sub(1)
+    .sub(gene_specific_concat_alignments_df["BTGExpectedGeneEnd"])
+    .abs()
+    .le(2)
+]
+
+# %%
+gene_specific_concat_alignments_df.loc[
+    gene_specific_concat_alignments_df["BTGGeneEnd"]
+    .add(1)
+    .sub(gene_specific_concat_alignments_df["BTGExpectedGeneEnd"])
+    .abs()
+    .le(2)
+]
+
+# %%
+gene_specific_concat_alignments_df.loc[
+    gene_specific_concat_alignments_df["BTG%GeneCoverage"].ge(30)
+]
+
+# %%
+gene_specific_concat_alignments_df.groupby("Gene")["BTG%GeneCoverage"].describe()
+
+# %%
+gene_specific_concat_alignments_df.groupby("Gene")["BTGGeneStart"].describe()
+
+# %%
 # gene_specific_concat_alignments_df.insert(
 #     gene_specific_concat_alignments_df.columns.get_loc("BTRReadCoords") + 3,
 #     "%BTRRelLocOfReadStart",
@@ -5688,7 +5703,6 @@ gene_specific_concat_alignments_df["BTGGeneStart"].describe()
 # ] = gene_specific_concat_alignments_df["UMISeq"].apply(
 #     lambda x: split_umi_seq_to_unique_sub_seqs(x, single_barcode_min_umi_seq_length)
 # )
-
 
 
 # gene_specific_concat_alignments_df["%RTGORFCoverageUntilBarcode"] = (
@@ -6412,69 +6426,137 @@ gene_specific_concat_alignments_df.drop_duplicates(["Gene", "Repeat", "Read"]).s
 # ## Actually choosing
 
 # %%
+gene_specific_concat_alignments_df
+
+
+# %%
+def choose_best_btr_barcode_alignment_for_read(
+    read_df: pd.DataFrame,
+) -> pd.Series:
+    """
+    Choose the best barcode-to-read alignment for this read based on the criteria defined.
+    """
+    # if read_df.empty:
+    #     return pd.Series()
+
+    criteria_cols_and_optimization_funcs = [
+        ("%BTRBarcodeCoverage", max),
+        ("%BTRBarcodeIdentity", max),
+        ("NumOfBTRBarcodeGapOpenings", min),
+        ("BTRGaps", min),
+    ]
+    optimized_cols = []
+    is_optimized_cols = []
+    for col, optimization_func in criteria_cols_and_optimization_funcs:
+        optimized_col = f"{col}_best"
+        is_optimized_col = f"{col}_best_is_optimized"
+        optimized_cols.append(optimized_col)
+        is_optimized_cols.append(is_optimized_col)
+        read_df[optimized_col] = optimization_func(read_df[col])
+        read_df[is_optimized_col] = read_df[col].eq(read_df[optimized_col])
+
+    read_df["NumOfOptimizedCols"] = read_df[is_optimized_cols].sum(axis=1)
+
+    criteria_cols = []
+    ascending_sortings = []
+    for col, optimization_func in criteria_cols_and_optimization_funcs:
+
+        criteria_cols.append(optimized_col)
+        ascending_sortings.append(True if optimization_func == max else False)
+
+    read_df = (
+        read_df.loc[
+            read_df["NumOfOptimizedCols"].eq(read_df["NumOfOptimizedCols"].max())
+        ]
+        .sort_values(by=criteria_cols, ascending=ascending_sortings)
+        .drop(
+            columns=criteria_cols
+            + optimized_cols
+            + is_optimized_cols
+            + ["NumOfOptimizedCols"]
+        )
+        .iloc[0]
+    )
+
+    return read_df
+
+
+# %%
+def split_umi_seq_to_unique_sub_seqs(umi_seq, min_umi_seq_len):
+    return {
+        umi_seq[x : x + min_umi_seq_len]
+        for x in range(0, len(umi_seq) - min_umi_seq_len + 1)
+    }
+
+
+# %%
 # gene-repeat-read combinations with (one or two) best combined tags' alignment(s) w.r.t strand
 
+max_abs_distance_from_expected_gene_barcode_start_or_end = 2
 
-# min_prct_query_cov = 90
-min_prct_query_cov = 85
-# min_prct_query_cov = 80
-# min_prct_query_identity = 90
-min_prct_query_identity = 85
-# min_prct_query_identity = 80
+# min_prct_btg_gene_cov = 85
+
+# min_prct_btr_barcode_cov = 85
+# min_prct_btr_barcode_identity = 85
+min_prct_btr_barcode_cov = 95
+min_prct_btr_barcode_identity = 95
+
+# min_rel_loc_of_target_start = 90
+
+max_gap_openings_per_btr_barcode = 1
+
+# max_total_gaps_per_btr_barcode = 4
+max_total_gaps_per_btr_barcode = 1
 
 
-min_rel_loc_of_target_start = 90
-
-max_gap_openings_per_query = 1
-# max_total_gaps_per_query = 2
-max_total_gaps_per_query = 4
-
-possible_gap_openings_per_gene_specific_query = list(
-    range(0, max_gap_openings_per_query + 1)
+possible_gap_openings_per_btr_barcode = list(
+    range(0, max_gap_openings_per_btr_barcode + 1)
 )
-possible_total_gaps_per_gene_specific_query = list(
-    range(0, max_total_gaps_per_query + 1)
-)
+possible_total_gaps_per_btr_barcode = list(range(0, max_total_gaps_per_btr_barcode + 1))
+
+
+# max_umi_seq_length = 12
 
 
 best_gene_specific_concat_alignments_df = (
     gene_specific_concat_alignments_df.loc[
         (
+            gene_specific_concat_alignments_df["BTGGeneStart"]
+            .sub(gene_specific_concat_alignments_df["BTGExpectedGeneStart"])
+            .abs()
+            .le(max_abs_distance_from_expected_gene_barcode_start_or_end)
+        )
+        & (
+            gene_specific_concat_alignments_df["BTGGeneEnd"]
+            .sub(gene_specific_concat_alignments_df["BTGExpectedGeneEnd"])
+            .abs()
+            .le(max_abs_distance_from_expected_gene_barcode_start_or_end)
+        )
+        & (
             gene_specific_concat_alignments_df["%BTRBarcodeCoverage"].ge(
-                min_prct_query_cov
+                min_prct_btr_barcode_cov
             )
         )
         & (
             gene_specific_concat_alignments_df["%BTRBarcodeIdentity"].ge(
-                min_prct_query_identity
+                min_prct_btr_barcode_identity
             )
         )
+        # & (
+        #     gene_specific_concat_alignments_df["BTG%GeneCoverage"].ge(
+        #         min_prct_btg_gene_cov
+        #     )
+        # )
         & (
             gene_specific_concat_alignments_df["NumOfBTRBarcodeGapOpenings"].isin(
-                possible_gap_openings_per_gene_specific_query
+                possible_gap_openings_per_btr_barcode
             )
         )
         & (
             gene_specific_concat_alignments_df["BTRGaps"].isin(
-                possible_total_gaps_per_gene_specific_query
+                possible_total_gaps_per_btr_barcode
             )
         )
-        # & (
-        #     gene_specific_concat_alignments_df["%BTRRelLocOfReadStart"].ge(
-        #         min_rel_loc_of_target_start
-        #     )
-        # )
-        # & (gene_specific_concat_alignments_df["BTRStrand"].eq("-"))
-        # & (
-        #     gene_specific_concat_alignments_df["Gene"].eq(
-        #         gene_specific_concat_alignments_df["MappedGene"]
-        #     )
-        # )
-        # & (
-        #     gene_specific_concat_alignments_df["Gene"].eq(
-        #         gene_specific_concat_alignments_df["Barcode"]
-        #     )
-        # )
     ]
     .sort_values(
         [
@@ -6489,15 +6571,14 @@ best_gene_specific_concat_alignments_df = (
     .reset_index(drop=True)
 )
 
-best_gene_specific_concat_alignments_df["UMISeqLength"] = (
-    best_gene_specific_concat_alignments_df["UMISeq"].apply(len)
+best_gene_specific_concat_alignments_df["Read2"] = (
+    best_gene_specific_concat_alignments_df["Read"]
 )
-best_gene_specific_concat_alignments_df["UMIUniqueSubSeqs"] = (
-    best_gene_specific_concat_alignments_df["UMISeq"].apply(
-        lambda x: split_umi_seq_to_unique_sub_seqs(x, 12)
-    )
+best_gene_specific_concat_alignments_df = (
+    best_gene_specific_concat_alignments_df.groupby("Read2")
+    .apply(choose_best_btr_barcode_alignment_for_read, include_groups=False)
+    .reset_index(drop=True)
 )
-
 assert (
     best_gene_specific_concat_alignments_df.drop_duplicates(
         ["Gene", "Repeat", "Read"]
@@ -6505,168 +6586,493 @@ assert (
     == best_gene_specific_concat_alignments_df.shape[0]
 )
 
-
 best_gene_specific_concat_alignments_df
 
 # %%
-best_gene_specific_concat_alignments_df["Gene"].value_counts()
-
-# %% [markdown]
-# ## Further tests
-
-# %%
-fig = px.histogram(
-    best_gene_specific_concat_alignments_df,
-    # df,
-    # x="UMILength",
-    x="BTGGeneStart",
-    # color="Gene",
-    facet_col="Gene",
-    facet_row="BTRBarcodeInTail",
-    # color="Repeat",
-    # facet_row="Sample",
-    # histnorm="percent",
-    # cumulative=True,
-    # labels={"UMISeqLength": "UMI length"},
-    log_y=True,
-)
-# fig.update_xaxes(dtick=1)
-fig.update_layout(
-    width=800,
-    #   height=350
-    height=600,
-)
-fig.show()
-
-# %%
-fig = px.histogram(
-    best_gene_specific_concat_alignments_df,
-    # df,
-    # x="UMILength",
-    x="BTGGeneStart",
-    # color="Gene",
-    facet_col="Gene",
-    facet_row="BTRBarcodeInTail",
-    # color="Repeat",
-    # facet_row="Sample",
-    histnorm="percent",
-    cumulative=True,
-    # labels={"UMISeqLength": "UMI length"},
-    # log_y=True,
-)
-# fig.update_xaxes(dtick=1)
-fig.update_layout(
-    width=800,
-    #   height=350
-    height=600,
-)
-fig.show()
+best_gene_specific_concat_alignments_df.groupby("Gene").size()
 
 # %%
 best_gene_specific_concat_alignments_df.loc[
-    (best_gene_specific_concat_alignments_df["Gene"].eq("IQEC"))
-    & (best_gene_specific_concat_alignments_df["BTGGeneStart"] >= 3770)
-    & (best_gene_specific_concat_alignments_df["BTGGeneStart"] <= 3780)
-]
+    :,
+    [
+        "%BTRBarcodeCoverage",
+        "%BTRBarcodeIdentity",
+        "NumOfBTRBarcodeGapOpenings",
+        "BTRGaps",
+    ],
+].describe()
 
 # %%
-Out[395].iloc[1]["ReadSeq"]
+principle_exact_umi_seq_length = 12
 
-# %%
-print(Out[395].iloc[1]["BTRAlignmentObject"])
+best_gene_specific_concat_alignments_df["ExactUMISeq"] = (
+    best_gene_specific_concat_alignments_df.apply(
+        lambda x: x["ReadSeq"][
+            x["BTRReadEnd"] : min(
+                x["BTRReadEnd"] + principle_exact_umi_seq_length, x["ReadSeqLength"]
+            )
+        ],
+        axis=1,
+    )
+)
+best_gene_specific_concat_alignments_df["ExactUMISeqLength"] = (
+    best_gene_specific_concat_alignments_df["ExactUMISeq"].apply(len)
+)
 
 # %%
 best_gene_specific_concat_alignments_df.loc[
-    best_gene_specific_concat_alignments_df["UMISeq"].apply(len) <= 12
+    best_gene_specific_concat_alignments_df["ExactUMISeqLength"].lt(
+        principle_exact_umi_seq_length
+    ),
+].groupby("Gene").size()
+
+# %%
+best_gene_specific_concat_alignments_df.groupby("Gene")["ExactUMISeqLength"].describe()
+
+# %%
+min_spanning_umi_seq_len = 10
+max_spanning_umi_seq_len = 14
+
+# umi_sub_seq_len = 10
+umi_sub_seq_len = 12
+
+
+best_gene_specific_concat_alignments_df["SpanningUMISeq"] = (
+    best_gene_specific_concat_alignments_df.apply(
+        lambda x: x["ReadSeq"][
+            x["BTRReadEnd"] : min(
+                x["BTRReadEnd"] + max_spanning_umi_seq_len, x["ReadSeqLength"]
+            )
+        ],
+        axis=1,
+    )
+)
+best_gene_specific_concat_alignments_df["SpanningUMISeqLength"] = (
+    best_gene_specific_concat_alignments_df["SpanningUMISeq"].apply(len)
+)
+
+best_gene_specific_concat_alignments_df["UMIUniqueSubSeqs"] = (
+    best_gene_specific_concat_alignments_df["SpanningUMISeq"].apply(
+        lambda x: split_umi_seq_to_unique_sub_seqs(x, umi_sub_seq_len)
+    )
+)
+
+# %%
+best_gene_specific_concat_alignments_df.loc[
+    best_gene_specific_concat_alignments_df["SpanningUMISeqLength"].lt(
+        min_spanning_umi_seq_len
+    ),
+].groupby("Gene").size()
+
+# %%
+best_gene_specific_concat_alignments_df.groupby("Gene")[
+    "SpanningUMISeqLength"
+].describe()
+
+# %%
+best_gene_specific_concat_alignments_df.groupby("Gene").apply(
+    lambda x: x["UMIUniqueSubSeqs"].apply(len).describe(),
+    include_groups=False,
+)
+
+# %%
+
+# %%
+
+# %%
+best_gene_specific_concat_alignments_df.loc[
+    best_gene_specific_concat_alignments_df["BTGGeneEnd"].isna()
 ]
 
 # %%
-best_gene_specific_concat_alignments_df["UMISeq"].apply(len).value_counts()
+i = 0
+
+row = best_gene_specific_concat_alignments_df.iloc[i]
+print(row)
 
 # %%
-best_gene_specific_concat_alignments_df["UMIUniqueSubSeqs"].apply(len).value_counts()
+sample = row["Sample"]
+mapped_bam_file = [file for file in mapped_bam_files if sample in file.name][0]
+
+read_name = row["Read"]
+
+with pysam.AlignmentFile(
+    mapped_bam_file,
+    "rb",
+    threads=10,
+) as samfile:
+    read = [read for read in samfile if read.query_name == read_name][0]
+# print()
+print(read)
 
 # %%
-# best_gene_specific_concat_alignments_df.drop_duplicates(
-#     ["Gene", "Repeat", "TargetName"]
-# ).shape[0]
+btr_read_start = row["BTRReadStart"]
+btr_read_end = row["BTRReadEnd"]
+btg_gene_start = row["BTGGeneStart"]
+btg_gene_end = row["BTGGeneEnd"]
+btg_expected_gene_start = row["BTGExpectedGeneStart"]
+btg_expected_gene_end = row["BTGExpectedGeneEnd"]
+
+pd.DataFrame(
+    [
+        [btr_read_start, btr_read_end],
+        [btg_gene_start, btg_gene_end],
+        [btg_expected_gene_start, btg_expected_gene_end],
+    ],
+    index=["BTRRead", "BTGGene", "BTGExpectedGene"],
+    columns=["Start", "End"],
+)
+
+# %%
+3389 - 3365
+
+# %%
+aligned_pairs_df.loc[
+    aligned_pairs_df["ReadPos"].ge(3365) & aligned_pairs_df["ReadPos"].le
+    (3389)
+]
+
+# %%
+aligned_pairs_df = pd.DataFrame(
+    read.get_aligned_pairs(matches_only=False, with_cigar=True),
+    columns=["ReadPos", "RefPos", "Cigar"],
+)
+aligned_pairs_df
+
+# %%
+aligned_pairs = read.get_aligned_pairs(matches_only=False, with_cigar=True)
+aligned_pairs
+
+# %%
+aligned_pairs
+
+
+# %%
+def get_genomic_coord_for_read_coord(aligned_pairs, required_read_pos):
+    for read_pos, ref_pos, cigar_op in aligned_pairs:
+        if read_pos == required_read_pos:
+            return ref_pos
+    return None
+
+
+# %%
+best_gene_specific_concat_alignments_df.groupby("Gene")["BTG%GeneCoverage"].describe()
+
+# %%
+best_gene_specific_concat_alignments_df.loc[
+    best_gene_specific_concat_alignments_df["BTG%GeneCoverage"].ge(80)
+]
+
+# %%
+# fig = px.histogram(
+#     best_gene_specific_concat_alignments_df,
+#     x="%BTRBarcodeCoverage",
+#     facet_col="Gene",
+#     # facet_row="BTRStrand",
+#     # log_x=True,
+#     # log_y=True,
+#     histnorm="percent",
+#     cumulative=True,
+#     color="Gene",
+# )
+# fig.update_layout(showlegend=False)
+# fig.show()
 
 # %% [markdown]
-# # Find unique reads by UMI seqs in gene-specific selected barcodes
+# # Find unique reads by exact UMI seqs in gene-specific selected barcodes
 #
+
+# %%
+best_gene_specific_concat_alignments_df.loc[
+    best_gene_specific_concat_alignments_df["ExactUMISeqLength"].lt(
+        principle_exact_umi_seq_length
+    ),
+].groupby("Gene").size()
+
+# %%
+best_exact_umi_gene_specific_concat_alignments_df = (
+    best_gene_specific_concat_alignments_df.loc[
+        best_gene_specific_concat_alignments_df["ExactUMISeqLength"].ge(
+            principle_exact_umi_seq_length
+        ),
+    ].reset_index(drop=True)
+)
+
+best_exact_umi_gene_specific_concat_alignments_df
+
+# %%
+best_exact_umi_gene_specific_concat_alignments_df["ExactUMISeq"].nunique()
+
+# %%
+best_exact_umi_gene_specific_concat_alignments_df.groupby("Sample").size()
+
+# %%
+best_exact_umi_gene_specific_concat_alignments_df.groupby("Sample")[
+    "ExactUMISeq"
+].nunique()
+
+# %%
+best_exact_umi_gene_specific_concat_alignments_df.groupby("Sample")[
+    "ExactUMISeq"
+].nunique().sum()
+
+# %%
+unique_best_exact_umi_gene_specific_concat_alignments_df = (
+    best_exact_umi_gene_specific_concat_alignments_df.groupby(
+        ["Sample", "ExactUMISeq"]
+    ).sample(n=1, random_state=seed)
+)
+unique_best_exact_umi_gene_specific_concat_alignments_df
+
+# %%
+assert (
+    unique_best_exact_umi_gene_specific_concat_alignments_df["Read"].nunique()
+    == unique_best_exact_umi_gene_specific_concat_alignments_df.shape[0]
+)
+
+# %%
+unique_reads_out_file = Path(
+    "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads.MergedSamples",
+    "UniqueReadsByExactUMISeq.tsv",
+)
+
+unique_best_exact_umi_gene_specific_concat_alignments_df.loc[
+    :, ["Sample", "Gene", "Repeat", "Read"]
+].to_csv(
+    unique_reads_out_file,
+    sep="\t",
+    index=False,
+    # na_rep="NA",
+    # float_format="%.2f",
+)
+
+# %%
+mapped_merged_bam_files = [
+    "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.bam",
+    "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.bam",
+]
+
+# %%
+unique_reads_dir = Path(
+    "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads.UniqueReadsByUMI.MergedSamples"
+)
+unique_reads_dir.mkdir(parents=True, exist_ok=True)
+
+# %%
+# Get the set of unique read names to keep
+reads_to_keep = set(unique_best_exact_umi_gene_specific_concat_alignments_df["Read"])
+
+for bam_path in mapped_merged_bam_files:
+    out_bam_path = Path(unique_reads_dir, Path(bam_path).name)
+
+    with pysam.AlignmentFile(bam_path, "rb") as in_bam, pysam.AlignmentFile(
+        out_bam_path, "wb", template=in_bam
+    ) as out_bam:
+        for read in in_bam:
+            if read.query_name in reads_to_keep:
+                out_bam.write(read)
+
+    print(f"Filtered BAM written to: {out_bam_path}")
+
+
+# %%
+# !samtools index -M {unique_reads_dir}/*.bam
+
+# %% [markdown]
+# # Find unique reads by sub UMI seqs in gene-specific selected barcodes
+#
+
+# %%
+def at_least_one_shared_subset(umi_1_unique_subseqs: set, umi_2_unique_subseqs: set):
+
+    # return umi_1_unique_subseqs & umi_2_unique_subseqs != set()
+
+    for umi_1_unique_subseq in umi_1_unique_subseqs:
+        if umi_1_unique_subseq in umi_2_unique_subseqs:
+            return True
+    return False
+
+
+# %%
+def process_gene_and_repeat_df(
+    gene_and_repeat_df: pd.DataFrame,
+) -> pd.DataFrame:
+    df = gene_and_repeat_df.loc[:, ["Read", "UMIUniqueSubSeqs"]]
+
+    df["ReadswithIndistinguishableUMISubSeqs"] = df.apply(
+        lambda x: df.loc[
+            df["UMIUniqueSubSeqs"].apply(
+                lambda y: at_least_one_shared_subset(x["UMIUniqueSubSeqs"], y)
+            ),
+            "Read",
+        ].tolist(),
+        axis=1,
+    )
+    df["OtherReadswithIndistinguishableUMISubSeqs"] = df.apply(
+        lambda x: [
+            read
+            for read in x["ReadswithIndistinguishableUMISubSeqs"]
+            if read != x["Read"]
+        ],
+        axis=1,
+    )
+    df["NumOfOtherReadswithIndistinguishableUMISubSeqs"] = df[
+        "OtherReadswithIndistinguishableUMISubSeqs"
+    ].apply(len)
+
+    gene_and_repeat_df = gene_and_repeat_df.merge(
+        df.loc[
+            :,
+            [
+                "Read",
+                "OtherReadswithIndistinguishableUMISubSeqs",
+                "NumOfOtherReadswithIndistinguishableUMISubSeqs",
+            ],
+        ],
+        on="Read",
+        how="outer",
+        indicator="indicator",
+    )
+
+    assert (
+        gene_and_repeat_df["indicator"].value_counts()["both"]
+        == gene_and_repeat_df.shape[0]
+    )
+    del gene_and_repeat_df["indicator"]
+
+    return gene_and_repeat_df
+
 
 # %%
 gene_specific_dfs = []
 
-for gene in ["ADAR1", "IQEC"]:
+for gene, repeat in product(genes, list("123")):
 
-    for repeat in list("123"):
+    ic(gene, repeat)
 
-        ic(gene, repeat)
+    gene_and_repeat_df = best_gene_specific_concat_alignments_df.loc[
+        (best_gene_specific_concat_alignments_df["Gene"] == gene)
+        & (best_gene_specific_concat_alignments_df["Repeat"] == repeat)
+    ]
 
-        gene_and_repeat_df = best_gene_specific_concat_alignments_df.loc[
-            (best_gene_specific_concat_alignments_df["Gene"] == gene)
-            & (best_gene_specific_concat_alignments_df["Repeat"] == repeat)
-        ]
+    gene_specific_dfs.append(gene_and_repeat_df)
 
-        df = gene_and_repeat_df.loc[:, ["TargetName", "UMIUniqueSubSeqs"]]
+with Pool(processes=6) as pool:
+    processed_gene_specific_dfs = pool.map(
+        process_gene_and_repeat_df, gene_specific_dfs
+    )
 
-        df["ReadswithIndistinguishableUMISubSeqs"] = df.apply(
-            lambda x: df.loc[
-                df["UMIUniqueSubSeqs"].apply(
-                    lambda y: at_least_one_shared_subset(x["UMIUniqueSubSeqs"], y)
-                ),
-                "TargetName",
-            ].tolist(),
-            axis=1,
-        )
-        df["OtherReadswithIndistinguishableUMISubSeqs"] = df.apply(
-            lambda x: [
-                read
-                for read in x["ReadswithIndistinguishableUMISubSeqs"]
-                if read != x["TargetName"]
-            ],
-            axis=1,
-        )
-        df["NumOfOtherReadswithIndistinguishableUMISubSeqs"] = df[
-            "OtherReadswithIndistinguishableUMISubSeqs"
-        ].apply(len)
-
-        gene_and_repeat_df = gene_and_repeat_df.merge(
-            df.loc[
-                :,
-                [
-                    "TargetName",
-                    "OtherReadswithIndistinguishableUMISubSeqs",
-                    "NumOfOtherReadswithIndistinguishableUMISubSeqs",
-                ],
-            ],
-            on="TargetName",
-            how="outer",
-            indicator="indicator",
-        )
-
-        assert (
-            gene_and_repeat_df["indicator"].value_counts()["both"]
-            == gene_and_repeat_df.shape[0]
-        )
-        del gene_and_repeat_df["indicator"]
-
-        gene_specific_dfs.append(gene_and_repeat_df)
-
-        # break  # todo remove - this is for test purposes
-
-    # break  # todo remove - this is for test purposes
-
-new_best_gene_specific_concat_alignments_df = pd.concat(
-    gene_specific_dfs, ignore_index=True
+best_umi_sub_seq_gene_specific_concat_alignments_df = pd.concat(
+    processed_gene_specific_dfs, ignore_index=True
 )
-new_best_gene_specific_concat_alignments_df
+best_umi_sub_seq_gene_specific_concat_alignments_df
 
 # %%
-new_best_gene_specific_concat_alignments_df
+best_umi_sub_seq_gene_specific_concat_alignments_df.groupby("Sample").size()
 
 # %%
-new_best_gene_specific_concat_alignments_df[
+best_umi_sub_seq_gene_specific_concat_alignments_df.loc[
+    best_umi_sub_seq_gene_specific_concat_alignments_df[
+        "NumOfOtherReadswithIndistinguishableUMISubSeqs"
+    ].eq(0),
+].groupby("Sample").size()
+
+# %%
+best_umi_sub_seq_gene_specific_concat_alignments_df[
     "NumOfOtherReadswithIndistinguishableUMISubSeqs"
 ].eq(0).sum()
+
+# %%
+best_umi_sub_seq_gene_specific_concat_alignments_df.loc[
+    best_umi_sub_seq_gene_specific_concat_alignments_df[
+        "NumOfOtherReadswithIndistinguishableUMISubSeqs"
+    ].gt(0),
+]
+
+# %%
+exact_umi_seqs_counts = best_umi_sub_seq_gene_specific_concat_alignments_df[
+    "ExactUMISeq"
+].value_counts()
+
+exact_umi_seqs_counts
+
+# %%
+best_umi_sub_seq_gene_specific_concat_alignments_df.loc[
+    (
+        best_umi_sub_seq_gene_specific_concat_alignments_df[
+            "NumOfOtherReadswithIndistinguishableUMISubSeqs"
+        ].gt(0)
+    )
+    & (
+        best_umi_sub_seq_gene_specific_concat_alignments_df["ExactUMISeq"].apply(
+            lambda x: exact_umi_seqs_counts[x] > 1
+        )
+    )
+]
+
+# %%
+read = "m64296e_241222_071206/10027148/ccs"
+other_reads = best_umi_sub_seq_gene_specific_concat_alignments_df.loc[
+    best_umi_sub_seq_gene_specific_concat_alignments_df["Read"].eq(read),
+    "OtherReadswithIndistinguishableUMISubSeqs",
+].values[0]
+df = best_umi_sub_seq_gene_specific_concat_alignments_df.loc[
+    best_umi_sub_seq_gene_specific_concat_alignments_df["Read"].isin(
+        [read] + list(other_reads)
+    )
+]
+df.to_csv(
+    "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads.MergedSamples/ExampleForEli1.csv",
+    index=False,
+)
+df
+
+# %%
+
+# %%
+read = "m64296e_241222_071206/100401593/ccs"
+other_reads = best_umi_sub_seq_gene_specific_concat_alignments_df.loc[
+    best_umi_sub_seq_gene_specific_concat_alignments_df["Read"].eq(read),
+    "OtherReadswithIndistinguishableUMISubSeqs",
+].values[0]
+df = best_umi_sub_seq_gene_specific_concat_alignments_df.loc[
+    best_umi_sub_seq_gene_specific_concat_alignments_df["Read"].isin(
+        [read] + list(other_reads)
+    )
+]
+df.to_csv(
+    "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads.MergedSamples/ExampleForEli2.csv",
+    index=False,
+)
+df
+
+# %%
+read = "m64296e_241222_071206/61737413/ccs"
+other_reads = best_umi_sub_seq_gene_specific_concat_alignments_df.loc[
+    best_umi_sub_seq_gene_specific_concat_alignments_df["Read"].eq(read),
+    "OtherReadswithIndistinguishableUMISubSeqs",
+].values[0]
+df = best_umi_sub_seq_gene_specific_concat_alignments_df.loc[
+    best_umi_sub_seq_gene_specific_concat_alignments_df["Read"].isin(
+        [read] + list(other_reads)
+    )
+]
+df.to_csv(
+    "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads.MergedSamples/ExampleForEli3.csv",
+    index=False,
+)
+df
+
+# %%
+# best_umi_sub_seq_gene_specific_concat_alignments_df.loc[
+#     (
+#         best_umi_sub_seq_gene_specific_concat_alignments_df[
+#             "NumOfOtherReadswithIndistinguishableUMISubSeqs"
+#         ].gt(0)
+#     )
+#     & (
+#         best_umi_sub_seq_gene_specific_concat_alignments_df["ExactUMISeq"].apply(
+#             lambda x: exact_umi_seqs_counts[x] == 1
+#         )
+#     )
+# ]
