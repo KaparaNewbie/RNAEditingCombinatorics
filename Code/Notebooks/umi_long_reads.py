@@ -2491,14 +2491,6 @@ concat_annotated_btg_gene_coords_df = parallel_find_btg_gene_coords(
 concat_annotated_btg_gene_coords_df
 
 # %%
-concat_alignments_df.drop(columns=["BTGGeneStart", "BTGGeneEnd"])
-
-# %%
-concat_annotated_btg_gene_coords_df.drop(
-    columns=["Sample", "Read", "BTRReadStart", "BTRReadEnd"]
-)
-
-# %%
 concat_alignments_df = concat_alignments_df.drop(
     columns=["BTGGeneStart", "BTGGeneEnd"], errors="ignore"
 ).join(
@@ -2623,21 +2615,21 @@ aligned_pairs_df.loc[
 ]
 
 # %%
-expected_start, expected_exclusive_end = expected_barcode_locations_on_gene_dict[row["Gene"]]
-ic(expected_start, expected_exclusive_end, expected_exclusive_end - expected_start)
+expected_start, expected_end = expected_barcode_locations_on_gene_dict[row["Gene"]]
+ic(expected_start, expected_end, expected_end - expected_start)
 
 # %%
 observed_start = aligned_pairs_df.loc[
     aligned_pairs_df["ReadPos"].eq(btr_read_start), "RefPos"
 ].values[0]
-observed_inclusive_end = aligned_pairs_df.loc[
+observed_end = aligned_pairs_df.loc[
     aligned_pairs_df["ReadPos"].eq(btr_read_end - 1), "RefPos"
 ].values[0]
 
-ic(observed_start, observed_inclusive_end, observed_inclusive_end - observed_start)
+ic(observed_start, observed_end, observed_end - observed_start)
 
 # %%
-coverage = min(observed_inclusive_end + 1, expected_exclusive_end) - max(observed_start, expected_start)
+coverage = min(observed_end + 1, expected_end) - max(observed_start, expected_start)
 coverage
 
 # %%
@@ -2813,41 +2805,107 @@ for gene, gene_cov_df in zip(genes, gene_cov_dfs):
 
 # %%
 main_mapping_boundaries_per_gene = []
-for gene_cov_df in gene_cov_dfs:
-    main_mapping_boundaries = (
-        gene_cov_df.loc[gene_cov_df["Reads"].gt(25_000), "Position"]
-        .agg(["min", "max"])
-        .values
+
+# for gene_cov_df in gene_cov_dfs:
+#     main_mapping_boundaries = (
+#         gene_cov_df.loc[gene_cov_df["Reads"].gt(25_000), "Position"]
+#         .agg(["min", "max"])
+#         .values
+#     )
+#     main_mapping_boundaries_per_gene.append(main_mapping_boundaries)
+
+for gene in genes:
+
+    mapping_boundaries_stats_df = (
+        concat_bams_df.loc[
+            (concat_bams_df["Gene"].eq(gene))
+            & (concat_bams_df["Gene"].eq(concat_bams_df["MappedGene"]))
+            & (concat_bams_df["Mapped"]),
+            ["GeneStart", "GeneEnd"],
+        ]
+        .describe()
+        .T
     )
+
+    mean_gene_start = mapping_boundaries_stats_df.at["GeneStart", "25%"]
+    mean_gene_end = mapping_boundaries_stats_df.at["GeneEnd", "75%"]
+    main_mapping_boundaries = (mean_gene_start, mean_gene_end)
     main_mapping_boundaries_per_gene.append(main_mapping_boundaries)
+
+
 main_mapping_boundaries_per_gene
 
 # %%
 for gene, main_mapping_boundaries in zip(genes, main_mapping_boundaries_per_gene):
     main_mapping_boundary_start, main_mapping_boundary_end = main_mapping_boundaries
-    max_mapped_reads_per_gene = concat_bams_df.loc[
+
+    df = concat_bams_df.loc[
         (concat_bams_df["Gene"].eq(gene))
         & (concat_bams_df["Gene"].eq(concat_bams_df["MappedGene"]))
         & (concat_bams_df["Mapped"])
-    ].shape[0]
-    df = concat_bams_df.loc[concat_bams_df["Gene"].eq(gene)]
+    ].copy()
+
+    df["ReadAlignmentLength"] = df["ReadEnd"] - df["ReadStart"]
+    df["GeneAlignmentLength"] = df["GeneEnd"] - df["GeneStart"]
+
+    max_mapped_reads_per_gene = df.shape[0]
+
+    # reads_spanning_from_main_mapping_boundaries_from_start_to_end = df.loc[
+    #     (df["GeneStart"].le(main_mapping_boundary_start))
+    #     & (df["GeneEnd"].sub(1).ge(main_mapping_boundary_end))
+    # ].shape[0]
+
+    # reads_spanning_from_main_mapping_boundaries_from_start_to_end = df.loc[
+    #     (df["GeneStart"].le(main_mapping_boundary_start))
+    #     & (df["GeneEnd"].ge(main_mapping_boundary_end))
+    # ].shape[0]
+
+    df["WithinMainMappingBoundaries"] = df["GeneStart"].le(
+        main_mapping_boundary_start
+    ) & df["GeneEnd"].ge(main_mapping_boundary_end)
     reads_spanning_from_main_mapping_boundaries_from_start_to_end = df.loc[
-        (df["GeneStart"].le(main_mapping_boundary_start))
-        & (df["GeneEnd"].sub(1).ge(main_mapping_boundary_end))
+        df["WithinMainMappingBoundaries"]
     ].shape[0]
+
     prct_reads_spanning_from_main_mapping_boundaries_from_start_to_end = np.round(
         100
         * reads_spanning_from_main_mapping_boundaries_from_start_to_end
         / max_mapped_reads_per_gene,
         2,
     )
+
     ic(
         gene,
         # main_mapping_boundary_start,
         # main_mapping_boundary_end,
+        main_mapping_boundaries,
+        max_mapped_reads_per_gene,
         reads_spanning_from_main_mapping_boundaries_from_start_to_end,
         prct_reads_spanning_from_main_mapping_boundaries_from_start_to_end,
     )
+
+    # break
+
+# %%
+# df
+
+# %%
+# fig = px.scatter_matrix(
+#     df,
+#     dimensions=["ReadLength", "ReadAlignmentLength", "GeneAlignmentLength"],
+#     color="WithinMainMappingBoundaries",
+#     # title=f"{gene} - Read vs Gene Alignment Lengths",
+#     title=gene,
+#     labels={
+#         "ReadLength": "Read<br>length",
+#         "ReadAlignmentLength": "Read<br>alignment<br>length",
+#         "GeneAlignmentLength": "Gene<br>alignment<br>length",
+#         "WithinMainMappingBoundaries": "Within<br>main<br>mapping<br>boundaries",
+#     },
+# )
+# fig.update_traces(diagonal_visible=False)
+# fig.update_layout(width=800, height=600)
+# fig.show()
 
 # %%
 mapping_stats_df = concat_bams_df.loc[
@@ -2865,52 +2923,6 @@ mapping_stats_df
 mapping_stats_df.groupby("Gene")[
     ["ReadLength", "ReadAlignmentLength", "GeneStart", "GeneEnd"]
 ].describe().round(2)
-
-# %%
-# fig = px.scatter(
-#     mapping_stats_df,
-#     x="ReadLength",
-#     y="ReadAlignmentLength",
-#     color="Gene",
-#     # facet_col="MappedGene",
-#     facet_col_spacing=0.05,
-#     labels={
-#         "ReadLength": "Read length [bp]",
-#         "ReadAlignmentLength": "Read alignment length [bp]",
-#         "MappedGene": "Mapped gene",
-#     },
-#     trendline="ols",
-#     opacity=0.5,
-# )
-# fig.update_layout(
-#     width=600,
-#     height=600,
-#     # title="Read alignment length vs. read length",
-# )
-# fig.show()
-
-# %%
-# fig = px.histogram(
-#     mapping_stats_df,
-#     x="ReadLength",
-#     y="ReadAlignmentLength",
-#     histfunc="avg",
-#     color="Gene",
-#     # facet_col="MappedGene",
-#     # facet_col_spacing=0.05,
-#     labels={
-#         "ReadLength": "Read length [bp]",
-#         "ReadAlignmentLength": "Read alignment length [bp]",
-#         # "MappedGene": "Mapped gene",
-#     },
-#     # trendline="ols",
-# )
-# fig.update_layout(
-#     width=600,
-#     height=600,
-#     # title="Read alignment length vs. read length",
-# )
-# fig.show()
 
 # %%
 mapping_stats_df.groupby("Gene")[
@@ -5529,37 +5541,48 @@ concat_alignments_df.loc[
 # %%
 expected_barcode_locations_on_gene_dict
 
-# %%
-pd.isna([1, 2]).any()
 
 # %%
-pd.isna([1, 2, None]).any()
-
+# def expected_barcode_to_gene_coverage(
+#     observed_start: int,
+#     observed_inclusive_end: int,
+#     expected_start: int,
+#     expected_exclusive_end: int,
+# ):
+#     """
+#     Calculate the expected coverage of the barcode on the gene based on the expected start and end positions.
+#     """
+#     if pd.isna(
+#         [observed_start, observed_inclusive_end, expected_start, expected_exclusive_end]
+#     ).any():
+#         return np.nan
+#     observed_exclusive_end = observed_inclusive_end + 1  # Adjust for inclusive end
+#     if (
+#         expected_exclusive_end < observed_start
+#         or observed_exclusive_end < expected_start
+#     ):
+#         return 0.0
+#     coverage = min(observed_exclusive_end, expected_exclusive_end) - max(
+#         observed_start, expected_start
+#     )
+#     return 100 * coverage / (expected_exclusive_end - expected_start)
 
 # %%
 def expected_barcode_to_gene_coverage(
     observed_start: int,
-    observed_inclusive_end: int,
+    observed_end: int,
     expected_start: int,
-    expected_exclusive_end: int,
+    expected_end: int,
 ):
     """
     Calculate the expected coverage of the barcode on the gene based on the expected start and end positions.
     """
-    if pd.isna(
-        [observed_start, observed_inclusive_end, expected_start, expected_exclusive_end]
-    ).any():
+    if pd.isna([observed_start, observed_end, expected_start, expected_end]).any():
         return np.nan
-    observed_exclusive_end = observed_inclusive_end + 1  # Adjust for inclusive end
-    if (
-        expected_exclusive_end < observed_start
-        or observed_exclusive_end < expected_start
-    ):
+    if expected_end < observed_start or observed_end < expected_start:
         return 0.0
-    coverage = min(observed_exclusive_end, expected_exclusive_end) - max(
-        observed_start, expected_start
-    )
-    return 100 * coverage / (expected_exclusive_end - expected_start)
+    coverage = min(observed_end, expected_end) - max(observed_start, expected_start)
+    return 100 * coverage / (expected_end - expected_start)
 
 
 # %%
@@ -5599,15 +5622,6 @@ gene_specific_concat_alignments_df
 gene_specific_concat_alignments_df["BTG%GeneCoverage"].value_counts(dropna=False)
 
 # %%
-gene_specific_concat_alignments_df["BTG%GeneCoverage"].value_counts(dropna=False)
-
-# %%
-gene_specific_concat_alignments_df["BTG%GeneCoverage"].describe()
-
-# %%
-gene_specific_concat_alignments_df["BTG%GeneCoverage"].describe()
-
-# %%
 gene_specific_concat_alignments_df.loc[
     gene_specific_concat_alignments_df["BTGGeneStart"]
     .sub(gene_specific_concat_alignments_df["BTGExpectedGeneStart"])
@@ -5618,19 +5632,9 @@ gene_specific_concat_alignments_df.loc[
 # %%
 gene_specific_concat_alignments_df.loc[
     gene_specific_concat_alignments_df["BTGGeneEnd"]
-    # .sub(1)
     .sub(gene_specific_concat_alignments_df["BTGExpectedGeneEnd"])
     .abs()
-    .le(2)
-]
-
-# %%
-gene_specific_concat_alignments_df.loc[
-    gene_specific_concat_alignments_df["BTGGeneEnd"]
-    .add(1)
-    .sub(gene_specific_concat_alignments_df["BTGExpectedGeneEnd"])
-    .abs()
-    .le(2)
+    .le(1)
 ]
 
 # %%
@@ -6817,11 +6821,22 @@ best_exact_umi_gene_specific_concat_alignments_df.groupby("Sample")[
 ].nunique().sum()
 
 # %%
+# unique_best_exact_umi_gene_specific_concat_alignments_df = (
+#     best_exact_umi_gene_specific_concat_alignments_df.groupby(
+#         ["Sample", "ExactUMISeq"]
+#     ).sample(n=1, random_state=seed)
+# )
+
+# when deduplicating reads per sample based on exact UMI sequence,
+# we'd like to keep the longest read for each UMI sequence
 unique_best_exact_umi_gene_specific_concat_alignments_df = (
-    best_exact_umi_gene_specific_concat_alignments_df.groupby(
-        ["Sample", "ExactUMISeq"]
-    ).sample(n=1, random_state=seed)
+    best_exact_umi_gene_specific_concat_alignments_df.sort_values(
+        by=["Sample", "ExactUMISeq", "ReadSeqLength"], ascending=[True, True, False]
+    )
+    .drop_duplicates(subset=["Sample", "ExactUMISeq"])
+    .reset_index(drop=True)
 )
+
 unique_best_exact_umi_gene_specific_concat_alignments_df
 
 # %%

@@ -636,6 +636,24 @@ pacbio \
 - alu 17
 - 16:12
 
+```bash
+mkdir -p D.pealeii/Alignment/UMILongReads.MergedSamples
+
+nohup \
+python Code/align.py \
+--genome D.pealeii/Annotations/Jan2025/orfs_squ.fa \
+--in_dir D.pealeii/Data/RawWithUMIs/30-1097162729/CCSAsBulk \
+--out_dir D.pealeii/Alignment/UMILongReads.MergedSamples \
+--processes 2 \
+--threads 15 \
+pacbio \
+--postfix ".hifireads.bam" \
+> D.pealeii/Alignment/UMILongReads.MergedSamples/align.25.3.2025.out &
+```
+
+- alu 17
+- 16:12
+
 ### Squid short reads
 
 ```bash
@@ -1238,6 +1256,36 @@ Code/Simulations/maximal_independent_set_5.jl \
 2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/DistinctProteins.regular.log
 ```
 
+##### Expression levels
+
+```bash
+DIR=O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3
+
+python \
+Code/Simulations/prepare_fofns_for_expression.py \
+--proteins_dir $DIR/ProteinsFiles \
+--distinct_proteins_dir $DIR/DistinctProteins \
+--proteins_postfix ".gz" \
+--out_dir $DIR
+
+mkdir q
+
+nohup \
+julia \
+--project=. \
+--threads 30 \
+Code/Simulations/expressionlevels.jl \
+--distinctfilesfofn $DIR/DistinctProteinsForExpressionLevels.txt \
+--allprotsfilesfofn $DIR/UniqueProteinsForExpressionLevels.txt \
+--samplenamesfile $DIR/ChromsNamesForExpressionLevels.txt \
+--firstcolpos 16 \
+--fractions 0.2 0.4 0.6 0.8 1.0 \
+--outdir $DIR/ExpressionLevels \
+> $DIR/expressionlevels.8.5.25.out &
+```
+
+- alu18
+
 ### total_mapped_reads 1000
 
 ```bash
@@ -1532,6 +1580,98 @@ Code/Simulations/expressionlevels.jl \
 
 - alu18
 
+## Squid long reads w/ UMIs - unique reads - merged samples
+
+Using the unique reads found by the notebook `umi_long_read.ipynb` by exact UMI seq of 12 bases.
+
+### Pileup
+
+I'm using `--total_mapped_reads 2000` rather than `--total_mapped_reads 50` only as a crude way to use the real sequenced transcripts.
+
+```bash
+OUT_DIR=D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMI.MergedSamples
+
+mkdir -p $OUT_DIR
+
+nohup python Code/pileup_with_subparsers.py \
+--transcriptome D.pealeii/Annotations/Jan2025/orfs_squ.fa \
+--known_editing_sites D.pealeii/Annotations/Jan2025/D.pea.EditingSites.bed \
+--exclude_flags 2304 \
+--parity SE \
+--min_rq 0.998 \
+--min_bq 30 \
+--out_dir $OUT_DIR \
+--processes 2 \
+--threads 15 \
+--gz_compression \
+directed_sequencing_data \
+--data_table D.pealeii/Alignment/UMILongReads.UniqueReadsByUMI.MergedSamples/DataTable.Squid.MergedUMILongReads.csv \
+--cds_regions D.pealeii/Annotations/Jan2025/orfs_squ.bed \
+> $OUT_DIR/pileup.10.6.25.out &
+```
+
+- alu 16
+- 19:26
+
+### Distinct proteins
+
+#### Regular
+
+##### Distinct isoforms
+
+```bash
+tmux new -s COMB16
+
+COMB
+
+# mkdir -p D.pealeii/MpileupAndTranscripts/UMILongReads.TotalCoverage50/DistinctProteins
+
+INFILES=$(echo D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMI.MergedSamples/*.unique_proteins.csv.gz)
+
+julia \
+--project=. \
+--threads 80 --proc 6 \
+Code/Simulations/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove ".r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz" \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--outdir D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMI.MergedSamples \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMI.MergedSamples/DistinctProteins.Regular.10.6.2025.log
+```
+
+- alu 16
+- 15:07
+
+##### Expression levels
+
+```bash
+UMI_DIR=D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMI.MergedSamples
+
+
+nohup \
+julia \
+--project=. \
+--threads 70 \
+Code/Simulations/expressionlevels.jl \
+--distinctfiles $UMI_DIR/ADAR1.Merged.DistinctUniqueProteins.10.06.2025-16:10:38.csv $UMI_DIR/IQEC.Merged.DistinctUniqueProteins.10.06.2025-14:42:26.csv \
+--allprotsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+--samplenames ADAR1 IQEC1 \
+--firstcolpos 15 \
+--fractions 0.2 0.4 0.6 0.8 1.0 \
+--outdir $UMI_DIR \
+> $UMI_DIR/expressionlevels.10.6.2025.out &
+```
+
+- alu 16
+- 21:31
+
 ## O.vul single-cell data
 
 ### total_mapped_reads 50
@@ -1721,10 +1861,8 @@ Code/Simulations/expressionlevels.jl \
 > $SC_1000_DIR/expressionlevels.2.2.25.out &
 ```
 
-
 - alu18
 - 12:45
-
 
 ### total_mapped_reads 50 - neuronal
 
@@ -1798,7 +1936,7 @@ Code/Simulations/maximal_independent_set_5.jl \
 #### Expression levels
 
 ```bash
-tmux a -t COMB18 
+tmux a -t COMB18
 
 python \
 Code/Simulations/prepare_fofns_for_expression.py \
@@ -1917,7 +2055,6 @@ Code/Simulations/expressionlevels.jl \
 
 - alu18
 - 12:45
-
 
 ### total_mapped_reads 50 - non-neuronal
 
@@ -2112,7 +2249,6 @@ Code/Simulations/expressionlevels.jl \
 - alu18
 - 12:45
 
-
 # Simulations
 
 ## Unfinished editing isoforms
@@ -2294,6 +2430,236 @@ done
 
 ```
 
+# L-GIREMI
+
+https://github.com/gxiaolab/L-GIREMI
+
+```bash
+conda env create -f l_giremi.yml
+```
+
+## Annotations
+
+We use the 2025 extended squid annotations for L-GIREMI, as we want to be able to compare it to all squid long-read datasets.
+
+```bash
+mkdir -p D.pealeii/L-GIREMI/Annotations
+cp D.pealeii/Annotations/Jan2025/* D.pealeii/L-GIREMI/Annotations
+```
+
+### GTF
+
+Creating a GTF from the ORFs bed file:
+
+<!-- ```bash
+cd D.pealeii/L-GIREMI/Annotations
+``` -->
+
+```python
+from pathlib import Path
+
+import pandas as pd
+import Bio
+from Bio import SeqIO
+
+in_fasta = Path("D.pealeii/L-GIREMI/Annotations/orfs_squ.fa")
+out_bed = Path("D.pealeii/L-GIREMI/Annotations/squ.bed") # a bed file of the complete transcriptome
+
+records = list(SeqIO.parse(in_fasta, "fasta"))
+
+transcripts = []
+transcripts_starts = []
+transcripts_ends = []
+names = []
+strands = []
+orfs_starts = []
+orfs_ends = []
+
+# record = records[0]
+
+for record in records:
+    description = record.description.split("\t")
+    transcript_start = 0
+    transcript_end = len(record.seq)
+    transcript_name = description[-1].split()[0].split("|")[-1]
+    strand_index = description.index("Strand") + 1
+    strand = description[strand_index]
+    orf_start_index = description.index("OrfStart") + 1
+    orf_end_index = description.index("OrfEnd") + 1
+    orf_start = int(description[orf_start_index]) - 1
+    orf_end = int(description[orf_end_index])
+    transcripts.append(record.id)
+    transcripts_starts.append(transcript_start)
+    transcripts_ends.append(transcript_end)
+    names.append(transcript_name)
+    strands.append(strand)
+    orfs_starts.append(orf_start)
+    orfs_ends.append(orf_end)
+
+transcripts_strands_df = pd.DataFrame(
+    {
+        "Chrom": transcripts,
+        "Start": transcripts_starts,
+        "End": transcripts_ends,
+        "Name": names,
+        "Strand": strands,
+        "ThickStart": orfs_starts,
+        "ThickEnd": orfs_ends,
+        "itemRgb": ".",
+        "blockCount": 1,
+        "blockStarts": 0,
+    }
+)
+transcripts_strands_df = transcripts_strands_df.sort_values(["Chrom", "Start"])
+transcripts_strands_df.insert(
+    transcripts_strands_df.columns.get_loc("Strand"), "Score", "."
+)
+transcripts_strands_df.insert(
+    transcripts_strands_df.columns.get_loc("blockCount") + 1, "BlockSizes", transcripts_strands_df["ThickEnd"] - transcripts_strands_df["ThickStart"]
+)
+
+transcripts_strands_df.to_csv(out_bed, sep="\t", index=False, header=False)
+
+exit()
+```
+
+```bash
+cd D.pealeii/L-GIREMI/Annotations
+
+docker run \
+-u $(id -u ${USER}):$(id -g ${USER}) \
+-v $PWD:/dir \
+"quay.io/biocontainers/agat:0.8.0--pl5262hdfd78af_0" \
+agat_convert_bed2gff.pl \
+--bed /dir/squ.bed \
+--primary_tag mRNA \
+-o /dir/squ.gff
+
+docker run \
+-u $(id -u ${USER}):$(id -g ${USER}) \
+-v $PWD:/dir \
+"quay.io/biocontainers/agat:0.8.0--pl5262hdfd78af_0" \
+agat_convert_sp_gff2gtf.pl \
+--gff /dir/squ.gff \
+-o /dir/squ.gtf
+```
+
+### Repeats - with EDTA
+
+Test:
+
+```bash
+cd /home/alu/kobish/anaconda3/envs/l_giremi/share/EDTA/test/
+
+# perl EDTA.pl --genome genome.fa --cds genome.cds.fa --curatedlib ../database/rice7.0.0.liban --exclude genome.exclude.bed --overwrite 1 --sensitive 1 --anno 1 --threads 10
+
+EDTA.pl --genome genome.fa --cds genome.cds.fa --curatedlib ../database/rice7.0.0.liban --exclude genome.exclude.bed --overwrite 1 --sensitive 1 --anno 1 --threads 10
+```
+
+Actual analysis:
+
+```bash
+L_GIREMI
+
+cd D.pealeii/L-GIREMI/Annotations
+```
+
+Shorten transcripts IDs - needed to be <= 13 for EDTA:
+
+```python
+from pathlib import Path
+
+import pandas as pd
+import Bio
+from Bio import SeqIO, SeqRecord
+
+in_fasta = Path("orfs_squ.fa")
+out_fasta = Path("orfs_squ.short_ids.fa")
+long_to_short_ids_file = Path("long_to_short_ids.csv")
+
+records = list(SeqIO.parse(in_fasta, "fasta"))
+
+original_ids = []
+shortened_ids = []
+new_records = []
+
+# i = 0
+# record = records[i]
+
+# description = record.description.split("\t")
+
+
+for i, record in enumerate(records):
+    original_id = record.id
+    seq = record.seq
+    transcript_end = len(record.seq)
+    shortened_id = f"chr_{i}"
+    new_record = SeqRecord.SeqRecord(
+        seq, id=shortened_id, description=""
+    )
+    original_ids.append(original_id)
+    shortened_ids.append(shortened_id)
+    new_records.append(new_record)
+
+with open(out_fasta, "w") as output_file:
+    SeqIO.write(new_records, output_file, "fasta-2line")
+
+long_to_short_ids_df = pd.DataFrame(
+    {
+        "LongID": original_ids,
+        "ShortID": shortened_ids
+    }
+)
+
+long_to_short_ids_df.to_csv(long_to_short_ids_file, index=False)
+
+exit()
+```
+
+```bash
+nohup EDTA.pl --genome orfs_squ.short_ids.fa --threads 30 > out.19.5.2025 &
+```
+
+- alu 18
+- 3677597
+
+### Repeats - with EDTA - git cloned
+
+```bash
+COMB
+
+cd Code
+
+git clone https://github.com/oushujun/EDTA.git
+
+conda env create -f EDTA/EDTA_2.2.x.yml
+```
+
+### Variant calling
+
+Download the single squid DNA sample in the SRA archive:
+
+```bash
+mkdir -p D.pealeii/L-GIREMI/DNA/Raw
+
+# prefetch --type sra --check-all yes --max-size 250GB -O D.pealeii/L-GIREMI/DNA/Raw SRX659582 > prefetech_log.19.5.2025.out 2>&1;
+
+prefetch --type sra --check-all yes --max-size 250GB -O D.pealeii/L-GIREMI/DNA/Raw SRR1522984
+
+fasterq-dump D.pealeii/L-GIREMI/DNA/Raw/SRR1522984/SRR1522984.sra --split-files --skip-technical --outdir D.pealeii/L-GIREMI/DNA/Raw
+```
+
+Preparing raw data
+
+```bash
+nohup \
+python Code/prepare_data.py \
+--in_dir O.bim/Data/PRJNA285380/Raw/ \
+--out_dir O.bim/Data/PRJNA285380 \
+illumina \
+--min_qual_mean 30 \
+> O.bim/Data/PRJNA285380/prepare_data.out &
+
 # Notebooks
 
 Finally, to analyze and visualize the data you'll need the following notebooks:
@@ -2305,3 +2671,4 @@ Finally, to analyze and visualize the data you'll need the following notebooks:
 5. `Code/Notebooks/various_plots.BQ30.ipynb` (this last notebook depends on the output of notebooks 2-4)
 
 Do note that some of paths appearing in the notebooks might be slightly different compared to those in this readme file.
+```

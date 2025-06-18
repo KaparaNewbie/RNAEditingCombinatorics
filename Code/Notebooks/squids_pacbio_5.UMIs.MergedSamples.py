@@ -192,15 +192,23 @@ transcriptome_file = (
 #     "CATGCTGAATTGCACCCATGCAGC"
 # ]
 
-old_to_new_reads_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
-]
+
+individual_unmapped_bams_dir = Path(
+    "/private7/projects/Combinatorics/D.pealeii/Data/RawWithUMIs/30-1097162729/CCS"
+)
 
 individual_mapped_bams_dir = Path(
     "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads"
 )
 
+merged_mapped_bams_dir = Path(
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples"
+)
+
+merged_old_to_new_reads_files = [
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
+]
 
 out_dir = Path("/private7/projects/Combinatorics/Code/Notebooks")
 
@@ -388,6 +396,20 @@ positions_dfs[0]
 
 
 # %%
+positions_df = (
+    positions_dfs[0]
+    .loc[:, [condition_col, "Chrom", "Position", "Edited", "RefBase", "Reads"]]
+    .copy()
+)
+positions_df
+
+# %%
+positions_df["Reads"] = positions_df["Reads"].str.split(",")
+positions_df
+
+# %%
+
+# %%
 cds_editing_positions_per_sample = [
     len(df.loc[(df["Edited"]) & (df["CDS"])]) for df in positions_dfs
 ]
@@ -424,6 +446,188 @@ print(
 # ]
 # for x in within_primers_editing_positions_per_sample:
 #     print(x)
+
+# %% [markdown]
+# # Raw reads
+
+# %% [markdown]
+# ## Individual unmapped samples
+
+# %%
+individual_unmapped_bams_dir
+
+# %%
+# individual_mapped_bam_files = list(individual_mapped_bams_dir.glob("*.bam"))
+individual_unmapped_bam_files = list(individual_unmapped_bams_dir.glob("*.bam"))
+
+
+individual_unmapped_bam_files
+
+# %%
+individual_unmapped_bam_dfs = []
+
+for bam_file in individual_unmapped_bam_files:
+
+    sample = bam_file.name.split(".")[0]
+    gene = sample[3:]
+    repeat = sample[2]
+
+    if gene == "IQEC":
+        gene = "IQEC1"
+
+    # expected_chrom = chrom_per_gene_dict[gene]
+
+    with pysam.AlignmentFile(
+        bam_file,
+        "rb",
+        threads=10,
+        check_sq=False,
+        # require_index=False,
+        # index_filename=str(Path(bam_file.parent, f"{bam_file.name}.pbi")),
+    ) as samfile:
+        # reads = [read for read in samfile]
+        # reads_names = [read.query_name for read in reads]
+        reads_names = [read.query_name for read in samfile]
+
+        df = pd.DataFrame(
+            {
+                "Sample": sample,
+                "Gene": gene,
+                "Repeat": repeat,
+                "Read": reads_names,
+            }
+        )
+
+        individual_unmapped_bam_dfs.append(df)
+
+        # break
+
+concat_individual_unmapped_bams_df = pd.concat(
+    individual_unmapped_bam_dfs, ignore_index=True
+)
+concat_individual_unmapped_bams_df
+
+# %%
+# merged_old_to_new_reads_files
+
+# %%
+# old_to_new_reads_dfs = []
+
+
+# for old_to_new_reads_file in merged_old_to_new_reads_files:
+#     # ic(old_to_new_reads_file)
+#     old_to_new_reads_df = pd.read_csv(old_to_new_reads_file, sep=sep)
+#     old_to_new_reads_df = old_to_new_reads_df.merge(
+#         concat_individual_mapped_bams_df,
+#         left_on="OldRead",
+#         right_on="Read",
+#         how="left",
+#     ).drop(columns="Read")
+#     # ic(old_to_new_reads_df.head(3))
+#     old_to_new_reads_dfs.append(old_to_new_reads_df)
+
+# old_to_new_reads_dfs[0]
+
+# %%
+# expanded_max_expression_df
+
+# %%
+# old_to_new_reads_dfs[0]
+
+# %% [markdown]
+# ## Merged mapped samples
+
+# %%
+merged_mapped_bams_dir
+
+# %%
+merged_mapped_bam_files = list(merged_mapped_bams_dir.glob("*.bam"))
+merged_mapped_bam_files
+
+# %%
+merged_mapped_bam_files[0].name.split(".")[0]
+
+# %%
+merged_mapped_bam_dfs = []
+
+for bam_file in merged_mapped_bam_files:
+
+    # sample = bam_file.name.split(".")[0]
+    # gene = sample[3:]
+    # repeat = sample[2]
+
+    gene = bam_file.name.split(".")[0]
+
+    if gene == "IQEC":
+        gene = "IQEC1"
+
+    # expected_chrom = chrom_per_gene_dict[gene]
+
+    with pysam.AlignmentFile(
+        bam_file,
+        "rb",
+        threads=10,
+        # check_sq=False,
+        # require_index=False,
+        # index_filename=str(Path(bam_file.parent, f"{bam_file.name}.pbi")),
+    ) as samfile:
+
+        # reads_names = [read.query_name for read in samfile]
+
+        reads = [read for read in samfile]
+        reads_names = [read.query_name for read in reads]
+        reads_lengths = [len(read.get_forward_sequence()) for read in reads]
+
+        df = pd.DataFrame(
+            {
+                "Gene": gene,
+                "Read": reads_names,
+                "ReadLength": reads_lengths,
+            }
+        )
+
+        merged_mapped_bam_dfs.append(df)
+
+        # break
+
+concat_merged_mapped_bam_df = pd.concat(merged_mapped_bam_dfs, ignore_index=True)
+
+concat_merged_mapped_bam_df = concat_individual_unmapped_bams_df.merge(
+    concat_merged_mapped_bam_df, how="right"
+)
+
+assert concat_merged_mapped_bam_df.loc[
+    concat_merged_mapped_bam_df.isna().any(axis=1)
+].empty
+
+concat_merged_mapped_bam_df
+
+# %%
+merged_old_to_new_reads_dfs = []
+
+for old_to_new_reads_file in merged_old_to_new_reads_files:
+    # ic(old_to_new_reads_file)
+    old_to_new_reads_df = pd.read_csv(old_to_new_reads_file, sep=sep)
+    old_to_new_reads_df = old_to_new_reads_df.merge(
+        concat_merged_mapped_bam_df,
+        left_on="OldRead",
+        right_on="Read",
+        how="left",
+    ).drop(columns="Read")
+    # ic(old_to_new_reads_df.head(3))
+    merged_old_to_new_reads_dfs.append(old_to_new_reads_df)
+
+# merged_old_to_new_reads_dfs[0]
+
+concat_merged_old_to_new_reads_df = pd.concat(
+    merged_old_to_new_reads_dfs, ignore_index=True
+)
+concat_merged_old_to_new_reads_df
+
+# %%
+concat_merged_old_to_new_reads_df
+
+# %%
 
 # %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"}
 # ## Reads
@@ -1609,16 +1813,16 @@ concat_individual_mapped_bams_df = pd.concat(
 concat_individual_mapped_bams_df
 
 # %%
-old_to_new_reads_files
+merged_old_to_new_reads_files
 
 # %%
-old_to_new_reads_files
+merged_old_to_new_reads_files
 
 # %%
 old_to_new_reads_dfs = []
 
 
-for old_to_new_reads_file in old_to_new_reads_files:
+for old_to_new_reads_file in merged_old_to_new_reads_files:
     # ic(old_to_new_reads_file)
     old_to_new_reads_df = pd.read_csv(old_to_new_reads_file, sep=sep)
     old_to_new_reads_df = old_to_new_reads_df.merge(
@@ -3449,7 +3653,7 @@ fig = px.histogram(
     color_discrete_map=color_discrete_map,
     category_orders=category_orders,
     template=template,
-)
+)j
 
 # https://stackoverflow.com/questions/58167028/single-axis-caption-in-plotly-express-facet-plot
 for axis in fig.layout:
