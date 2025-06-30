@@ -12,7 +12,8 @@ function find_B_and_E_for_M(M)
 
     # E = Array{Int}(undef, rows)
     # E .= rows + 1
-    E = fill(rows + 1, rows)
+    # E = fill(rows + 1, rows)
+    E = fill(cols + 1, rows)
 
     # iterate over each row
     for i ∈ 1:rows
@@ -48,10 +49,18 @@ function are_there_chimeric_reads(M)
 end
 
 
+# r1 = M[1, :]
+# r2 = M[2, :]
+
+# r1_b = findfirst(x -> !x, r1) - 1
+# ri_e = findlast(x -> !x, r1) + 1
+# r2_b = findfirst(x -> !x, r2) - 1
+# r2_e = findlast(x -> !x, r2) + 1
+
 function find_all_chimeric_reads(M)
 
     B, E = find_B_and_E_for_M(M)
-    
+
     sorted_B, idxs_B = sort(B), sortperm(B)
     sorted_E, idxs_E = sort(E), sortperm(E)
 
@@ -80,19 +89,6 @@ end
 
 
 
-B = [7, 7, 3, 3, 0]
-E = [4, 10, 4, 2, 11]
-
-
-
-
-
-
-
-
-
-
-
 M = rand(Bool, (1000, 100))
 # find_chimeric_reads(M)
 are_there_chimeric_reads(M)
@@ -101,10 +97,8 @@ are_there_chimeric_reads(M)
 M = falses(1000, 100)
 M[2, 1:45] .= true
 M[3, 42:end] .= true
-# @assert find_chimeric_reads(M2) == (2, 3)
-# @assert find_chimeric_reads(M)
 @assert are_there_chimeric_reads(M)
-
+find_all_chimeric_reads(M)
 
 M = falses(1000, 100)
 M[2, 1:45] .= true
@@ -114,13 +108,58 @@ M[4, 40:end] .= true
 find_all_chimeric_reads(M)
 
 M = falses(1000, 100)
-# @assert find_chimeric_reads(M) == nothing
-# @assert !find_chimeric_reads(M)
 @assert !are_there_chimeric_reads(M)
 find_all_chimeric_reads(M)
 
 
-function prepare_expression_df(expression_file)
+function validate_chimeric_reads(rare_read_editing_status, two_common_reads_editing_statuses)
+    
+    # Validate the input dimensions:
+    # rare_read_editing_status must be a vector of length m_sites,
+    # two_common_reads_editing_statuses must have exactly two rows and m_sites columns.
+    n_reads, m_sites = size(two_common_reads_editing_statuses)
+    n_reads == 2 || error("two_common_reads_editing_statuses must have exactly two rows")
+    if size(rare_read_editing_status) !== (m_sites,)
+        rare_read_editing_status = rare_read_editing_status'
+        size(rare_read_editing_status) !== (m_sites,) && error("rare_read_editing_status must be a vector of length $n_reads")
+    end
+    
+    s1 = two_common_reads_editing_statuses[1, :] # first common read editing status
+    s2 = two_common_reads_editing_statuses[2, :] # second common read editing status
+    
+    options = []
+    
+    for i ∈ eachindex(rare_read_editing_status) # could be one of the common reads as well
+        
+        # i = 101
+        
+        option1 = vcat(s1[begin:i-1], s2[i:end])
+        option2 = vcat(s2[begin:i-1], s1[i:end])
+        push!(options, option1)
+        push!(options, option2)
+    end
+    
+    return rare_read_editing_status in options
+
+end
+
+
+
+s1 = [1, 0, -1]
+s2 = [-1, 0, 0]
+
+s3 = [1, 0, 0]
+s4 = [1, -1, 1]
+
+
+@assert validate_chimeric_reads(s3, [s1 s2]')
+@assert !(validate_chimeric_reads(s4, [s1 s2]'))
+
+
+function prepare_expression_df(expression_file, discard_reassigned_reads::Bool = true)
+
+    # TODO use an input largest solutuon rather than randomly selecting one
+
     expression_df = DataFrame(CSV.File(expression_file, delim="\t"))
 
     # count the number of distinct proteins per solution
@@ -172,6 +211,11 @@ function prepare_expression_df(expression_file)
     transform!(expression_df, "OriginalAndAdditionalSupportingProteinsIDs" => "OriginalOrAdditionalSupportingProtein")
     select!(expression_df, Not("OriginalAndAdditionalSupportingProteinsIDs"))
 
+    # if we want to discard the reassigned reads, we filter out the rows where "Protein" != "OriginalOrAdditionalSupportingProtein"
+    if discard_reassigned_reads
+        expression_df = expression_df[expression_df.Protein .== expression_df.OriginalOrAdditionalSupportingProtein, :]
+    end
+
     return expression_df
 end
 
@@ -218,17 +262,210 @@ expression_df = leftjoin(expression_df, unique_reads_and_proteins_df, on=["Gene"
 # and the unique reads supporting them
 # (each row is a single unique read supporting a unique protein, wether it is a distinct or indistinguishable one which underwent reasassignment)
 
+common_expression_df = expression_df[expression_df.ExpressionStatus.=="Common", :]
+rare_expression_df = expression_df[expression_df.ExpressionStatus.=="Rare", :]
+
+new_first_reads_col_pos = 7
+
+# common_expression_df[:, begin:new_first_reads_col_pos-1]
+
+gdf = groupby(common_expression_df[:, ["Gene", "ExpressionStatus", "UniqueRead", "Protein", "OriginalOrAdditionalSupportingProtein", "TotalWeightedSupportingReads"]], ["Gene", "ExpressionStatus", "UniqueRead"])
+
+# unique(common_expression_df[!, "UniqueRead"])
+# length(gdf)
+
+struct ReassignmentMetadata
+    Protein
+    OriginalOrAdditionalSupportingProtein
+    TotalWeightedSupportingReads
+end
 
 
-common_expression_df = expression_df[expression_df.ExpressionStatus .== "Common", :]
-rare_expression_df = expression_df[expression_df.ExpressionStatus .== "Rare", :]
+compact_common_expression_df = combine(gdf) do subdf
+    (; Metadata=hcat(collect(ReassignmentMetadata.(subdf.Protein, subdf.OriginalOrAdditionalSupportingProtein, subdf.TotalWeightedSupportingReads))))
+end
 
-# original_common_proteins = unique(expression_df[expression_df.ExpressionStatus .== "Common", :Protein])
-original_common_proteins = unique(common_expression_df[!, :Protein])
+# compact_common_expression_df[!, "Metadata"][1]
+# compact_common_expression_df[!, "Metadata"][1][1]
 
-original_common_protein = original_common_proteins[1]
-common_expression_df[common_expression_df.Protein .== original_common_protein, :]
+# unique(common_expression_df[!, new_first_reads_col_pos-1:end], "UniqueRead")
+
+compact_common_expression_df = leftjoin(
+    compact_common_expression_df,
+    unique(common_expression_df[!, new_first_reads_col_pos-1:end], "UniqueRead"),
+    on=["UniqueRead"]
+)
+
+compact_common_expression_first_reads_col_pos = 5
+
+# common_unique_reads_editing_status = compact_common_expression_df[:, compact_common_expression_first_reads_col_pos:end]
 
 
-unique(rare_expression_df)
+# original_rare_proteins = unique(rare_expression_df[!, :Protein])
+# one_original_rare_protein = original_rare_proteins[1] # todo iterate over all 1000 of them
+# unique_reads_of_one_original_rare_protein_expression_df = rare_expression_df[rare_expression_df.Protein.==one_original_rare_protein, :]
+# unique_reads_of_one_original_rare_protein_expression = unique(unique_reads_of_one_original_rare_protein_expression_df[!, "UniqueRead"])
+# one_unique_read_of_one_original_rare_protein = unique_reads_of_one_original_rare_protein_expression[1] # todo iterate over all unique reads of the original rare protein
+# # one_unique_read_of_one_original_rare_protein_df = unique_reads_of_one_original_rare_protein_expression_df[1, :] # todo iterate over all unique reads of the original rare protein 
+# one_unique_read_of_one_original_rare_protein_df = unique_reads_of_one_original_rare_protein_expression_df[unique_reads_of_one_original_rare_protein_expression_df.UniqueRead .== one_unique_read_of_one_original_rare_protein, :][1, :] # take the first row of the unique reads of the original rare protein
+# one_unique_read_of_one_original_rare_protein_editing_status = one_unique_read_of_one_original_rare_protein_df[new_first_reads_col_pos:end]
 
+
+# common_unique_reads_editing_status = compact_common_expression_df[compact_common_expression_df.UniqueRead .!== one_unique_read_of_one_original_rare_protein, compact_common_expression_first_reads_col_pos:end]
+
+# # one_unique_read_of_one_original_rare_protein_editing_status .== common_unique_reads_editing_status
+
+# # common_unique_reads_editing_status .== one_unique_read_of_one_original_rare_protein_editing_status'
+
+# one_unique_read_of_one_original_rare_protein_editing_status_array = Array(one_unique_read_of_one_original_rare_protein_editing_status)
+# common_unique_reads_editing_status_array = Array(common_unique_reads_editing_status)
+
+# # Compare the rare read to all common reads (row-wise)
+# M = common_unique_reads_editing_status_array .== one_unique_read_of_one_original_rare_protein_editing_status_array'
+
+# # size(M)[2]
+
+# # sum(sum(row) == size(M)[2] for row ∈ eachrow(M)) # count the number of common reads that are identical to the rare read
+# # sum(M, dims=2)
+
+# are_there_chimeric_reads(M)
+# all_chimeric_reads_indices = find_all_chimeric_reads(M)
+
+
+results = []
+
+original_rare_proteins = unique(rare_expression_df[!, :Protein])
+
+# one_original_rare_protein = original_rare_proteins[1] # todo iterate over all 1000 of them
+for one_original_rare_protein ∈ original_rare_proteins
+
+    unique_reads_of_one_original_rare_protein_expression_df = rare_expression_df[rare_expression_df.Protein.==one_original_rare_protein, :]
+    unique_reads_of_one_original_rare_protein_expression = unique(unique_reads_of_one_original_rare_protein_expression_df[!, "UniqueRead"])
+
+    # one_unique_read_of_one_original_rare_protein = unique_reads_of_one_original_rare_protein_expression[1] # todo iterate over all unique reads of the original rare protein
+    for one_unique_read_of_one_original_rare_protein ∈ unique_reads_of_one_original_rare_protein_expression
+
+        one_unique_read_of_one_original_rare_protein_df = unique_reads_of_one_original_rare_protein_expression_df[unique_reads_of_one_original_rare_protein_expression_df.UniqueRead .== one_unique_read_of_one_original_rare_protein, :][1, :] # take the first row of the unique reads of the original rare protein
+        one_unique_read_of_one_original_rare_protein_editing_status = one_unique_read_of_one_original_rare_protein_df[new_first_reads_col_pos:end]
+
+
+        common_unique_reads_editing_status = compact_common_expression_df[compact_common_expression_df.UniqueRead .!== one_unique_read_of_one_original_rare_protein, compact_common_expression_first_reads_col_pos:end]
+
+        # one_unique_read_of_one_original_rare_protein_editing_status .== common_unique_reads_editing_status
+
+        # common_unique_reads_editing_status .== one_unique_read_of_one_original_rare_protein_editing_status'
+
+        one_unique_read_of_one_original_rare_protein_editing_status_array = Array(one_unique_read_of_one_original_rare_protein_editing_status)
+        common_unique_reads_editing_status_array = Array(common_unique_reads_editing_status)
+
+        # Compare the rare read to all common reads (row-wise)
+        M = common_unique_reads_editing_status_array .== one_unique_read_of_one_original_rare_protein_editing_status_array'
+
+        # size(M)[2]
+
+        # sum(sum(row) == size(M)[2] for row ∈ eachrow(M)) # count the number of common reads that are identical to the rare read
+        # sum(M, dims=2)
+
+        is_chimeric = are_there_chimeric_reads(M)
+        all_chimeric_reads_indices = find_all_chimeric_reads(M)
+
+        result = (Protein = one_original_rare_protein,
+                  UniqueRead = one_unique_read_of_one_original_rare_protein,
+                  IsChimeric = is_chimeric,
+                  ChimericReadsIndices = all_chimeric_reads_indices,
+                  NumOfChimericCombinations = length(all_chimeric_reads_indices),
+                  )
+        push!(results, result)
+
+    end
+
+end
+
+results_df = DataFrame(results)
+
+
+results_df[results_df.IsChimeric .== true, :]
+
+
+describe(results_df[results_df.IsChimeric .== true, :NumOfChimericCombinations])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# (11, 17803)
+# compact_common_expression_df[[11, 17803], 5:end]
+# # sum([4020 in p for p in all_chimeric_reads_indices]) # 4020 is the index of the first common read
+
+# # [p for p in all_chimeric_reads_indices if !(4020 in p)] # find all pairs with the first common read
+
+# using DataStructures
+
+# # counter([1, 2, 3])
+# # unique.([[1, 2], [1, 1], [2, 3], [1, 2], [1, 3]])
+# # vcat([[1, 2], [1]]...)
+# # vcat(unique.([[1, 2], [1, 1], [2, 3], [1, 2], [1, 3]])...)
+# # counter(vcat(unique.([[1, 2], [1, 1], [2, 3], [1, 2], [1, 3]])...))
+
+
+# unique_chimeric_reads_indices_counter = counter(vcat(unique.(all_chimeric_reads_indices)...))
+# # sort(unique_chimeric_reads_indices_counter)
+
+# # unique_chimeric_reads_indices_counter[4020]
+
+# unique_chimeric_reads_indices_counter_df = DataFrame(Indices=collect(keys(unique_chimeric_reads_indices_counter)), Counts=collect(values(unique_chimeric_reads_indices_counter)))
+# sort!(unique_chimeric_reads_indices_counter_df, :Counts, rev=true)
+# unique_chimeric_reads_indices_counter_df[unique_chimeric_reads_indices_counter_df.Counts .>= 1000, :]
+
+
+
+
+# two_common_reads_editing_statuses = common_unique_reads_editing_status_array[[11, 17803], :]
+
+# rare_read_editing_status = one_unique_read_of_one_original_rare_protein_editing_status_array'
+
+# v = vcat(two_common_reads_editing_statuses, rare_read_editing_status)
+
+# first_rare_read_editing_status
+
+# # todo write a test to validate that the chimeric reads are correctly identified
+
+# validate_chimeric_reads(rare_read_editing_status, two_common_reads_editing_statuses)
+
+
+# compact_common_expression_df[4020, :]
+# compact_common_expression_df[4020, "Metadata"]
+
+
+# sum(Array(compact_common_expression_df[4020, compact_common_expression_first_reads_col_pos:end]) .== one_unique_read_of_one_original_rare_protein_editing_status_array)
+
+# compact_common_expression_df[17355, :] # this is the second common read that is chimeric with the rare read
+
+# sum(Array(compact_common_expression_df[17355, compact_common_expression_first_reads_col_pos:end]) .== one_unique_read_of_one_original_rare_protein_editing_status_array)
+
+
+# # compact_common_expression_df[[all_chimeric_reads_indices[1]...], :]
+# two_common_reads_editing_statuses = common_unique_reads_editing_status_array[[all_chimeric_reads_indices[1]...], :]
+
+# rare_read_editing_status = one_unique_read_of_one_original_rare_protein_editing_status_array'
+
+# # todo write a test to validate that the chimeric reads are correctly identified
+
+# validate_chimeric_reads(rare_read_editing_status, two_common_reads_editing_statuses)
+
+# M = two_common_reads_editing_statuses .== rare_read_editing_status
+
+# are_there_chimeric_reads(M)
+
+# find_all_chimeric_reads(M)
