@@ -2,7 +2,7 @@ using DataFrames
 using CSV
 using Random # for MersenneTwister
 using StatsBase  # for StatsBase.sample
-
+using CairoMakie
 
 
 function find_B_and_E_for_M(M)
@@ -89,9 +89,9 @@ end
 
 
 
-M = rand(Bool, (1000, 100))
-# find_chimeric_reads(M)
-are_there_chimeric_reads(M)
+# M = rand(Bool, (1000, 100))
+# # find_chimeric_reads(M)
+# are_there_chimeric_reads(M)
 
 
 M = falses(1000, 100)
@@ -156,7 +156,7 @@ s4 = [1, -1, 1]
 @assert !(validate_chimeric_reads(s4, [s1 s2]'))
 
 
-function prepare_expression_df(expression_file, discard_reassigned_reads::Bool = true)
+function prepare_expression_df(expression_file, x_common_proteins=300, y_rare_proteins=1000, discard_reassigned_reads::Bool = true)
 
     # TODO use an input largest solutuon rather than randomly selecting one
 
@@ -177,8 +177,8 @@ function prepare_expression_df(expression_file, discard_reassigned_reads::Bool =
 
     # keep only the 1000 rarest and 300 most common distinct proteins
     # (the first 1000 rows and the last 300 rows)
-    rare_expression_df = expression_df[1:1000, :]
-    common_expression_df = expression_df[end-299:end, :]
+    rare_expression_df = expression_df[1:y_rare_proteins, :]
+    common_expression_df = expression_df[end-x_common_proteins:end, :]
     insertcols!(rare_expression_df, "ExpressionStatus" => "Rare")
     insertcols!(common_expression_df, "ExpressionStatus" => "Common")
     expression_df = vcat(rare_expression_df, common_expression_df)
@@ -242,37 +242,7 @@ function prepare_unique_reads_df(unique_reads_file, unique_reads_first_col_pos)
 end
 
 
-expression_file = "TempData/GRIA.DistinctUniqueProteins.ExpressionLevels.csv"
-unique_reads_file = "TempData/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_reads.csv.gz"
-unique_proteins_file = "TempData/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
-unique_proteins_first_col_pos = 15
-unique_reads_first_col_pos = 9
 
-
-expression_df = prepare_expression_df(expression_file)
-unique_proteins_df = prepare_unique_proteins_df(unique_proteins_file, unique_proteins_first_col_pos)
-unique_reads_df = prepare_unique_reads_df(unique_reads_file, unique_reads_first_col_pos)
-
-unique_reads_and_proteins_df = innerjoin(unique_proteins_df, unique_reads_df, on=["Gene", "UniqueRead"])
-
-expression_df = leftjoin(expression_df, unique_reads_and_proteins_df, on=["Gene", "OriginalOrAdditionalSupportingProtein" => "Protein"])
-
-# now we have a dataframe with the original distinct proteins (300 most common and 1000 rarest) and their expression levels,
-# as well as the indistinguishable proteins supporting them,
-# and the unique reads supporting them
-# (each row is a single unique read supporting a unique protein, wether it is a distinct or indistinguishable one which underwent reasassignment)
-
-common_expression_df = expression_df[expression_df.ExpressionStatus.=="Common", :]
-rare_expression_df = expression_df[expression_df.ExpressionStatus.=="Rare", :]
-
-new_first_reads_col_pos = 7
-
-# common_expression_df[:, begin:new_first_reads_col_pos-1]
-
-gdf = groupby(common_expression_df[:, ["Gene", "ExpressionStatus", "UniqueRead", "Protein", "OriginalOrAdditionalSupportingProtein", "TotalWeightedSupportingReads"]], ["Gene", "ExpressionStatus", "UniqueRead"])
-
-# unique(common_expression_df[!, "UniqueRead"])
-# length(gdf)
 
 struct ReassignmentMetadata
     Protein
@@ -281,118 +251,261 @@ struct ReassignmentMetadata
 end
 
 
-compact_common_expression_df = combine(gdf) do subdf
-    (; Metadata=hcat(collect(ReassignmentMetadata.(subdf.Protein, subdf.OriginalOrAdditionalSupportingProtein, subdf.TotalWeightedSupportingReads))))
-end
+function process_one_sample(
+    sample_name,
+    expression_file, 
+    unique_proteins_file, unique_proteins_first_col_pos,
+    unique_reads_file, unique_reads_first_col_pos,
+    x_common_proteins=300, y_rare_proteins=1000, discard_reassigned_reads::Bool = true
+    )
+    
+    expression_df = prepare_expression_df(expression_file, x_common_proteins, y_rare_proteins, discard_reassigned_reads)
+    unique_proteins_df = prepare_unique_proteins_df(unique_proteins_file, unique_proteins_first_col_pos)
+    unique_reads_df = prepare_unique_reads_df(unique_reads_file, unique_reads_first_col_pos)
 
-# compact_common_expression_df[!, "Metadata"][1]
-# compact_common_expression_df[!, "Metadata"][1][1]
+    unique_reads_and_proteins_df = innerjoin(unique_proteins_df, unique_reads_df, on=["Gene", "UniqueRead"])
 
-# unique(common_expression_df[!, new_first_reads_col_pos-1:end], "UniqueRead")
+    expression_df = leftjoin(expression_df, unique_reads_and_proteins_df, on=["Gene", "OriginalOrAdditionalSupportingProtein" => "Protein"])
 
-compact_common_expression_df = leftjoin(
-    compact_common_expression_df,
-    unique(common_expression_df[!, new_first_reads_col_pos-1:end], "UniqueRead"),
-    on=["UniqueRead"]
-)
+    # now we have a dataframe with the original distinct proteins (300 most common and 1000 rarest) and their expression levels,
+    # as well as the indistinguishable proteins supporting them,
+    # and the unique reads supporting them
+    # (each row is a single unique read supporting a unique protein, wether it is a distinct or indistinguishable one which underwent reasassignment)
 
-compact_common_expression_first_reads_col_pos = 5
+    common_expression_df = expression_df[expression_df.ExpressionStatus.=="Common", :]
+    rare_expression_df = expression_df[expression_df.ExpressionStatus.=="Rare", :]
 
-# common_unique_reads_editing_status = compact_common_expression_df[:, compact_common_expression_first_reads_col_pos:end]
+    new_first_reads_col_pos = 7
 
+    # common_expression_df[:, begin:new_first_reads_col_pos-1]
 
-# original_rare_proteins = unique(rare_expression_df[!, :Protein])
-# one_original_rare_protein = original_rare_proteins[1] # todo iterate over all 1000 of them
-# unique_reads_of_one_original_rare_protein_expression_df = rare_expression_df[rare_expression_df.Protein.==one_original_rare_protein, :]
-# unique_reads_of_one_original_rare_protein_expression = unique(unique_reads_of_one_original_rare_protein_expression_df[!, "UniqueRead"])
-# one_unique_read_of_one_original_rare_protein = unique_reads_of_one_original_rare_protein_expression[1] # todo iterate over all unique reads of the original rare protein
-# # one_unique_read_of_one_original_rare_protein_df = unique_reads_of_one_original_rare_protein_expression_df[1, :] # todo iterate over all unique reads of the original rare protein 
-# one_unique_read_of_one_original_rare_protein_df = unique_reads_of_one_original_rare_protein_expression_df[unique_reads_of_one_original_rare_protein_expression_df.UniqueRead .== one_unique_read_of_one_original_rare_protein, :][1, :] # take the first row of the unique reads of the original rare protein
-# one_unique_read_of_one_original_rare_protein_editing_status = one_unique_read_of_one_original_rare_protein_df[new_first_reads_col_pos:end]
+    gdf = groupby(common_expression_df[:, ["Gene", "ExpressionStatus", "UniqueRead", "Protein", "OriginalOrAdditionalSupportingProtein", "TotalWeightedSupportingReads"]], ["Gene", "ExpressionStatus", "UniqueRead"])
 
+    # unique(common_expression_df[!, "UniqueRead"])
+    # length(gdf)
 
-# common_unique_reads_editing_status = compact_common_expression_df[compact_common_expression_df.UniqueRead .!== one_unique_read_of_one_original_rare_protein, compact_common_expression_first_reads_col_pos:end]
-
-# # one_unique_read_of_one_original_rare_protein_editing_status .== common_unique_reads_editing_status
-
-# # common_unique_reads_editing_status .== one_unique_read_of_one_original_rare_protein_editing_status'
-
-# one_unique_read_of_one_original_rare_protein_editing_status_array = Array(one_unique_read_of_one_original_rare_protein_editing_status)
-# common_unique_reads_editing_status_array = Array(common_unique_reads_editing_status)
-
-# # Compare the rare read to all common reads (row-wise)
-# M = common_unique_reads_editing_status_array .== one_unique_read_of_one_original_rare_protein_editing_status_array'
-
-# # size(M)[2]
-
-# # sum(sum(row) == size(M)[2] for row ∈ eachrow(M)) # count the number of common reads that are identical to the rare read
-# # sum(M, dims=2)
-
-# are_there_chimeric_reads(M)
-# all_chimeric_reads_indices = find_all_chimeric_reads(M)
+    # struct ReassignmentMetadata
+    #     Protein
+    #     OriginalOrAdditionalSupportingProtein
+    #     TotalWeightedSupportingReads
+    # end
 
 
-results = []
+    compact_common_expression_df = combine(gdf) do subdf
+        (; Metadata=hcat(collect(ReassignmentMetadata.(subdf.Protein, subdf.OriginalOrAdditionalSupportingProtein, subdf.TotalWeightedSupportingReads))))
+    end
 
-original_rare_proteins = unique(rare_expression_df[!, :Protein])
+    # compact_common_expression_df[!, "Metadata"][1]
+    # compact_common_expression_df[!, "Metadata"][1][1]
 
-# one_original_rare_protein = original_rare_proteins[1] # todo iterate over all 1000 of them
-for one_original_rare_protein ∈ original_rare_proteins
+    # unique(common_expression_df[!, new_first_reads_col_pos-1:end], "UniqueRead")
 
-    unique_reads_of_one_original_rare_protein_expression_df = rare_expression_df[rare_expression_df.Protein.==one_original_rare_protein, :]
-    unique_reads_of_one_original_rare_protein_expression = unique(unique_reads_of_one_original_rare_protein_expression_df[!, "UniqueRead"])
+    compact_common_expression_df = leftjoin(
+        compact_common_expression_df,
+        unique(common_expression_df[!, new_first_reads_col_pos-1:end], "UniqueRead"),
+        on=["UniqueRead"]
+    )
 
-    # one_unique_read_of_one_original_rare_protein = unique_reads_of_one_original_rare_protein_expression[1] # todo iterate over all unique reads of the original rare protein
-    for one_unique_read_of_one_original_rare_protein ∈ unique_reads_of_one_original_rare_protein_expression
+    compact_common_expression_first_reads_col_pos = 5
 
-        one_unique_read_of_one_original_rare_protein_df = unique_reads_of_one_original_rare_protein_expression_df[unique_reads_of_one_original_rare_protein_expression_df.UniqueRead .== one_unique_read_of_one_original_rare_protein, :][1, :] # take the first row of the unique reads of the original rare protein
-        one_unique_read_of_one_original_rare_protein_editing_status = one_unique_read_of_one_original_rare_protein_df[new_first_reads_col_pos:end]
+    # common_unique_reads_editing_status = compact_common_expression_df[:, compact_common_expression_first_reads_col_pos:end]
+
+    results = []
+
+    original_rare_proteins = unique(rare_expression_df[!, :Protein])
+
+    # one_original_rare_protein = original_rare_proteins[1] # todo iterate over all 1000 of them
+    for one_original_rare_protein ∈ original_rare_proteins
+
+        unique_reads_of_one_original_rare_protein_expression_df = rare_expression_df[rare_expression_df.Protein.==one_original_rare_protein, :]
+        unique_reads_of_one_original_rare_protein_expression = unique(unique_reads_of_one_original_rare_protein_expression_df[!, "UniqueRead"])
+
+        # one_unique_read_of_one_original_rare_protein = unique_reads_of_one_original_rare_protein_expression[1] # todo iterate over all unique reads of the original rare protein
+        for one_unique_read_of_one_original_rare_protein ∈ unique_reads_of_one_original_rare_protein_expression
+
+            one_unique_read_of_one_original_rare_protein_df = unique_reads_of_one_original_rare_protein_expression_df[unique_reads_of_one_original_rare_protein_expression_df.UniqueRead .== one_unique_read_of_one_original_rare_protein, :][1, :] # take the first row of the unique reads of the original rare protein
+            one_unique_read_of_one_original_rare_protein_editing_status = one_unique_read_of_one_original_rare_protein_df[new_first_reads_col_pos:end]
 
 
-        common_unique_reads_editing_status = compact_common_expression_df[compact_common_expression_df.UniqueRead .!== one_unique_read_of_one_original_rare_protein, compact_common_expression_first_reads_col_pos:end]
+            common_unique_reads_editing_status = compact_common_expression_df[compact_common_expression_df.UniqueRead .!== one_unique_read_of_one_original_rare_protein, compact_common_expression_first_reads_col_pos:end]
 
-        # one_unique_read_of_one_original_rare_protein_editing_status .== common_unique_reads_editing_status
+            # one_unique_read_of_one_original_rare_protein_editing_status .== common_unique_reads_editing_status
 
-        # common_unique_reads_editing_status .== one_unique_read_of_one_original_rare_protein_editing_status'
+            # common_unique_reads_editing_status .== one_unique_read_of_one_original_rare_protein_editing_status'
 
-        one_unique_read_of_one_original_rare_protein_editing_status_array = Array(one_unique_read_of_one_original_rare_protein_editing_status)
-        common_unique_reads_editing_status_array = Array(common_unique_reads_editing_status)
+            one_unique_read_of_one_original_rare_protein_editing_status_array = Array(one_unique_read_of_one_original_rare_protein_editing_status)
+            common_unique_reads_editing_status_array = Array(common_unique_reads_editing_status)
 
-        # Compare the rare read to all common reads (row-wise)
-        M = common_unique_reads_editing_status_array .== one_unique_read_of_one_original_rare_protein_editing_status_array'
+            # Compare the rare read to all common reads (row-wise)
+            M = common_unique_reads_editing_status_array .== one_unique_read_of_one_original_rare_protein_editing_status_array'
 
-        # size(M)[2]
+            # size(M)[2]
 
-        # sum(sum(row) == size(M)[2] for row ∈ eachrow(M)) # count the number of common reads that are identical to the rare read
-        # sum(M, dims=2)
+            # sum(sum(row) == size(M)[2] for row ∈ eachrow(M)) # count the number of common reads that are identical to the rare read
+            # sum(M, dims=2)
 
-        is_chimeric = are_there_chimeric_reads(M)
-        all_chimeric_reads_indices = find_all_chimeric_reads(M)
+            is_chimeric = are_there_chimeric_reads(M)
+            all_chimeric_reads_indices = find_all_chimeric_reads(M)
 
-        result = (Protein = one_original_rare_protein,
-                  UniqueRead = one_unique_read_of_one_original_rare_protein,
-                  IsChimeric = is_chimeric,
-                  ChimericReadsIndices = all_chimeric_reads_indices,
-                  NumOfChimericCombinations = length(all_chimeric_reads_indices),
-                  )
-        push!(results, result)
+            result = (
+                Sample = sample_name,
+                XCommonProteins = x_common_proteins,
+                YRareProteins = y_rare_proteins,
+                ReassignendReadsDiscarded = discard_reassigned_reads,
+                Protein = one_original_rare_protein,
+                UniqueRead = one_unique_read_of_one_original_rare_protein,
+                IsChimeric = is_chimeric,
+                ChimericReadsIndices = all_chimeric_reads_indices,
+                NumOfChimericCombinations = length(all_chimeric_reads_indices),
+                    )
+            push!(results, result)
+
+        end
 
     end
 
+    results_df = DataFrame(results)
+
+    return results_df
+
 end
 
-results_df = DataFrame(results)
+
+unique_proteins_first_col_pos = 15
+unique_reads_first_col_pos = 9
 
 
-results_df[results_df.IsChimeric .== true, :]
+# expression_file = "TempData/GRIA.DistinctUniqueProteins.ExpressionLevels.csv"
+# unique_reads_file = "TempData/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_reads.csv.gz"
+# unique_proteins_file = "TempData/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
+
+samples = ["GRIA2", "PCLO"]
+expression_files = [
+    "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA.DistinctUniqueProteins.ExpressionLevels.csv",
+    "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO.DistinctUniqueProteins.ExpressionLevels.csv",
+]
+unique_reads_files = [
+    "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_reads.csv.gz",
+    "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_reads.csv.gz",
+]
+unique_proteins_files = [
+    "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz",
+    "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz",
+]
 
 
-describe(results_df[results_df.IsChimeric .== true, :NumOfChimericCombinations])
+
+# sample_name = samples[1]
+# expression_file = expression_files[1]
+# unique_reads_file = unique_reads_files[1]
+# unique_proteins_file = unique_proteins_files[1]
+
+
+# results_df = process_one_sample(
+#     sample_name,    
+#     expression_file, 
+#     unique_proteins_file, unique_proteins_first_col_pos,
+#     unique_reads_file, unique_reads_first_col_pos
+#     )
+
+# results_df[results_df.IsChimeric .== true, :]
+
+
+# describe(results_df[results_df.IsChimeric .== true, :NumOfChimericCombinations])
+
+# x_and_y_common_and_rare_proteins = [
+#     (300, 1_000), # x_common_proteins, y_rare_proteins
+#     (1_000, 10_000),
+# ]
+
+X_common_proteins = [300, 500, 1_000]
+Y_rare_proteins = [1_000, 5_000, 10_000]
+# x_and_y_common_and_rare_proteins = [(x, y) for x in X_common_proteins for y in Y_rare_proteins if x < y]
+x_and_y_common_and_rare_proteins = [(x, y) for x in X_common_proteins for y in Y_rare_proteins]
+
+results_dfs = []
+
+for (x_common_proteins, y_rare_proteins) ∈ x_and_y_common_and_rare_proteins
+
+    println("Processing samples with $x_common_proteins common proteins and $y_rare_proteins rare proteins...")
+    
+    for (sample_name, expression_file, unique_reads_file, unique_proteins_file) ∈ zip(
+        samples, expression_files, unique_reads_files, unique_proteins_files, 
+    )
+
+        println("Processing sample: $sample_name")
+        results_df = process_one_sample(
+            sample_name,    
+            expression_file, 
+            unique_proteins_file, unique_proteins_first_col_pos,
+            unique_reads_file, unique_reads_first_col_pos,
+            x_common_proteins, y_rare_proteins
+        )
+
+        chimeric_results_df = results_df[results_df.IsChimeric .== true, :]
+        println("Number of chimeric reads in $sample_name: $(nrow(chimeric_results_df))")
+        # println(chimeric_results_df)
+        push!(results_dfs, results_df)
+    end
+end;
+
+
+results_df = vcat(results_dfs...)
+
+# grouped_results_df = groupby(results_df, [:Sample,])
+# combine(grouped_results_df, :IsChimeric => sum => :NumOfChimericReads,)
+
+# combine(groupby(results_df, [:Sample, :XCommonProteins, :YRareProteins, :ReassignendReadsDiscarded]), :IsChimeric => sum => :NumOfChimericReads)
+# combine(groupby(results_df, [:ReassignendReadsDiscarded, :XCommonProteins, :YRareProteins, :Sample,  ]), :IsChimeric => sum => :NumOfChimericReads)
+stats_df = combine(groupby(results_df, [:XCommonProteins, :YRareProteins, :Sample,  ]), :IsChimeric => sum => :NumOfChimericReads)
+insertcols!(stats_df, "%OfChimericReads" => 100 .* stats_df.NumOfChimericReads ./ stats_df.YRareProteins)
 
 
 
 
 
+
+
+# samples
+samples_cat = Dict(sample => i for (i, sample) in enumerate(samples))
+xticks = (
+    1:length(samples),
+    samples
+)
+
+colors = Makie.wong_colors()
+
+# fig = Figure(size = (450, 450))
+fig = Figure(size = (500, 500))
+axes = []
+for (i, x_common_proteins) in enumerate(X_common_proteins)
+	for (j, y_rare_proteins) in enumerate(Y_rare_proteins)
+		# title = "Common: $x_common_proteins, Rare: $y_rare_proteins"
+        # title = "Common: $x_common_proteins\nRare: $y_rare_proteins"
+        title = "Common: $(format(x_common_proteins, commas=true))\nRare: $(format(y_rare_proteins, commas=true))"
+		ax = Axis(
+			fig[i, j],
+            xticks=xticks,
+			subtitle = title,
+		)
+		push!(axes, ax)
+        subdf = stats_df[stats_df.XCommonProteins .== x_common_proteins .&& stats_df.YRareProteins .== y_rare_proteins, :]
+        xs = [samples_cat[sample] for sample in  subdf.Sample]
+        ys = subdf[!, "%OfChimericReads"]
+  
+        barplot!(xs, ys, 
+        color = colors[xs],
+        # strokecolor = :black, 
+        # strokewidth = 1
+        )
+	end
+end
+linkxaxes!(axes...)
+linkyaxes!(axes...)
+# Label(fig[end+1, :], "Pearson's r")  # x axis title
+# Label(fig[begin:end-1, 0], "Sites", rotation = pi / 2)  # y axis title
+Label(fig[begin:end, 0], "% of chimeric reads", rotation = pi / 2)  # y axis title
+fig
 
 
 
