@@ -1589,7 +1589,7 @@ Using the unique reads found by the notebook `umi_long_read.ipynb` by exact UMI 
 I'm using `--total_mapped_reads 2000` rather than `--total_mapped_reads 50` only as a crude way to use the real sequenced transcripts.
 
 ```bash
-OUT_DIR=D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMI.MergedSamples
+OUT_DIR=D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMISubSeq.MergedSamples
 
 mkdir -p $OUT_DIR
 
@@ -1602,16 +1602,16 @@ nohup python Code/pileup_with_subparsers.py \
 --min_bq 30 \
 --out_dir $OUT_DIR \
 --processes 2 \
---threads 15 \
+--threads 30 \
 --gz_compression \
 directed_sequencing_data \
---data_table D.pealeii/Alignment/UMILongReads.UniqueReadsByUMI.MergedSamples/DataTable.Squid.MergedUMILongReads.csv \
+--data_table D.pealeii/Alignment/UMILongReads.UniqueReadsByUMISubSeq.MergedSamples/DataTable.Squid.MergedUMILongReads.csv \
 --cds_regions D.pealeii/Annotations/Jan2025/orfs_squ.bed \
-> $OUT_DIR/pileup.10.6.25.out &
+> $OUT_DIR/pileup.4.7.25.out &
 ```
 
-- alu 16
-- 19:26
+- alu 18
+- 15:15
 
 ### Distinct proteins
 
@@ -1620,13 +1620,13 @@ directed_sequencing_data \
 ##### Distinct isoforms
 
 ```bash
-tmux new -s COMB16
+tmux new -s COMB18
 
 COMB
 
 # mkdir -p D.pealeii/MpileupAndTranscripts/UMILongReads.TotalCoverage50/DistinctProteins
 
-INFILES=$(echo D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMI.MergedSamples/*.unique_proteins.csv.gz)
+INFILES=$(echo D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMISubSeq.MergedSamples/*.unique_proteins.csv.gz)
 
 julia \
 --project=. \
@@ -1637,13 +1637,13 @@ Code/Simulations/maximal_independent_set_5.jl \
 --idcol Protein \
 --firstcolpos 15 \
 --datatype Proteins \
---outdir D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMI.MergedSamples \
+--outdir D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMISubSeq.MergedSamples \
 --fracstep 0.2 \
 --fracrepetitions 4 \
 --algrepetitions 2 \
 --algs Ascending Descending \
 --run_solve_threaded \
-2>&1 | tee D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMI.MergedSamples/DistinctProteins.Regular.10.6.2025.log
+2>&1 | tee D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMISubSeq.MergedSamples/DistinctProteins.Regular.4.7.2025.log
 ```
 
 - alu 16
@@ -1652,21 +1652,34 @@ Code/Simulations/maximal_independent_set_5.jl \
 ##### Expression levels
 
 ```bash
-UMI_DIR=D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMI.MergedSamples
+UMI_DIR=D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMISubSeq.MergedSamples
 
+
+# nohup \
+# julia \
+# --project=. \
+# --threads 70 \
+# Code/Simulations/expressionlevels.jl \
+# --distinctfiles $UMI_DIR/ADAR1.Merged.DistinctUniqueProteins.10.06.2025-16:10:38.csv $UMI_DIR/IQEC.Merged.DistinctUniqueProteins.10.06.2025-14:42:26.csv \
+# --allprotsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+# --samplenames ADAR1 IQEC1 \
+# --firstcolpos 15 \
+# --fractions 0.2 0.4 0.6 0.8 1.0 \
+# --outdir $UMI_DIR \
+# > $UMI_DIR/expressionlevels.4.7.2025.out &
 
 nohup \
 julia \
 --project=. \
 --threads 70 \
 Code/Simulations/expressionlevels.jl \
---distinctfiles $UMI_DIR/ADAR1.Merged.DistinctUniqueProteins.10.06.2025-16:10:38.csv $UMI_DIR/IQEC.Merged.DistinctUniqueProteins.10.06.2025-14:42:26.csv \
+--distinctfiles $UMI_DIR/ADAR1.Merged.DistinctUniqueProteins.*.csv $UMI_DIR/IQEC.Merged.DistinctUniqueProteins.*.csv \
 --allprotsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
 --samplenames ADAR1 IQEC1 \
 --firstcolpos 15 \
 --fractions 0.2 0.4 0.6 0.8 1.0 \
 --outdir $UMI_DIR \
-> $UMI_DIR/expressionlevels.10.6.2025.out &
+> $UMI_DIR/expressionlevels.4.7.2025.out &
 ```
 
 - alu 16

@@ -314,13 +314,13 @@ function process_one_sample(
 
     original_rare_proteins = unique(rare_expression_df[!, :Protein])
 
-    # one_original_rare_protein = original_rare_proteins[1] # todo iterate over all 1000 of them
+    # one_original_rare_protein = original_rare_proteins[1]
     for one_original_rare_protein ∈ original_rare_proteins
 
         unique_reads_of_one_original_rare_protein_expression_df = rare_expression_df[rare_expression_df.Protein.==one_original_rare_protein, :]
         unique_reads_of_one_original_rare_protein_expression = unique(unique_reads_of_one_original_rare_protein_expression_df[!, "UniqueRead"])
 
-        # one_unique_read_of_one_original_rare_protein = unique_reads_of_one_original_rare_protein_expression[1] # todo iterate over all unique reads of the original rare protein
+        # one_unique_read_of_one_original_rare_protein = unique_reads_of_one_original_rare_protein_expression[1]
         for one_unique_read_of_one_original_rare_protein ∈ unique_reads_of_one_original_rare_protein_expression
 
             one_unique_read_of_one_original_rare_protein_df = unique_reads_of_one_original_rare_protein_expression_df[unique_reads_of_one_original_rare_protein_expression_df.UniqueRead .== one_unique_read_of_one_original_rare_protein, :][1, :] # take the first row of the unique reads of the original rare protein
@@ -552,7 +552,7 @@ fig
 
 # first_rare_read_editing_status
 
-# # todo write a test to validate that the chimeric reads are correctly identified
+
 
 # validate_chimeric_reads(rare_read_editing_status, two_common_reads_editing_statuses)
 
@@ -573,7 +573,7 @@ fig
 
 # rare_read_editing_status = one_unique_read_of_one_original_rare_protein_editing_status_array'
 
-# # todo write a test to validate that the chimeric reads are correctly identified
+
 
 # validate_chimeric_reads(rare_read_editing_status, two_common_reads_editing_statuses)
 

@@ -205,6 +205,8 @@ function run_sample(
 	similarityvalidator::Function,
 	aagroups::Union{Dict{AminoAcid, String}, Nothing},
 )
+	@info "$(loggingtime())\trun_sample" distinctfile allprotsfile samplename
+
 	distinctdf = prepare_distinctdf(
 		distinctfile, delim, innerdelim, truestrings, falsestrings,
 	)
