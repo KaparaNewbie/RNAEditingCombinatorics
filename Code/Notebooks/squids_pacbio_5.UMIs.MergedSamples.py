@@ -448,10 +448,10 @@ print(
 #     print(x)
 
 # %% [markdown]
-# # Raw reads
+# ## Raw reads
 
 # %% [markdown]
-# ## Individual unmapped samples
+# ### Individual unmapped samples
 
 # %%
 individual_unmapped_bams_dir
@@ -535,7 +535,7 @@ concat_individual_unmapped_bams_df
 # old_to_new_reads_dfs[0]
 
 # %% [markdown]
-# ## Merged mapped samples
+# ### Merged mapped samples
 
 # %%
 merged_mapped_bams_dir
@@ -1701,234 +1701,234 @@ fig.update_layout(
 fig.show()
 
 # %%
-max_expression_df.drop(
-    columns=[
-        "Reads",
-        "NumOfReads",
-        "AdditionalSupportingReadsIDs",
-        "AdditionalSupportingProteinsIDs",
-    ]
-)
-
-# %%
-max_expression_df.drop(
-    columns=[
-        "Reads",
-        "NumOfReads",
-        "AdditionalSupportingReadsIDs",
-        "AdditionalSupportingProteinsIDs",
-    ]
-).columns
-
-# %%
-expanded_max_expression_df = (
-    max_expression_df.drop(
-        columns=[
-            "Reads",
-            "NumOfReads",
-            "AdditionalSupportingReadsIDs",
-            "AdditionalSupportingProteinsIDs",
-        ]
-    )
-    .explode(
-        ["FlattenedAllReads", "FlattenedAllReadsStatuses"],
-        ignore_index=True,
-    )
-    .rename(
-        columns={
-            "FlattenedAllReads": "Read",
-            "FlattenedAllReadsStatuses": "ReadStatus",
-        }
-    )
-)
-# some proteins may not be supported by additional reads
-expanded_max_expression_df = expanded_max_expression_df.loc[
-    ~(
-        (expanded_max_expression_df["Read"].eq(""))
-        & (expanded_max_expression_df["ReadStatus"].eq("Additional"))
-    )
-]
-# assert (
-#     expanded_max_expression_df.shape[0]
-#     == expanded_max_expression_df.drop_duplicates().shape[0]
+# max_expression_df.drop(
+#     columns=[
+#         "Reads",
+#         "NumOfReads",
+#         "AdditionalSupportingReadsIDs",
+#         "AdditionalSupportingProteinsIDs",
+#     ]
 # )
 
-expanded_max_expression_df
+# %%
+# max_expression_df.drop(
+#     columns=[
+#         "Reads",
+#         "NumOfReads",
+#         "AdditionalSupportingReadsIDs",
+#         "AdditionalSupportingProteinsIDs",
+#     ]
+# ).columns
 
 # %%
-assert (
-    expanded_max_expression_df.shape[0]
-    == expanded_max_expression_df.astype(str).drop_duplicates().shape[0]
-)
+# expanded_max_expression_df = (
+#     max_expression_df.drop(
+#         columns=[
+#             "Reads",
+#             "NumOfReads",
+#             "AdditionalSupportingReadsIDs",
+#             "AdditionalSupportingProteinsIDs",
+#         ]
+#     )
+#     .explode(
+#         ["FlattenedAllReads", "FlattenedAllReadsStatuses"],
+#         ignore_index=True,
+#     )
+#     .rename(
+#         columns={
+#             "FlattenedAllReads": "Read",
+#             "FlattenedAllReadsStatuses": "ReadStatus",
+#         }
+#     )
+# )
+# # some proteins may not be supported by additional reads
+# expanded_max_expression_df = expanded_max_expression_df.loc[
+#     ~(
+#         (expanded_max_expression_df["Read"].eq(""))
+#         & (expanded_max_expression_df["ReadStatus"].eq("Additional"))
+#     )
+# ]
+# # assert (
+# #     expanded_max_expression_df.shape[0]
+# #     == expanded_max_expression_df.drop_duplicates().shape[0]
+# # )
+
+# expanded_max_expression_df
 
 # %%
-individual_mapped_bams_dir
+# assert (
+#     expanded_max_expression_df.shape[0]
+#     == expanded_max_expression_df.astype(str).drop_duplicates().shape[0]
+# )
 
 # %%
-individual_mapped_bam_files = list(individual_mapped_bams_dir.glob("*.bam"))
-individual_mapped_bam_files
+# individual_mapped_bams_dir
 
 # %%
-individual_mapped_bam_dfs = []
-
-for bam_file in individual_mapped_bam_files:
-
-    sample = bam_file.name.split(".")[0]
-    gene = sample[3:]
-    repeat = sample[2]
-
-    if gene == "IQEC":
-        gene = "IQEC1"
-
-    # expected_chrom = chrom_per_gene_dict[gene]
-
-    with pysam.AlignmentFile(
-        bam_file,
-        "rb",
-        threads=10,
-        # check_sq=False,
-        # require_index=False,
-        # index_filename=str(Path(bam_file.parent, f"{bam_file.name}.pbi")),
-    ) as samfile:
-        # reads = [read for read in samfile]
-        # reads_names = [read.query_name for read in reads]
-        reads_names = [read.query_name for read in samfile]
-
-        df = pd.DataFrame(
-            {
-                "Sample": sample,
-                "Gene": gene,
-                "Repeat": repeat,
-                "Read": reads_names,
-            }
-        )
-
-        individual_mapped_bam_dfs.append(df)
-
-        # break
-
-concat_individual_mapped_bams_df = pd.concat(
-    individual_mapped_bam_dfs, ignore_index=True
-)
-concat_individual_mapped_bams_df
+# individual_mapped_bam_files = list(individual_mapped_bams_dir.glob("*.bam"))
+# individual_mapped_bam_files
 
 # %%
-merged_old_to_new_reads_files
+# individual_mapped_bam_dfs = []
+
+# for bam_file in individual_mapped_bam_files:
+
+#     sample = bam_file.name.split(".")[0]
+#     gene = sample[3:]
+#     repeat = sample[2]
+
+#     if gene == "IQEC":
+#         gene = "IQEC1"
+
+#     # expected_chrom = chrom_per_gene_dict[gene]
+
+#     with pysam.AlignmentFile(
+#         bam_file,
+#         "rb",
+#         threads=10,
+#         # check_sq=False,
+#         # require_index=False,
+#         # index_filename=str(Path(bam_file.parent, f"{bam_file.name}.pbi")),
+#     ) as samfile:
+#         # reads = [read for read in samfile]
+#         # reads_names = [read.query_name for read in reads]
+#         reads_names = [read.query_name for read in samfile]
+
+#         df = pd.DataFrame(
+#             {
+#                 "Sample": sample,
+#                 "Gene": gene,
+#                 "Repeat": repeat,
+#                 "Read": reads_names,
+#             }
+#         )
+
+#         individual_mapped_bam_dfs.append(df)
+
+#         # break
+
+# concat_individual_mapped_bams_df = pd.concat(
+#     individual_mapped_bam_dfs, ignore_index=True
+# )
+# concat_individual_mapped_bams_df
 
 # %%
-merged_old_to_new_reads_files
+# merged_old_to_new_reads_files
 
 # %%
-old_to_new_reads_dfs = []
-
-
-for old_to_new_reads_file in merged_old_to_new_reads_files:
-    # ic(old_to_new_reads_file)
-    old_to_new_reads_df = pd.read_csv(old_to_new_reads_file, sep=sep)
-    old_to_new_reads_df = old_to_new_reads_df.merge(
-        concat_individual_mapped_bams_df,
-        left_on="OldRead",
-        right_on="Read",
-        how="left",
-    ).drop(columns="Read")
-    # ic(old_to_new_reads_df.head(3))
-    old_to_new_reads_dfs.append(old_to_new_reads_df)
-
-old_to_new_reads_dfs[0]
+# merged_old_to_new_reads_files
 
 # %%
-expanded_max_expression_df
+# old_to_new_reads_dfs = []
+
+
+# for old_to_new_reads_file in merged_old_to_new_reads_files:
+#     # ic(old_to_new_reads_file)
+#     old_to_new_reads_df = pd.read_csv(old_to_new_reads_file, sep=sep)
+#     old_to_new_reads_df = old_to_new_reads_df.merge(
+#         concat_individual_mapped_bams_df,
+#         left_on="OldRead",
+#         right_on="Read",
+#         how="left",
+#     ).drop(columns="Read")
+#     # ic(old_to_new_reads_df.head(3))
+#     old_to_new_reads_dfs.append(old_to_new_reads_df)
+
+# old_to_new_reads_dfs[0]
 
 # %%
-old_to_new_reads_dfs[0]
+# expanded_max_expression_df
 
 # %%
-expanded_max_expression_dfs_2 = []
-for old_to_new_reads_df in old_to_new_reads_dfs:
-    expanded_max_expression_df_2 = expanded_max_expression_df.merge(
-        old_to_new_reads_df,
-        left_on=[condition_col, "Read"],
-        right_on=[condition_col, "NewRead"],
-        how="right",
-    )
-    expanded_max_expression_df_2 = expanded_max_expression_df_2.drop(
-        columns=["OldRead", "NewRead"]
-    )
-    expanded_max_expression_dfs_2.append(expanded_max_expression_df_2)
-expanded_max_expression_dfs_2[0]
+# old_to_new_reads_dfs[0]
 
 # %%
-expanded_max_expression_dfs_2[1]
+# expanded_max_expression_dfs_2 = []
+# for old_to_new_reads_df in old_to_new_reads_dfs:
+#     expanded_max_expression_df_2 = expanded_max_expression_df.merge(
+#         old_to_new_reads_df,
+#         left_on=[condition_col, "Read"],
+#         right_on=[condition_col, "NewRead"],
+#         how="right",
+#     )
+#     expanded_max_expression_df_2 = expanded_max_expression_df_2.drop(
+#         columns=["OldRead", "NewRead"]
+#     )
+#     expanded_max_expression_dfs_2.append(expanded_max_expression_df_2)
+# expanded_max_expression_dfs_2[0]
 
 # %%
-expanded_max_expression_dfs_2[0]["Gene"].value_counts()
+# expanded_max_expression_dfs_2[1]
 
 # %%
-expanded_max_expression_dfs_2[1]["Gene"].value_counts()
+# expanded_max_expression_dfs_2[0]["Gene"].value_counts()
 
 # %%
-expanded_max_expression_dfs_2[0]["Sample"].value_counts(dropna=False)
+# expanded_max_expression_dfs_2[1]["Gene"].value_counts()
 
 # %%
-expanded_max_expression_dfs_2[1]["Sample"].value_counts(dropna=False)
+# expanded_max_expression_dfs_2[0]["Sample"].value_counts(dropna=False)
 
 # %%
-expanded_max_expression_dfs_2[0].loc[
-    expanded_max_expression_dfs_2[0]["AdditionalWeightedSupportingReads"].lt(1)
-]
+# expanded_max_expression_dfs_2[1]["Sample"].value_counts(dropna=False)
 
 # %%
-Out[130]["Protein"].value_counts()
+# expanded_max_expression_dfs_2[0].loc[
+#     expanded_max_expression_dfs_2[0]["AdditionalWeightedSupportingReads"].lt(1)
+# ]
 
 # %%
-expanded_max_expression_dfs_2[0].loc[
-    expanded_max_expression_dfs_2[0]["Protein"].eq("CoR")
-]
+# Out[130]["Protein"].value_counts()
 
 # %%
-agg_expanded_max_expression_dfs_2 = []
-
-for expanded_max_expression_df in expanded_max_expression_dfs_2:
-    agg_expanded_max_expression_df = expanded_max_expression_df.groupby("Protein").agg(
-        Samples=("Sample", "nunique"),
-        AdditionalWeightedSupportingReads=(
-            "AdditionalWeightedSupportingReads",
-            "unique",
-        ),
-    )
-    agg_expanded_max_expression_df["AdditionalWeightedSupportingReads"] = (
-        agg_expanded_max_expression_df["AdditionalWeightedSupportingReads"].apply(
-            lambda x: x[0]
-        )
-    )
-    agg_expanded_max_expression_dfs_2.append(agg_expanded_max_expression_df)
-
-agg_expanded_max_expression_dfs_2[0]
+# expanded_max_expression_dfs_2[0].loc[
+#     expanded_max_expression_dfs_2[0]["Protein"].eq("CoR")
+# ]
 
 # %%
-agg_expanded_max_expression_dfs_2[0]
+# agg_expanded_max_expression_dfs_2 = []
+
+# for expanded_max_expression_df in expanded_max_expression_dfs_2:
+#     agg_expanded_max_expression_df = expanded_max_expression_df.groupby("Protein").agg(
+#         Samples=("Sample", "nunique"),
+#         AdditionalWeightedSupportingReads=(
+#             "AdditionalWeightedSupportingReads",
+#             "unique",
+#         ),
+#     )
+#     agg_expanded_max_expression_df["AdditionalWeightedSupportingReads"] = (
+#         agg_expanded_max_expression_df["AdditionalWeightedSupportingReads"].apply(
+#             lambda x: x[0]
+#         )
+#     )
+#     agg_expanded_max_expression_dfs_2.append(agg_expanded_max_expression_df)
+
+# agg_expanded_max_expression_dfs_2[0]
 
 # %%
-agg_expanded_max_expression_dfs_2[0]["Samples"].value_counts(dropna=False)
+# agg_expanded_max_expression_dfs_2[0]
 
 # %%
-agg_expanded_max_expression_dfs_2[1]["Samples"].value_counts(dropna=False)
+# agg_expanded_max_expression_dfs_2[0]["Samples"].value_counts(dropna=False)
 
 # %%
-agg_expanded_max_expression_dfs_2[0].loc[
-    agg_expanded_max_expression_dfs_2[0]["AdditionalWeightedSupportingReads"].lt(5)
-]
+# agg_expanded_max_expression_dfs_2[1]["Samples"].value_counts(dropna=False)
 
 # %%
-agg_expanded_max_expression_dfs_2[0]["AdditionalWeightedSupportingReads"].describe()
+# agg_expanded_max_expression_dfs_2[0].loc[
+#     agg_expanded_max_expression_dfs_2[0]["AdditionalWeightedSupportingReads"].lt(5)
+# ]
 
 # %%
-fig = px.histogram(
-    agg_expanded_max_expression_dfs_2[0],
-    x="AdditionalWeightedSupportingReads",
-    log_y=True,
-)
-fig.show()
+# agg_expanded_max_expression_dfs_2[0]["AdditionalWeightedSupportingReads"].describe()
+
+# %%
+# fig = px.histogram(
+#     agg_expanded_max_expression_dfs_2[0],
+#     x="AdditionalWeightedSupportingReads",
+#     log_y=True,
+# )
+# fig.show()
 
 # %% [markdown] jp-MarkdownHeadingCollapsed=true
 # ## Summary of data loss
@@ -6701,7 +6701,71 @@ reassigned_reads_df = reassigned_reads_df.merge(
 reassigned_reads_df
 
 # %%
-reassigned_reads_df["NumOfReassignments"].describe()
+reassigned_reads_df.groupby(condition_col)["NumOfReassignments"].describe().round(2)
+
+# %%
+fig = px.histogram(
+    reassigned_reads_df,
+    x="NumOfReassignments",
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    labels={
+        "NumOfReassignments": "Number of reassignments / reassigned read",
+        # "ReadLength": "Read length",
+    },
+    # facet_col=condition_col,
+    # trendline="ols",
+    # marginal_x="box",
+    # marginal_y="box",
+    # trendline_color_override="black",
+    opacity=0.7,
+    log_y=True,
+)
+fig.update_traces(opacity=0.5)
+fig.update_xaxes(dtick=2000)
+fig.update_yaxes(range=[0, None], title="Reads")
+fig.update_layout(
+    width=600,
+    height=400,
+    template=template,
+    barmode="overlay",
+    # title="Reassigned reads",
+    # showlegend=False,
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    reassigned_reads_df,
+    x="NumOfReassignments",
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    labels={
+        "NumOfReassignments": "Number of reassignments / reassigned read",
+        # "ReadLength": "Read length",
+    },
+    # facet_col=condition_col,
+    # trendline="ols",
+    # marginal_x="box",
+    # marginal_y="box",
+    # trendline_color_override="black",
+    opacity=0.7,
+    cumulative=True,
+    # log_x=True,
+    log_y=True,
+)
+fig.update_traces(opacity=0.5)
+fig.update_xaxes(dtick=2000)
+fig.update_yaxes(range=[0, None], title="Reads (cumulative)")
+fig.update_layout(
+    width=600,
+    height=400,
+    template=template,
+    barmode="overlay",
+    # title="Reassigned reads",
+    # showlegend=False,
+)
+fig.show()
 
 # %%
 fig = px.scatter(
@@ -6806,180 +6870,86 @@ fig.show()
 # ##### Relative expression of isoforms
 
 # %%
-expression_dfs = []
-for expression_file in expression_files:
-    expression_df = pd.read_csv(expression_file, sep=sep)
-    expression_df["#Solution"] = expression_df["#Solution"].astype(str)
-    # expression_df["Diff5+"] = (
-    #     abs(
-    #         expression_df["TotalEqualSupportingReads"]
-    #         - expression_df["TotalWeightedSupportingReads"]
-    #     )
-    #     >= 0.05
-    #     * (
-    #         expression_df["TotalEqualSupportingReads"]
-    #         + expression_df["TotalWeightedSupportingReads"]
-    #     )
-    #     / 2
-    # )
+# expression_dfs = []
+# for expression_file in expression_files:
+#     expression_df = pd.read_csv(expression_file, sep=sep)
+#     expression_df["#Solution"] = expression_df["#Solution"].astype(str)
+#     # expression_df["Diff5+"] = (
+#     #     abs(
+#     #         expression_df["TotalEqualSupportingReads"]
+#     #         - expression_df["TotalWeightedSupportingReads"]
+#     #     )
+#     #     >= 0.05
+#     #     * (
+#     #         expression_df["TotalEqualSupportingReads"]
+#     #         + expression_df["TotalWeightedSupportingReads"]
+#     #     )
+#     #     / 2
+#     # )
 
-    expression_df["AdditionalSupportingReadsIDs"] = expression_df[
-        "AdditionalSupportingReadsIDs"
-    ].apply(lambda x: "" if pd.isna(x) else [y.split(",") for y in x.split(";")])
-    expression_df["AdditionalSupportingProteinsIDs"] = expression_df[
-        "AdditionalSupportingProteinsIDs"
-    ].apply(lambda x: "" if pd.isna(x) else x.split(","))
+#     expression_df["AdditionalSupportingReadsIDs"] = expression_df[
+#         "AdditionalSupportingReadsIDs"
+#     ].apply(lambda x: "" if pd.isna(x) else [y.split(",") for y in x.split(";")])
+#     expression_df["AdditionalSupportingProteinsIDs"] = expression_df[
+#         "AdditionalSupportingProteinsIDs"
+#     ].apply(lambda x: "" if pd.isna(x) else x.split(","))
 
-    expression_dfs.append(expression_df)
-expression_dfs[0]
-
-# %%
-expression_dfs[0].columns
-
+#     expression_dfs.append(expression_df)
+# expression_dfs[0]
 
 # %%
-def find_rand_maximal_solution(
-    expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
-):
-    df = (
-        expression_df.loc[expression_df["Algorithm"].isin(allowed_algorithms)]
-        .groupby("#Solution")
-        .agg("size")
-        .reset_index()
-        .rename(columns={0: "Size"})
-    )
-    # rand_maximal_solution = df.loc[df["Size"] == df["Size"].max(), "#Solution"].sample(random_state=seed).reset_index(drop=True)
-    rand_maximal_solution = (
-        df.loc[df["Size"] == df["Size"].max(), "#Solution"]
-        .sample(random_state=seed)
-        .values[0]
-    )
-    return rand_maximal_solution
-
+# expression_dfs[0].columns
 
 # %%
-# def make_percentile_df(
-#     expression_df,
-#     first_percentile=10,
-#     inclusive_last_percentile=110,
-#     percentile_step=10,
-#     allowed_algorithms=["Ascending", "Descending"],
+# def find_rand_maximal_solution(
+#     expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
 # ):
-
-#     gb = expression_df.loc[expression_df["Algorithm"].isin(allowed_algorithms)].groupby(
-#         "#Solution"
+#     df = (
+#         expression_df.loc[expression_df["Algorithm"].isin(allowed_algorithms)]
+#         .groupby("#Solution")
+#         .agg("size")
+#         .reset_index()
+#         .rename(columns={0: "Size"})
 #     )
-#     solutions_expression_dfs = [gb.get_group(x) for x in gb.groups]
-
-#     equal_supp_reads_dfs = []
-#     weighted_supp_reads_dfs = []
-#     for df in solutions_expression_dfs:
-#         equal_df = df.sort_values(
-#             "TotalEqualSupportingReads", ascending=False
-#         ).reset_index(drop=True)
-#         equal_df["CumTotalEqualSupportingReads"] = equal_df[
-#             "TotalEqualSupportingReads"
-#         ].cumsum()
-#         equal_df["%CumTotalEqualSupportingReads"] = (
-#             100
-#             * equal_df["CumTotalEqualSupportingReads"]
-#             / equal_df["TotalEqualSupportingReads"].sum()
-#         )
-#         equal_supp_reads_dfs.append(equal_df)
-#         weighted_df = df.sort_values(
-#             "TotalWeightedSupportingReads", ascending=False
-#         ).reset_index(drop=True)
-#         weighted_df["CumTotalWeightedSupportingReads"] = weighted_df[
-#             "TotalWeightedSupportingReads"
-#         ].cumsum()
-#         weighted_df["%CumTotalWeightedSupportingReads"] = (
-#             100
-#             * weighted_df["CumTotalWeightedSupportingReads"]
-#             / weighted_df["TotalWeightedSupportingReads"].sum()
-#         )
-#         weighted_supp_reads_dfs.append(weighted_df)
-
-#     # equal_supp_reads_dfs, weighted_supp_reads_dfs = make_supp_reads_dfs(expression_df)
-
-#     solutions = []
-#     assignment_methods = []
-#     percentiles = []
-#     required_proteins = []
-#     algorithms = []
-#     _conditions = []
-
-#     for dfs, method, col in zip(
-#         [equal_supp_reads_dfs, weighted_supp_reads_dfs],
-#         ["Equal", "Weighted"],
-#         ["%CumTotalEqualSupportingReads", "%CumTotalWeightedSupportingReads"],
-#     ):
-#         for df in dfs:
-#             # ic(df.iloc[:1, :3], method, col)
-#             # break
-#             solution = df.loc[0, "#Solution"]
-#             algorithm = df.loc[0, "Algorithm"]
-#             _condition = df.loc[0, condition_col]
-#             a = df[col].to_numpy()
-#             # for percentile in range(50, 100, 10):
-#             # for percentile in range(10, 110, 10):
-#             for percentile in range(
-#                 first_percentile, inclusive_last_percentile, percentile_step
-#             ):
-#                 idx = (np.abs(a - percentile)).argmin()
-#                 if a[idx] < percentile:
-#                     idx += 1
-#                 solutions.append(solution)
-#                 assignment_methods.append(method)
-#                 percentiles.append(percentile)
-#                 required_proteins.append(idx)
-#                 algorithms.append(algorithm)
-#                 _conditions.append(_condition)
-
-#     percentile_df = pd.DataFrame(
-#         {
-#             "#Solution": solutions,
-#             "AssignmentMethod": assignment_methods,
-#             "Percentile": percentiles,
-#             "RequiredProteins": required_proteins,
-#             "Algorithm": algorithms,
-#             condition_col: _conditions,
-#         }
+#     # rand_maximal_solution = df.loc[df["Size"] == df["Size"].max(), "#Solution"].sample(random_state=seed).reset_index(drop=True)
+#     rand_maximal_solution = (
+#         df.loc[df["Size"] == df["Size"].max(), "#Solution"]
+#         .sample(random_state=seed)
+#         .values[0]
 #     )
-
-#     return percentile_df
+#     return rand_maximal_solution
 
 # %%
-def choose_sample_solutions(
-    expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
-):
-    return (
-        expression_df.loc[
-            expression_df["Algorithm"].isin(allowed_algorithms),
-            [
-                condition_col,
-                "#Solution",
-                "Fraction",
-                "FractionRepetition",
-                "Algorithm",
-                "AlgorithmRepetition",
-            ],
-        ]
-        .groupby(["Algorithm", "#Solution"])
-        .sample()
-        .groupby("Algorithm")
-        .sample(3, random_state=seed)
-        .reset_index(drop=True)["#Solution"]
-    )
-
+# def choose_sample_solutions(
+#     expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
+# ):
+#     return (
+#         expression_df.loc[
+#             expression_df["Algorithm"].isin(allowed_algorithms),
+#             [
+#                 condition_col,
+#                 "#Solution",
+#                 "Fraction",
+#                 "FractionRepetition",
+#                 "Algorithm",
+#                 "AlgorithmRepetition",
+#             ],
+#         ]
+#         .groupby(["Algorithm", "#Solution"])
+#         .sample()
+#         .groupby("Algorithm")
+#         .sample(3, random_state=seed)
+#         .reset_index(drop=True)["#Solution"]
+#     )
 
 # %%
-maximal_solutions = [
-    find_rand_maximal_solution(
-        expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
-    )
-    for expression_df in expression_dfs
-]
-maximal_solutions
+# maximal_solutions = [
+#     find_rand_maximal_solution(
+#         expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
+#     )
+#     for expression_df in expression_dfs
+# ]
+# maximal_solutions
 
 # %%
 # percentile_dfs = [
@@ -6994,59 +6964,11 @@ maximal_solutions
 # percentile_dfs[0]
 
 # %%
-maximal_dfs = [
-    expression_df.loc[expression_df["#Solution"] == maximal_solution].reset_index(
-        drop=True
-    )
-    for expression_df, maximal_solution in zip(expression_dfs, maximal_solutions)
-]
-
-assignment_dfs = [
-    (
-        maximal_df.sort_values("TotalWeightedSupportingReads", ascending=False)
-        .reset_index(drop=True)
-        .assign(ProteinRank=list(range(1, len(maximal_df) + 1)))
-        .rename(columns={"ProteinRank": "#Protein"})
-    )
-    for maximal_df in maximal_dfs
-]
-
-
-for assignment_df in assignment_dfs:
-    assignment_df["%RelativeExpression"] = (
-        100
-        * assignment_df["TotalWeightedSupportingReads"]
-        / assignment_df["TotalWeightedSupportingReads"].sum()
-    )
-    assignment_df["%CummulativeRelativeExpression"] = assignment_df[
-        "%RelativeExpression"
-    ].cumsum()
-
-assignment_dfs[0]
-
-# %%
-assignment_dfs[0].columns
-
-# %%
-avg_of_min_estimate_of_non_syns_per_isoforms = [
-    assignment_df["MinNonSyns"].mean() for assignment_df in assignment_dfs
-]
-avg_of_min_estimate_of_non_syns_per_isoforms
-
-# %%
 # maximal_dfs = [
 #     expression_df.loc[expression_df["#Solution"] == maximal_solution].reset_index(
 #         drop=True
 #     )
 #     for expression_df, maximal_solution in zip(expression_dfs, maximal_solutions)
-# ]
-# maximal_fraction01_dfs = [
-#     fraction01_expression_df.loc[
-#         fraction01_expression_df["#Solution"] == maximal_fraction01_solution
-#     ].reset_index(drop=True)
-#     for fraction01_expression_df, maximal_fraction01_solution in zip(
-#         fraction01_expression_dfs, maximal_fraction01_solutions
-#     )
 # ]
 
 # assignment_dfs = [
@@ -7058,29 +6980,9 @@ avg_of_min_estimate_of_non_syns_per_isoforms
 #     )
 #     for maximal_df in maximal_dfs
 # ]
-# fraction01_assignment_dfs = [
-#     (
-#         fraction01_maximal_df.sort_values(
-#             "TotalWeightedSupportingReads", ascending=False
-#         )
-#         .reset_index(drop=True)
-#         .assign(ProteinRank=list(range(1, len(fraction01_maximal_df) + 1)))
-#         .rename(columns={"ProteinRank": "#Protein"})
-#     )
-#     for fraction01_maximal_df in maximal_fraction01_dfs
-# ]
-# # fraction01_assignment_dfs[0]
+
 
 # for assignment_df in assignment_dfs:
-#     assignment_df["%RelativeExpression"] = (
-#         100
-#         * assignment_df["TotalWeightedSupportingReads"]
-#         / assignment_df["TotalWeightedSupportingReads"].sum()
-#     )
-#     assignment_df["%CummulativeRelativeExpression"] = assignment_df[
-#         "%RelativeExpression"
-#     ].cumsum()
-# for assignment_df in fraction01_assignment_dfs:
 #     assignment_df["%RelativeExpression"] = (
 #         100
 #         * assignment_df["TotalWeightedSupportingReads"]
@@ -7093,356 +6995,45 @@ avg_of_min_estimate_of_non_syns_per_isoforms
 # assignment_dfs[0]
 
 # %%
-# x_axis_name = "Distinct protein rank"
-# y_axis_name = "Cummulative relative<br>expression (%)"
-# head_title = "Cummulative expression vs. distinct unique proteins"
-
-# cols = min(facet_col_wrap, len(conditions), 4)
-# rows = ceil(len(conditions) / cols)
-# row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
-
-# # assignment_method = "Weighted"
-# percentile_fractions = [0.1, 1.0]
-
-# fig = make_subplots(
-#     rows=rows,
-#     cols=cols,
-#     subplot_titles=conditions,
-#     shared_xaxes=True,
-#     shared_yaxes=True,
-#     x_title=x_axis_name,
-#     y_title=y_axis_name,
-#     vertical_spacing=facet_row_spacing / 2.5,
-#     horizontal_spacing=facet_col_spacing * 1.5,
-# )
-
-# for (row, col), assignment_df, fraction01_assignment_df, condition in zip(
-#     row_col_iter, assignment_dfs, fraction01_assignment_dfs, conditions
-# ):
-#     # legend_x = [percentile_df["RequiredProteins"].max() * 5 / 6]
-#     # legend_ys = [[25], [20]]
-
-#     for color, df, percentile_fraction in zip(
-#         subcolors_discrete_map[condition],
-#         [fraction01_assignment_df, assignment_df],
-#         percentile_fractions,
-#     ):
-#         # df = df.loc[df["AssignmentMethod"] == assignment_method]
-
-#         x = df["#Protein"]
-#         y = df["%CummulativeRelativeExpression"]
-
-#         # x_mean = df.groupby("Percentile")["RequiredProteins"].apply(np.mean)
-#         # y_unique = x_mean.index
-
-#         fig.add_trace(
-#             go.Scattergl(
-#                 x=x,
-#                 y=y,
-#                 mode="markers",
-#                 # mode="lines+markers",
-#                 marker=dict(
-#                     color=color,
-#                     size=2,
-#                     opacity=0.7,
-#                     # symbol=symbol,
-#                     # line=dict(width=0),
-#                 ),
-#             ),
-#             row=row,
-#             col=col,
-#         )
-
-# #         fig.add_trace(
-# #             go.Scatter(
-# #                 x=x_mean,
-# #                 y=y_unique,
-# #                 mode="lines+markers",
-# #                 marker=dict(
-# #                     color=color,
-# #                     size=7,
-# #                     opacity=0.7,
-# #                     symbol=symbol,
-# #                     # line=dict(width=0),
-# #                 ),
-# #             ),
-# #             row=row,
-# #             col=col,
-# #         )
-
-# #         fig.add_trace(
-# #             go.Scatter(
-# #                 x=legend_x,
-# #                 y=legend_y,
-# #                 mode="markers+text",
-# #                 marker=dict(
-# #                     color=color,
-# #                     size=7,
-# #                     opacity=0.5,
-# #                     symbol=symbol,
-# #                     # line=dict(width=0),
-# #                 ),
-# #                 text=f" Fraction = {percentile_fraction}",
-# #                 textposition="middle right",
-# #                 textfont=dict(size=8)
-# #             ),
-# #             row=row,
-# #             col=col,
-# #         )
-
-# fig.update_xaxes(
-#     # tick0 = -1,
-#     # dtick = 5_000,
-#     matches="x",
-#     type="log",
-#     nticks=6,
-# )
-
-# fig.update_layout(
-#     # title=head_title,
-#     showlegend=False,
-#     template=template,
-#     height=400,
-#     width=900,
-# )
-# # fig.write_image(
-# #     f"{head_title} - PacBio.svg",
-# #     height=max(300, 200 * rows),
-# #     width=max(600, 250 * cols),
-# # )
-# fig.show()
+# assignment_dfs[0].columns
 
 # %%
-# x_axis_name = "Distinct protein rank"
-# y_axis_name = "Cummulative relative<br>expression (%)"
-# head_title = "Cummulative expression vs. distinct unique proteins"
+assignment_dfs = []
 
-# cols = min(facet_col_wrap, len(conditions), 4)
-# rows = ceil(len(conditions) / cols)
-# row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
+for condition in conditions:
+    assignment_df = (
+        max_expression_df.loc[
+            max_expression_df[condition_col] == condition,
+            [
+                "Chrom",
+                condition_col,
+                "Protein",
+                "TotalWeightedSupportingReads",
+            ],
+        ]
+        .sort_values("TotalWeightedSupportingReads", ascending=False)
+        .reset_index(drop=True)
+    )
+    assignment_df["#Protein"] = list(range(1, len(assignment_df) + 1))
+    assignment_df["%RelativeExpression"] = (
+        100
+        * assignment_df["TotalWeightedSupportingReads"]
+        / assignment_df["TotalWeightedSupportingReads"].sum()
+    )
+    assignment_df["%CummulativeRelativeExpression"] = assignment_df[
+        "%RelativeExpression"
+    ].cumsum()
+    assignment_dfs.append(assignment_df)
 
-# assignment_method = "Weighted"
-# percentile_fractions = [0.1, 1.0]
-# symbols = ["circle", "triangle-up"]
-
-# fig = make_subplots(
-#     rows=rows,
-#     cols=cols,
-#     subplot_titles=conditions,
-#     shared_xaxes=True,
-#     shared_yaxes=True,
-#     x_title=x_axis_name,
-#     y_title=y_axis_name,
-#     vertical_spacing=facet_row_spacing / 2.5,
-#     horizontal_spacing=facet_col_spacing * 1.5,
-# )
-
-# for (row, col), percentile_df, fraction01_percentile_df, condition in zip(
-#     row_col_iter, percentile_dfs, fraction01_percentile_dfs, conditions
-# ):
-#     legend_x = [percentile_df["RequiredProteins"].max() * 5 / 6]
-#     legend_ys = [[25], [20]]
-
-#     for color, symbol, legend_y, df, percentile_fraction in zip(
-#         subcolors_discrete_map[condition],
-#         symbols,
-#         legend_ys,
-#         [fraction01_percentile_df, percentile_df],
-#         percentile_fractions,
-#     ):
-#         df = df.loc[df["AssignmentMethod"] == assignment_method]
-
-#         x = df["RequiredProteins"]
-#         y = df["Percentile"]
-
-#         x_mean = df.groupby("Percentile")["RequiredProteins"].apply(np.mean)
-#         y_unique = x_mean.index
-
-#         fig.add_trace(
-#             go.Scatter(
-#                 x=x,
-#                 y=y,
-#                 mode="markers",
-#                 marker=dict(
-#                     color=color,
-#                     size=7,
-#                     opacity=0.7,
-#                     symbol=symbol,
-#                     # line=dict(width=0),
-#                 ),
-#             ),
-#             row=row,
-#             col=col,
-#         )
-
-#         fig.add_trace(
-#             go.Scatter(
-#                 x=x_mean,
-#                 y=y_unique,
-#                 mode="lines+markers",
-#                 marker=dict(
-#                     color=color,
-#                     size=7,
-#                     opacity=0.7,
-#                     symbol=symbol,
-#                     # line=dict(width=0),
-#                 ),
-#             ),
-#             row=row,
-#             col=col,
-#         )
-
-#         fig.add_trace(
-#             go.Scatter(
-#                 x=legend_x,
-#                 y=legend_y,
-#                 mode="markers+text",
-#                 marker=dict(
-#                     color=color,
-#                     size=7,
-#                     opacity=0.5,
-#                     symbol=symbol,
-#                     # line=dict(width=0),
-#                 ),
-#                 text=f" Fraction = {percentile_fraction}",
-#                 textposition="middle right",
-#                 textfont=dict(size=8),
-#             ),
-#             row=row,
-#             col=col,
-#         )
-
-# # fig.update_xaxes(
-# #     # tick0 = -1,
-# #     # dtick = 5_000,
-# #     matches='x',
-# #     type="log",
-# #     nticks=6
-# # )
-
-# fig.update_layout(
-#     # title=head_title,
-#     showlegend=False,
-#     template=template,
-#     height=400,
-#     width=900,
-# )
-# # fig.write_image(
-# #     f"{head_title} - PacBio.svg",
-# #     height=max(300, 200 * rows),
-# #     width=max(600, 250 * cols),
-# # )
-# fig.show()
+assignment_dfs[0]
 
 # %%
-# x_axis_name = "Distinct protein rank"
-# y_axis_name = "Cummulative relative<br>expression (%)"
-# head_title = "Weighted cummulative expression vs. distinct protein rank"
+# # MinNonSyns can be retrived by merging unique_proteins_dfs
 
-# cols = min(facet_col_wrap, len(conditions), 5)
-# rows = ceil(len(conditions) / cols)
-# row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
-
-# assignment_method = "Weighted"
-# y_col_name = "TotalWeightedSupportingReads"
-
-# fig = make_subplots(
-#     rows=rows,
-#     cols=cols,
-#     subplot_titles=conditions,
-#     shared_yaxes=True,
-#     x_title=x_axis_name,
-#     y_title=y_axis_name,
-#     # vertical_spacing=facet_row_spacing / 1.5,
-#     # horizontal_spacing=facet_col_spacing * 1.5,
-# )
-
-# for (row, col), percentile_df, expression_df, maximal_solution, condition in zip(
-#     row_col_iter, percentile_dfs, expression_dfs, maximal_solutions, conditions
-# ):
-#     percentile_df = percentile_df.loc[
-#         percentile_df["AssignmentMethod"] == assignment_method
-#     ]
-
-#     x = percentile_df["RequiredProteins"]
-#     y = percentile_df["Percentile"]
-
-#     # plot percentiles
-#     fig.add_trace(
-#         go.Scatter(
-#             x=x,
-#             y=y,
-#             mode="markers+lines",
-#             marker=dict(
-#                 color=color_discrete_map[condition],
-#                 size=6,
-#                 opacity=0.7,
-#             ),
-#         ),
-#         row=row,
-#         col=col,
-#     )
-
-#     expression_df = (
-#         expression_df.loc[expression_df["#Solution"] == maximal_solution]
-#         .sort_values("TotalWeightedSupportingReads", ascending=False)
-#         .reset_index(drop=True)
-#     )
-#     expression_df["CummulativeRelativeWeightedExpression"] = expression_df[
-#         ["TotalWeightedSupportingReads"]
-#     ].transform(lambda x: 100 * x / x.sum())
-
-#     top_x = [10, 100, 1000]
-#     top_y = [
-#         expression_df["CummulativeRelativeWeightedExpression"][:x].sum() for x in top_x
-#     ]
-
-#     # plot top 10/100/1000 expressed proteins
-#     fig.add_trace(
-#         go.Scatter(
-#             x=top_x,
-#             y=top_y,
-#             mode="markers+text",
-#             marker=dict(
-#                 size=6,
-#                 symbol="square",
-#                 opacity=0.5,
-#                 color="black",
-#             ),
-#             text=[
-#                 f"  (10, {top_y[0]:.1f})",
-#                 f"   (100, {top_y[1]:.1f})",
-#                 f"    (1000, {top_y[2]:.1f})",
-#             ],
-#             # ways to get better text positioning:
-#             # https://community.plotly.com/t/solving-the-problem-of-overlapping-text-labels-in-a-scatterplot-by-manually-assigning-the-position-of-each-label/66159/2
-#             # https://github.com/plotly/plotly.py/issues/925
-#             textposition="middle right",
-#             textfont=dict(size=8),
-#         ),
-#         row=row,
-#         col=col,
-#     )
-
-# # fig.update_xaxes(tick0=0, dtick=10_000, matches="x")
-# fig.update_layout(
-#     title="Squid's PacBio",
-#     title_x=0.15,
-#     showlegend=False,
-#     template=template,
-#     height=max(400, 200 * rows),
-#     width=max(650, 250 * cols),
-# )
-
-# fig.write_image(
-#     f"{head_title} - PacBio.svg",
-#     #     height=max(300, 200 * rows),
-#     #     width=max(600, 250 * cols),
-#     height=max(300, 260 * rows),
-#     width=max(650, 250 * cols),
-# )
-
-# fig.show()
+# avg_of_min_estimate_of_non_syns_per_isoforms = [
+#     assignment_df["MinNonSyns"].mean() for assignment_df in assignment_dfs
+# ]
+# avg_of_min_estimate_of_non_syns_per_isoforms
 
 # %%
 x_axis_name = "Isoform rank"
@@ -7566,253 +7157,6 @@ def formulate_semilog10_equation(coef, intercept):
         operator = "-"
         intercept = np.abs(intercept)
     return f"y = 1 / ({coef:.2f}*log(x) {operator} {intercept:.2f})"
-
-# %%
-# cols = min(facet_col_wrap, len(conditions), 3)
-# rows = ceil(len(conditions) / cols)
-# row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
-
-# linear_spaces = [(300, 15_000), (250, 23_000)]  # (start, end) tuples for both x and y
-# forward_transforms = [
-#     (linear_to_log10, linear_to_log10),
-#     (linear_to_log10, inverse),
-# ]  # (x, y) tuples
-# reverse_transforms = [
-#     (log10_to_linear, log10_to_linear),
-#     (log10_to_linear, inverse),
-# ]  # (x, y) tuples
-# formulate_equations = [formulate_log10_equation, formulate_semilog10_equation]
-
-# maximal_dfs = [
-#     expression_df.loc[expression_df["#Solution"] == maximal_solution].reset_index(
-#         drop=True
-#     )
-#     for expression_df, maximal_solution in zip(expression_dfs, maximal_solutions)
-# ]
-# maximal_algorithms = [df.loc[0, "Algorithm"] for df in maximal_dfs]
-
-# subplot_titles = [
-#     f"{condition}<br><sub>(#{solution}, {algorithm})</sub>"
-#     for condition, solution, algorithm in zip(
-#         conditions, maximal_solutions, maximal_algorithms
-#     )
-# ]
-# x_axis_name = "Distinct unique protein rank"
-# y_axis_name = "Relative expression (%)"
-# head_title = f"Relative expression of proteins considering a largest solution in each {str(condition_col).lower()}"
-
-# assignment_methods = ["Equal", "Weighted"]
-# y_col_names = ["TotalEqualSupportingReads", "TotalWeightedSupportingReads"]
-# symbols = ["circle", "triangle-up"]
-
-# data_marker_size = 2.5
-# data_opacity = 0.2
-# regression_line_width = 6
-
-# data_scatter_type = go.Scattergl
-# fit_scatter_type = go.Scatter
-
-# fig = make_subplots(
-#     rows=rows,
-#     cols=cols,
-#     y_title=y_axis_name,
-#     x_title=x_axis_name,
-#     subplot_titles=subplot_titles,
-#     shared_yaxes=True,
-#     shared_xaxes=True,
-#     # vertical_spacing=facet_row_spacing / 2.5,
-#     horizontal_spacing=facet_col_spacing * 1.5,
-# )
-
-# for (
-#     (row, col),
-#     condition,
-#     maximal_df,
-#     maximal_solution,
-#     maximal_algorithm,
-#     linear_space,
-#     (forward_x_transform, forward_y_transform),
-#     (reverse_x_transform, reverse_y_transform),
-#     formulate_equation,
-# ) in zip(
-#     row_col_iter,
-#     conditions,
-#     maximal_dfs,
-#     maximal_solutions,
-#     maximal_algorithms,
-#     linear_spaces,
-#     forward_transforms,
-#     reverse_transforms,
-#     formulate_equations,
-# ):
-
-#     for color, assignment_method, y_col_name, symbol in zip(
-#         subcolors_discrete_map[condition], assignment_methods, y_col_names, symbols
-#     ):
-
-#         assignment_df = maximal_df.sort_values(y_col_name, ascending=False).reset_index(
-#             drop=True
-#         )
-#         assignment_df["#Protein"] = list(range(1, len(assignment_df) + 1))
-#         assignment_df["AssignmentMethod"] = assignment_method
-
-#         x = assignment_df["#Protein"]
-#         y = 100 * assignment_df[y_col_name] / assignment_df[y_col_name].sum()
-
-#         # x = np.log10(x)
-#         # y = 1 / y
-
-#         if assignment_method == assignment_methods[0]:
-#             fig.add_trace(
-#                 data_scatter_type(
-#                     x=x,
-#                     y=y,
-#                     legendgrouptitle_text=condition,
-#                     legendgroup=condition,
-#                     name=assignment_method,
-#                     mode="markers",
-#                     marker_color=color,
-#                     marker_size=data_marker_size,
-#                     marker=dict(
-#                         opacity=data_opacity, line=dict(width=0), symbol=symbol
-#                     ),
-#                 ),
-#                 row=row,
-#                 col=col,
-#             )
-#         else:
-#             fig.add_trace(
-#                 data_scatter_type(
-#                     x=x,
-#                     y=y,
-#                     legendgroup=condition,
-#                     name=assignment_method,
-#                     mode="markers",
-#                     marker_color=color,
-#                     marker_size=data_marker_size,
-#                     marker=dict(
-#                         opacity=data_opacity, line=dict(width=0), symbol=symbol
-#                     ),
-#                 ),
-#                 row=row,
-#                 col=col,
-#             )
-
-#         train_logspace = [
-#             int(i)
-#             for i in np.logspace(
-#                 np.log10(linear_space[0]), np.log10(linear_space[1]), num=1000
-#             )
-#         ]
-#         test_logspace = [
-#             int(i)
-#             for i in np.logspace(
-#                 np.log10(linear_space[0] + 20), np.log10(linear_space[1] - 20), num=1000
-#             )
-#             if int(i) not in train_logspace
-#         ]
-
-#         train_x = forward_x_transform(x[train_logspace])
-#         train_y = forward_y_transform(y[train_logspace])
-
-#         test_x = forward_x_transform(x[test_logspace])
-#         test_y = forward_y_transform(y[test_logspace])
-
-#         # Create linear regression object
-#         regr = linear_model.LinearRegression(n_jobs=threads)
-#         # Train the model using the training sets
-#         regr.fit(np.array(train_x).reshape(-1, 1), train_y)
-#         # Make predictions using the testing set
-#         pred_y = regr.predict(np.array(test_x).reshape(-1, 1))
-
-#         # transform these variables back to original scale so they can plotted
-#         test_x = reverse_x_transform(test_x)
-#         pred_y = reverse_y_transform(pred_y)
-
-#         fig.add_trace(
-#             fit_scatter_type(
-#                 x=test_x,
-#                 y=pred_y,
-#                 mode="lines",
-#                 marker_color=color,
-#                 line=dict(
-#                     dash="dash",
-#                     width=regression_line_width,
-#                 ),
-#                 legendgroup=condition,
-#                 name=f"{assignment_method} - fitted",
-#                 showlegend=False,
-#             ),
-#             row=1,
-#             col=col,
-#         )
-
-#         coef = regr.coef_[0]
-#         intercept = regr.intercept_
-#         mse = mean_squared_error(test_y, pred_y)
-#         r2 = r2_score(test_y, pred_y)
-#         # if intercept >= 0:
-#         #     operator = "+"
-#         # else:
-#         #     operator = "-"
-#         #     intercept = np.abs(intercept)
-#         equation = formulate_equation(coef, intercept)
-#         text = (
-#             f"<b>{assignment_method}</b>"
-#             "<br>"
-#             # f"<b>y = {coef:.2f}x {operator} {intercept:.2f}</b>"
-#             # f"y = {coef:.2f}x {operator} {intercept:.2f}"
-#             f"{equation}"
-#             "<br>"
-#             f"MSE = {mse:.2f}"  # 0 is perfect prediction
-#             "<br>"
-#             f"R2 = {r2:.2f}"  # 1 is perfect prediction
-#         )
-
-#         if assignment_method == assignment_methods[0]:
-#             # textposition = "top right"
-#             i = int(len(test_x) / 10)
-#             text_x = test_x.iloc[i] + 2000
-#             text_y = pred_y[i] + 0.03
-#         else:
-#             # textposition = "bottom left"
-#             i = int(len(test_x) / 3.5)
-#             text_x = test_x.iloc[0] - int(3 * train_logspace[0] / 4)
-#             text_y = pred_y[i] - 0.003
-#         text_x = np.log10(text_x)
-#         text_y = np.log10(text_y)
-
-#         fig.add_annotation(
-#             row=row,
-#             col=col,
-#             x=text_x,
-#             y=text_y,
-#             xref="x",
-#             yref="y",
-#             text=text,
-#             align="center",
-#             font=dict(size=8, color=color),
-#             showarrow=False,
-#         )
-
-# fig.update_layout(
-#     title_text=head_title,
-#     title_y=0.95,
-#     template=template,
-#     showlegend=False,
-#     # legend_itemsizing="constant",
-#     height=max(400, 200 * rows),
-#     # width=max(900, 250 * cols),
-# )
-# fig.update_xaxes(type="log")
-# fig.update_yaxes(type="log")
-# fig.write_image(
-#     f"{head_title} - PacBio.svg",
-#     height=max(350, 200 * rows),
-#     width=max(650, 350 * cols),
-# )
-# fig.show()
-# # fig.show(config={'staticPlot': True, 'responsive': False})
 
 
 # %%
@@ -8047,7 +7391,11 @@ merged_assignment_df.insert(0, "Platform", "Long-reads")
 merged_assignment_df
 
 # %%
-merged_assignment_df.to_csv("AssignedExpression.PacBio.tsv", sep="\t", index=False)
+merged_assignment_df.to_csv(
+    "/private7/projects/Combinatorics/Code/Notebooks/AssignedExpression.PacBio.WithUMIs.tsv",
+    sep="\t",
+    index=False,
+)
 
 # %%
 # assignment_method = "Weighted"

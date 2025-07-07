@@ -414,6 +414,41 @@ zerolinewidth = 4
 # %% jupyter={"source_hidden": true}
 # n_repetitions_colormap(subcolors_discrete_map, "GRIA", 10)
 
+# %%
+def rgb_change(r, g, b, d_r, d_g, d_b, scale):
+    # todo: allow both changes to be in the same direction by modifying the given scale?
+    values = [r, g, b]
+    deltas = [int(d_v * scale) for d_v in (d_r, d_g, d_b)]
+    legitimate_changes = {
+        "+": [min(v + d_v, 255) for v, d_v in zip(values, deltas)],
+        "-": [max(v - d_v, 0) for v, d_v in zip(values, deltas)],
+    }
+    complete_changes = {
+        "+": sum(
+            v + d_v == new_v
+            for v, d_v, new_v in zip(values, deltas, legitimate_changes["+"])
+        ),
+        "-": sum(
+            v - d_v == new_v
+            for v, d_v, new_v in zip(values, deltas, legitimate_changes["-"])
+        ),
+    }
+    if complete_changes["+"] >= complete_changes["-"]:
+        r, g, b = legitimate_changes["+"]
+    else:
+        r, g, b = legitimate_changes["-"]
+    return r, g, b
+
+
+def two_subcolors_from_hex(hex_color, d_r=4, d_g=20, d_b=22, scale_1=1, scale_2=4):
+    r, g, b = pc.hex_to_rgb(hex_color)
+    subcolor_1 = rgb_change(r, g, b, d_r, d_g, d_b, scale_1)
+    subcolor_2 = rgb_change(r, g, b, d_r, d_g, d_b, scale_2)
+    subcolor_1 = pc.label_rgb(subcolor_1)
+    subcolor_2 = pc.label_rgb(subcolor_2)
+    return subcolor_1, subcolor_2
+
+
 # %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"}
 # # Editing levels in PCLO - squid
 
@@ -2527,7 +2562,7 @@ fig.show()
 condition_col = "Gene"
 platforms = ["Long-reads", "Short-reads"]
 
-pacbio_conditions = ["GRIA2", "PCLO"]
+pacbio_conditions = ["GRIA2", "PCLO", "ADAR1", "IQEC1"]
 
 illumina_conditions = [
     "RUSC2_MOUSE",
@@ -2565,20 +2600,43 @@ illumina_color_discrete_map = {
 }
 
 # %%
-illumina_merged_assignment_file = "AssignedExpression.Illumina.tsv"
-pacbio_merged_assignment_file = "AssignedExpression.PacBio.tsv"
+in_dir = Path("/private7/projects/Combinatorics/Code/Notebooks")
+out_dir = in_dir
+
+illumina_merged_assignment_file = Path(in_dir, "AssignedExpression.Illumina.tsv")
+pacbio_merged_assignment_file = Path(in_dir, "AssignedExpression.PacBio.tsv")
+pacbio_umi_merged_assignment_file = Path(
+    in_dir, "AssignedExpression.PacBio.WithUMIs.tsv"
+)
 
 # %%
-illumina_merged_assignment_df = pd.read_table(illumina_merged_assignment_file)
+expression_cols = [
+    "Gene",
+    "Platform",
+    "#Protein",
+    "%RelativeExpression",
+    "%CummulativeRelativeExpression",
+]
+
+# %%
+illumina_merged_assignment_df = pd.read_table(
+    illumina_merged_assignment_file, usecols=expression_cols
+)
 illumina_merged_assignment_df[condition_col] = (
     illumina_merged_assignment_df[condition_col].str.split("_").str[0]
 )
 # illumina_merged_assignment_df
 
-pacbio_merged_assignment_df = pd.read_table(pacbio_merged_assignment_file)
-pacbio_merged_assignment_df[condition_col] = pacbio_merged_assignment_df[condition_col].apply(
-        lambda x: "GRIA2" if x == "GRIA" else x
-    )
+# pacbio_merged_assignment_df = pd.read_table(pacbio_merged_assignment_file)
+pacbio_merged_assignment_df = pd.concat(
+    [
+        pd.read_table(pacbio_merged_assignment_file, usecols=expression_cols),
+        pd.read_table(pacbio_umi_merged_assignment_file, usecols=expression_cols),
+    ]
+)
+pacbio_merged_assignment_df[condition_col] = pacbio_merged_assignment_df[
+    condition_col
+].apply(lambda x: "GRIA2" if x == "GRIA" else x)
 pacbio_merged_assignment_df
 
 # %%
@@ -2588,6 +2646,7 @@ illumina_assignment_dfs = [
     ].reset_index(drop=True)
     for condition in illumina_conditions
 ]
+ic(len(illumina_assignment_dfs))
 illumina_assignment_dfs[0]
 
 # %%
@@ -2597,6 +2656,7 @@ pacbio_assignment_dfs = [
     ].reset_index(drop=True)
     for condition in pacbio_conditions
 ]
+ic(len(pacbio_assignment_dfs))
 pacbio_assignment_dfs[0]
 
 # %%
@@ -2623,64 +2683,8 @@ joined_conditions = pacbio_conditions + illumina_conditions
 
 joined_assignments_dfs = pacbio_assignment_dfs + illumina_assignment_dfs
 
-# %% jupyter={"source_hidden": true}
-# fig = go.Figure()
-
-# for platform, condition, assignment_df in zip(joined_platforms, joined_conditions, joined_assignments_dfs):
-
-#     x = assignment_df["#Protein"]
-#     y = assignment_df["%RelativeExpression"]
-
-#     fig.add_trace(
-#         go.Scattergl(
-#             x=x,
-#             y=y,
-#             mode="markers",
-#             marker=dict(
-#                 color=platforms_color_map[platform][condition],
-#                 symbol=platforms_symbols[platform],
-#                 size=4,
-#             ),
-#             # mode="lines",
-#             # line=dict(
-#             #     color=platforms_color_map[platform][condition],
-#             #     dash=platforms_dashes[platform],
-#             #     width=4,
-#             #     # size=8,
-#             # ),
-#             opacity=0.5,
-#             legendgrouptitle_text=platform,
-#             legendgroup=platform,  # this can be any string
-#             name=condition,
-#         )
-#     )
-
-
-# fig.update_xaxes(type="log")
-# fig.update_yaxes(type="log",
-#                  # range=[np.log10(y_min), np.log10(y_max)], nticks=6
-#                 )
-
-# fig.update_layout(
-#     # legend_font=dict(size=8),
-#     # legend_grouptitlefont=dict(size=10),
-#     title="Squid",
-#     title_x=0.15,
-#     template=template,
-#     xaxis_title="Distinct protein rank",
-#     yaxis_title="Relative expression (%)",
-#     width=700,
-#     height=650,
-# )
-
-# # fig.write_image(
-# #     "Distinct proteins vs. editable AAs (80K) - PacBio vs. Illumina.svg",
-# #     width=700,
-# #     height=650
-# # )
-
-# fig.show()
-
+# %% [markdown]
+# ## All squid genes
 
 # %%
 fig = make_subplots(
@@ -2744,10 +2748,12 @@ for platform, condition, assignment_df in zip(
                 color=color,
                 # symbol=platforms_symbols[platform],
                 size=5,
+                # size=3,
             ),
             legendgrouptitle_text=platform,
             legendgroup=platform,  # this can be any string
             name=condition,
+            # name=f"{condition}  ",
             showlegend=True,
             # visible="legendonly",
         ),
@@ -2761,10 +2767,11 @@ fig.update_yaxes(
     # range=[np.log10(y_min), np.log10(y_max)], nticks=6
 )
 width = 1200
-height = 650
+# height = 650
+height = 700
 
 fig.update_layout(
-    # legend_font=dict(size=6),
+    legend_font=dict(size=10),
     # legend_grouptitlefont=dict(size=8),
     # legend_tracegroupgap=4,
     title="Squid",
@@ -2775,7 +2782,10 @@ fig.update_layout(
 )
 
 fig.write_image(
-    "Relative expression vs. distinct protein rank - PacBio vs. Illumina.svg",
+    Path(
+        out_dir,
+        "Relative expression vs. distinct protein rank - PacBio vs. Illumina.svg",
+    ),
     width=width,
     height=height,
 )
@@ -2784,12 +2794,18 @@ fig.show()
 
 
 # %%
+Path(
+    out_dir,
+    "Relative expression vs. distinct protein rank - PacBio vs. Illumina.svg",
+)
+
+# %%
 font_size = 28
 
 fig = make_subplots(
     rows=1,
     cols=2,
-    y_title="Cummulative relative<br>expression [%]",
+    y_title="Cumulative relative<br>expression [%]",
     x_title="Isoform rank",
     subplot_titles=platforms,
     shared_yaxes="all",
@@ -2858,12 +2874,12 @@ for platform, condition, assignment_df in zip(
 
 fig.update_xaxes(
     type="log",
-    tickfont=dict(size=0.7*font_size),
+    tickfont=dict(size=0.7 * font_size),
     tickangle=20,
 )
 fig.update_yaxes(
     # type="log",
-    tickfont=dict(size=0.7*font_size),
+    tickfont=dict(size=0.7 * font_size),
     # range=[np.log10(y_min), np.log10(y_max)], nticks=6
 )
 
@@ -2873,8 +2889,9 @@ width = 1200
 height = 650
 
 fig.update_layout(
-    legend_font=dict(size=0.5*font_size),
-    legend_grouptitlefont=dict(size=0.5*font_size),
+    # legend_font=dict(size=0.5 * font_size),
+    legend_font=dict(size=10),
+    legend_grouptitlefont=dict(size=0.5 * font_size),
     # legend_font=dict(size=6),
     # legend_grouptitlefont=dict(size=8),
     # legend_tracegroupgap=4,
@@ -2883,17 +2900,208 @@ fig.update_layout(
     template=template,
     width=width,
     height=height,
-    margin=dict(l=120, r=40, t=60, b=80)
+    margin=dict(l=120, r=40, t=60, b=80),
 )
 
 fig.write_image(
-    "Weighted cummulative expression vs. distinct protein rank - PacBio vs. Illumina.svg",
+    Path(
+        out_dir,
+        "Weighted cumulative expression vs. distinct protein rank - PacBio vs. Illumina.svg",
+    ),
     width=width,
     height=height,
 )
 
 fig.show()
 
+
+# %% [markdown]
+# ## Combined expression plots for long-reads squid genes
+
+# %%
+# TODO copy the code for the individual expression plots of previous long reads genes (GRIA2 & PCLO)
+# and extend them with ADAR1 and IQEC1
+
+# %% [markdown]
+# ## Duped vs de-duped expression
+
+# %%
+# TODO reads dedopped assignment dfs and compare them to the non-dedopped ones (ADAR1 and IQEC1)
+
+# %%
+pacbio_umi_conditions = ["ADAR1", "IQEC1"]
+
+umis_subcolors_discrete_map = {
+    condition: two_subcolors_from_hex(pacbio_color_discrete_map[condition])
+    for condition in pacbio_umi_conditions
+}
+umis_subcolors_discrete_map
+
+# %%
+pacbio_umi_unique_merged_assignment_file = Path(
+    in_dir, "AssignedExpression.PacBio.WithUMIs.Unique.tsv"
+)
+
+# %%
+merged_umi_duped_assignment_df = pd.read_table(
+    pacbio_umi_merged_assignment_file, usecols=expression_cols
+)
+merged_umi_duped_assignment_df.insert(1, "Deduped", False)
+# merged_umi_dooped_assignment_df
+
+# %%
+merged_umi_deduped_assignment_df = pd.read_table(
+    pacbio_umi_unique_merged_assignment_file, usecols=expression_cols
+)
+merged_umi_deduped_assignment_df.insert(1, "Deduped", True)
+# merged_umi_unqiue_assignment_df
+
+# %%
+merged_umi_assignment_df = pd.concat(
+    [
+        merged_umi_duped_assignment_df,
+        merged_umi_deduped_assignment_df,
+    ]
+)
+merged_umi_assignment_df
+
+# %%
+merged_umi_assignment_df.loc[
+    :,
+    [
+        "Gene",
+        "Deduped",
+    ],
+].value_counts().reset_index().sort_values("Gene")
+
+# %%
+x_axis_name = "Isoform rank"
+y_axis_name = "Cumulative relative<br>expression [%]"
+head_title = "Cumulative expression vs. distinct unique proteins"
+
+cols = min(facet_col_wrap, len(pacbio_umi_conditions), 4)
+rows = ceil(len(pacbio_umi_conditions) / cols)
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[
+    : len(pacbio_umi_conditions)
+]
+
+# assignment_method = "Weighted"
+# percentile_fractions = [0.1, 1.0]
+
+fig = make_subplots(
+    rows=rows,
+    cols=cols,
+    subplot_titles=pacbio_umi_conditions,
+    shared_xaxes=True,
+    shared_yaxes=True,
+    x_title=x_axis_name,
+    y_title=y_axis_name,
+    # vertical_spacing=0.01,
+    horizontal_spacing=facet_col_spacing,
+)
+
+# legend_x = [5]
+# legend_ys = [[75], [65]]
+legend_x = [3]
+# legend_ys = [[85], [75]]
+legend_ys = [[95], [85]]
+inner_texts = ["Full data", "Deduplicated data (UMIs)"]
+
+for (row, col), condition in zip(row_col_iter, pacbio_umi_conditions):
+
+    duped_aassignment_df = merged_umi_assignment_df.loc[
+        (~merged_umi_assignment_df["Deduped"])
+        & (merged_umi_assignment_df["Gene"] == condition)
+    ]
+    deduped_aassignment_df = merged_umi_assignment_df.loc[
+        (merged_umi_assignment_df["Deduped"])
+        & (merged_umi_assignment_df["Gene"] == condition)
+    ]
+
+    for color, df, legend_y, inner_text in zip(
+        umis_subcolors_discrete_map[condition],
+        [duped_aassignment_df, deduped_aassignment_df],
+        legend_ys,
+        inner_texts,
+    ):
+        # df = df.loc[df["AssignmentMethod"] == assignment_method]
+
+        x = df["#Protein"]
+        y = df["%CummulativeRelativeExpression"]
+
+        # x_mean = df.groupby("Percentile")["RequiredProteins"].apply(np.mean)
+        # y_unique = x_mean.index
+
+        fig.add_trace(
+            go.Scattergl(
+                x=x,
+                y=y,
+                mode="markers",
+                # mode="lines+markers",
+                marker=dict(
+                    color=color,
+                    size=2,
+                    # opacity=0.7,
+                    # symbol=symbol,
+                    # line=dict(width=0),
+                ),
+            ),
+            row=row,
+            col=col,
+        )
+
+        fig.add_trace(
+            go.Scatter(
+                x=legend_x,
+                y=legend_y,
+                mode="markers+text",
+                marker=dict(
+                    color=color,
+                    size=7,
+                    # opacity=0.7,
+                    # symbol=symbol,
+                    # line=dict(width=0),
+                ),
+                text=inner_text,
+                textposition="middle right",
+                textfont=dict(size=10),
+            ),
+            row=row,
+            col=col,
+        )
+
+fig.update_xaxes(
+    # tick0 = -1,
+    # dtick = 5_000,
+    matches="x",
+    type="log",
+    nticks=6,
+)
+
+width = 900
+height = 450
+
+fig.update_layout(
+    # title="Squid's Long-reads",
+    # title_x=0.11,
+    showlegend=False,
+    template=template,
+    width=width,
+    height=height,
+)
+
+fig.write_image(
+    Path(
+        out_dir,
+        "Cumulative expression vs. distinct protein rank - PacBio - full data vs. deduped.svg",
+    ),
+    width=width,
+    height=height,
+)
+
+fig.show()
+
+# %%
 
 # %% [markdown]
 # # Combined noise plots
