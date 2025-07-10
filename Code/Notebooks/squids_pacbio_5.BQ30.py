@@ -25,7 +25,7 @@ code_dir = "/private7/projects/Combinatorics/Code"
 
 # %% papermill={"duration": 2.901153, "end_time": "2022-02-01T09:42:46.125355", "exception": false, "start_time": "2022-02-01T09:42:43.224202", "status": "completed"}
 import sys
-from collections import defaultdict
+from collections import defaultdict, Counter
 from functools import reduce
 from itertools import chain, combinations, product
 from math import ceil
@@ -71,6 +71,9 @@ from Alignment.alignment_utils import (
 )
 from EditingUtils.seq import make_fasta_dict
 
+# %%
+pd.set_option("display.max_columns", 500)
+
 # %% papermill={"duration": 0.071769, "end_time": "2022-02-01T09:42:43.049672", "exception": false, "start_time": "2022-02-01T09:42:42.977903", "status": "completed"} tags=["parameters"]
 condition_col = "Gene"
 conditions = ["GRIA", "PCLO"]
@@ -102,6 +105,10 @@ positions_files = [
 reads_files = [
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz",
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz",
+]
+old_to_new_reads_files = [
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
 ]
 unique_reads_files = [
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_reads.csv.gz",
@@ -422,6 +429,87 @@ within_primers_editing_positions_per_sample = [
 for x in within_primers_editing_positions_per_sample:
     print(x)
 
+# %% [markdown]
+# ## Raw reads
+
+# %%
+filtered_aligned_bam_files
+
+# %%
+mapped_bam_dfs = []
+
+for bam_file, condition in zip(filtered_aligned_bam_files, conditions):
+
+    # sample = bam_file.name.split(".")[0]
+    # gene = sample[3:]
+    # repeat = sample[2]
+
+    # gene = bam_file.name.split(".")[0]
+
+    # if gene == "IQEC":
+    #     gene = "IQEC1"
+
+    # expected_chrom = chrom_per_gene_dict[gene]
+
+    with pysam.AlignmentFile(
+        bam_file,
+        "rb",
+        threads=10,
+        # check_sq=False,
+        # require_index=False,
+        # index_filename=str(Path(bam_file.parent, f"{bam_file.name}.pbi")),
+    ) as samfile:
+
+        # reads_names = [read.query_name for read in samfile]
+
+        reads = [read for read in samfile]
+        reads_names = [read.query_name for read in reads]
+        reads_lengths = [len(read.get_forward_sequence()) for read in reads]
+
+        df = pd.DataFrame(
+            {
+                condition_col: condition,
+                "Read": reads_names,
+                "ReadLength": reads_lengths,
+            }
+        )
+
+        mapped_bam_dfs.append(df)
+
+        # break
+
+concat_mapped_bams_df = pd.concat(mapped_bam_dfs, ignore_index=True)
+
+# concat_merged_mapped_bam_df = concat_individual_unmapped_bams_df.merge(
+#     concat_merged_mapped_bam_df, how="right"
+# )
+
+assert concat_mapped_bams_df.loc[concat_mapped_bams_df.isna().any(axis=1)].empty
+
+concat_mapped_bams_df
+
+# %%
+old_to_new_reads_dfs = []
+
+for old_to_new_reads_file in old_to_new_reads_files:
+    # ic(old_to_new_reads_file)
+    old_to_new_reads_df = pd.read_csv(old_to_new_reads_file, sep=sep)
+    old_to_new_reads_df = old_to_new_reads_df.merge(
+        concat_mapped_bams_df,
+        left_on="OldRead",
+        right_on="Read",
+        how="left",
+    ).drop(columns="Read")
+    # ic(old_to_new_reads_df.head(3))
+    old_to_new_reads_dfs.append(old_to_new_reads_df)
+
+# merged_old_to_new_reads_dfs[0]
+
+concat_old_to_new_reads_df = pd.concat(old_to_new_reads_dfs, ignore_index=True)
+concat_old_to_new_reads_df
+
+# %%
+
 # %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"}
 # ## Reads
 
@@ -713,6 +801,9 @@ unique_proteins_dfs[1].loc[:, cols_which_contain_blosum62_nonsyn_2]
 # %% [markdown]
 # ### Distinct unique proteins
 
+# %% [markdown]
+# #### Basic
+
 # %%
 unique_reads_dfs[0]
 
@@ -770,6 +861,9 @@ distinct_unique_proteins_df
 # unique_edited_proteins_dfs[0].columns[:unique_proteins_first_col_pos]
 
 
+# %% [markdown]
+# #### Expanded
+
 # %%
 expanded_distinct_unique_proteins_df = (
     distinct_unique_proteins_df.copy()
@@ -826,46 +920,10 @@ distinct_unique_proteins_df2 = (
 distinct_unique_proteins_df2
 
 # %%
-distinct_unique_proteins_fraction01_dfs = []
-for condition, distinct_unique_proteins_fraction01_file, unique_reads_df in zip(
-    conditions, distinct_unique_proteins_fraction01_files, unique_reads_dfs
-):
-    distinct_unique_proteins_fraction01_df = pd.read_csv(
-        distinct_unique_proteins_fraction01_file, sep=sep
-    ).drop("AvailableReads", axis=1)
-    distinct_unique_proteins_fraction01_df.insert(0, condition_col, condition)
-    distinct_unique_proteins_fraction01_df.insert(
-        1,
-        "NumOfReads",
-        (
-            distinct_unique_proteins_fraction01_df["Fraction"]
-            * unique_reads_df["NumOfReads"].sum()
-        ).astype(int),
-    )
-    distinct_unique_proteins_fraction01_dfs.append(
-        distinct_unique_proteins_fraction01_df
-    )
 
-distinct_unique_proteins_fraction01_df = (
-    pd.concat(distinct_unique_proteins_fraction01_dfs)
-    .reset_index(drop=True)
-    .rename(columns={"NumUniqueSamples": "NumOfProteins", "UniqueSamples": "Proteins"})
-)
+# %%
 
-distinct_unique_proteins_fraction01_df = (
-    distinct_unique_proteins_fraction01_df.sort_values(
-        [
-            condition_col,
-            "Fraction",
-            "FractionRepetition",
-            "Algorithm",
-            "AlgorithmRepetition",
-        ]
-    ).reset_index(drop=True)
-)
-
-distinct_unique_proteins_fraction01_df
-
+# %%
 
 # %%
 sol12 = distinct_unique_proteins_fraction01_dfs[0].iloc[11]
@@ -1042,11 +1100,55 @@ expanded_distinct_unique_proteins_df_2 = (
 
 expanded_distinct_unique_proteins_df_2
 
-
 # %%
 expanded_distinct_unique_proteins_df_2["NumOfReads"].describe()
 
 # %%
+
+# %% [markdown]
+# #### Basic 0.1
+
+# %%
+distinct_unique_proteins_fraction01_dfs = []
+for condition, distinct_unique_proteins_fraction01_file, unique_reads_df in zip(
+    conditions, distinct_unique_proteins_fraction01_files, unique_reads_dfs
+):
+    distinct_unique_proteins_fraction01_df = pd.read_csv(
+        distinct_unique_proteins_fraction01_file, sep=sep
+    ).drop("AvailableReads", axis=1)
+    distinct_unique_proteins_fraction01_df.insert(0, condition_col, condition)
+    distinct_unique_proteins_fraction01_df.insert(
+        1,
+        "NumOfReads",
+        (
+            distinct_unique_proteins_fraction01_df["Fraction"]
+            * unique_reads_df["NumOfReads"].sum()
+        ).astype(int),
+    )
+    distinct_unique_proteins_fraction01_dfs.append(
+        distinct_unique_proteins_fraction01_df
+    )
+
+distinct_unique_proteins_fraction01_df = (
+    pd.concat(distinct_unique_proteins_fraction01_dfs)
+    .reset_index(drop=True)
+    .rename(columns={"NumUniqueSamples": "NumOfProteins", "UniqueSamples": "Proteins"})
+)
+
+distinct_unique_proteins_fraction01_df = (
+    distinct_unique_proteins_fraction01_df.sort_values(
+        [
+            condition_col,
+            "Fraction",
+            "FractionRepetition",
+            "Algorithm",
+            "AlgorithmRepetition",
+        ]
+    ).reset_index(drop=True)
+)
+
+distinct_unique_proteins_fraction01_df
+
 
 # %% [markdown]
 # #### Distinct dissimilar
@@ -1147,6 +1249,279 @@ distinct_dissimilar_grantham_proteins_df
 distinct_dissimilar_grantham_proteins_df.groupby([condition_col, "CutoffScore"])[
     "NumOfProteins"
 ].max()
+
+# %% [markdown]
+# #### Max distinct per fraction
+
+# %%
+distinct_unique_proteins_df
+
+# %%
+# create a temp col which will soon be deleted
+distinct_unique_proteins_df["TempIndex"] = distinct_unique_proteins_df.index
+
+# first, create a df with all the largset solutions per chrom and fraction
+# (this happens due to n=1, keep="all" in the nlargst function)
+max_distinct_per_fraction_df = (
+    distinct_unique_proteins_df.groupby([condition_col, "Fraction"]).apply(
+        pd.DataFrame.nlargest,
+        n=1,
+        keep="all",
+        columns="NumOfProteins",
+        include_groups=False,
+    )
+    # .reset_index(drop=True)
+)
+# use merge to also get the chrom and fraction cols lost due to include_groups=False
+max_distinct_per_fraction_df = distinct_unique_proteins_df.loc[
+    distinct_unique_proteins_df["TempIndex"].isin(
+        max_distinct_per_fraction_df["TempIndex"]
+    )
+].drop(columns="TempIndex")
+
+del distinct_unique_proteins_df["TempIndex"]
+
+# then, sample a single largest solution (a set of distinct proteins)
+# per each fraction in each chrom
+max_distinct_per_fraction_df = (
+    max_distinct_per_fraction_df.groupby([condition_col, "Fraction"])
+    .sample(n=1, random_state=seed)
+    .reset_index(drop=True)
+)
+
+max_distinct_per_fraction_df
+
+# %%
+max_distinct_per_fraction_df.groupby([condition_col, "Fraction"]).size().unique()
+
+# %% [markdown]
+# #### Max distinct
+
+# %%
+fraction_1_gdf = distinct_unique_proteins_df.loc[
+    (distinct_unique_proteins_df["Fraction"] == 1.0)
+    # & (distinct_unique_proteins_df["Algorithm"] == "Descending")
+].groupby(condition_col)
+
+# means = (
+#     fraction_1_gdf["NumOfProteins"]
+#     .mean()
+#     .reset_index()
+#     .rename(columns={"NumOfProteins": "Mean"})
+# )
+
+maxes = (
+    fraction_1_gdf["NumOfProteins"]
+    .max()
+    .reset_index()
+    .rename(columns={"NumOfProteins": "Max"})
+)
+
+stds = (
+    fraction_1_gdf["NumOfProteins"]
+    .std()
+    .reset_index()
+    .rename(columns={"NumOfProteins": "STD"})
+)
+
+# mean_distinct_proteins_df = means.merge(stds, on=condition_col)
+
+# mean_distinct_proteins_df
+
+max_distinct_proteins_df = maxes.merge(stds, on=condition_col)
+
+max_distinct_proteins_df
+
+# %% [markdown]
+# ## Expression
+
+# %%
+expression_dfs = []
+for expression_file in expression_files:
+    expression_df = pd.read_csv(expression_file, sep=sep)
+    expression_df["#Solution"] = expression_df["#Solution"].astype(str)
+    # expression_df["Diff5+"] = (
+    #     abs(
+    #         expression_df["TotalEqualSupportingReads"]
+    #         - expression_df["TotalWeightedSupportingReads"]
+    #     )
+    #     >= 0.05
+    #     * (
+    #         expression_df["TotalEqualSupportingReads"]
+    #         + expression_df["TotalWeightedSupportingReads"]
+    #     )
+    #     / 2
+    # )
+
+    expression_df["Reads"] = (
+        expression_df["Reads"]
+        .str.removeprefix("SubString{String}[")
+        .str.removesuffix("]")
+        .str.replace('"', "")
+        .str.split(", ")
+        # .apply(remove_wrapping_quote_marks_from_elements)
+    )
+
+    expression_df["AdditionalSupportingReadsIDs"] = expression_df[
+        "AdditionalSupportingReadsIDs"
+    ].apply(lambda x: "" if pd.isna(x) else [y.split(",") for y in x.split(";")])
+    expression_df["AdditionalSupportingProteinsIDs"] = expression_df[
+        "AdditionalSupportingProteinsIDs"
+    ].apply(lambda x: "" if pd.isna(x) else x.split(","))
+
+    expression_dfs.append(expression_df)
+expression_dfs[0]
+
+# %%
+# expression_dfs[0].columns
+
+# %%
+# def find_rand_maximal_solution(
+#     expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
+# ):
+#     df = (
+#         expression_df.loc[expression_df["Algorithm"].isin(allowed_algorithms)]
+#         .groupby("#Solution")
+#         .agg("size")
+#         .reset_index()
+#         .rename(columns={0: "Size"})
+#     )
+#     # rand_maximal_solution = df.loc[df["Size"] == df["Size"].max(), "#Solution"].sample(random_state=seed).reset_index(drop=True)
+#     rand_maximal_solution = (
+#         df.loc[df["Size"] == df["Size"].max(), "#Solution"]
+#         .sample(random_state=seed)
+#         .values[0]
+#     )
+#     return rand_maximal_solution
+
+# %%
+# maximal_solutions = [
+#     find_rand_maximal_solution(
+#         expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
+#     )
+#     for expression_df in expression_dfs
+# ]
+# maximal_solutions
+
+# %%
+# maximal_dfs = [
+#     expression_df.loc[expression_df["#Solution"] == maximal_solution].reset_index(
+#         drop=True
+#     )
+#     for expression_df, maximal_solution in zip(expression_dfs, maximal_solutions)
+# ]
+
+# assignment_dfs = [
+#     (
+#         maximal_df.sort_values("TotalWeightedSupportingReads", ascending=False)
+#         .reset_index(drop=True)
+#         .assign(ProteinRank=list(range(1, len(maximal_df) + 1)))
+#         .rename(columns={"ProteinRank": "#Protein"})
+#     )
+#     for maximal_df in maximal_dfs
+# ]
+
+
+# for assignment_df in assignment_dfs:
+#     assignment_df["%RelativeExpression"] = (
+#         100
+#         * assignment_df["TotalWeightedSupportingReads"]
+#         / assignment_df["TotalWeightedSupportingReads"].sum()
+#     )
+#     assignment_df["%CummulativeRelativeExpression"] = assignment_df[
+#         "%RelativeExpression"
+#     ].cumsum()
+
+# assignment_dfs[0]
+
+# %%
+assignment_dfs = []
+
+for expression_df in expression_dfs:
+    assignment_df = (
+        expression_df.merge(
+            max_distinct_per_fraction_df.loc[
+                max_distinct_per_fraction_df["Fraction"].eq(1),
+                [
+                    condition_col,
+                    "Fraction",
+                    "FractionRepetition",
+                    "Algorithm",
+                    "AlgorithmRepetition",
+                ],
+            ],
+            how="inner",
+        )
+        .sort_values("TotalWeightedSupportingReads", ascending=False)
+        .reset_index(drop=True)
+    )
+    assignment_df["#Protein"] = list(range(1, len(assignment_df) + 1))
+    assignment_df["%RelativeExpression"] = (
+        100
+        * assignment_df["TotalWeightedSupportingReads"]
+        / assignment_df["TotalWeightedSupportingReads"].sum()
+    )
+    assignment_df["%CummulativeRelativeExpression"] = assignment_df[
+        "%RelativeExpression"
+    ].cumsum()
+    assignment_dfs.append(assignment_df)
+
+# assignment_dfs[0]
+
+max_expression_df = pd.concat(assignment_dfs, ignore_index=True)
+
+max_expression_df["FlattenedAdditionalSupportingReadsIDs"] = max_expression_df[
+    "AdditionalSupportingReadsIDs"
+].apply(lambda x: sorted(set(chain.from_iterable(x))))
+
+max_expression_df["FlattenedAllReads"] = max_expression_df.apply(
+    lambda x: x["Reads"] + x["FlattenedAdditionalSupportingReadsIDs"], axis=1
+)
+max_expression_df["FlattenedAllReadsStatuses"] = max_expression_df.apply(
+    lambda x: ["Original"] * len(x["Reads"])
+    + ["Additional"] * len(x["FlattenedAdditionalSupportingReadsIDs"]),
+    axis=1,
+)
+
+max_expression_df
+
+# %%
+max_expression_df.groupby(condition_col)["NumOfReads"].describe().round(2).T
+
+# %%
+max_expression_df.loc[max_expression_df["NumOfReads"].ge(2)].groupby(
+    condition_col
+).size().reset_index().rename(columns={0: 1})
+
+# %%
+max_expression_df.groupby(condition_col).apply(
+    lambda x: x["AdditionalSupportingReadsIDs"].apply(len).describe(),
+    include_groups=False,
+).round(2).T
+
+# %%
+max_expression_df.groupby(condition_col).apply(
+    lambda x: x["AdditionalSupportingProteins"].describe(),
+    include_groups=False,
+).round(2).T
+
+# %%
+fig = px.histogram(
+    max_expression_df,
+    x="TotalWeightedSupportingReads",
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    log_y=True,
+)
+fig.update_traces(opacity=0.75)
+fig.update_layout(
+    width=800,
+    height=550,
+    template=template,
+)
+fig.show()
+
+# %%
 
 # %% [markdown]
 # ## Summary of data loss
@@ -3893,39 +4268,39 @@ singatures_statistics_df
 # ## Num of distinct unique proteins
 
 # %%
-fraction_1_gdf = distinct_unique_proteins_df.loc[
-    (distinct_unique_proteins_df["Fraction"] == 1.0)
-    # & (distinct_unique_proteins_df["Algorithm"] == "Descending")
-].groupby(condition_col)
+# fraction_1_gdf = distinct_unique_proteins_df.loc[
+#     (distinct_unique_proteins_df["Fraction"] == 1.0)
+#     # & (distinct_unique_proteins_df["Algorithm"] == "Descending")
+# ].groupby(condition_col)
 
-# means = (
+# # means = (
+# #     fraction_1_gdf["NumOfProteins"]
+# #     .mean()
+# #     .reset_index()
+# #     .rename(columns={"NumOfProteins": "Mean"})
+# # )
+
+# maxes = (
 #     fraction_1_gdf["NumOfProteins"]
-#     .mean()
+#     .max()
 #     .reset_index()
-#     .rename(columns={"NumOfProteins": "Mean"})
+#     .rename(columns={"NumOfProteins": "Max"})
 # )
 
-maxes = (
-    fraction_1_gdf["NumOfProteins"]
-    .max()
-    .reset_index()
-    .rename(columns={"NumOfProteins": "Max"})
-)
+# stds = (
+#     fraction_1_gdf["NumOfProteins"]
+#     .std()
+#     .reset_index()
+#     .rename(columns={"NumOfProteins": "STD"})
+# )
 
-stds = (
-    fraction_1_gdf["NumOfProteins"]
-    .std()
-    .reset_index()
-    .rename(columns={"NumOfProteins": "STD"})
-)
+# # mean_distinct_proteins_df = means.merge(stds, on=condition_col)
 
-# mean_distinct_proteins_df = means.merge(stds, on=condition_col)
+# # mean_distinct_proteins_df
 
-# mean_distinct_proteins_df
+# max_distinct_proteins_df = maxes.merge(stds, on=condition_col)
 
-max_distinct_proteins_df = maxes.merge(stds, on=condition_col)
-
-max_distinct_proteins_df
+# max_distinct_proteins_df
 
 # %%
 fig = px.bar(
@@ -6354,6 +6729,714 @@ ax.set(xscale="log")
 # fig.show()
 
 
+# %%
+
+# %% [markdown]
+# ### Expression QC
+
+# %% [markdown]
+# **How many extremely-short reads (~87bp) are there?**   
+# Such reads are expected to have many NAs and thus be reassigned to many different distinct proteins during expression levels calculations.  
+# So maybe we shouldn't even consider such reads to begin with?
+#
+# **Plot reassigned reads' length vs. number of distinct proteins they support via reassignment**
+# * X axis - reassigned read length
+# * Y axis - num. of distinct proteins this read now supports via reassignment
+
+# %%
+# reads_dfs[0]
+
+# %%
+# max_expression_df
+
+# %%
+ambigous_positions_in_reads_dfs = []
+for reads_df, chrom in zip(reads_dfs, chroms):
+    # reads_df = reads_df.loc[:, [condition_col, "Read", "AmbigousPositions"]].rename(
+    #     columns={"AmbigousPositions": "NAsPerRead"}
+    # )
+    reads_df = reads_df.iloc[:, :reads_first_col_pos].rename(
+        columns={"AmbigousPositions": "NAPositions"}
+    )
+
+    reads_df.insert(0, "Chrom", chrom)
+
+    # unique_reassigned_reads = set(
+    #     chain.from_iterable(
+    #         max_expression_df.loc[
+    #             max_expression_df[condition_col] == condition, "FlattenedAllReads"
+    #         ].apply(lambda x: x[1:])
+    #     )
+    # )
+    # reads_df["Status"] = reads_df["Read"].apply(
+    #     lambda x: "Original" if x not in unique_reassigned_reads else "Reassigned"
+    # )
+
+    unique_original_reads = set(
+        chain.from_iterable(
+            max_expression_df.loc[
+                max_expression_df[condition_col] == condition, "Reads"
+            ]
+        )
+    )
+    reads_df["Status"] = reads_df["Read"].apply(
+        lambda x: "Original" if x in unique_original_reads else "Reassigned"
+    )
+
+    reassignment_counter = Counter(
+        chain.from_iterable(
+            max_expression_df.loc[
+                max_expression_df[condition_col] == condition, "FlattenedAllReads"
+            ]
+        )
+    )
+    reassignment_counter_series = pd.Series(reassignment_counter)
+    reassignment_counter_df = reassignment_counter_series.reset_index().rename(
+        columns={"index": "Read", 0: "NumOfReassignments"}
+    )
+    reads_df = reads_df.merge(
+        reassignment_counter_df, how="inner", on="Read", indicator="indicator"
+    )
+    assert (
+        reads_df.loc[reads_df["Status"].eq("Original"), "NumOfReassignments"]
+        .eq(1)
+        .all()
+    )
+    reads_df.loc[reads_df["Status"].eq("Original"), "NumOfReassignments"] = 0
+
+    ambigous_positions_in_reads_dfs.append(reads_df)
+ambigous_positions_in_reads_df = (
+    pd.concat(
+        ambigous_positions_in_reads_dfs,
+        ignore_index=True,
+    )
+    .merge(
+        concat_old_to_new_reads_df.loc[
+            :, ["NewRead", condition_col, "ReadLength"]
+        ],
+        left_on=[condition_col, "Read"],
+        right_on=[condition_col, "NewRead"],
+        how="left",
+    )
+    .drop(columns="NewRead")
+)
+
+# assert ambigous_positions_in_reads_df.loc[
+#     ambigous_positions_in_reads_df["Status"].eq("Original"), "NumOfReassignments"
+# ].eq(1).all()
+assert ambigous_positions_in_reads_df["indicator"].value_counts()["both"] == (
+    ambigous_positions_in_reads_df.shape[0]
+)
+del ambigous_positions_in_reads_df["indicator"]
+
+ambigous_positions_in_reads_df
+
+# %%
+# ambigous_positions_in_reads_df.groupby([condition_col, "Status"])[
+#     [
+#         "EditingFrequency",
+#         "EditedPositions",
+#         "UneditedPositions",
+#         "NAPositions",
+#         "NumOfReassignments",
+#         "ReadLength",
+#     ]
+# ].describe()
+
+# %%
+ambigous_positions_in_reads_df.groupby([condition_col, "Status"])[
+    [
+        # "EditingFrequency",
+        "EditedPositions",
+        "UneditedPositions",
+        "NAPositions",
+        "NumOfReassignments",
+        "ReadLength",
+    ]
+].agg(
+    [
+        "mean",
+    ]
+).round(3)
+
+# %%
+for col in [
+    # "EditingFrequency",
+    "EditedPositions",
+    "UneditedPositions",
+    "NAPositions",
+    # "NumOfReassignments",
+    # "ReadLength",
+]:
+    fig = px.histogram(
+        ambigous_positions_in_reads_df,
+        x=col,
+        
+        # color=condition_col,
+        # color_discrete_map=color_discrete_map,
+        # facet_col="Status",
+        
+        color="Status",
+        facet_col=condition_col,
+        
+        # labels={"NAsPerRead": "NAs / read"},
+        histnorm="percent",
+        category_orders={condition_col: conditions, "Status": ["Original", "Reassigned"]},
+    )
+    # fig.update_traces(opacity=0.75)
+    fig.update_traces(opacity=0.55)
+    # fig.update_yaxes(title="Reads", dtick=3000)
+    fig.update_layout(
+        width=600,
+        height=350,
+        template=template,
+        barmode="overlay",
+        # title="Squid's UMI long-reads - merged samples",
+    )
+    fig.show()
+
+# %%
+fig = px.histogram(
+    ambigous_positions_in_reads_df,
+    x="ReadLength",
+    
+    # color=condition_col,
+    # color_discrete_map=color_discrete_map,
+    # facet_col="Status",
+    
+    color="Status",
+    facet_col=condition_col,
+    
+    # labels={"NAsPerRead": "NAs / read"},
+    histnorm="percent",
+    cumulative=True,
+    log_y=True,
+    category_orders={condition_col: conditions, "Status": ["Original", "Reassigned"]},
+)
+# fig.update_traces(opacity=0.75)
+fig.update_traces(opacity=0.55)
+# fig.update_yaxes(title="Reads", dtick=3000)
+fig.update_layout(
+    width=600,
+    height=350,
+    template=template,
+    barmode="overlay",
+    # title="Squid's UMI long-reads - merged samples",
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    ambigous_positions_in_reads_df.loc[
+        ambigous_positions_in_reads_df["Status"].eq("Reassigned")
+    ],
+    x="NumOfReassignments",
+    
+    # color=condition_col,
+    # color_discrete_map=color_discrete_map,
+    # facet_col="Status",
+    
+    # color="Status",
+    facet_col=condition_col,
+    
+    # labels={"NAsPerRead": "NAs / read"},
+    histnorm="percent",
+    # cumulative=True,
+    # log_x=True,
+    # log_y=True,
+    # category_orders={condition_col: conditions, "Status": ["Original", "Reassigned"]},
+)
+# fig.update_traces(opacity=0.75)
+# fig.update_traces(opacity=0.55)
+# fig.update_xaxes(dtick=3000, range=[0, 21000])
+fig.update_xaxes(tick0=0, dtick=3000, 
+                #  tickangle=45
+                 )
+# fig.update_yaxes(title="Reads", dtick=3000)
+fig.update_layout(
+    width=600,
+    height=350,
+    template=template,
+    barmode="overlay",
+    # title="Squid's UMI long-reads - merged samples",
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    ambigous_positions_in_reads_df.loc[
+        ambigous_positions_in_reads_df["Status"].eq("Reassigned")
+    ],
+    x="NumOfReassignments",
+    
+    # color=condition_col,
+    # color_discrete_map=color_discrete_map,
+    # facet_col="Status",
+    
+    # color="Status",
+    facet_col=condition_col,
+    
+    # labels={"NAsPerRead": "NAs / read"},
+    histnorm="percent",
+    cumulative=True,
+    # log_x=True,
+    # log_y=True,
+    # category_orders={condition_col: conditions, "Status": ["Original", "Reassigned"]},
+)
+# fig.update_traces(opacity=0.75)
+# fig.update_traces(opacity=0.55)
+# fig.update_xaxes(dtick=3000, range=[0, 21000])
+fig.update_xaxes(tick0=0, dtick=3000, 
+                #  tickangle=45
+                 )
+# fig.update_yaxes(title="Reads", dtick=3000)
+fig.update_layout(
+    width=600,
+    height=350,
+    template=template,
+    barmode="overlay",
+    # title="Squid's UMI long-reads - merged samples",
+)
+fig.show()
+
+# %%
+max_expression_df
+
+# %%
+# fig = px.scatter(
+#     max_expression_df,
+#     x="NumOfReads",
+#     y="TotalWeightedSupportingReads",
+    
+#     # color=condition_col,
+#     # color_discrete_map=color_discrete_map,
+#     # facet_col="Status",
+    
+#     # color="Status",
+#     facet_col=condition_col,
+    
+#     # labels={"NAsPerRead": "NAs / read"},
+#     # histnorm="percent",
+#     # cumulative=True,
+#     log_x=True,
+#     log_y=True,
+#     # category_orders={condition_col: conditions, "Status": ["Original", "Reassigned"]},
+# )
+# # fig.update_traces(opacity=0.75)
+# # fig.update_traces(opacity=0.55)
+# # fig.update_xaxes(dtick=3000, range=[0, 21000])
+# # fig.update_xaxes(tick0=0, dtick=3000, 
+# #                 #  tickangle=45
+# #                  )
+# # fig.update_yaxes(title="Reads", dtick=3000)
+# fig.update_layout(
+#     width=600,
+#     height=350,
+#     template=template,
+#     barmode="overlay",
+#     # title="Squid's UMI long-reads - merged samples",
+# )
+# fig.show()
+
+# %%
+fig = px.scatter(
+    max_expression_df,
+    x="NumOfReads",
+    y="TotalWeightedSupportingReads",
+    
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    # facet_col="Status",
+    
+    # color="Status",
+    # facet_col=condition_col,
+    
+    # labels={"NAsPerRead": "NAs / read"},
+    # histnorm="percent",
+    # cumulative=True,
+    log_x=True,
+    log_y=True,
+    marginal_x="box",
+    marginal_y="box",
+    # category_orders={condition_col: conditions, "Status": ["Original", "Reassigned"]},
+)
+# fig.update_traces(opacity=0.75)
+fig.update_traces(opacity=0.55)
+# fig.update_xaxes(dtick=3000, range=[0, 21000])
+# fig.update_xaxes(tick0=0, dtick=3000, 
+#                 #  tickangle=45
+#                  )
+# fig.update_yaxes(title="Reads", dtick=3000)
+fig.update_layout(
+    width=500,
+    height=500,
+    template=template,
+    barmode="overlay",
+    # title="Squid's UMI long-reads - merged samples",
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    max_expression_df,
+    x="NumOfReads",
+    y="TotalWeightedSupportingReads",
+    
+    # color=condition_col,
+    # color_discrete_map=color_discrete_map,
+    # facet_col="Status",
+    
+    # color="Status",
+    facet_col=condition_col,
+    
+    # labels={"NAsPerRead": "NAs / read"},
+    # histnorm="percent",
+    histfunc="avg",
+    # cumulative=True,
+    log_x=True,
+    log_y=True,
+    # category_orders={condition_col: conditions, "Status": ["Original", "Reassigned"]},
+)
+# fig.update_traces(opacity=0.75)
+# fig.update_traces(opacity=0.55)
+# fig.update_xaxes(dtick=3000, range=[0, 21000])
+# fig.update_xaxes(tick0=0, dtick=3000, 
+#                 #  tickangle=45
+#                  )
+# fig.update_yaxes(title="Reads", dtick=3000)
+fig.update_layout(
+    width=600,
+    height=350,
+    template=template,
+    barmode="overlay",
+    # title="Squid's UMI long-reads - merged samples",
+)
+fig.show()
+
+# %%
+fig = px.scatter(
+    max_expression_df,
+    x="NumOfReads",
+    y="AdditionalSupportingProteins",
+    
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    # facet_col="Status",
+    
+    # color="Status",
+    # facet_col=condition_col,
+    
+    # labels={"NAsPerRead": "NAs / read"},
+    # histnorm="percent",
+    # cumulative=True,
+    log_x=True,
+    log_y=True,
+    marginal_x="box",
+    marginal_y="box",
+    # category_orders={condition_col: conditions, "Status": ["Original", "Reassigned"]},
+)
+# fig.update_traces(opacity=0.75)
+fig.update_traces(opacity=0.55)
+# fig.update_xaxes(dtick=3000, range=[0, 21000])
+# fig.update_xaxes(tick0=0, dtick=3000, 
+#                 #  tickangle=45
+#                  )
+# fig.update_yaxes(title="Reads", dtick=3000)
+fig.update_layout(
+    width=500,
+    height=500,
+    template=template,
+    barmode="overlay",
+    # title="Squid's UMI long-reads - merged samples",
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    max_expression_df,
+    x="NumOfReads",
+    y="TotalWeightedSupportingReads",
+    
+    # color=condition_col,
+    # color_discrete_map=color_discrete_map,
+    # facet_col="Status",
+    
+    # color="Status",
+    facet_col=condition_col,
+    
+    # labels={"NAsPerRead": "NAs / read"},
+    # histnorm="percent",
+    histfunc="avg",
+    # cumulative=True,
+    log_x=True,
+    # log_y=True,
+    # category_orders={condition_col: conditions, "Status": ["Original", "Reassigned"]},
+)
+# fig.update_traces(opacity=0.75)
+# fig.update_traces(opacity=0.55)
+# fig.update_xaxes(dtick=3000, range=[0, 21000])
+# fig.update_xaxes(tick0=0, dtick=3000, 
+#                 #  tickangle=45
+#                  )
+# fig.update_yaxes(title="Reads", dtick=3000)
+fig.update_layout(
+    width=600,
+    height=350,
+    template=template,
+    barmode="overlay",
+    # title="Squid's UMI long-reads - merged samples",
+)
+fig.show()
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+fig = px.histogram(
+    ambigous_positions_in_reads_df,
+    x="NAPositions",
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    labels={"NAsPerRead": "NAs / read"},
+    # histnorm="percent"
+)
+fig.update_traces(opacity=0.75)
+fig.update_yaxes(title="Reads", dtick=3000)
+fig.update_layout(
+    width=500,
+    height=350,
+    template=template,
+    barmode="overlay",
+    title="Squid's UMI long-reads - merged samples",
+)
+fig.show()
+
+# %%
+# ambigous_positions_in_reads_df.loc[ambigous_positions_in_reads_df["ReadLength"].le(500)]
+
+# %%
+fig = px.histogram(
+    ambigous_positions_in_reads_df,
+    x="ReadLength",
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    # labels={"NAsPerRead": "NAs / read"},
+    cumulative=True,
+    # histnorm="percent"
+    log_y=True,
+)
+fig.update_traces(opacity=0.75)
+fig.update_yaxes(title="Reads")
+fig.update_layout(
+    width=500,
+    height=350,
+    template=template,
+    barmode="overlay",
+    # title="Squid's UMI long-reads - merged samples",
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    ambigous_positions_in_reads_df,
+    x="ReadLength",
+    y="NAPositions",
+    histfunc="avg",
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    # labels={"NAsPerRead": "NAs / read"},
+    # histnorm="percent"
+)
+fig.update_traces(opacity=0.75)
+# fig.update_yaxes(title="Reads", dtick=3000)
+fig.update_layout(
+    width=500,
+    height=350,
+    template=template,
+    barmode="overlay",
+    # title="Squid's UMI long-reads - merged samples",
+)
+fig.show()
+
+# %%
+fig = px.scatter(
+    ambigous_positions_in_reads_df,
+    x="ReadLength",
+    y="NAPositions",
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    labels={"NAPositions": "NA positions / read", "ReadLength": "Read length"},
+    facet_col=condition_col,
+    trendline="ols",
+    trendline_color_override="black",
+)
+fig.update_traces(opacity=0.75)
+fig.update_yaxes(range=[0, None])
+fig.update_layout(
+    width=800,
+    height=400,
+    template=template,
+    # barmode="overlay",
+    # title="Squid's UMI long-reads - merged samples",
+    showlegend=False,
+)
+fig.show()
+
+# %%
+reassigned_reads_dfs = []
+for condition, chrom in zip(conditions, chroms):
+    df = max_expression_df.loc[max_expression_df[condition_col] == condition]
+    reassignment_counter = Counter(
+        chain.from_iterable(df["FlattenedAllReads"].apply(lambda x: x[1:]))
+    )
+    reassignment_series = pd.Series(reassignment_counter)
+    reassignment_df = reassignment_series.reset_index().rename(
+        columns={"index": "Read", 0: "NumOfReassignments"}
+    )
+    reassignment_df.insert(0, condition_col, condition)
+    reassignment_df.insert(0, "Chrom", chrom)
+    reassigned_reads_dfs.append(reassignment_df)
+reassigned_reads_df = pd.concat(reassigned_reads_dfs, ignore_index=True)
+
+reassigned_reads_df = reassigned_reads_df.merge(
+    concat_merged_old_to_new_reads_df.loc[
+        :, ["NewRead", "Sample", condition_col, "Repeat", "ReadLength"]
+    ],
+    left_on=[condition_col, "Read"],
+    right_on=[condition_col, "NewRead"],
+    how="left",
+).drop(columns="NewRead")
+
+reassigned_reads_df = reassigned_reads_df.merge(
+    ambigous_positions_in_reads_df, how="left"
+)
+
+reassigned_reads_df
+
+# %%
+reassigned_reads_df.groupby(condition_col)["NumOfReassignments"].describe().round(2)
+
+# %%
+fig = px.histogram(
+    reassigned_reads_df,
+    x="NumOfReassignments",
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    labels={
+        "NumOfReassignments": "Number of reassignments / reassigned read",
+        # "ReadLength": "Read length",
+    },
+    # facet_col=condition_col,
+    # trendline="ols",
+    # marginal_x="box",
+    # marginal_y="box",
+    # trendline_color_override="black",
+    opacity=0.7,
+    log_y=True,
+)
+fig.update_traces(opacity=0.5)
+fig.update_xaxes(dtick=2000)
+fig.update_yaxes(range=[0, None], title="Reads")
+fig.update_layout(
+    width=600,
+    height=400,
+    template=template,
+    barmode="overlay",
+    # title="Reassigned reads",
+    # showlegend=False,
+)
+fig.show()
+
+# %%
+fig = px.scatter(
+    reassigned_reads_df,
+    x="ReadLength",
+    y="NumOfReassignments",
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    labels={
+        "NumOfReassignments": "Number of reassignments",
+        "ReadLength": "Read length",
+    },
+    # facet_col=condition_col,
+    trendline="ols",
+    marginal_x="box",
+    marginal_y="box",
+    # trendline_color_override="black",
+)
+fig.update_traces(opacity=0.5)
+fig.update_yaxes(range=[0, None])
+fig.update_layout(
+    width=600,
+    height=400,
+    template=template,
+    # barmode="overlay",
+    # title="Reassigned reads",
+    # showlegend=False,
+)
+fig.show()
+
+# %%
+fig = px.scatter(
+    reassigned_reads_df,
+    x="NAPositions",
+    y="NumOfReassignments",
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    labels={
+        "NumOfReassignments": "Number of reassignments",
+        "NAPositions": "NA positions / read",
+    },
+    # facet_col=condition_col,
+    trendline="ols",
+    marginal_x="box",
+    marginal_y="box",
+    # trendline_color_override="black",
+)
+fig.update_traces(opacity=0.5)
+fig.update_yaxes(range=[0, None])
+fig.update_layout(
+    width=600,
+    height=400,
+    template=template,
+    # barmode="overlay",
+    # title="Reassigned reads",
+    # showlegend=False,
+)
+fig.show()
+
+# %%
+fig = px.scatter(
+    reassigned_reads_df,
+    x="NAPositions",
+    y="NumOfReassignments",
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    labels={
+        "NumOfReassignments": "Number of reassignments",
+        "NAPositions": "NA positions / read",
+    },
+    facet_col=condition_col,
+    trendline="ols",
+    # marginal_x="box",
+    # marginal_y="box",
+    trendline_color_override="black",
+)
+fig.update_traces(opacity=0.5)
+fig.update_yaxes(range=[0, None])
+fig.update_layout(
+    width=800,
+    height=400,
+    template=template,
+    # barmode="overlay",
+    # title="Reassigned reads",
+    showlegend=False,
+)
+fig.show()
+
 # %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"}
 # ### Distinct unique proteins
 
@@ -6364,248 +7447,7 @@ ax.set(xscale="log")
 # ##### Relative expression of isoforms
 
 # %%
-expression_dfs = []
-for expression_file in expression_files:
-    expression_df = pd.read_csv(expression_file, sep=sep)
-    expression_df["#Solution"] = expression_df["#Solution"].astype(str)
-    # expression_df["Diff5+"] = (
-    #     abs(
-    #         expression_df["TotalEqualSupportingReads"]
-    #         - expression_df["TotalWeightedSupportingReads"]
-    #     )
-    #     >= 0.05
-    #     * (
-    #         expression_df["TotalEqualSupportingReads"]
-    #         + expression_df["TotalWeightedSupportingReads"]
-    #     )
-    #     / 2
-    # )
-
-    expression_df["AdditionalSupportingReadsIDs"] = expression_df[
-        "AdditionalSupportingReadsIDs"
-    ].apply(lambda x: "" if pd.isna(x) else [y.split(",") for y in x.split(";")])
-    expression_df["AdditionalSupportingProteinsIDs"] = expression_df[
-        "AdditionalSupportingProteinsIDs"
-    ].apply(lambda x: "" if pd.isna(x) else x.split(","))
-
-    expression_dfs.append(expression_df)
-expression_dfs[0]
-
-# %%
-expression_dfs[0].columns
-
-
-# %%
-def find_rand_maximal_solution(
-    expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
-):
-    df = (
-        expression_df.loc[expression_df["Algorithm"].isin(allowed_algorithms)]
-        .groupby("#Solution")
-        .agg("size")
-        .reset_index()
-        .rename(columns={0: "Size"})
-    )
-    # rand_maximal_solution = df.loc[df["Size"] == df["Size"].max(), "#Solution"].sample(random_state=seed).reset_index(drop=True)
-    rand_maximal_solution = (
-        df.loc[df["Size"] == df["Size"].max(), "#Solution"]
-        .sample(random_state=seed)
-        .values[0]
-    )
-    return rand_maximal_solution
-
-
-# %%
-# def make_percentile_df(
-#     expression_df,
-#     first_percentile=10,
-#     inclusive_last_percentile=110,
-#     percentile_step=10,
-#     allowed_algorithms=["Ascending", "Descending"],
-# ):
-
-#     gb = expression_df.loc[expression_df["Algorithm"].isin(allowed_algorithms)].groupby(
-#         "#Solution"
-#     )
-#     solutions_expression_dfs = [gb.get_group(x) for x in gb.groups]
-
-#     equal_supp_reads_dfs = []
-#     weighted_supp_reads_dfs = []
-#     for df in solutions_expression_dfs:
-#         equal_df = df.sort_values(
-#             "TotalEqualSupportingReads", ascending=False
-#         ).reset_index(drop=True)
-#         equal_df["CumTotalEqualSupportingReads"] = equal_df[
-#             "TotalEqualSupportingReads"
-#         ].cumsum()
-#         equal_df["%CumTotalEqualSupportingReads"] = (
-#             100
-#             * equal_df["CumTotalEqualSupportingReads"]
-#             / equal_df["TotalEqualSupportingReads"].sum()
-#         )
-#         equal_supp_reads_dfs.append(equal_df)
-#         weighted_df = df.sort_values(
-#             "TotalWeightedSupportingReads", ascending=False
-#         ).reset_index(drop=True)
-#         weighted_df["CumTotalWeightedSupportingReads"] = weighted_df[
-#             "TotalWeightedSupportingReads"
-#         ].cumsum()
-#         weighted_df["%CumTotalWeightedSupportingReads"] = (
-#             100
-#             * weighted_df["CumTotalWeightedSupportingReads"]
-#             / weighted_df["TotalWeightedSupportingReads"].sum()
-#         )
-#         weighted_supp_reads_dfs.append(weighted_df)
-
-#     # equal_supp_reads_dfs, weighted_supp_reads_dfs = make_supp_reads_dfs(expression_df)
-
-#     solutions = []
-#     assignment_methods = []
-#     percentiles = []
-#     required_proteins = []
-#     algorithms = []
-#     _conditions = []
-
-#     for dfs, method, col in zip(
-#         [equal_supp_reads_dfs, weighted_supp_reads_dfs],
-#         ["Equal", "Weighted"],
-#         ["%CumTotalEqualSupportingReads", "%CumTotalWeightedSupportingReads"],
-#     ):
-#         for df in dfs:
-#             # ic(df.iloc[:1, :3], method, col)
-#             # break
-#             solution = df.loc[0, "#Solution"]
-#             algorithm = df.loc[0, "Algorithm"]
-#             _condition = df.loc[0, condition_col]
-#             a = df[col].to_numpy()
-#             # for percentile in range(50, 100, 10):
-#             # for percentile in range(10, 110, 10):
-#             for percentile in range(
-#                 first_percentile, inclusive_last_percentile, percentile_step
-#             ):
-#                 idx = (np.abs(a - percentile)).argmin()
-#                 if a[idx] < percentile:
-#                     idx += 1
-#                 solutions.append(solution)
-#                 assignment_methods.append(method)
-#                 percentiles.append(percentile)
-#                 required_proteins.append(idx)
-#                 algorithms.append(algorithm)
-#                 _conditions.append(_condition)
-
-#     percentile_df = pd.DataFrame(
-#         {
-#             "#Solution": solutions,
-#             "AssignmentMethod": assignment_methods,
-#             "Percentile": percentiles,
-#             "RequiredProteins": required_proteins,
-#             "Algorithm": algorithms,
-#             condition_col: _conditions,
-#         }
-#     )
-
-#     return percentile_df
-
-# %%
-# def choose_sample_solutions(
-#     expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
-# ):
-#     return (
-#         expression_df.loc[
-#             expression_df["Algorithm"].isin(allowed_algorithms),
-#             [
-#                 condition_col,
-#                 "#Solution",
-#                 "Fraction",
-#                 "FractionRepetition",
-#                 "Algorithm",
-#                 "AlgorithmRepetition",
-#             ],
-#         ]
-#         .groupby(["Algorithm", "#Solution"])
-#         .sample()
-#         .groupby("Algorithm")
-#         .sample(3, random_state=seed)
-#         .reset_index(drop=True)["#Solution"]
-#     )
-
-# %%
-maximal_solutions = [
-    find_rand_maximal_solution(
-        expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
-    )
-    for expression_df in expression_dfs
-]
-maximal_solutions
-
-# %%
-# percentile_dfs = [
-#     make_percentile_df(
-#         expression_df.loc[expression_df["#Solution"] == maximal_solution].reset_index(
-#             drop=True
-#         ),
-#         allowed_algorithms=["Ascending", "Descending"],
-#     )
-#     for expression_df, maximal_solution in zip(expression_dfs, maximal_solutions)
-# ]
-# percentile_dfs[0]
-
-# %%
-maximal_dfs = [
-    expression_df.loc[expression_df["#Solution"] == maximal_solution].reset_index(
-        drop=True
-    )
-    for expression_df, maximal_solution in zip(expression_dfs, maximal_solutions)
-]
-
-assignment_dfs = [
-    (
-        maximal_df.sort_values("TotalWeightedSupportingReads", ascending=False)
-        .reset_index(drop=True)
-        .assign(ProteinRank=list(range(1, len(maximal_df) + 1)))
-        .rename(columns={"ProteinRank": "#Protein"})
-    )
-    for maximal_df in maximal_dfs
-]
-
-
-for assignment_df in assignment_dfs:
-    assignment_df["%RelativeExpression"] = (
-        100
-        * assignment_df["TotalWeightedSupportingReads"]
-        / assignment_df["TotalWeightedSupportingReads"].sum()
-    )
-    assignment_df["%CummulativeRelativeExpression"] = assignment_df[
-        "%RelativeExpression"
-    ].cumsum()
-
-assignment_dfs[0]
-
-# %%
-
-# %%
-
-# %%
-max_expression_df = pd.concat(assignment_dfs, ignore_index=True)
 max_expression_df
-
-# %%
-max_expression_df.groupby(condition_col).apply(
-    lambda x: x["Reads"].apply(len).describe(),
-    include_groups=False,
-).round(2).T
-
-# %%
-max_expression_df.groupby(condition_col).apply(
-    lambda x: x["AdditionalSupportingReadsIDs"].apply(len).describe(),
-    include_groups=False,
-).round(2).T
-
-# %%
-max_expression_df.groupby(condition_col).apply(
-    lambda x: x["AdditionalSupportingProteins"].describe(),
-    include_groups=False,
-).round(2).T
 
 # %%
 fig = px.histogram(
@@ -7173,6 +8015,7 @@ def formulate_semilog10_equation(coef, intercept):
         intercept = np.abs(intercept)
     return f"y = 1 / ({coef:.2f}*log(x) {operator} {intercept:.2f})"
 
+
 # %%
 # cols = min(facet_col_wrap, len(conditions), 3)
 # rows = ceil(len(conditions) / cols)
@@ -7420,7 +8263,6 @@ def formulate_semilog10_equation(coef, intercept):
 # fig.show()
 # # fig.show(config={'staticPlot': True, 'responsive': False})
 
-
 # %%
 # assignment_method = "Weighted"
 # y_col_name = "TotalWeightedSupportingReads"
@@ -7642,7 +8484,6 @@ fig.write_image(
 )
 fig.show()
 # fig.show(config={'staticPlot': True, 'responsive': False})
-
 
 # %% [markdown]
 # ##### Saving assignment dfs

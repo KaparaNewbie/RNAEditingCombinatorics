@@ -1652,6 +1652,9 @@ assert (
 max_expression_df
 
 # %%
+max_expression_df.groupby(condition_col)["NumOfReads"].describe().round(2).T
+
+# %%
 max_expression_df["NumOfReads"].describe()
 
 # %%
@@ -6544,7 +6547,18 @@ ax.set(xscale="log")
 # * Y axis - num. of distinct proteins this read now supports via reassignment
 
 # %%
-reads_dfs[0]
+# reads_dfs[0]
+
+# %%
+# max_expression_df
+
+# %%
+# max_expression_df.loc[max_expression_df["NumOfReads"].ge(2)]
+
+# %%
+# condition = conditions[0]
+
+# max_expression_df.loc[max_expression_df[condition_col] == condition,]
 
 # %%
 ambigous_positions_in_reads_dfs = []
@@ -6557,6 +6571,50 @@ for reads_df, chrom in zip(reads_dfs, chroms):
     )
 
     reads_df.insert(0, "Chrom", chrom)
+
+    # unique_reassigned_reads = set(
+    #     chain.from_iterable(
+    #         max_expression_df.loc[
+    #             max_expression_df[condition_col] == condition, "FlattenedAllReads"
+    #         ].apply(lambda x: x[1:])
+    #     )
+    # )
+    # reads_df["Status"] = reads_df["Read"].apply(
+    #     lambda x: "Original" if x not in unique_reassigned_reads else "Reassigned"
+    # )
+
+    unique_original_reads = set(
+        chain.from_iterable(
+            max_expression_df.loc[
+                max_expression_df[condition_col] == condition, "Reads"
+            ]
+        )
+    )
+    reads_df["Status"] = reads_df["Read"].apply(
+        lambda x: "Original" if x in unique_original_reads else "Reassigned"
+    )
+
+    reassignment_counter = Counter(
+        chain.from_iterable(
+            max_expression_df.loc[
+                max_expression_df[condition_col] == condition, "FlattenedAllReads"
+            ]
+        )
+    )
+    reassignment_counter_series = pd.Series(reassignment_counter)
+    reassignment_counter_df = reassignment_counter_series.reset_index().rename(
+        columns={"index": "Read", 0: "NumOfReassignments"}
+    )
+    reads_df = reads_df.merge(
+        reassignment_counter_df, how="inner", on="Read", indicator="indicator"
+    )
+    assert (
+        reads_df.loc[reads_df["Status"].eq("Original"), "NumOfReassignments"]
+        .eq(1)
+        .all()
+    )
+    reads_df.loc[reads_df["Status"].eq("Original"), "NumOfReassignments"] = 0
+
     ambigous_positions_in_reads_dfs.append(reads_df)
 ambigous_positions_in_reads_df = (
     pd.concat(
@@ -6573,10 +6631,335 @@ ambigous_positions_in_reads_df = (
     )
     .drop(columns="NewRead")
 )
+
+# assert ambigous_positions_in_reads_df.loc[
+#     ambigous_positions_in_reads_df["Status"].eq("Original"), "NumOfReassignments"
+# ].eq(1).all()
+assert ambigous_positions_in_reads_df["indicator"].value_counts()["both"] == (
+    ambigous_positions_in_reads_df.shape[0]
+)
+del ambigous_positions_in_reads_df["indicator"]
+
 ambigous_positions_in_reads_df
 
 # %%
-ambigous_positions_in_reads_df.groupby(condition_col).agg(["mean", "std"]).round(2)
+# ambigous_positions_in_reads_df.groupby([condition_col, "Status"])[
+#     [
+#         "EditingFrequency",
+#         "EditedPositions",
+#         "UneditedPositions",
+#         "NAPositions",
+#         "NumOfReassignments",
+#         "ReadLength",
+#     ]
+# ].describe()
+
+# %%
+ambigous_positions_in_reads_df.groupby([condition_col, "Status"])[
+    [
+        # "EditingFrequency",
+        "EditedPositions",
+        "UneditedPositions",
+        "NAPositions",
+        "NumOfReassignments",
+        "ReadLength",
+    ]
+].agg(
+    [
+        "mean",
+    ]
+).round(3)
+
+# %%
+for col in [
+    # "EditingFrequency",
+    "EditedPositions",
+    "UneditedPositions",
+    "NAPositions",
+    # "NumOfReassignments",
+    # "ReadLength",
+]:
+    fig = px.histogram(
+        ambigous_positions_in_reads_df,
+        x=col,
+        
+        # color=condition_col,
+        # color_discrete_map=color_discrete_map,
+        # facet_col="Status",
+        
+        color="Status",
+        facet_col=condition_col,
+        
+        # labels={"NAsPerRead": "NAs / read"},
+        histnorm="percent",
+        category_orders={condition_col: conditions, "Status": ["Original", "Reassigned"]},
+    )
+    
+    # fig.update_traces(opacity=0.75)
+    fig.update_traces(opacity=0.55)
+    
+    # fig.update_yaxes(title="Reads", dtick=3000)
+    fig.update_layout(
+        width=600,
+        height=350,
+        template=template,
+        barmode="overlay",
+        # title="Squid's UMI long-reads - merged samples",
+    )
+    fig.show()
+
+# %%
+fig = px.histogram(
+    ambigous_positions_in_reads_df,
+    x="ReadLength",
+    
+    # color=condition_col,
+    # color_discrete_map=color_discrete_map,
+    # facet_col="Status",
+    
+    color="Status",
+    facet_col=condition_col,
+    
+    # labels={"NAsPerRead": "NAs / read"},
+    histnorm="percent",
+    cumulative=True,
+    log_y=True,
+    category_orders={condition_col: conditions, "Status": ["Original", "Reassigned"]},
+)
+# fig.update_traces(opacity=0.75)
+fig.update_traces(opacity=0.55)
+# fig.update_yaxes(title="Reads", dtick=3000)
+fig.update_layout(
+    width=600,
+    height=350,
+    template=template,
+    barmode="overlay",
+    # title="Squid's UMI long-reads - merged samples",
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    ambigous_positions_in_reads_df.loc[
+        ambigous_positions_in_reads_df["Status"].eq("Reassigned")
+    ],
+    x="NumOfReassignments",
+    
+    # color=condition_col,
+    # color_discrete_map=color_discrete_map,
+    # facet_col="Status",
+    
+    # color="Status",
+    facet_col=condition_col,
+    
+    # labels={"NAsPerRead": "NAs / read"},
+    histnorm="percent",
+    # cumulative=True,
+    # log_x=True,
+    # log_y=True,
+    # category_orders={condition_col: conditions, "Status": ["Original", "Reassigned"]},
+)
+# fig.update_traces(opacity=0.75)
+# fig.update_traces(opacity=0.55)
+fig.update_xaxes(tick0=0, dtick=3000)
+# fig.update_yaxes(title="Reads", dtick=3000)
+fig.update_layout(
+    width=600,
+    height=350,
+    template=template,
+    barmode="overlay",
+    # title="Squid's UMI long-reads - merged samples",
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    ambigous_positions_in_reads_df.loc[
+        ambigous_positions_in_reads_df["Status"].eq("Reassigned")
+    ],
+    x="NumOfReassignments",
+    
+    # color=condition_col,
+    # color_discrete_map=color_discrete_map,
+    # facet_col="Status",
+    
+    # color="Status",
+    facet_col=condition_col,
+    
+    # labels={"NAsPerRead": "NAs / read"},
+    histnorm="percent",
+    cumulative=True,
+    # log_x=True,
+    # log_y=True,
+    # category_orders={condition_col: conditions, "Status": ["Original", "Reassigned"]},
+)
+# fig.update_traces(opacity=0.75)
+# fig.update_traces(opacity=0.55)
+fig.update_xaxes(tick0=0, dtick=3000)
+# fig.update_yaxes(title="Reads", dtick=3000)
+fig.update_layout(
+    width=600,
+    height=350,
+    template=template,
+    barmode="overlay",
+    # title="Squid's UMI long-reads - merged samples",
+)
+fig.show()
+
+# %%
+# fig = px.scatter(
+#     max_expression_df,
+#     x="NumOfReads",
+#     y="TotalWeightedSupportingReads",
+    
+#     # color=condition_col,
+#     # color_discrete_map=color_discrete_map,
+#     # facet_col="Status",
+    
+#     # color="Status",
+#     facet_col=condition_col,
+    
+#     # labels={"NAsPerRead": "NAs / read"},
+#     # histnorm="percent",
+#     # cumulative=True,
+#     log_x=True,
+#     log_y=True,
+#     # category_orders={condition_col: conditions, "Status": ["Original", "Reassigned"]},
+# )
+# # fig.update_traces(opacity=0.75)
+# # fig.update_traces(opacity=0.55)
+# # fig.update_xaxes(dtick=3000, range=[0, 21000])
+# # fig.update_xaxes(tick0=0, dtick=3000, 
+# #                 #  tickangle=45
+# #                  )
+# # fig.update_yaxes(title="Reads", dtick=3000)
+# fig.update_layout(
+#     width=600,
+#     height=350,
+#     template=template,
+#     barmode="overlay",
+#     # title="Squid's UMI long-reads - merged samples",
+# )
+# fig.show()
+
+# %%
+fig = px.scatter(
+    max_expression_df,
+    x="NumOfReads",
+    y="TotalWeightedSupportingReads",
+    
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    # facet_col="Status",
+    
+    # color="Status",
+    # facet_col=condition_col,
+    
+    # labels={"NAsPerRead": "NAs / read"},
+    # histnorm="percent",
+    # cumulative=True,
+    log_x=True,
+    log_y=True,
+    marginal_x="box",
+    marginal_y="box",
+    # category_orders={condition_col: conditions, "Status": ["Original", "Reassigned"]},
+)
+# fig.update_traces(opacity=0.75)
+fig.update_traces(opacity=0.55)
+# fig.update_xaxes(dtick=3000, range=[0, 21000])
+# fig.update_xaxes(tick0=0, dtick=3000, 
+#                 #  tickangle=45
+#                  )
+# fig.update_yaxes(title="Reads", dtick=3000)
+fig.update_layout(
+    width=500,
+    height=500,
+    template=template,
+    barmode="overlay",
+    # title="Squid's UMI long-reads - merged samples",
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    max_expression_df,
+    x="NumOfReads",
+    y="TotalWeightedSupportingReads",
+    
+    # color=condition_col,
+    # color_discrete_map=color_discrete_map,
+    # facet_col="Status",
+    
+    # color="Status",
+    facet_col=condition_col,
+    
+    # labels={"NAsPerRead": "NAs / read"},
+    # histnorm="percent",
+    histfunc="avg",
+    # cumulative=True,
+    log_x=True,
+    log_y=True,
+    # category_orders={condition_col: conditions, "Status": ["Original", "Reassigned"]},
+)
+# fig.update_traces(opacity=0.75)
+# fig.update_traces(opacity=0.55)
+# fig.update_xaxes(dtick=3000, range=[0, 21000])
+# fig.update_xaxes(tick0=0, dtick=3000, 
+#                 #  tickangle=45
+#                  )
+# fig.update_yaxes(title="Reads", dtick=3000)
+fig.update_layout(
+    width=600,
+    height=350,
+    template=template,
+    barmode="overlay",
+    # title="Squid's UMI long-reads - merged samples",
+)
+fig.show()
+
+# %%
+fig = px.scatter(
+    max_expression_df,
+    x="NumOfReads",
+    y="AdditionalSupportingProteins",
+    
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    # facet_col="Status",
+    
+    # color="Status",
+    # facet_col=condition_col,
+    
+    # labels={"NAsPerRead": "NAs / read"},
+    # histnorm="percent",
+    # cumulative=True,
+    log_x=True,
+    log_y=True,
+    marginal_x="box",
+    marginal_y="box",
+    # category_orders={condition_col: conditions, "Status": ["Original", "Reassigned"]},
+)
+# fig.update_traces(opacity=0.75)
+fig.update_traces(opacity=0.55)
+# fig.update_xaxes(dtick=3000, range=[0, 21000])
+# fig.update_xaxes(tick0=0, dtick=3000, 
+#                 #  tickangle=45
+#                  )
+# fig.update_yaxes(title="Reads", dtick=3000)
+fig.update_layout(
+    width=500,
+    height=500,
+    template=template,
+    barmode="overlay",
+    # title="Squid's UMI long-reads - merged samples",
+)
+fig.show()
+
+# %%
+
+# %%
+
+# %%
 
 # %%
 fig = px.histogram(
@@ -6724,39 +7107,6 @@ fig = px.histogram(
 fig.update_traces(opacity=0.5)
 fig.update_xaxes(dtick=2000)
 fig.update_yaxes(range=[0, None], title="Reads")
-fig.update_layout(
-    width=600,
-    height=400,
-    template=template,
-    barmode="overlay",
-    # title="Reassigned reads",
-    # showlegend=False,
-)
-fig.show()
-
-# %%
-fig = px.histogram(
-    reassigned_reads_df,
-    x="NumOfReassignments",
-    color=condition_col,
-    color_discrete_map=color_discrete_map,
-    labels={
-        "NumOfReassignments": "Number of reassignments / reassigned read",
-        # "ReadLength": "Read length",
-    },
-    # facet_col=condition_col,
-    # trendline="ols",
-    # marginal_x="box",
-    # marginal_y="box",
-    # trendline_color_override="black",
-    opacity=0.7,
-    cumulative=True,
-    # log_x=True,
-    log_y=True,
-)
-fig.update_traces(opacity=0.5)
-fig.update_xaxes(dtick=2000)
-fig.update_yaxes(range=[0, None], title="Reads (cumulative)")
 fig.update_layout(
     width=600,
     height=400,
