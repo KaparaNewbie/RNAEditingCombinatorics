@@ -20,6 +20,91 @@ include(joinpath(@__DIR__, "issimilar.jl")) # for issimilar
 include(joinpath(@__DIR__, "timeformatters.jl"))
 
 
+function prepare_distinctdf(
+	distinctfile, delim, innerdelim, truestrings, falsestrings,
+)
+	# distinctdf = DataFrame(CSV.File(distinctfile; delim, truestrings, falsestrings))
+	distinctdf = DataFrame(CSV.File(distinctfile; delim, truestrings, falsestrings, types = Dict("UniqueSamples" => String, "AvailableReads" => String)))
+	# distinctdf[!, "UniqueSamples"] = InlineString.(distinctdf[!, "UniqueSamples"])
+
+	transform!(distinctdf, :UniqueSamples => (x -> split.(x, innerdelim)) => :UniqueSamples)
+	if "AvailableReads" ∈ names(distinctdf)
+		transform!(distinctdf, :AvailableReads => (x -> split.(x, innerdelim)) => :AvailableReads)
+	end
+	distinctdf[!, "Index"] = collect(1:size(distinctdf, 1))
+	return distinctdf
+end
+
+
+toAAset(x, innerdelim) = Set(map(aa -> convert(AminoAcid, only(aa)), split(x, innerdelim)))
+
+
+function prepare_readsdf(readsfile, delim)
+	readsdf = DataFrame(
+		CSV.File(
+			readsfile,
+			delim = delim,
+			types = Dict("Read" => String),
+			select = ["Gene", "Read", "AmbigousPositions", "EditedPositions", "UneditedPositions"],
+		),
+	)
+	rename!(readsdf, "AmbigousPositions" => "NAPositions")
+	return readsdf
+end
+
+
+function prepare_allprotsdf!(
+	allprotsfile, delim, innerdelim,
+	truestrings, falsestrings, firstcolpos,
+	readsdf,
+)
+
+	df1 = DataFrame(CSV.File(allprotsfile, delim = delim, select = collect(1:firstcolpos-1), types = Dict("Protein" => String, "Reads" => String)))
+	df1[!, "Protein"] = InlineString.(df1[!, :Protein])
+	# make sure columns of AAs containing only Ts aren't parsed as boolean columns
+	df2 = DataFrame(CSV.File(allprotsfile, delim = delim, drop = collect(1:firstcolpos-1), types = String))
+	df2 = toAAset.(df2, innerdelim)
+
+	allprotsdf = hcat(df1, df2)
+
+	transform!(allprotsdf, :Reads => (x -> split.(x, innerdelim)) => :Reads)
+
+
+	# calculate the mean na positions per each protein's reads - the current stats are inaccurate
+	# readsdf = prepare_readsdf(readsfile, delim)
+	mean_na_positions_per_prot = []
+	for row in eachrow(allprotsdf)
+		rows_reads = row["Reads"]
+		na_positions_of_reads = readsdf[readsdf[!, "Read"].∈Ref(rows_reads), "NAPositions"]
+		mean_na_positions_of_reads = mean(na_positions_of_reads)
+		push!(mean_na_positions_per_prot, mean_na_positions_of_reads)
+	end
+	allprotsdf[!, "AmbigousPositions"] .= mean_na_positions_per_prot
+	rename!(allprotsdf, "AmbigousPositions" => "MeanNAPositions")
+
+	insertcols!(allprotsdf, firstcolpos, :Index => 1:size(allprotsdf, 1))
+	firstcolpos += 1
+	insertcols!(allprotsdf, firstcolpos, :AdditionalEqualSupportingReads => 0.0)
+	firstcolpos += 1
+	insertcols!(allprotsdf, firstcolpos, :AdditionalWeightedSupportingReads => 0.0)
+	firstcolpos += 1
+
+	insertcols!(
+		allprotsdf,
+		firstcolpos,
+		:AdditionalEqualSupportingReadsContributionPerProtein => [[] for _ ∈ 1:size(allprotsdf, 1)],
+		:AdditionalWeightedSupportingReadsContributionPerProtein => [[] for _ ∈ 1:size(allprotsdf, 1)],
+		:AdditionalSupportingReadsIDs => [[] for _ ∈ 1:size(allprotsdf, 1)],
+		:AdditionalSupportingProteinsIDs => [[] for _ ∈ 1:size(allprotsdf, 1)],
+		:AdditionalSupportingProteinsDistances => [[] for _ ∈ 1:size(allprotsdf, 1)],
+		:AdditionalSupportingProteinsMeanNAPositions => [[] for _ ∈ 1:size(allprotsdf, 1)],
+	)
+	firstcolpos += 6
+
+	return allprotsdf, firstcolpos
+end
+
+
 """Return pairs of sets of AAs with no two possible AAs that share a similar classification according to `aagroups`."""
 function finddistinctAAsets(
 	AAsets::Set{Set{AminoAcid}},
@@ -233,11 +318,10 @@ function i_js_distances(
 end
 
 
-
 const UInts = [UInt8, UInt16, UInt32, UInt64, UInt128]
 
 
-
+"""Return the smallest unsigned int type that can hold `maximumval`."""
 function smallestuint(maximumval)
 	for uint ∈ UInts
 		if maximumval <= typemax(uint)
@@ -282,60 +366,6 @@ function allargmins(A)
 end
 
 
-function run_sample(
-	distinctfile, allprotsfile, samplename, postfix_to_add,
-	firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
-	maxmainthreads, outdir, algs, onlymaxdistinct,
-	substitutionmatrix::Union{SubstitutionMatrix, Nothing},
-	similarityscorecutoff::Int64,
-	similarityvalidator::Function,
-	aagroups::Union{Dict{AminoAcid, String}, Nothing},
-)
-	@info "$(loggingtime())\trun_sample" distinctfile allprotsfile samplename
-
-	distinctdf = prepare_distinctdf(
-		distinctfile, delim, innerdelim, truestrings, falsestrings,
-	)
-
-	allprotsdf, firstcolpos = prepare_allprotsdf!(
-		allprotsfile, delim, innerdelim, truestrings, falsestrings, firstcolpos,
-	)
-
-	# the possible amino acids each protein has in each position
-	M = Matrix(allprotsdf[:, firstcolpos:end])
-	# the distances between any two proteins according to `M`
-	Δ = begin
-		if substitutionmatrix !== nothing
-			distances(M, substitutionmatrix, similarityscorecutoff, similarityvalidator)
-		elseif aagroups !== nothing
-			distances(M, aagroups)
-		else
-			distances(M)
-		end
-	end
-
-	# considering only desired solutions (rows' indices)
-	solutions = choosesolutions(distinctdf, fractions, algs, onlymaxdistinct)
-
-	# allsubsolutions = collect(Iterators.partition(solutions, maxmainthreads))
-
-	minmainthreads = minimum([Int(Threads.nthreads() / 5), Int(length(solutions) / 4)])
-	allsubsolutions = collect(Iterators.partition(solutions, minmainthreads))
-
-	results = tcollect(
-		additional_assignments(distinctdf, allprotsdf, firstcolpos, Δ, subsolutions)
-		for subsolutions ∈ allsubsolutions
-	)
-	# finalresults = vcat(Iterators.flatten(results)...)
-	# finalresults = vcat(skipmissing(Iterators.flatten(results)...))
-	finalresults = vcat((skipmissing(Iterators.flatten(results))...))
-
-	# save the results
-	outfile = joinpath(abspath(outdir), "$samplename.DistinctUniqueProteins.ExpressionLevels$postfix_to_add.csv")
-	CSV.write(outfile, finalresults; delim)
-end
-
-
 "Get indices of eligible solutions from `distinctdf` on which expression levels should be calculated."
 function choosesolutions(distinctdf, fractions, algs, onlymaxdistinct)
 
@@ -354,111 +384,20 @@ function choosesolutions(distinctdf, fractions, algs, onlymaxdistinct)
 end
 
 
-function additional_assignments(distinctdf, allprotsdf, firstcolpos, Δ, solutions)
-	results = map(solutions) do solution
-		try
-			one_solution_additional_assignment_considering_available_reads(distinctdf, allprotsdf, firstcolpos, Δ, solution)
-		catch e
-			@warn "Error in additional_assignments:" e solution
-			missing
-		end
-	end
-	return results
-end
-
-
-function prepare_distinctdf(
-	distinctfile, delim, innerdelim, truestrings, falsestrings,
-)
-	# distinctdf = DataFrame(CSV.File(distinctfile; delim, truestrings, falsestrings))
-	distinctdf = DataFrame(CSV.File(distinctfile; delim, truestrings, falsestrings, types = Dict("UniqueSamples" => String, "AvailableReads" => String)))
-	# distinctdf[!, "UniqueSamples"] = InlineString.(distinctdf[!, "UniqueSamples"])
-
-	transform!(distinctdf, :UniqueSamples => (x -> split.(x, innerdelim)) => :UniqueSamples)
-	if "AvailableReads" ∈ names(distinctdf)
-		transform!(distinctdf, :AvailableReads => (x -> split.(x, innerdelim)) => :AvailableReads)
-	end
-	distinctdf[!, "Index"] = collect(1:size(distinctdf, 1))
-	return distinctdf
-end
-
-
-toAAset(x, innerdelim) = Set(map(aa -> convert(AminoAcid, only(aa)), split(x, innerdelim)))
-
-
-function prepare_readsdf(readsfile, delim)
-	readsdf = DataFrame(
-		CSV.File(
-			readsfile,
-			delim = delim,
-			types = Dict("Read" => String),
-			select = ["Gene", "Read", "AmbigousPositions", "EditedPositions", "UneditedPositions"],
-		),
-	)
-	rename!(readsdf, "AmbigousPositions" => "NAPositions")
-	return readsdf
-end
-
-
-function prepare_allprotsdf!(
-	allprotsfile, delim, innerdelim,
-	truestrings, falsestrings, firstcolpos,
-	readsdf,
-)
-
-	df1 = DataFrame(CSV.File(allprotsfile, delim = delim, select = collect(1:firstcolpos-1), types = Dict("Protein" => String, "Reads" => String)))
-	df1[!, "Protein"] = InlineString.(df1[!, :Protein])
-	# make sure columns of AAs containing only Ts aren't parsed as boolean columns
-	df2 = DataFrame(CSV.File(allprotsfile, delim = delim, drop = collect(1:firstcolpos-1), types = String))
-	df2 = toAAset.(df2, innerdelim)
-
-	allprotsdf = hcat(df1, df2)
-
-	transform!(allprotsdf, :Reads => (x -> split.(x, innerdelim)) => :Reads)
-
-
-	# calculate the mean na positions per each protein's reads - the current stats are inaccurate
-	# readsdf = prepare_readsdf(readsfile, delim)
-	mean_na_positions_per_prot = []
-	for row in eachrow(allprotsdf)
-		rows_reads = row["Reads"]
-		na_positions_of_reads = readsdf[readsdf[!, "Read"].∈Ref(rows_reads), "NAPositions"]
-		mean_na_positions_of_reads = mean(na_positions_of_reads)
-		push!(mean_na_positions_per_prot, mean_na_positions_of_reads)
-	end
-	allprotsdf[!, "AmbigousPositions"] .= mean_na_positions_per_prot
-	rename!(allprotsdf, "AmbigousPositions" => "MeanNAPositions")
-
-	insertcols!(allprotsdf, firstcolpos, :Index => 1:size(allprotsdf, 1))
-	firstcolpos += 1
-	insertcols!(allprotsdf, firstcolpos, :AdditionalEqualSupportingReads => 0.0)
-	firstcolpos += 1
-	insertcols!(allprotsdf, firstcolpos, :AdditionalWeightedSupportingReads => 0.0)
-	firstcolpos += 1
-
-	insertcols!(
-		allprotsdf,
-		firstcolpos,
-		:AdditionalEqualSupportingReadsContributionPerProtein => [[] for _ ∈ 1:size(allprotsdf, 1)],
-		:AdditionalWeightedSupportingReadsContributionPerProtein => [[] for _ ∈ 1:size(allprotsdf, 1)],
-		:AdditionalSupportingReadsIDs => [[] for _ ∈ 1:size(allprotsdf, 1)],
-		:AdditionalSupportingProteinsIDs => [[] for _ ∈ 1:size(allprotsdf, 1)],
-		:AdditionalSupportingProteinsDistances => [[] for _ ∈ 1:size(allprotsdf, 1)],
-		:AdditionalSupportingProteinsMeanNAPositions => [[] for _ ∈ 1:size(allprotsdf, 1)],
-	)
-	firstcolpos += 6
-
-	return allprotsdf, firstcolpos
-end
-
-
 possibly_empty_array_sum(arr) = isempty(arr) ? 0 : sum(arr)
 
 
+# solution = 73  # 74, 77, 65, 78, 66, 69, 70
+# result = one_solution_additional_assignment_considering_available_reads(
+# 	distinctdf, allprotsdf, firstcolpos, Δ, solution,
+# 	readsdf,
+# )
+
+
 function one_solution_additional_assignment_considering_available_reads(
-	distinctdf, allprotsdf, firstcolpos, Δ, solution,
-	readsdf,
+	distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename,
 )
+	@info "$(loggingtime())\tone_solution_additional_assignment_considering_available_reads" samplename solution
 
 	solutionrow = distinctdf[solution, :]
 
@@ -474,6 +413,7 @@ function one_solution_additional_assignment_considering_available_reads(
 		]
 		baseallprotsdf[:, "Reads"] .= availablereadsperprotein
 		baseallprotsdf[:, "NumOfReads"] .= length.(availablereadsperprotein)
+		# filter out proteins not supported by currently-available reads
 		baseallprotsdf = filter("NumOfReads" => x -> x > 0, baseallprotsdf)
 	end
 
@@ -503,6 +443,100 @@ function one_solution_additional_assignment_considering_available_reads(
 	chosendf = filter("Protein" => x -> x ∈ prots_in_solution, baseallprotsdf)
 	unchosendf = filter("Protein" => x -> x ∉ prots_in_solution, baseallprotsdf)
 
+	chosenindices = chosendf[:, "Index"] # indices of chosen proteins in the complete Δ matrix
+	unchosenindices = unchosendf[:, "Index"] # indices of unchosen proteins in the complete Δ matrix
+
+	# before continuing any further,
+	# validate that the distance between any two chosen proeins (two distinct proteins)
+	# is at least 1
+	chosenprot_chosenprot_distances = Δ[chosenindices, chosenindices] # the distances between the chosen proteins to themselves
+	chosenprot_minimum_distances = minimum.(
+		vcat(row[begin:i-1], row[i+1:end])
+		for (i, row) in enumerate(eachrow(chosenprot_chosenprot_distances))
+	) # the smallest distance between each chosen prot to all others
+	@assert all(chosenprot_minimum_distances .>= 1)
+
+	# also report unchosen prots which could have been included in the MIS as well
+	unchosenprot_chosenprot_distances = Δ[unchosenindices, chosenindices] # the distances between the unchosen proteins to chosen proteins
+	unchosenprot_chosenprot_minimum_distances = minimum.(eachrow(unchosenprot_chosenprot_distances))
+	# these are the candidates - unchosen prots with distance > 0 to each chosen prot
+	unchosen_prots_with_min_d_1_rel_indices = findall(unchosenprot_chosenprot_minimum_distances .!== 0x00)
+
+	if isempty(unchosen_prots_with_min_d_1_rel_indices)
+		missing_chosen_prots = []
+	else
+		unchosen_prots_with_min_d_1_abs_indices = unchosenindices[unchosen_prots_with_min_d_1_rel_indices]
+
+		# baseallprotsdf[unchosen_prots_with_min_d_1_abs_indices, "Protein"]
+
+
+		# chosen_prots_with_min_d_to_missing_unchosen_rel_indices = []
+		# for row in eachrow(Δ[unchosen_prots_with_min_d_1_abs_indices, chosenindices])
+		# 	row_min = minimum(row)
+		# 	push!(
+		# 		chosen_prots_with_min_d_to_missing_unchosen_rel_indices,
+		# 		findall(row .== row_min)
+		# 	)
+		# end
+		# describe(length.(chosen_prots_with_min_d_to_missing_unchosen_rel_indices))
+
+		# f = Figure(size = (400, 400))
+		# xs = length.(chosen_prots_with_min_d_to_missing_unchosen_rel_indices)
+		# ax = Axis(f[1, 1],
+		# 	xlabel = "Closeset chosen proteins",
+		# 	ylabel = "Missing proteins",
+		# 	# yscale = log10,
+		# 	# title = "Reassignments per unchosen protein",
+		# 	limits = (0, nothing, 0, nothing),
+		# 	xticks = 0:20:maximum(xs)+20,
+		# 	# yticks = 0:50:600,
+		# )
+		# hist!(ax, xs, color = :red, strokecolor = :black, strokewidth = 1)
+		# f
+
+		# chosen_prots_with_min_d_to_missing_unchosen_rel_indices_counter = counter(
+		# 	vcat(chosen_prots_with_min_d_to_missing_unchosen_rel_indices...)
+		# )
+		# df = DataFrame(ChosenProtRelIndex = vcat(chosen_prots_with_min_d_to_missing_unchosen_rel_indices...))
+		# df = combine(
+		# 	groupby(df, "ChosenProtRelIndex"),
+		# 	nrow
+		# )
+
+		# f = Figure(size = (400, 400))
+		# xs = df[!, :nrow]
+		# ax = Axis(f[1, 1],
+		# 	xlabel = "Missing proteins being closest\nto a chosen protein",
+		# 	ylabel = "Chosen proteins",
+		# 	# yscale = log10,
+		# 	# title = "Reassignments per unchosen protein",
+		# 	# limits = (0, nothing, 0, nothing),
+		# 	xticks = 1:maximum(xs),
+		# 	yticks = 0:50:600,
+		# )
+		# hist!(ax, xs, color = :red, strokecolor = :black, strokewidth = 1)
+		# f
+
+		final_unchosen_prots_with_min_d_1_abs_indices = unchosen_prots_with_min_d_1_abs_indices[
+			sum.(eachrow(Δ[unchosen_prots_with_min_d_1_abs_indices, unchosen_prots_with_min_d_1_abs_indices])).==0
+		]
+		# if final_unchosen_prots_with_min_d_1_abs_indices is empty,
+		# it means that all unchosen proteins are distinct from oneanother,
+		# so only one of them can be added to the chsoen proteins' set - pick it at random
+		if isempty(final_unchosen_prots_with_min_d_1_abs_indices)
+			push!(
+				final_unchosen_prots_with_min_d_1_abs_indices,
+				only(sample(unchosen_prots_with_min_d_1_abs_indices, 1)),
+			)
+		end
+		# missing_chosen_prots = baseallprotsdf[final_unchosen_prots_with_min_d_1_abs_indices, "Protein"]
+		missing_chosen_prots = subset(baseallprotsdf, "Index" => ByRow(x -> x ∈ final_unchosen_prots_with_min_d_1_abs_indices))[!, "Protein"]
+
+	end
+	newsolutionrow = DataFrame(solutionrow)
+	newsolutionrow[:, "MissingUniqueSamples"] = [missing_chosen_prots]
+	newsolutionrow[:, "NumMissingUniqueSamples"] = length.(newsolutionrow[:, "MissingUniqueSamples"])
+
 	insertcols!(
 		chosendf,
 		3,
@@ -512,8 +546,6 @@ function one_solution_additional_assignment_considering_available_reads(
 		"Algorithm" => solutionrow["Algorithm"],
 		"AlgorithmRepetition" => solutionrow["AlgorithmRepetition"],
 	)
-
-	chosenindices = chosendf[:, "Index"] # indices of chosen proteins in the complete Δ matrix
 
 	for unchosenprot ∈ eachrow(unchosendf)  # a row of unchosen protein relative to the chosen proteins in the solution
 
@@ -575,27 +607,27 @@ function one_solution_additional_assignment_considering_available_reads(
 
 		for (existingsupportingreadscontrib, weighted_addition) ∈ zip(
 			chosendf[unchosenprot_distances_argmins, "AdditionalWeightedSupportingReadsContributionPerProtein"],
-			weighted_additions
+			weighted_additions,
 		)
 			push!(existingsupportingreadscontrib, weighted_addition)
 		end
 
 	end
-	
-	
+
+
 	@assert all(
 		isapprox(
-			possibly_empty_array_sum.(chosendf[:, "AdditionalEqualSupportingReadsContributionPerProtein"]), 
-			chosendf[:, "AdditionalEqualSupportingReads"]
-		)
+			possibly_empty_array_sum.(chosendf[:, "AdditionalEqualSupportingReadsContributionPerProtein"]),
+			chosendf[:, "AdditionalEqualSupportingReads"],
+		),
 	)
 	@assert all(
 		isapprox(
-			possibly_empty_array_sum.(chosendf[:, "AdditionalWeightedSupportingReadsContributionPerProtein"]), 
-			chosendf[:, "AdditionalWeightedSupportingReads"]
-		)
+			possibly_empty_array_sum.(chosendf[:, "AdditionalWeightedSupportingReadsContributionPerProtein"]),
+			chosendf[:, "AdditionalWeightedSupportingReads"],
+		),
 	)
-	
+
 	chosendf[:, "TotalEqualSupportingReads"] .= chosendf[:, "NumOfReads"] .+ chosendf[:, "AdditionalEqualSupportingReads"]
 	chosendf[:, "TotalWeightedSupportingReads"] .= chosendf[:, "NumOfReads"] .+ chosendf[:, "AdditionalWeightedSupportingReads"]
 	chosendf[:, "AdditionalSupportingProteins"] .= length.(chosendf[:, "AdditionalSupportingProteinsIDs"])
@@ -611,8 +643,117 @@ function one_solution_additional_assignment_considering_available_reads(
 	@assert all(length.(allprotsdf[!, "AdditionalSupportingReadsIDs"]) .== [0 for _ ∈ 1:size(allprotsdf, 1)]) """Solution: $solution"""
 	@assert all(length.(allprotsdf[!, "AdditionalSupportingProteinsIDs"]) .== [0 for _ ∈ 1:size(allprotsdf, 1)]) """Solution: $solution"""
 
-	return chosendf
+	# return chosendf
+	return chosendf, newsolutionrow
 
+end
+
+
+function additional_assignments(distinctdf, allprotsdf, firstcolpos, Δ, solutions, readsdf, samplename)
+	@info "$(loggingtime())\tadditional_assignments" samplename solutions
+	results = map(solutions) do solution
+		try
+			one_solution_additional_assignment_considering_available_reads(
+				distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename,
+			)
+		catch e
+			@warn "Error in additional_assignments:" e solution
+			missing
+		end
+	end
+	return results
+end
+
+
+function run_sample(
+	distinctfile, allprotsfile, samplename, postfix_to_add,
+	firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
+	maxmainthreads, outdir, algs, onlymaxdistinct,
+	readsfile,
+	substitutionmatrix::Union{SubstitutionMatrix, Nothing},
+	similarityscorecutoff::Int64,
+	similarityvalidator::Function,
+	aagroups::Union{Dict{AminoAcid, String}, Nothing},
+)
+	@info "$(loggingtime())\trun_sample" distinctfile allprotsfile readsfile samplename
+
+	distinctdf = prepare_distinctdf(
+		distinctfile, delim, innerdelim, truestrings, falsestrings,
+	)
+
+	readsdf = prepare_readsdf(readsfile, delim)
+
+	allprotsdf, firstcolpos = prepare_allprotsdf!(
+		allprotsfile, delim, innerdelim, truestrings, falsestrings, firstcolpos,
+		readsdf,
+	)
+
+	# the possible amino acids each protein has in each position
+	M = Matrix(allprotsdf[:, firstcolpos:end])
+	# the distances between any two proteins according to `M`
+	Δ = begin
+		if substitutionmatrix !== nothing
+			distances(M, substitutionmatrix, similarityscorecutoff, similarityvalidator)
+		elseif aagroups !== nothing
+			distances(M, aagroups)
+		else
+			distances(M)
+		end
+	end
+
+	# considering only desired solutions (rows' indices)
+	solutions = choosesolutions(distinctdf, fractions, algs, onlymaxdistinct)
+
+	# allsubsolutions = collect(Iterators.partition(solutions, maxmainthreads))
+
+	minmainthreads = minimum([Int(Threads.nthreads() / 5), Int(length(solutions) / 4)])
+	allsubsolutions = collect(Iterators.partition(solutions, minmainthreads))
+
+	results = tcollect(
+		additional_assignments(
+			distinctdf, allprotsdf, firstcolpos, Δ, subsolutions, readsdf, samplename,
+		)
+		for subsolutions ∈ allsubsolutions
+	)
+	# finalresults = vcat(Iterators.flatten(results)...)
+	# finalresults = vcat(skipmissing(Iterators.flatten(results)...))
+	finalresults = vcat((skipmissing(Iterators.flatten(results))...))
+
+	# save these into seperate files, 
+	# the first being `outfile` and the second an "updated" version of the `distinctfile`
+	finalexpresults = vcat([result[1] for result in finalresults]...)
+	newdistinctdf = vcat([result[2] for result in finalresults]...)
+
+
+	# save the expression results
+	finalexpresults[!, "Reads"] .= join.(finalexpresults[!, "Reads"], innerdelim)
+	roundelements(x, digits = 5) = round.(x; digits)
+	stringifyelements(x) = string.(x)
+	intifyelements(x) = Int.(x)
+	transform!(finalexpresults, :AdditionalEqualSupportingReadsContributionPerProtein => x -> stringifyelements.(roundelements.(x)), renamecols = false)
+	finalexpresults[!, "AdditionalEqualSupportingReadsContributionPerProtein"] .= join.(finalexpresults[!, "AdditionalEqualSupportingReadsContributionPerProtein"], innerdelim)
+	transform!(finalexpresults, :AdditionalWeightedSupportingReadsContributionPerProtein => x -> stringifyelements.(roundelements.(x)), renamecols = false)
+	finalexpresults[!, "AdditionalWeightedSupportingReadsContributionPerProtein"] .= join.(finalexpresults[!, "AdditionalWeightedSupportingReadsContributionPerProtein"], innerdelim)
+	transform!(finalexpresults, :AdditionalSupportingProteinsDistances => x -> stringifyelements.(intifyelements.(x)), renamecols = false)
+	finalexpresults[!, "AdditionalSupportingProteinsDistances"] .= join.(finalexpresults[!, "AdditionalSupportingProteinsDistances"], innerdelim)
+	transform!(finalexpresults, :AdditionalSupportingProteinsMeanNAPositions => x -> stringifyelements.(roundelements.(x)), renamecols = false)
+	finalexpresults[!, "AdditionalSupportingProteinsMeanNAPositions"] .= join.(finalexpresults[!, "AdditionalSupportingProteinsMeanNAPositions"], innerdelim)
+
+	expoutfile = joinpath(abspath(outdir), "$samplename.DistinctUniqueProteins.ExpressionLevels$postfix_to_add.csv")
+	CSV.write(expoutfile, finalexpresults; delim)
+
+	# save the updated distinctdf
+	empty_arr_to_empty_string(arr) = isempty(arr) ? "" : arr
+	newdistinctdf[!, "MissingUniqueSamples"] .= join.(empty_arr_to_empty_string.(newdistinctdf[!, "MissingUniqueSamples"]))
+	newdistinctdf = outerjoin(distinctdf, newdistinctdf, on = names(distinctdf))
+	sort!(newdistinctdf, "Index")
+	# newdistinctdf[!, "MissingUniqueSamples"] .= ifelse.(ismissing.(newdistinctdf[!, "MissingUniqueSamples"]), [[]], newdistinctdf[!, "MissingUniqueSamples"])
+	# newdistinctdf[!, "NumMissingUniqueSamples"] .= ifelse.(ismissing.(newdistinctdf[!, "NumMissingUniqueSamples"]), 0, newdistinctdf[!, "NumMissingUniqueSamples"])
+	newdistinctdf[!, "UniqueSamples"] .= join.(newdistinctdf[!, "UniqueSamples"], innerdelim)
+	newdistinctdf[!, "AvailableReads"] .= join.(newdistinctdf[!, "AvailableReads"], innerdelim)
+	distinctfilepostfixstart = findlast('.', distinctfile)
+	updateddistinctfile = distinctfile[begin:distinctfilepostfixstart-1] * ".Updated" * "$postfix_to_add" * distinctfile[distinctfilepostfixstart:end]
+	CSV.write(updateddistinctfile, newdistinctdf; delim)
 end
 
 
@@ -630,6 +771,10 @@ function parsecmd()
 		# default = []
 		"--allprotsfiles"
 		help = "corresponding csv files representing unique proteins (w.r.t. `distinctfiles`)."
+		nargs = '+'
+		action = :store_arg
+		"--allreadsfiles"
+		help = "corresponding csv files representing the basic reads (w.r.t. `distinctfiles`)."
 		nargs = '+'
 		action = :store_arg
 		# required = true
@@ -740,19 +885,23 @@ function main(
 	firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
 	maxmainthreads, outdir, algs, onlymaxdistinct,
 	gcp, shutdowngcp,
+	readsfiles,
 	substitutionmatrix::Union{SubstitutionMatrix, Nothing},
 	similarityscorecutoff::Int64,
 	similarityvalidator::Function,
 	aagroups::Union{Dict{AminoAcid, String}, Nothing},
 )
-	@info "$(loggingtime())\tmain" distinctfiles allprotsfiles samplenames postfix_to_add firstcolpos delim innerdelim truestrings falsestrings fractions maxmainthreads outdir algs onlymaxdistinct gcp shutdowngcp substitutionmatrix similarityscorecutoff similarityvalidator aagroups
+	@info "$(loggingtime())\tmain" distinctfiles allprotsfiles readsfiles samplenames postfix_to_add firstcolpos delim innerdelim truestrings falsestrings fractions maxmainthreads outdir algs onlymaxdistinct gcp shutdowngcp substitutionmatrix similarityscorecutoff similarityvalidator aagroups
 
+	length(distinctfiles) == length(allprotsfiles) == length(readsfiles) == length(samplenames) || error("Unequal input files' lengths!")
+	
 	# run each sample using the `run_sample` function
-	for (distinctfile, allprotsfile, samplename) ∈ zip(distinctfiles, allprotsfiles, samplenames)
+	for (distinctfile, allprotsfile, samplename, readsfile) ∈ zip(distinctfiles, allprotsfiles, samplenames, readsfiles)
 		run_sample(
 			distinctfile, allprotsfile, samplename, postfix_to_add,
 			firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
 			maxmainthreads, outdir, algs, onlymaxdistinct,
+			readsfile,
 			substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups,
 		)
 	end
@@ -793,6 +942,8 @@ function CLI_main()
 	gcp = parsedargs["gcp"]
 	shutdowngcp = parsedargs["shutdowngcp"]
 
+	readsfiles = parsedargs["allreadsfiles"]
+
 	substitutionmatrix = eval(parsedargs["substitutionmatrix"])
 	similarityscorecutoff = parsedargs["similarityscorecutoff"]
 	similarityvalidator = eval(parsedargs["similarityvalidator"])
@@ -822,6 +973,7 @@ function CLI_main()
 		firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
 		maxmainthreads, outdir, algs, onlymaxdistinct,
 		gcp, shutdowngcp,
+		readsfiles,
 		substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups,
 	)
 end
@@ -834,86 +986,128 @@ end
 
 
 
-distinctfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.06.02.2024-09:29:20.csv"
-readsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz"
-delim = "\t"
-innerdelim = ","
-truestrings = ["TRUE", "True", "true"]
-falsestrings = ["FALSE", "False", "false"]
-allprotsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
-firstcolpos = 15
+# distinctfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.06.02.2024-09:29:20.csv"
+# readsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz"
+# allprotsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
+
+# distinctfile = "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.Fraction0_1.06.02.2024-10:55:32.csv"
+# allprotsfile = "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
+# readsfile = "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz"
 # fractions = [0.1]
-algs = ["Ascending", "Descending"]
-onlymaxdistinct = false
-maxmainthreads = 30
-fractions = [1.0]
 
-substitutionmatrix = nothing
-aagroups = nothing
-similarityscorecutoff = 0
-similarityvalidator = :(>=)
+# samplename = "GRIA"
+# delim = "\t"
+# innerdelim = ","
+# truestrings = ["TRUE", "True", "true"]
+# falsestrings = ["FALSE", "False", "false"]
+# firstcolpos = 15
 
+# algs = ["Ascending", "Descending"]
+# onlymaxdistinct = false
+# maxmainthreads = 30
+# fractions = [1.0]
 
-distinctdf = prepare_distinctdf(
-	distinctfile, delim, innerdelim, truestrings, falsestrings,
-)
-
-readsdf = prepare_readsdf(readsfile, delim)
-
-allprotsdf, firstcolpos = prepare_allprotsdf!(
-	allprotsfile, delim, innerdelim, truestrings, falsestrings, firstcolpos, readsdf,
-)
-
-# the possible amino acids each protein has in each position
-M = Matrix(allprotsdf[:, firstcolpos:end])
-# the distances between any two proteins according to `M`
-Δ = begin
-	if substitutionmatrix !== nothing
-		distances(M, substitutionmatrix, similarityscorecutoff, similarityvalidator)
-	elseif aagroups !== nothing
-		distances(M, aagroups)
-	else
-		distances(M)
-	end
-end
-
-Int(maximum(Δ)) # maximum distance between any two proteins
-Int(minimum(Δ)) # minimum distance between any two proteins
+# substitutionmatrix = nothing
+# aagroups = nothing
+# similarityscorecutoff = 0
+# similarityvalidator = :(>=)
 
 
+# distinctdf = prepare_distinctdf(
+# 	distinctfile, delim, innerdelim, truestrings, falsestrings,
+# )
 
-# plot distances between all protein pairs
-all_tri_ds_counter = counter(Δ.tri)
-diag_ds_counter = counter(diag(Δ))
-for (k, v) in diag_ds_counter
-	all_tri_ds_counter[k] -= v
-end
-for (k, v) in all_tri_ds_counter
-	if v == 0x00
-		pop!(all_tri_ds_counter, k)
-	end
-end
-distancesdf = DataFrame(Distance = Int.(keys(all_tri_ds_counter)), Count = collect(values(all_tri_ds_counter)))
-xs = distancesdf[!, "Distance"]
-ys = distancesdf[!, "Count"]
-f = Figure(size = (500, 500))
-ax = Axis(f[1, 1],
-	# xlabel = "Distance", 
-	xlabel = "Distance",
-	ylabel = "Protein pairs",
-	yscale = log10,
-	title = "Distance between any two proteins",
-	# yticks = LogTicks(WilkinsonTicks(2))
-	# yticks = [10 ^ i for i in 1:9]
-)
-barplot!(ax, xs, ys, color = :red, strokecolor = :black, strokewidth = 1)
-f
+# readsdf = prepare_readsdf(readsfile, delim)
+
+# allprotsdf, firstcolpos = prepare_allprotsdf!(
+# 	allprotsfile, delim, innerdelim, truestrings, falsestrings, firstcolpos, readsdf,
+# )
+
+# # the possible amino acids each protein has in each position
+# M = Matrix(allprotsdf[:, firstcolpos:end])
+# # the distances between any two proteins according to `M`
+# Δ = begin
+# 	if substitutionmatrix !== nothing
+# 		distances(M, substitutionmatrix, similarityscorecutoff, similarityvalidator)
+# 	elseif aagroups !== nothing
+# 		distances(M, aagroups)
+# 	else
+# 		distances(M)
+# 	end
+# end
+
+# # Int(maximum(Δ)) # maximum distance between any two proteins
+# # Int(minimum(Δ)) # minimum distance between any two proteins
 
 
+# solution = distinctdf[distinctdf[!, "NumUniqueSamples"].==maximum(distinctdf[!, "NumUniqueSamples"]), "Index"][1]
+# @assert length(solution) == 1 # should be a single element - not a vector
+
+# solution = 15
+
+# # considering only desired solutions (rows' indices)
+# solutions = choosesolutions(distinctdf, fractions, algs, onlymaxdistinct)
+
+# # allsubsolutions = collect(Iterators.partition(solutions, maxmainthreads))
+
+# # minmainthreads = minimum([Int(Threads.nthreads() / 5), Int(length(solutions) / 4)])
+# minmainthreads = 8
+# allsubsolutions = collect(Iterators.partition(solutions, minmainthreads))
+
+# results = tcollect(
+# 	additional_assignments(distinctdf, allprotsdf, firstcolpos,
+# 	Δ, subsolutions, readsdf)
+# 	for subsolutions ∈ allsubsolutions
+# )
+# # finalresults = vcat(Iterators.flatten(results)...)
+# # finalresults = vcat(skipmissing(Iterators.flatten(results)...))
+# finalresults = vcat((skipmissing(Iterators.flatten(results))...))
+
+# finalresults[8][1]
+# finalresults[8][2]
+
+# size(finalresults)
+
+# finalexpresults = vcat([result[1] for result in finalresults]...)
+
+# newdistinctdf = vcat([result[2] for result in finalresults]...)
+# sort(newdistinctdf[!,["Algorithm", "NumMissingUniqueSamples"]], "Algorithm")
 
 
 
-# considering only desired solutions (rows' indices)
+
+# # plot distances between all protein pairs
+# all_tri_ds_counter = counter(Δ.tri)
+# diag_ds_counter = counter(diag(Δ))
+# for (k, v) in diag_ds_counter
+# 	all_tri_ds_counter[k] -= v
+# end
+# for (k, v) in all_tri_ds_counter
+# 	if v == 0x00
+# 		pop!(all_tri_ds_counter, k)
+# 	end
+# end
+# distancesdf = DataFrame(Distance = Int.(keys(all_tri_ds_counter)), Count = collect(values(all_tri_ds_counter)))
+# xs = distancesdf[!, "Distance"]
+# ys = distancesdf[!, "Count"]
+# f = Figure(size = (500, 500))
+# ax = Axis(f[1, 1],
+# 	# xlabel = "Distance", 
+# 	xlabel = "Distance",
+# 	ylabel = "Protein pairs",
+# 	yscale = log10,
+# 	title = "Distance between any two proteins",
+# 	# yticks = LogTicks(WilkinsonTicks(2))
+# 	# yticks = [10 ^ i for i in 1:9]
+# )
+# barplot!(ax, xs, ys, color = :red, strokecolor = :black, strokewidth = 1)
+# f
+
+
+
+
+
+# # considering only desired solutions (rows' indices)
 # solutions = choosesolutions(distinctdf, fractions, algs, onlymaxdistinct)
 
 
@@ -924,544 +1118,586 @@ f
 # allsubsolutions = collect(Iterators.partition(solutions, minmainthreads))
 
 
-# solution = 79
-solution = distinctdf[distinctdf[!, "NumUniqueSamples"].==maximum(distinctdf[!, "NumUniqueSamples"]), "Index"][1]
-@assert length(solution) == 1 # should be a single element - not a vector
+# # solution = 79
+# solution = distinctdf[distinctdf[!, "NumUniqueSamples"].==maximum(distinctdf[!, "NumUniqueSamples"]), "Index"][1]
+# @assert length(solution) == 1 # should be a single element - not a vector
 
-solutionrow = distinctdf[solution, :]
+# solutionrow = distinctdf[solution, :]
 
-# todo update these lines based on the updated function they are taken from
+# # todo update these lines based on the updated function they are taken from
 
-baseallprotsdf = deepcopy(allprotsdf[:, begin:firstcolpos-1])
+# baseallprotsdf = deepcopy(allprotsdf[:, begin:firstcolpos-1])
 
-# # if "AvailableReads" ∈ names(solutionrow) && solutionrow["Fraction"] < 1.0
-# if "AvailableReads" ∈ names(solutionrow)
-# 	availablereads = solutionrow["AvailableReads"]
-# 	allreadsperprotein = baseallprotsdf[!, "Reads"]
-# 	availablereadsperprotein = [
-# 		[read for read ∈ reads if read ∈ availablereads]
-# 		for reads ∈ allreadsperprotein
-# 	]
-# 	baseallprotsdf[:, "Reads"] .= availablereadsperprotein
-# 	baseallprotsdf[:, "NumOfReads"] .= length.(availablereadsperprotein)
-# 	baseallprotsdf = filter("NumOfReads" => x -> x > 0, baseallprotsdf)
-# end
+# # # if "AvailableReads" ∈ names(solutionrow) && solutionrow["Fraction"] < 1.0
+# # if "AvailableReads" ∈ names(solutionrow)
+# # 	availablereads = solutionrow["AvailableReads"]
+# # 	allreadsperprotein = baseallprotsdf[!, "Reads"]
+# # 	availablereadsperprotein = [
+# # 		[read for read ∈ reads if read ∈ availablereads]
+# # 		for reads ∈ allreadsperprotein
+# # 	]
+# # 	baseallprotsdf[:, "Reads"] .= availablereadsperprotein
+# # 	baseallprotsdf[:, "NumOfReads"] .= length.(availablereadsperprotein)
+# # 	baseallprotsdf = filter("NumOfReads" => x -> x > 0, baseallprotsdf)
+# # end
 
-prots_in_solution = solutionrow["UniqueSamples"]
+# prots_in_solution = solutionrow["UniqueSamples"]
 
-chosendf = filter("Protein" => x -> x ∈ prots_in_solution, baseallprotsdf)
-unchosendf = filter("Protein" => x -> x ∉ prots_in_solution, baseallprotsdf)
+# chosendf = filter("Protein" => x -> x ∈ prots_in_solution, baseallprotsdf)
+# unchosendf = filter("Protein" => x -> x ∉ prots_in_solution, baseallprotsdf)
 
-chosenindices = chosendf[:, "Index"] # indices of chosen proteins in the complete Δ matrix
-unchosenindices = unchosendf[:, "Index"] # indices of unchosen proteins in the complete Δ matrix
+# chosenindices = chosendf[:, "Index"] # indices of chosen proteins in the complete Δ matrix
+# unchosenindices = unchosendf[:, "Index"] # indices of unchosen proteins in the complete Δ matrix
 
-# prots_not_in_solution = setdiff(allprotsdf[!, "Protein"], prots_in_solution)
-
-
-
-
-# example_unchosen_prot = "27"
-# example_unchosen_prot_df = allprotsdf[allprotsdf[!, "Protein"] .== example_unchosen_prot, :]
-# example_unchosen_prot_index = unchosendf[unchosendf[!, "Protein"] .== example_unchosen_prot, "Index"]
-# example_unchosen_prot_distances = Δ[example_unchosen_prot_index, chosenindices] # the distances between the 
-
-# bad_chosen_indices = [i for (i, d) in zip(chosenindices, example_unchosen_prot_distances) if d !== 0x00]
-# bad_chosen_df = copy(allprotsdf[bad_chosen_indices, :])
-# insertcols!(
-# 	bad_chosen_df, 
-# 	3, 
-# 	"DistanceFrom$example_unchosen_prot" => example_unchosen_prot_distances[example_unchosen_prot_distances .!== 0x00]
-# 	)
-
-
-chosenprot_chosenprot_distances = Δ[chosenindices, chosenindices] # the distances between the chosen proteins to themselves
-
-chosenprot_minimum_distances = minimum.(
-	vcat(row[begin:i-1], row[i+1:end])
-	for (i, row) in enumerate(eachrow(chosenprot_chosenprot_distances))
-)
+# # prots_not_in_solution = setdiff(allprotsdf[!, "Protein"], prots_in_solution)
 
 
 
-unchosenprot_chosenprot_distances = Δ[unchosenindices, chosenindices] # the distances between the unchosen proteins to chosen proteins
 
-minimum_distances = minimum.(eachrow(unchosenprot_chosenprot_distances))
-describe(minimum_distances)
+# # example_unchosen_prot = "27"
+# # example_unchosen_prot_df = allprotsdf[allprotsdf[!, "Protein"] .== example_unchosen_prot, :]
+# # example_unchosen_prot_index = unchosendf[unchosendf[!, "Protein"] .== example_unchosen_prot, "Index"]
+# # example_unchosen_prot_distances = Δ[example_unchosen_prot_index, chosenindices] # the distances between the 
 
-
-unchosen_prots_with_min_d_1_rel_indices = findall(minimum_distances .!== 0x00)
-unchosen_prots_with_min_d_1_abs_indices = unchosenindices[unchosen_prots_with_min_d_1_rel_indices]
-
-unchosen_prots_with_min_d_1_distances = Δ[unchosen_prots_with_min_d_1_abs_indices, chosenindices]
-describe(minimum.(eachrow(unchosen_prots_with_min_d_1_distances)))
-
-one_unchosen_prot_index = unchosen_prots_with_min_d_1_abs_indices[1]
-five_chosen_prots_indices = chosenindices[4:8]
-
-_ds = Int.(Δ[one_unchosen_prot_index, five_chosen_prots_indices])
-
-_df = allprotsdf[vcat(one_unchosen_prot_index, five_chosen_prots_indices), firstcolpos:end]
+# # bad_chosen_indices = [i for (i, d) in zip(chosenindices, example_unchosen_prot_distances) if d !== 0x00]
+# # bad_chosen_df = copy(allprotsdf[bad_chosen_indices, :])
+# # insertcols!(
+# # 	bad_chosen_df, 
+# # 	3, 
+# # 	"DistanceFrom$example_unchosen_prot" => example_unchosen_prot_distances[example_unchosen_prot_distances .!== 0x00]
+# # 	)
 
 
-
-# # plot minumum distance between each unchosen protein to the chosen proteins
-# f = Figure(size = (500, 500))
-# ax = Axis(f[1, 1],
-# 	# xlabel = "Distance", 
-# 	xlabel = "Min distance to a chosen protein",
-# 	ylabel = "Unchosen proteins",
-# 	yscale = log10,
-# 	title = "Min distance between unchosen proteins to chosen ones",
-# 	# limits = (0, nothing, 1, nothing)
-# 	# yticks = LogTicks(WilkinsonTicks(2))
-# 	# yticks = [10 ^ i for i in 1:9]
+# chosenprot_chosenprot_distances = Δ[chosenindices, chosenindices] # the distances between the chosen proteins to themselves
+# chosenprot_minimum_distances = minimum.(
+# 	vcat(row[begin:i-1], row[i+1:end])
+# 	for (i, row) in enumerate(eachrow(chosenprot_chosenprot_distances))
 # )
-# hist!(ax, minimum_distances, color = :red, strokecolor = :black, strokewidth = 1)
-# f
-
-unchosen_distances_counters = counter.(eachrow(unchosenprot_chosenprot_distances))
-
-per_unchosen_min_distance_counts = [
-	unchosen_distances_counter[min_distance]
-	for (unchosen_distances_counter, min_distance)
-	in
-	zip(unchosen_distances_counters, minimum_distances)
-]
-describe(per_unchosen_min_distance_counts)
-
-# f = Figure(size = (500, 500))
-# ax = Axis(f[1, 1],
-# 	# xlabel = "Distance", 
-
-# 	xlabel = "Chosen proteins with min distance to unchosen protein",
-# 	ylabel = "Unchosen proteins",
-# 	yscale = log10,
-# 	title = "Reassignments per unchosen protein",
-# 	# limits = (0, nothing, 1, nothing)
-# 	# yticks = LogTicks(WilkinsonTicks(2))
-# 	# yticks = [10 ^ i for i in 1:9]
-# )
-# hist!(ax, per_unchosen_min_distance_counts, color = :red, strokecolor = :black, strokewidth = 1)
-# f
-
-
-# let's plot the following things:
-# 1 - how many different distances an unchosen protein has?
-# 2 - avg distance to chosen proteins
-# 3 - the 3 smallest distances between each unchosen protein to the chosen proteins
-# 4 - the number of chosen proteins per the 3 smallest distances for each unchosen protein
+# @assert all(chosenprot_minimum_distances .>= 1)
 
 
 
-# 1 - how many different distances an unchosen protein has?
 
-unique_distances_per_unchosen_prot = sort(length.(keys.(unchosen_distances_counters)))
-describe(unique_distances_per_unchosen_prot)
 
-# sum(unique_distances_per_unchosen_prot .== 2)
-# unchosen_distances_counters[unique_distances_per_unchosen_prot .== 2]
+# unchosenprot_chosenprot_distances = Δ[unchosenindices, chosenindices] # the distances between the unchosen proteins to chosen proteins
 
-unchosen_prots_unique_distances_counter = counter(unique_distances_per_unchosen_prot)
-sorted_unique_distances = sort(collect(keys(unchosen_prots_unique_distances_counter)))
-sorted_unique_distances_counts = [unchosen_prots_unique_distances_counter[d] for d in sorted_unique_distances]
+# minimum_distances = minimum.(eachrow(unchosenprot_chosenprot_distances))
+# describe(minimum_distances)
 
-sorted_unique_distances_counts_cumsum = cumsum(sorted_unique_distances_counts)
-sorted_unique_distances_counts_cumsum_percent = 100 .* sorted_unique_distances_counts_cumsum ./ sorted_unique_distances_counts_cumsum[end]
 
-f = Figure(size = (500, 500))
-ax = Axis(f[1, 1],
-	# xlabel = "Distance", 
+# unchosen_prots_with_min_d_1_rel_indices = findall(minimum_distances .!== 0x00)
+# unchosen_prots_with_min_d_1_abs_indices = unchosenindices[unchosen_prots_with_min_d_1_rel_indices]
 
-	xlabel = "Num of unique distances to chosen proteins per unchosen protein",
-	ylabel = "Unchosen proteins",
-	yscale = log10,
-	# title = "Reassignments per unchosen protein",
-	# limits = (0, nothing, 1, nothing)
-	# yticks = LogTicks(WilkinsonTicks(2))
-	# yticks = [10 ^ i for i in 1:9]
-)
-hist!(ax, unique_distances_per_unchosen_prot, color = :red, strokecolor = :black, strokewidth = 1)
-f
+# unchosen_prots_with_min_d_1_distances = Δ[unchosen_prots_with_min_d_1_abs_indices, chosenindices]
+# describe(minimum.(eachrow(unchosen_prots_with_min_d_1_distances)))
 
+# one_unchosen_prot_index = unchosen_prots_with_min_d_1_abs_indices[1]
+# five_chosen_prots_indices = chosenindices[4:8]
+
+# _ds = Int.(Δ[one_unchosen_prot_index, five_chosen_prots_indices])
+
+# _df = allprotsdf[vcat(one_unchosen_prot_index, five_chosen_prots_indices), firstcolpos:end]
+
+
+
+# # # plot minumum distance between each unchosen protein to the chosen proteins
+# # f = Figure(size = (500, 500))
+# # ax = Axis(f[1, 1],
+# # 	# xlabel = "Distance", 
+# # 	xlabel = "Min distance to a chosen protein",
+# # 	ylabel = "Unchosen proteins",
+# # 	yscale = log10,
+# # 	title = "Min distance between unchosen proteins to chosen ones",
+# # 	# limits = (0, nothing, 1, nothing)
+# # 	# yticks = LogTicks(WilkinsonTicks(2))
+# # 	# yticks = [10 ^ i for i in 1:9]
+# # )
+# # hist!(ax, minimum_distances, color = :red, strokecolor = :black, strokewidth = 1)
+# # f
+
+# unchosen_distances_counters = counter.(eachrow(unchosenprot_chosenprot_distances))
+
+# per_unchosen_min_distance_counts = [
+# 	unchosen_distances_counter[min_distance]
+# 	for (unchosen_distances_counter, min_distance)
+# 	in
+# 	zip(unchosen_distances_counters, minimum_distances)
+# ]
+# describe(per_unchosen_min_distance_counts)
+
+# # f = Figure(size = (500, 500))
+# # ax = Axis(f[1, 1],
+# # 	# xlabel = "Distance", 
+
+# # 	xlabel = "Chosen proteins with min distance to unchosen protein",
+# # 	ylabel = "Unchosen proteins",
+# # 	yscale = log10,
+# # 	title = "Reassignments per unchosen protein",
+# # 	# limits = (0, nothing, 1, nothing)
+# # 	# yticks = LogTicks(WilkinsonTicks(2))
+# # 	# yticks = [10 ^ i for i in 1:9]
+# # )
+# # hist!(ax, per_unchosen_min_distance_counts, color = :red, strokecolor = :black, strokewidth = 1)
+# # f
+
+
+# # let's plot the following things:
+# # 1 - how many different distances an unchosen protein has?
+# # 2 - avg distance to chosen proteins
+# # 3 - the 3 smallest distances between each unchosen protein to the chosen proteins
+# # 4 - the number of chosen proteins per the 3 smallest distances for each unchosen protein
+
+
+
+# # 1 - how many different distances an unchosen protein has?
+
+# unique_distances_per_unchosen_prot = sort(length.(keys.(unchosen_distances_counters)))
+# describe(unique_distances_per_unchosen_prot)
+
+# # sum(unique_distances_per_unchosen_prot .== 2)
+# # unchosen_distances_counters[unique_distances_per_unchosen_prot .== 2]
+
+# unchosen_prots_unique_distances_counter = counter(unique_distances_per_unchosen_prot)
+# sorted_unique_distances = sort(collect(keys(unchosen_prots_unique_distances_counter)))
+# sorted_unique_distances_counts = [unchosen_prots_unique_distances_counter[d] for d in sorted_unique_distances]
+
+# sorted_unique_distances_counts_cumsum = cumsum(sorted_unique_distances_counts)
+# sorted_unique_distances_counts_cumsum_percent = 100 .* sorted_unique_distances_counts_cumsum ./ sorted_unique_distances_counts_cumsum[end]
 
 # f = Figure(size = (500, 500))
 # ax = Axis(f[1, 1],
 # 	# xlabel = "Distance", 
 
 # 	xlabel = "Num of unique distances to chosen proteins per unchosen protein",
-# 	ylabel = "Unchosen proteins (cumulative)",
-# 	# yscale = log10,
+# 	ylabel = "Unchosen proteins",
+# 	yscale = log10,
 # 	# title = "Reassignments per unchosen protein",
 # 	# limits = (0, nothing, 1, nothing)
 # 	# yticks = LogTicks(WilkinsonTicks(2))
 # 	# yticks = [10 ^ i for i in 1:9]
 # )
-# barplot!(ax, sorted_unique_distances, sorted_unique_distances_counts_cumsum, color = :red, strokecolor = :black, strokewidth = 1)
+# hist!(ax, unique_distances_per_unchosen_prot, color = :red, strokecolor = :black, strokewidth = 1)
 # f
 
-f = Figure(size = (500, 500))
-ax = Axis(f[1, 1],
-	# xlabel = "Distance", 
 
-	xlabel = "Num of unique distances to chosen proteins per unchosen protein",
-	ylabel = "Unchosen proteins (cumulative) [%]",
-	# yscale = log10,
-	# title = "Reassignments per unchosen protein",
-	limits = (0, nothing, 0, nothing),
-	xticks = 0:5:sorted_unique_distances[end],
-	yticks = 0:10:100,
-	# yticks = LogTicks(WilkinsonTicks(2))
-	# yticks = [10 ^ i for i in 1:9]
-)
-barplot!(ax, sorted_unique_distances, sorted_unique_distances_counts_cumsum_percent, color = :red, strokecolor = :black, strokewidth = 1)
-f
+# # f = Figure(size = (500, 500))
+# # ax = Axis(f[1, 1],
+# # 	# xlabel = "Distance", 
 
+# # 	xlabel = "Num of unique distances to chosen proteins per unchosen protein",
+# # 	ylabel = "Unchosen proteins (cumulative)",
+# # 	# yscale = log10,
+# # 	# title = "Reassignments per unchosen protein",
+# # 	# limits = (0, nothing, 1, nothing)
+# # 	# yticks = LogTicks(WilkinsonTicks(2))
+# # 	# yticks = [10 ^ i for i in 1:9]
+# # )
+# # barplot!(ax, sorted_unique_distances, sorted_unique_distances_counts_cumsum, color = :red, strokecolor = :black, strokewidth = 1)
+# # f
 
+# f = Figure(size = (500, 500))
+# ax = Axis(f[1, 1],
+# 	# xlabel = "Distance", 
 
-# 2 - avg distance to chosen proteins
-
-avg_distance_per_unchosen_prot = mean.(eachrow(unchosenprot_chosenprot_distances))
-describe(avg_distance_per_unchosen_prot)
-
-
-f = Figure(size = (500, 500))
-ax = Axis(f[1, 1],
-	# xlabel = "Distance", 
-
-	xlabel = "Avg distance to chosen proteins per unchosen protein",
-	ylabel = "Unchosen proteins",
-	yscale = log10,
-	# title = "Reassignments per unchosen protein",
-	# limits = (0, nothing, 1, nothing)
-	# yticks = LogTicks(WilkinsonTicks(2))
-	# yticks = [10 ^ i for i in 1:9]
-)
-hist!(ax, avg_distance_per_unchosen_prot, color = :red, strokecolor = :black, strokewidth = 1)
-f
-
-
-# 3 - the 3 smallest distances between each unchosen protein to the chosen proteins
-# 4 - the number of chosen proteins per the 3 smallest distances for each unchosen protein
-
-
-function retain_smallest_distances_counter(unchosen_distances_counter::Accumulator, x_smallest::Int = 3)
-	sorted_unchosen_distances = sort(collect(keys(unchosen_distances_counter)))
-	smallest_distances = sorted_unchosen_distances[1:min(x_smallest, length(sorted_unchosen_distances))]
-	# smallest_distances_counter = counter(Dict(d => unchosen_distances_counter[d] for d in smallest_distances))
-	smallest_distances_counter = OrderedDict(d => unchosen_distances_counter[d] for d in smallest_distances)
-	return smallest_distances_counter
-end
-
-smallest_unchosen_distances_counters = retain_smallest_distances_counter.(unchosen_distances_counters)
-
-# smallest_unchosen_distances_counters[1]
-
-f = Figure(size = (800, 400))
-axes = []
-for i in 1:3
-	ax = Axis(f[1, i],
-		yscale = log10,
-		title = "Distance rank: $i",
-		# limits = (0, nothing, 0, nothing),
-		# limits = (0, nothing, 1, nothing),
-		# yticks = range(0, 1; step=0.1),
-	)
-	push!(axes, ax)
-	xs = []
-	for smallest_unchosen_distances_counter in smallest_unchosen_distances_counters
-		length(smallest_unchosen_distances_counter) < i && continue
-		d = collect(keys(smallest_unchosen_distances_counter))[i]
-		push!(xs, d)
-	end
-	hist!(
-		ax,
-		xs,
-		color = :red,
-		strokecolor = :black,
-		strokewidth = 1,
-		#  normalization = :probability
-	)
-end
-linkxaxes!(axes...)
-linkyaxes!(axes...)
-Label(f[2, begin:end], "Distance to chosen protein")  # x axis title
-Label(f[begin:end, 0], "Unchosen proteins", rotation = pi / 2)  # y axis title
-Label(f[0, begin:end], "The 3 smallest distances between each unchosen protein to the chosen proteins", fontsize = 20)  # main title
-f
-
-
-f = Figure(size = (800, 400))
-all_xs = []
-for i in 1:3
-	xs = []
-	for smallest_unchosen_distances_counter in smallest_unchosen_distances_counters
-		length(smallest_unchosen_distances_counter) < i && continue
-		d = collect(keys(smallest_unchosen_distances_counter))[i]
-		c = smallest_unchosen_distances_counter[d]
-		push!(xs, c)
-	end
-	push!(all_xs, xs)
-end
-# max_x = maximum(maximum.(all_xs))
-axes = []
-for (i, xs) in enumerate(all_xs)
-	ax = Axis(f[1, i],
-		yscale = log10,
-		title = "Distance rank: $i",
-		# limits = (0, nothing, 0, nothing),
-		limits = (0, nothing, 1, nothing),
-		# xticks = 0:2500:max_x,
-		# yticks = range(0, 1; step=0.1),
-	)
-	push!(axes, ax)
-	hist!(
-		ax,
-		xs,
-		color = :red,
-		strokecolor = :black,
-		strokewidth = 1,
-		#  normalization = :probability
-	)
-end
-linkxaxes!(axes...)
-linkyaxes!(axes...)
-Label(f[2, begin:end], "Chosen proteins in distance rank")  # x axis title
-Label(f[begin:end, 0], "Unchosen proteins", rotation = pi / 2)  # y axis title
-Label(f[0, begin:end], "The number of chosen prots per the 3 smallest distances for each unchosen prot", fontsize = 20)  # main title
-f
+# 	xlabel = "Num of unique distances to chosen proteins per unchosen protein",
+# 	ylabel = "Unchosen proteins (cumulative) [%]",
+# 	# yscale = log10,
+# 	# title = "Reassignments per unchosen protein",
+# 	limits = (0, nothing, 0, nothing),
+# 	xticks = 0:5:sorted_unique_distances[end],
+# 	yticks = 0:10:100,
+# 	# yticks = LogTicks(WilkinsonTicks(2))
+# 	# yticks = [10 ^ i for i in 1:9]
+# )
+# barplot!(ax, sorted_unique_distances, sorted_unique_distances_counts_cumsum_percent, color = :red, strokecolor = :black, strokewidth = 1)
+# f
 
 
 
+# # 2 - avg distance to chosen proteins
 
-principle_nas_per_unchosen = unchosendf[!, "MeanNAPositions"]
-all_xs = []
-all_nas_per_unchosen = []
-dfs = []
-for i in 1:3
-	xs = []
-	nas_per_unchosen = []
-	for (smallest_unchosen_distances_counter, na_positions) in zip(smallest_unchosen_distances_counters, principle_nas_per_unchosen)
-		length(smallest_unchosen_distances_counter) < i && continue
-		d = collect(keys(smallest_unchosen_distances_counter))[i]
-		c = smallest_unchosen_distances_counter[d]
-		push!(xs, c)
-		push!(nas_per_unchosen, na_positions)
-	end
-	push!(all_xs, xs)
-	push!(all_nas_per_unchosen, nas_per_unchosen)
-	df = DataFrame(
-		"DistanceRank" => fill(i, length(xs)),
-		"ChosenProteins" => xs,
-		"MeanNAPositions" => nas_per_unchosen,
-	)
-	push!(dfs, df)
-end
-# max_x = maximum(maximum.(all_xs))
-
-f = Figure(size = (800, 400))
-axes = []
-for (i, (xs, nas_per_unchosen)) in enumerate(zip(all_xs, all_nas_per_unchosen))
-	ax = Axis(f[1, i],
-		# xscale = log10,
-		yscale = log10,
-		title = "Distance rank: $i",
-		# limits = (0, nothing, 0, nothing),
-		# limits = (0, nothing, 1, nothing),
-		xticks = 0:20:maximum(principle_nas_per_unchosen),
-		# yticks = range(0, 1; step=0.1),
-	)
-	push!(axes, ax)
-	scatter!(
-		ax,
-		nas_per_unchosen,
-		xs,
-		# color = :red, strokecolor = :black, strokewidth = 1,
-		#  normalization = :probability
-	)
-end
-linkxaxes!(axes...)
-linkyaxes!(axes...)
-Label(f[2, begin:end], "Mean NA positions / unchosen protein")  # x axis title
-Label(f[begin:end-1, 0], "Chosen proteins", rotation = pi / 2)  # y axis title
-Label(f[0, begin+1:end], "Out-reassignments per unchosen protein vs. its reads' NAs", fontsize = 20)  # main title
-rowsize!(f.layout, 1, Relative(3 / 4))
-f
+# avg_distance_per_unchosen_prot = mean.(eachrow(unchosenprot_chosenprot_distances))
+# describe(avg_distance_per_unchosen_prot)
 
 
+# f = Figure(size = (500, 500))
+# ax = Axis(f[1, 1],
+# 	# xlabel = "Distance", 
 
-avg_dfs = [
-	combine(
-		groupby(df, "MeanNAPositions"),
-		nrow,
-		:ChosenProteins => mean => :mean,
-		:ChosenProteins => std => :std,
-	)
-	for df in dfs
-]
-for avg_df in avg_dfs
-	avg_df[!, "std"] = ifelse.(isnan.(avg_df[!, "std"]), 0, avg_df[!, "std"])
-end
-
-
-
-f = Figure(size = (800, 400))
-xtick_0 = 0
-xtick_d = 20
-xtick_upper_bound = maximum(principle_nas_per_unchosen) + xtick_d
-xticks = [
-	xtick_0 + (xtick_d * i)
-	for i in 0:div(xtick_upper_bound - xtick_0, xtick_d)+1
-]
-if xticks[end] == xtick_upper_bound
-	xticks = xticks[begin:end-1]
-end
-max_y = maximum([maximum(avg_df[!, "mean"] .+ avg_df[!, "std"]) for avg_df in avg_dfs])
-max_x = round(Int, max_y)
-max_y_magnitude = length(digits(max_x))
-yticks = 0:2000:10^max_y_magnitude
-axes = []
-for (i, df) in enumerate(avg_dfs)
-	xs = df[!, "MeanNAPositions"]
-	ys = df[!, "mean"]
-	yerrs = df[!, "std"]
-	# where y - yerr < 0, we want to make yerr = y
-	# higherrors = copy(yerrs)
-	# lowerrors = copy(yerrs)
-	# lowerrors[ys.-lowerrors.<0] .= ys[ys.-lowerrors.<0]
-	ax = Axis(f[1, i],
-		# xscale = log10,
-		# yscale = log10,
-		title = "Distance rank: $i",
-		# limits = (0, nothing, 0, nothing),
-		# limits = (0, nothing, 1, nothing),
-		xticks = xticks,
-		yticks = yticks,
-		# yminorgridvisible = true,
-		# yminorticks = IntervalsBetween(5)
-	)
-	# ax.yticks = 0:2000:
-	push!(axes, ax)
-	errorbars!(
-		ax,
-		xs,
-		ys,
-		yerrs,
-		# lowerrors, higherrors,
-		color = :red,
-		label = :std,
-	)
-	# plot position scatters so low and high errors can be discriminated
-	scatter!(ax, xs, ys; markersize = 4, color = :black, label = :mean)
-end
-linkxaxes!(axes...)
-linkyaxes!(axes...)
-Label(f[2, begin:end], "Mean NA positions / unchosen protein")  # x axis title
-Label(f[begin:end-1, 0], "Mean chosen proteins", rotation = pi / 2)  # y axis title
-Label(f[0, begin+1:end], "Out-reassignments per unchosen protein vs. its reads' NAs", fontsize = 20)  # main title
-rowsize!(f.layout, 1, Relative(3 / 4))
-f
+# 	xlabel = "Avg distance to chosen proteins per unchosen protein",
+# 	ylabel = "Unchosen proteins",
+# 	yscale = log10,
+# 	# title = "Reassignments per unchosen protein",
+# 	# limits = (0, nothing, 1, nothing)
+# 	# yticks = LogTicks(WilkinsonTicks(2))
+# 	# yticks = [10 ^ i for i in 1:9]
+# )
+# hist!(ax, avg_distance_per_unchosen_prot, color = :red, strokecolor = :black, strokewidth = 1)
+# f
 
 
+# # 3 - the 3 smallest distances between each unchosen protein to the chosen proteins
+# # 4 - the number of chosen proteins per the 3 smallest distances for each unchosen protein
 
-c_or_unc_titles = ["Chosen", "Unchosen"]
-f = Figure(size = (800, 400))
-axes = []
-for (i, (df, title)) in enumerate(zip(c_or_unc_dfs, c_or_unc_titles))
-	xs = df[!, "MeanNAPositions"]
-	ax = Axis(f[1, i],
-		# xscale = log10,
-		# yscale = log10,
-		title = title,
-		# limits = (0, nothing, 0, nothing),
-		# limits = (0, nothing, 1, nothing),
-		# xticks = xticks,
-		# yticks = yticks,
-		# yminorgridvisible = true,
-		# yminorticks = IntervalsBetween(5)
-	)
-	# ax.yticks = 0:2000:
-	push!(axes, ax)
-	hist!(
-		ax,
-		xs,
-		color = :red,
-		strokecolor = :black,
-		strokewidth = 1,
-		normalization = :probability,
-	)
-end
-linkxaxes!(axes...)
-linkyaxes!(axes...)
-Label(f[2, begin:end], "Mean NA positions")  # x axis title
-# Label(f[begin:end, 0], "Proteins", rotation = pi / 2)  # y axis title
-Label(f[begin:end-1, 0], "Proteins (probability)", rotation = pi / 2, tellheight = false)  # y axis title
-# Label(f[0, begin+1:end], "Reassignments vs. NAs", fontsize = 20)  # main title
-f
+
+# function retain_smallest_distances_counter(unchosen_distances_counter::Accumulator, x_smallest::Int = 3)
+# 	sorted_unchosen_distances = sort(collect(keys(unchosen_distances_counter)))
+# 	smallest_distances = sorted_unchosen_distances[1:min(x_smallest, length(sorted_unchosen_distances))]
+# 	# smallest_distances_counter = counter(Dict(d => unchosen_distances_counter[d] for d in smallest_distances))
+# 	smallest_distances_counter = OrderedDict(d => unchosen_distances_counter[d] for d in smallest_distances)
+# 	return smallest_distances_counter
+# end
+
+# smallest_unchosen_distances_counters = retain_smallest_distances_counter.(unchosen_distances_counters)
+
+# # smallest_unchosen_distances_counters[1]
+
+# f = Figure(size = (800, 400))
+# axes = []
+# for i in 1:3
+# 	ax = Axis(f[1, i],
+# 		yscale = log10,
+# 		title = "Distance rank: $i",
+# 		# limits = (0, nothing, 0, nothing),
+# 		# limits = (0, nothing, 1, nothing),
+# 		# yticks = range(0, 1; step=0.1),
+# 	)
+# 	push!(axes, ax)
+# 	xs = []
+# 	for smallest_unchosen_distances_counter in smallest_unchosen_distances_counters
+# 		length(smallest_unchosen_distances_counter) < i && continue
+# 		d = collect(keys(smallest_unchosen_distances_counter))[i]
+# 		push!(xs, d)
+# 	end
+# 	hist!(
+# 		ax,
+# 		xs,
+# 		color = :red,
+# 		strokecolor = :black,
+# 		strokewidth = 1,
+# 		#  normalization = :probability
+# 	)
+# end
+# linkxaxes!(axes...)
+# linkyaxes!(axes...)
+# Label(f[2, begin:end], "Distance to chosen protein")  # x axis title
+# Label(f[begin:end, 0], "Unchosen proteins", rotation = pi / 2)  # y axis title
+# Label(f[0, begin:end], "The 3 smallest distances between each unchosen protein to the chosen proteins", fontsize = 20)  # main title
+# f
+
+
+# f = Figure(size = (800, 400))
+# all_xs = []
+# for i in 1:3
+# 	xs = []
+# 	for smallest_unchosen_distances_counter in smallest_unchosen_distances_counters
+# 		length(smallest_unchosen_distances_counter) < i && continue
+# 		d = collect(keys(smallest_unchosen_distances_counter))[i]
+# 		c = smallest_unchosen_distances_counter[d]
+# 		push!(xs, c)
+# 	end
+# 	push!(all_xs, xs)
+# end
+# # max_x = maximum(maximum.(all_xs))
+# axes = []
+# for (i, xs) in enumerate(all_xs)
+# 	ax = Axis(f[1, i],
+# 		yscale = log10,
+# 		title = "Distance rank: $i",
+# 		# limits = (0, nothing, 0, nothing),
+# 		limits = (0, nothing, 1, nothing),
+# 		# xticks = 0:2500:max_x,
+# 		# yticks = range(0, 1; step=0.1),
+# 	)
+# 	push!(axes, ax)
+# 	hist!(
+# 		ax,
+# 		xs,
+# 		color = :red,
+# 		strokecolor = :black,
+# 		strokewidth = 1,
+# 		#  normalization = :probability
+# 	)
+# end
+# linkxaxes!(axes...)
+# linkyaxes!(axes...)
+# Label(f[2, begin:end], "Chosen proteins in distance rank")  # x axis title
+# Label(f[begin:end, 0], "Unchosen proteins", rotation = pi / 2)  # y axis title
+# Label(f[0, begin:end], "The number of chosen prots per the 3 smallest distances for each unchosen prot", fontsize = 20)  # main title
+# f
 
 
 
 
+# principle_nas_per_unchosen = unchosendf[!, "MeanNAPositions"]
+# all_xs = []
+# all_nas_per_unchosen = []
+# dfs = []
+# for i in 1:3
+# 	xs = []
+# 	nas_per_unchosen = []
+# 	for (smallest_unchosen_distances_counter, na_positions) in zip(smallest_unchosen_distances_counters, principle_nas_per_unchosen)
+# 		length(smallest_unchosen_distances_counter) < i && continue
+# 		d = collect(keys(smallest_unchosen_distances_counter))[i]
+# 		c = smallest_unchosen_distances_counter[d]
+# 		push!(xs, c)
+# 		push!(nas_per_unchosen, na_positions)
+# 	end
+# 	push!(all_xs, xs)
+# 	push!(all_nas_per_unchosen, nas_per_unchosen)
+# 	df = DataFrame(
+# 		"DistanceRank" => fill(i, length(xs)),
+# 		"ChosenProteins" => xs,
+# 		"MeanNAPositions" => nas_per_unchosen,
+# 	)
+# 	push!(dfs, df)
+# end
+# # max_x = maximum(maximum.(all_xs))
+
+# f = Figure(size = (800, 400))
+# axes = []
+# for (i, (xs, nas_per_unchosen)) in enumerate(zip(all_xs, all_nas_per_unchosen))
+# 	ax = Axis(f[1, i],
+# 		# xscale = log10,
+# 		yscale = log10,
+# 		title = "Distance rank: $i",
+# 		# limits = (0, nothing, 0, nothing),
+# 		# limits = (0, nothing, 1, nothing),
+# 		xticks = 0:20:maximum(principle_nas_per_unchosen),
+# 		# yticks = range(0, 1; step=0.1),
+# 	)
+# 	push!(axes, ax)
+# 	scatter!(
+# 		ax,
+# 		nas_per_unchosen,
+# 		xs,
+# 		# color = :red, strokecolor = :black, strokewidth = 1,
+# 		#  normalization = :probability
+# 	)
+# end
+# linkxaxes!(axes...)
+# linkyaxes!(axes...)
+# Label(f[2, begin:end], "Mean NA positions / unchosen protein")  # x axis title
+# Label(f[begin:end-1, 0], "Chosen proteins", rotation = pi / 2)  # y axis title
+# Label(f[0, begin+1:end], "Out-reassignments per unchosen protein vs. its reads' NAs", fontsize = 20)  # main title
+# rowsize!(f.layout, 1, Relative(3 / 4))
+# f
+
+
+
+# avg_dfs = [
+# 	combine(
+# 		groupby(df, "MeanNAPositions"),
+# 		nrow,
+# 		:ChosenProteins => mean => :mean,
+# 		:ChosenProteins => std => :std,
+# 	)
+# 	for df in dfs
+# ]
+# for avg_df in avg_dfs
+# 	avg_df[!, "std"] = ifelse.(isnan.(avg_df[!, "std"]), 0, avg_df[!, "std"])
+# end
+
+
+
+# f = Figure(size = (800, 400))
+# xtick_0 = 0
+# xtick_d = 20
+# xtick_upper_bound = maximum(principle_nas_per_unchosen) + xtick_d
+# xticks = [
+# 	xtick_0 + (xtick_d * i)
+# 	for i in 0:div(xtick_upper_bound - xtick_0, xtick_d)+1
+# ]
+# if xticks[end] == xtick_upper_bound
+# 	xticks = xticks[begin:end-1]
+# end
+# max_y = maximum([maximum(avg_df[!, "mean"] .+ avg_df[!, "std"]) for avg_df in avg_dfs])
+# max_x = round(Int, max_y)
+# max_y_magnitude = length(digits(max_x))
+# yticks = 0:2000:10^max_y_magnitude
+# axes = []
+# for (i, df) in enumerate(avg_dfs)
+# 	xs = df[!, "MeanNAPositions"]
+# 	ys = df[!, "mean"]
+# 	yerrs = df[!, "std"]
+# 	# where y - yerr < 0, we want to make yerr = y
+# 	# higherrors = copy(yerrs)
+# 	# lowerrors = copy(yerrs)
+# 	# lowerrors[ys.-lowerrors.<0] .= ys[ys.-lowerrors.<0]
+# 	ax = Axis(f[1, i],
+# 		# xscale = log10,
+# 		# yscale = log10,
+# 		title = "Distance rank: $i",
+# 		# limits = (0, nothing, 0, nothing),
+# 		# limits = (0, nothing, 1, nothing),
+# 		xticks = xticks,
+# 		yticks = yticks,
+# 		# yminorgridvisible = true,
+# 		# yminorticks = IntervalsBetween(5)
+# 	)
+# 	# ax.yticks = 0:2000:
+# 	push!(axes, ax)
+# 	errorbars!(
+# 		ax,
+# 		xs,
+# 		ys,
+# 		yerrs,
+# 		# lowerrors, higherrors,
+# 		color = :red,
+# 		label = :std,
+# 	)
+# 	# plot position scatters so low and high errors can be discriminated
+# 	scatter!(ax, xs, ys; markersize = 4, color = :black, label = :mean)
+# end
+# linkxaxes!(axes...)
+# linkyaxes!(axes...)
+# Label(f[2, begin:end], "Mean NA positions / unchosen protein")  # x axis title
+# Label(f[begin:end-1, 0], "Mean chosen proteins", rotation = pi / 2)  # y axis title
+# Label(f[0, begin+1:end], "Out-reassignments per unchosen protein vs. its reads' NAs", fontsize = 20)  # main title
+# rowsize!(f.layout, 1, Relative(3 / 4))
+# f
+
+
+
+# c_or_unc_titles = ["Chosen", "Unchosen"]
+# f = Figure(size = (800, 400))
+# axes = []
+# for (i, (df, title)) in enumerate(zip(c_or_unc_dfs, c_or_unc_titles))
+# 	xs = df[!, "MeanNAPositions"]
+# 	ax = Axis(f[1, i],
+# 		# xscale = log10,
+# 		# yscale = log10,
+# 		title = title,
+# 		# limits = (0, nothing, 0, nothing),
+# 		# limits = (0, nothing, 1, nothing),
+# 		# xticks = xticks,
+# 		# yticks = yticks,
+# 		# yminorgridvisible = true,
+# 		# yminorticks = IntervalsBetween(5)
+# 	)
+# 	# ax.yticks = 0:2000:
+# 	push!(axes, ax)
+# 	hist!(
+# 		ax,
+# 		xs,
+# 		color = :red,
+# 		strokecolor = :black,
+# 		strokewidth = 1,
+# 		normalization = :probability,
+# 	)
+# end
+# linkxaxes!(axes...)
+# linkyaxes!(axes...)
+# Label(f[2, begin:end], "Mean NA positions")  # x axis title
+# # Label(f[begin:end, 0], "Proteins", rotation = pi / 2)  # y axis title
+# Label(f[begin:end-1, 0], "Proteins (probability)", rotation = pi / 2, tellheight = false)  # y axis title
+# # Label(f[0, begin+1:end], "Reassignments vs. NAs", fontsize = 20)  # main title
+# f
 
 
 
 
-one_result = one_solution_additional_assignment_considering_available_reads(
-	distinctdf, allprotsdf, firstcolpos, Δ, solution,
-	readsdf
-)
+
+
+
+
+# one_result = one_solution_additional_assignment_considering_available_reads(
+# 	distinctdf, allprotsdf, firstcolpos, Δ, solution,
+# 	readsdf
+# )
 
 
 
 
 
 
-fig = Figure(size = (500, 500))
-ax = Axis(fig[1, 1],
-	xlabel = "Mean NA positions / chosen protein",
-	ylabel = "Mean reassigned unchosen proteins",
-	# yscale = log10,
-	title = "In-reassignments per chosen protein vs. its reads' NAs",
-	# limits = (0, nothing, 1, nothing)
-	# yticks = LogTicks(WilkinsonTicks(2))
-	# yticks = [10 ^ i for i in 1:9]
-)
-df = combine(
-	groupby(one_result, "MeanNAPositions"),
-	nrow,
-	:AdditionalSupportingProteins => mean => :mean,
-	:AdditionalSupportingProteins => std => :std,
-)
-xs = df[!, "MeanNAPositions"]
-ys = df[!, "mean"]
-yerrs = df[!, "std"]
-errorbars!(
-	ax,
-	xs,
-	ys,
-	yerrs,
-	# lowerrors, higherrors,
-	color = :red,
-	# label = :std,
-)
-# plot position scatters so low and high errors can be discriminated
-scatter!(ax, xs, ys; markersize = 8, color = :black)
-fig
+# fig = Figure(size = (500, 500))
+# ax = Axis(fig[1, 1],
+# 	xlabel = "Mean NA positions / chosen protein",
+# 	ylabel = "Mean reassigned unchosen proteins",
+# 	# yscale = log10,
+# 	title = "In-reassignments per chosen protein vs. its reads' NAs",
+# 	# limits = (0, nothing, 1, nothing)
+# 	# yticks = LogTicks(WilkinsonTicks(2))
+# 	# yticks = [10 ^ i for i in 1:9]
+# )
+# df = combine(
+# 	groupby(one_result, "MeanNAPositions"),
+# 	nrow,
+# 	:AdditionalSupportingProteins => mean => :mean,
+# 	:AdditionalSupportingProteins => std => :std,
+# )
+# xs = df[!, "MeanNAPositions"]
+# ys = df[!, "mean"]
+# yerrs = df[!, "std"]
+# errorbars!(
+# 	ax,
+# 	xs,
+# 	ys,
+# 	yerrs,
+# 	# lowerrors, higherrors,
+# 	color = :red,
+# 	# label = :std,
+# )
+# # plot position scatters so low and high errors can be discriminated
+# scatter!(ax, xs, ys; markersize = 8, color = :black)
+# fig
 
 
 
 
-# df = deepcopy(one_result)
-# df[!, "MeanNAPositionsPerAdditionalSupportingProtein"] = mean.(one_result[!, "AdditionalSupportingProteinsMeanNAPositions"])
+# # df = deepcopy(one_result)
+# # df[!, "MeanNAPositionsPerAdditionalSupportingProtein"] = mean.(one_result[!, "AdditionalSupportingProteinsMeanNAPositions"])
+# # df = combine(
+# # 	groupby(df, "MeanNAPositions"),
+# # 	nrow,
+# # 	:MeanNAPositionsPerAdditionalSupportingProtein => mean => :mean,
+# # 	:MeanNAPositionsPerAdditionalSupportingProtein => std => :std,
+# # )
+# # fig = Figure(size = (500, 500))
+# # ax = Axis(fig[1, 1],
+# # 	xlabel = "Mean NA positions / chosen protein",
+# # 	ylabel = "Mean mean NA positions / reassigned unchosen protein",
+# # 	# yscale = log10,
+# # 	# title = "In-reassignments per chosen protein vs. its reads' NAs",
+# # 	# limits = (0, nothing, 1, nothing)
+# # 	# yticks = LogTicks(WilkinsonTicks(2))
+# # 	# yticks = [10 ^ i for i in 1:9]
+# # )
+# # xs = df[!, "MeanNAPositions"]
+# # ys = df[!, "mean"]
+# # yerrs = df[!, "std"]
+# # errorbars!(
+# # 	ax,
+# # 	xs,
+# # 	ys,
+# # 	yerrs,
+# # 	# lowerrors, higherrors,
+# # 	color = :red,
+# # 	# label = :std,
+# # )
+# # # plot position scatters so low and high errors can be discriminated
+# # scatter!(ax, xs, ys; markersize = 8, color = :black)
+# # fig
+
+
+
+
+# df = flatten(
+# 	one_result[!, ["MeanNAPositions", "AdditionalSupportingProteinsMeanNAPositions"]],
+# 	"AdditionalSupportingProteinsMeanNAPositions"
+# )
+# rename!(df, "AdditionalSupportingProteinsMeanNAPositions" => "AdditionalSupportingProteinMeanNAPositions")
 # df = combine(
 # 	groupby(df, "MeanNAPositions"),
 # 	nrow,
-# 	:MeanNAPositionsPerAdditionalSupportingProtein => mean => :mean,
-# 	:MeanNAPositionsPerAdditionalSupportingProtein => std => :std,
+# 	:AdditionalSupportingProteinMeanNAPositions => mean => :mean,
+# 	:AdditionalSupportingProteinMeanNAPositions => std => :std,
 # )
 # fig = Figure(size = (500, 500))
 # ax = Axis(fig[1, 1],
 # 	xlabel = "Mean NA positions / chosen protein",
-# 	ylabel = "Mean mean NA positions / reassigned unchosen protein",
+# 	ylabel = "Mean NA positions / reassigned unchosen protein",
 # 	# yscale = log10,
 # 	# title = "In-reassignments per chosen protein vs. its reads' NAs",
 # 	# limits = (0, nothing, 1, nothing)
@@ -1487,168 +1723,191 @@ fig
 
 
 
-df = flatten(
-	one_result[!, ["MeanNAPositions", "AdditionalSupportingProteinsMeanNAPositions"]],
-	"AdditionalSupportingProteinsMeanNAPositions"
-)
-rename!(df, "AdditionalSupportingProteinsMeanNAPositions" => "AdditionalSupportingProteinMeanNAPositions")
-df = combine(
-	groupby(df, "MeanNAPositions"),
-	nrow,
-	:AdditionalSupportingProteinMeanNAPositions => mean => :mean,
-	:AdditionalSupportingProteinMeanNAPositions => std => :std,
-)
-fig = Figure(size = (500, 500))
-ax = Axis(fig[1, 1],
-	xlabel = "Mean NA positions / chosen protein",
-	ylabel = "Mean NA positions / reassigned unchosen protein",
-	# yscale = log10,
-	# title = "In-reassignments per chosen protein vs. its reads' NAs",
-	# limits = (0, nothing, 1, nothing)
-	# yticks = LogTicks(WilkinsonTicks(2))
-	# yticks = [10 ^ i for i in 1:9]
-)
-xs = df[!, "MeanNAPositions"]
-ys = df[!, "mean"]
-yerrs = df[!, "std"]
-errorbars!(
-	ax,
-	xs,
-	ys,
-	yerrs,
-	# lowerrors, higherrors,
-	color = :red,
-	# label = :std,
-)
-# plot position scatters so low and high errors can be discriminated
-scatter!(ax, xs, ys; markersize = 8, color = :black)
-fig
+
+# sum(length.(split.(one_result[!, "AdditionalSupportingProteinsIDs"], ",")))
+
+
+# reassigned_prots_counter = counter(vcat(split.(one_result[!, "AdditionalSupportingProteinsIDs"], ",")...))
+# reassignments_per_reassigned_prot = collect(values(reassigned_prots_counter))
+# describe(reassignments_per_reassigned_prot)
+
+# fig = Figure(size = (500, 500))
+# ax = Axis(fig[1, 1],
+# 	# xlabel = "Distance", 
+
+# 	xlabel = "Reassignments to X chosen proteins",
+# 	ylabel = "Unchosen proteins",
+# 	yscale = log10,
+# 	xscale = log10,
+# 	# title = "Reassignments per unchosen protein",
+# 	# limits = (0, nothing, 1, nothing)
+# 	# yticks = LogTicks(WilkinsonTicks(2))
+# 	# yticks = [10 ^ i for i in 1:9]
+# )
+# hist!(
+# 	ax, reassignments_per_reassigned_prot, color = :red, 
+# 	strokecolor = :red, strokewidth = 1,
+# 	bins=maximum(reassignments_per_reassigned_prot),
+# )
+# fig
+
+
+
+# fig = Figure(size = (500, 500))
+# ax = Axis(fig[1, 1],
+# 	# xlabel = "Distance", 
+
+# 	xlabel = "Reassignments to X chosen proteins",
+# 	ylabel = "Unchosen proteins (cumulative prob)",
+# 	xscale = log10,
+# 	# title = "Reassignments per unchosen protein",
+# 	# limits = (1, nothing, 0, 1),
+# 	# yticks = LogTicks(WilkinsonTicks(2))
+# 	yticks = 0:0.1:1
+# )
+# ecdfplot!(
+# 	ax, reassignments_per_reassigned_prot, 
+# 	# color = :red, 
+# 	# strokecolor = :black, strokewidth = 1,
+# 	# bins=maximum(reassignments_per_reassigned_prot),
+# )
+# fig
+
+
+
+# df = deepcopy(one_result)
+# df[!, "%OriginalReads/TotalReads"] = 100 .* df[!, "NumOfReads"] ./ df[!, "TotalWeightedSupportingReads"]
+# fig = Figure(size = (500, 500))
+# ax = Axis(fig[1, 1],
+# 	# xlabel = "Distance", 
+
+# 	xlabel = "Original reads / total reads [%]",
+# 	ylabel = "Chosen proteins [probability]",
+# 	# yscale = log10,
+# 	# xscale = log10,
+# 	# title = "Reassignments per unchosen protein",
+# 	# limits = (0, nothing, 1, nothing)
+# 	xticks=0:10:100,
+# 	# yticks = LogTicks(WilkinsonTicks(2))
+# 	# yticks = [10 ^ i for i in 1:9]
+
+# )
+# hist!(
+# 	ax, df[!, "%OriginalReads/TotalReads"], color = :red, 
+# 	strokecolor = :black, strokewidth = 1,
+# 	bins=20,
+# 	normalization = :probability
+# )
+# fig
+
+
+# fig = Figure(size = (500, 500))
+# ax = Axis(fig[1, 1],
+# 	xlabel = "Original reads / chosen protein",
+# 	ylabel = "Reassigned unchosen protein",
+# 	xscale = log10,
+# 	yscale = log10,
+# 	# title = "Reassignments per unchosen protein",
+# 	# limits = (0, nothing, 1, nothing)
+# 	# xticks=0:10:100,
+# 	# yticks = [10 ^ i for i in 1:9]
+# )
+# xs = one_result[!, "NumOfReads"]
+# ys = one_result[!, "AdditionalSupportingProteins"]
+# scatter!(
+# 	ax, xs, ys 
+# 	# color = :red, 
+# 	# strokecolor = :black, strokewidth = 1,
+# 	# bins=20,
+# 	# normalization = :probability
+# )
+# fig
+
+
+# fig = Figure(size = (500, 500))
+# ax = Axis(fig[1, 1],
+# 	xlabel = "Original reads / chosen protein",
+# 	ylabel = "Total reads",
+# 	xscale = log10,
+# 	yscale = log10,
+# 	# title = "Reassignments per unchosen protein",
+# 	# limits = (0, nothing, 1, nothing)
+# 	# xticks=0:10:100,
+# 	# yticks = [10 ^ i for i in 1:9]
+# )
+# xs = one_result[!, "NumOfReads"]
+# ys = one_result[!, "TotalWeightedSupportingReads"]
+# scatter!(
+# 	ax, xs, ys 
+# 	# color = :red, 
+# 	# strokecolor = :black, strokewidth = 1,
+# 	# bins=20,
+# 	# normalization = :probability
+# )
+# fig
 
 
 
 
 
-sum(length.(split.(one_result[!, "AdditionalSupportingProteinsIDs"], ",")))
-
-
-reassigned_prots_counter = counter(vcat(split.(one_result[!, "AdditionalSupportingProteinsIDs"], ",")...))
-reassignments_per_reassigned_prot = collect(values(reassigned_prots_counter))
-describe(reassignments_per_reassigned_prot)
-
-fig = Figure(size = (500, 500))
-ax = Axis(fig[1, 1],
-	# xlabel = "Distance", 
-
-	xlabel = "Reassignments to X chosen proteins",
-	ylabel = "Unchosen proteins",
-	yscale = log10,
-	xscale = log10,
-	# title = "Reassignments per unchosen protein",
-	# limits = (0, nothing, 1, nothing)
-	# yticks = LogTicks(WilkinsonTicks(2))
-	# yticks = [10 ^ i for i in 1:9]
-)
-hist!(
-	ax, reassignments_per_reassigned_prot, color = :red, 
-	strokecolor = :red, strokewidth = 1,
-	bins=maximum(reassignments_per_reassigned_prot),
-)
-fig
 
 
 
-fig = Figure(size = (500, 500))
-ax = Axis(fig[1, 1],
-	# xlabel = "Distance", 
-
-	xlabel = "Reassignments to X chosen proteins",
-	ylabel = "Unchosen proteins (cumulative prob)",
-	xscale = log10,
-	# title = "Reassignments per unchosen protein",
-	# limits = (1, nothing, 0, 1),
-	# yticks = LogTicks(WilkinsonTicks(2))
-	yticks = 0:0.1:1
-)
-ecdfplot!(
-	ax, reassignments_per_reassigned_prot, 
-	# color = :red, 
-	# strokecolor = :black, strokewidth = 1,
-	# bins=maximum(reassignments_per_reassigned_prot),
-)
-fig
 
 
 
-df = deepcopy(one_result)
-df[!, "%OriginalReads/TotalReads"] = 100 .* df[!, "NumOfReads"] ./ df[!, "TotalWeightedSupportingReads"]
-fig = Figure(size = (500, 500))
-ax = Axis(fig[1, 1],
-	# xlabel = "Distance", 
-
-	xlabel = "Original reads / total reads [%]",
-	ylabel = "Chosen proteins [probability]",
-	# yscale = log10,
-	# xscale = log10,
-	# title = "Reassignments per unchosen protein",
-	# limits = (0, nothing, 1, nothing)
-	xticks=0:10:100,
-	# yticks = LogTicks(WilkinsonTicks(2))
-	# yticks = [10 ^ i for i in 1:9]
-	
-)
-hist!(
-	ax, df[!, "%OriginalReads/TotalReads"], color = :red, 
-	strokecolor = :black, strokewidth = 1,
-	bins=20,
-	normalization = :probability
-)
-fig
 
 
-fig = Figure(size = (500, 500))
-ax = Axis(fig[1, 1],
-	xlabel = "Original reads / chosen protein",
-	ylabel = "Reassigned unchosen protein",
-	xscale = log10,
-	yscale = log10,
-	# title = "Reassignments per unchosen protein",
-	# limits = (0, nothing, 1, nothing)
-	# xticks=0:10:100,
-	# yticks = [10 ^ i for i in 1:9]
-)
-xs = one_result[!, "NumOfReads"]
-ys = one_result[!, "AdditionalSupportingProteins"]
-scatter!(
-	ax, xs, ys 
-	# color = :red, 
-	# strokecolor = :black, strokewidth = 1,
-	# bins=20,
-	# normalization = :probability
-)
-fig
 
 
-fig = Figure(size = (500, 500))
-ax = Axis(fig[1, 1],
-	xlabel = "Original reads / chosen protein",
-	ylabel = "Total reads",
-	xscale = log10,
-	yscale = log10,
-	# title = "Reassignments per unchosen protein",
-	# limits = (0, nothing, 1, nothing)
-	# xticks=0:10:100,
-	# yticks = [10 ^ i for i in 1:9]
-)
-xs = one_result[!, "NumOfReads"]
-ys = one_result[!, "TotalWeightedSupportingReads"]
-scatter!(
-	ax, xs, ys 
-	# color = :red, 
-	# strokecolor = :black, strokewidth = 1,
-	# bins=20,
-	# normalization = :probability
-)
-fig
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # unique(finalresults[!, "#Solution"])

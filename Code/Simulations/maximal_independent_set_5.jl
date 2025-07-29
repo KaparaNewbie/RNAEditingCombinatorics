@@ -551,16 +551,10 @@ main();
 # # fracrepetitions = 1
 # # algrepetitions = 8
 
-# # infile = "O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50/ProteinsFiles/comp178742_c2_seq1.unique_proteins.csv.gz"
-# # samplename = "comp178742_c2_seq1"
-
-# infile = "O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50/ProteinsFiles/comp100843_c0_seq1.unique_proteins.csv.gz"
-# samplename = "comp100843_c0_seq1"
-
-
-# # infile = "/private7/projects/Combinatorics/Simulations/GraphAssessment/comp140826_c0_seq1.VPS8_HUMAN.UP0_09.Rep10.Errored.PartiallyUnknown.UniqueProteins.tsv.gz"
-# # outdir = "/private7/projects/Combinatorics/Simulations/GraphAssessment/SameFracTest"
-# firstcolpos = 16
+# infile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
+# samplename = "GRIA"
+# outdir = "/private7/projects/Combinatorics/Simulations/GraphAssessment/SameFracTest"
+# firstcolpos = 15
 # delim = "\t"
 # idcol = "Protein"
 # datatype = "Proteins"
@@ -579,13 +573,69 @@ main();
 
 
 
+
+# # function prepare_distinctdf(
+# # 	distinctfile, delim, innerdelim, truestrings, falsestrings,
+# # )
+# # 	# distinctdf = DataFrame(CSV.File(distinctfile; delim, truestrings, falsestrings))
+# # 	distinctdf = DataFrame(CSV.File(distinctfile; delim, truestrings, falsestrings, types = Dict("UniqueSamples" => String, "AvailableReads" => String)))
+# # 	# distinctdf[!, "UniqueSamples"] = InlineString.(distinctdf[!, "UniqueSamples"])
+
+# # 	transform!(distinctdf, :UniqueSamples => (x -> split.(x, innerdelim)) => :UniqueSamples)
+# # 	if "AvailableReads" ∈ names(distinctdf)
+# # 		transform!(distinctdf, :AvailableReads => (x -> split.(x, innerdelim)) => :AvailableReads)
+# # 	end
+# # 	distinctdf[!, "Index"] = collect(1:size(distinctdf, 1))
+# # 	return distinctdf
+# # end
+
 # df, firstcolpos = preparedf!(
 # 	infile, delim, datatype, idcol, firstcolpos,
 # 	testfraction, randseed, sortbyreadname,
 # )
 
+# # distinctfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.06.02.2024-09:29:20.csv"
+# # truestrings = ["TRUE", "True", "true"]
+# # falsestrings = ["FALSE", "False", "false"]
+# # distinctdf = prepare_distinctdf(
+# # 	distinctfile, delim, ";", truestrings, falsestrings,
+# # )
+# # chosen_prots = distinctdf[distinctdf[!, "NumUniqueSamples"] .== maximum(distinctdf[!, "NumUniqueSamples"]), "UniqueSamples"][1][1]
+# # chosen_prots = split(chosen_prots, ",")
+
+
+# # missing_prots = ["VI","1Il","1Zd","230","3lk","3pB","3xj","3xn","3Rp","5pW","5rL","5X1","6ff","6rS","6Di","74g",
+# #  "8uL","8wS","9ho","9uf","9K0","9YY","aiH","b2b","bqh","bQu","bZE","c31","cnD","d6c","dmW"]
+
 # G = indistinguishable_rows(df, idcol; firstcolpos)
+
+# G2 = deepcopy(G)
+
+# # d = Dict("a"=>Set([1]), "b"=>Set([3, 34]))
+# # pop!(d["b"], 3)
+# # pop!(d, "a")
+
+# # iterate over each chosen proteins and remove all its neighbours from the graph
+# for c in chosen_prots
+# 	# for each neighbour of c named n_c 
+# 	for n_c in G2[c]
+# 		# remove n_c from all of its neighbours' n_n_c (c itself included)
+# 		for n_n_c in G2[n_c]
+# 			pop!(G2[n_n_c], n_c)  # remove the edge from n_n_c to n_c
+# 		end
+# 		# remove n_c itself from the graph
+# 		pop!(G2, n_c)
+# 	end
+# end
+
+# Set(keys(G2)) == union(Set(chosen_prots), Set(missing_prots))
+
+# G3 = Dict(u => G2[u] for u ∈ missing_prots)
+# G4 = Dict(u => G[u] for u ∈ missing_prots)
+
 # ArrG = @DArray [G for _ ∈ 1:1]  # move G across processes on a distributed array in order to save memory
+
+
 
 
 # # having built G, we only need to keep the reads and unique reads/proteins they support
