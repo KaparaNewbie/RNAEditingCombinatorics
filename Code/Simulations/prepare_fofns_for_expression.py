@@ -3,7 +3,6 @@ Prepare files of file-names needed to run `expressionlevels.jl`.
 Useful for undirected seq data where there are many transcripts with sufficient mapping.
 """
 
-
 from pathlib import Path
 import sys
 import argparse
@@ -25,13 +24,31 @@ parser.add_argument(
 parser.add_argument(
     "--proteins_prefix",
     default="",
-    help="A prefix for the protein files in `proteins_dir`. Defaults to `''`."
+    help="A prefix for the protein files in `proteins_dir`. Defaults to `''`.",
 )
 parser.add_argument(
     "--proteins_postfix",
     default="",
-    help="A postfix for the protein files in `proteins_dir`. Defaults to `''`."
+    help="A postfix for the protein files in `proteins_dir`. Defaults to `''`.",
 )
+
+parser.add_argument(
+    "--reads_dir",
+    required=True,
+    type=abs_path_from_str,
+    help="A folder with reads files.",
+)
+parser.add_argument(
+    "--reads_prefix",
+    default="",
+    help="A prefix for the reads files in `reads_dir`. Defaults to `''`.",
+)
+parser.add_argument(
+    "--reads_postfix",
+    default="",
+    help="A postfix for the reads files in `reads_dir`. Defaults to `''`.",
+)
+
 parser.add_argument(
     "--distinct_proteins_dir",
     # required=True,
@@ -54,6 +71,11 @@ args = parser.parse_args()
 proteins_dir = args.proteins_dir
 proteins_prefix = args.proteins_prefix
 proteins_postfix = args.proteins_postfix
+
+reads_dir = args.reads_dir
+reads_prefix = args.reads_prefix
+reads_postfix = args.reads_postfix
+
 distinct_proteins_dir = args.distinct_proteins_dir
 distinct_proteins_postfix = args.distinct_proteins_postfix
 out_dir = args.out_dir
@@ -77,14 +99,27 @@ unique_proteins_files = [
     )
     for chrom in chroms_names
 ]
+reads_files = [
+    Path(
+        reads_dir,
+        f"{reads_prefix}{chrom}.reads.csv{reads_postfix}",
+    )
+    for chrom in chroms_names
+]
 
 
 distinct_proteins_list = Path(out_dir, "DistinctProteinsForExpressionLevels.txt")
 unique_proteins_list = Path(out_dir, "UniqueProteinsForExpressionLevels.txt")
+reads_list = Path(out_dir, "ReadsForExpressionLevels.txt")
 chroms_names_list = Path(out_dir, "ChromsNamesForExpressionLevels.txt")
 
-lists = [distinct_proteins_files, unique_proteins_files, chroms_names]
-lists_file_names = [distinct_proteins_list, unique_proteins_list, chroms_names_list]
+lists = [distinct_proteins_files, unique_proteins_files, reads_files, chroms_names]
+lists_file_names = [
+    distinct_proteins_list,
+    unique_proteins_list,
+    reads_list,
+    chroms_names_list,
+]
 
 for _list, list_file_name in zip(lists, lists_file_names):
     with list_file_name.open("w") as list_file_name:

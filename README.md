@@ -1300,14 +1300,40 @@ Code/Simulations/maximal_independent_set_5.jl \
 ```bash
 DIR=O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3
 
+# python \
+# Code/Simulations/prepare_fofns_for_expression.py \
+# --proteins_dir $DIR/ProteinsFiles \
+# --distinct_proteins_dir $DIR/DistinctProteins \
+# --proteins_postfix ".gz" \
+# --out_dir $DIR
+
+# mkdir q
+
+# nohup \
+# julia \
+# --project=. \
+# --threads 30 \
+# Code/Simulations/expressionlevels.jl \
+# --distinctfilesfofn $DIR/DistinctProteinsForExpressionLevels.txt \
+# --allprotsfilesfofn $DIR/UniqueProteinsForExpressionLevels.txt \
+# --samplenamesfile $DIR/ChromsNamesForExpressionLevels.txt \
+# --firstcolpos 16 \
+# --fractions 0.2 0.4 0.6 0.8 1.0 \
+# --outdir $DIR/ExpressionLevels \
+# > $DIR/expressionlevels.8.5.25.out &
+
 python \
 Code/Simulations/prepare_fofns_for_expression.py \
 --proteins_dir $DIR/ProteinsFiles \
+--reads_dir $DIR/ReadsFiles \
 --distinct_proteins_dir $DIR/DistinctProteins \
 --proteins_postfix ".gz" \
+--reads_postfix ".gz" \
 --out_dir $DIR
 
-mkdir q
+OUTDIR=$DIR/ExpressionLevels
+
+mkdir $OUTDIR
 
 nohup \
 julia \
@@ -1316,14 +1342,27 @@ julia \
 Code/Simulations/expressionlevels.jl \
 --distinctfilesfofn $DIR/DistinctProteinsForExpressionLevels.txt \
 --allprotsfilesfofn $DIR/UniqueProteinsForExpressionLevels.txt \
+--allreadsfilesfofn $DIR/ReadsForExpressionLevels.txt \
 --samplenamesfile $DIR/ChromsNamesForExpressionLevels.txt \
 --firstcolpos 16 \
---fractions 0.2 0.4 0.6 0.8 1.0 \
---outdir $DIR/ExpressionLevels \
-> $DIR/expressionlevels.8.5.25.out &
+--onlymaxdistinct \
+--outdir $OUTDIR \
+> $DIR/expressionlevels.30.7.25.out &
 ```
 
 - alu18
+- 1269660
+
+```bash
+find O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/DistinctProteins -type f -name '*Updated.csv' | while read -r file; do
+    tail -n 16 "$file" | awk '{print $3, $10}'
+done | sort | uniq -c | sort -nr
+```
+  21608 Ascending 
+  21597 Descending 
+     11 Descending 1
+
+So only in very few selected cases, the descending algorithm missess a distinct protein.
 
 ### total_mapped_reads 1000
 

@@ -105,6 +105,20 @@ function prepare_allprotsdf!(
 end
 
 
+const UInts = [UInt8, UInt16, UInt32, UInt64, UInt128]
+
+
+"""Return the smallest unsigned int type that can hold `maximumval`."""
+function smallestuint(maximumval)
+	for uint ∈ UInts
+		if maximumval <= typemax(uint)
+			return uint
+		end
+		return UInts[end]
+	end
+end
+
+
 """Return pairs of sets of AAs with no two possible AAs that share a similar classification according to `aagroups`."""
 function finddistinctAAsets(
 	AAsets::Set{Set{AminoAcid}},
@@ -198,6 +212,15 @@ function distances(M::Matrix{Set{AminoAcid}})
 end
 
 
+# M = [
+# 	Set([AA_S]) Set([AA_S]) Set([AA_S])
+# 	Set([AA_S]) Set([AA_S]) Set([AA_S])
+# ]
+# AAsets = ThreadsX.Set([x for row ∈ eachrow(M) for x ∈ row])
+# distinctAAsets = finddistinctAAsets(AAsets)
+
+# distances(M, distinctAAsets)
+
 """
 	distances(M, distinctAAsets)
 
@@ -214,6 +237,16 @@ function distances(M::Matrix{Set{AminoAcid}}, distinctAAsets::Set{Tuple{Set{Amin
 	# merge the triangular array `Δs` into a symmaetrical distances matrix `Δ`
 	# Δ = SymmetricPacked(reduce(vcat, Δs))
 	Δ = SymmetricPacked(reduce(vcat, Δs), :L)  # define the matrix by supplying its lower triangular part
+	return Δ
+end
+
+
+function distances(M::Matrix{Set{AminoAcid}}, ::Empty{Set})
+	# the number of proteins to compare agaisnt each other
+	nrows = size(M, 1)
+	# since the are no distinctAAsets (distinctAAsets::Empty{Set}),
+	# the distance between each two proteins is zero
+	Δ = SymmetricPacked(zeros(UInts[1], nrows, nrows))
 	return Δ
 end
 
@@ -318,20 +351,6 @@ function i_js_distances(
 end
 
 
-const UInts = [UInt8, UInt16, UInt32, UInt64, UInt128]
-
-
-"""Return the smallest unsigned int type that can hold `maximumval`."""
-function smallestuint(maximumval)
-	for uint ∈ UInts
-		if maximumval <= typemax(uint)
-			return uint
-		end
-		return UInts[end]
-	end
-end
-
-
 """
 	allargmins(A)
 
@@ -394,6 +413,8 @@ possibly_empty_array_sum(arr) = isempty(arr) ? 0 : sum(arr)
 # )
 
 
+# solution = 1
+
 function one_solution_additional_assignment_considering_available_reads(
 	distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename,
 )
@@ -448,13 +469,16 @@ function one_solution_additional_assignment_considering_available_reads(
 
 	# before continuing any further,
 	# validate that the distance between any two chosen proeins (two distinct proteins)
-	# is at least 1
-	chosenprot_chosenprot_distances = Δ[chosenindices, chosenindices] # the distances between the chosen proteins to themselves
-	chosenprot_minimum_distances = minimum.(
-		vcat(row[begin:i-1], row[i+1:end])
-		for (i, row) in enumerate(eachrow(chosenprot_chosenprot_distances))
-	) # the smallest distance between each chosen prot to all others
-	@assert all(chosenprot_minimum_distances .>= 1)
+	# is at least 1 
+	# (assuming there are at least 2 chosen ones)
+	if length(chosenindices) >= 2
+		chosenprot_chosenprot_distances = Δ[chosenindices, chosenindices] # the distances between the chosen proteins to themselves
+		chosenprot_minimum_distances = minimum.(
+			vcat(row[begin:i-1], row[i+1:end])
+			for (i, row) in enumerate(eachrow(chosenprot_chosenprot_distances))
+		) # the smallest distance between each chosen prot to all others
+		@assert all(chosenprot_minimum_distances .>= 1)
+	end
 
 	# also report unchosen prots which could have been included in the MIS as well
 	unchosenprot_chosenprot_distances = Δ[unchosenindices, chosenindices] # the distances between the unchosen proteins to chosen proteins
@@ -649,6 +673,8 @@ function one_solution_additional_assignment_considering_available_reads(
 end
 
 
+
+
 function additional_assignments(distinctdf, allprotsdf, firstcolpos, Δ, solutions, readsdf, samplename)
 	@info "$(loggingtime())\tadditional_assignments" samplename solutions
 	results = map(solutions) do solution
@@ -706,7 +732,14 @@ function run_sample(
 
 	# allsubsolutions = collect(Iterators.partition(solutions, maxmainthreads))
 
-	minmainthreads = minimum([Int(Threads.nthreads() / 5), Int(length(solutions) / 4)])
+	# minmainthreads = minimum([Int(Threads.nthreads() / 5), Int(length(solutions) / 4)])
+	minmainthreads = max(
+		1,
+		min(
+			Int(round(Threads.nthreads() / 5)),
+			Int(round(length(solutions) / 4)),
+		),
+	)
 	allsubsolutions = collect(Iterators.partition(solutions, minmainthreads))
 
 	results = tcollect(
@@ -793,6 +826,12 @@ function parsecmd()
 		default = ""
 		"--allprotsfilesfofn"
 		help = "corresponding csv files representing unique proteins (w.r.t. `distinctfiles`)."
+		# nargs = '+'
+		# action = :store_arg
+		# required = true
+		default = ""
+		"--allreadsfilesfofn"
+		help = "corresponding csv files representing reads (w.r.t. `distinctfiles`)."
 		# nargs = '+'
 		# action = :store_arg
 		# required = true
@@ -894,7 +933,7 @@ function main(
 	@info "$(loggingtime())\tmain" distinctfiles allprotsfiles readsfiles samplenames postfix_to_add firstcolpos delim innerdelim truestrings falsestrings fractions maxmainthreads outdir algs onlymaxdistinct gcp shutdowngcp substitutionmatrix similarityscorecutoff similarityvalidator aagroups
 
 	length(distinctfiles) == length(allprotsfiles) == length(readsfiles) == length(samplenames) || error("Unequal input files' lengths!")
-	
+
 	# run each sample using the `run_sample` function
 	for (distinctfile, allprotsfile, samplename, readsfile) ∈ zip(distinctfiles, allprotsfiles, samplenames, readsfiles)
 		run_sample(
@@ -917,10 +956,12 @@ function CLI_main()
 
 	distinctfiles = parsedargs["distinctfiles"]
 	allprotsfiles = parsedargs["allprotsfiles"]
+	allreadsfiles = parsedargs["allreadsfiles"]
 	samplenames = parsedargs["samplenames"]
 
 	distinctfilesfofn = parsedargs["distinctfilesfofn"]
 	allprotsfilesfofn = parsedargs["allprotsfilesfofn"]
+	allreadsfilesfofn = parsedargs["allreadsfilesfofn"]
 	samplenamesfile = parsedargs["samplenamesfile"]
 
 	postfix_to_add = parsedargs["postfix_to_add"]
@@ -932,7 +973,11 @@ function CLI_main()
 	falsestrings = parsedargs["falsestrings"]
 
 	fractions = parsedargs["fractions"]
-	fractions = fractions isa Vector{Float64} ? fractions : parse.(Float64, fractions)
+	# println("fractions = $fractions")
+	# fractions = fractions isa Vector{Float64} ? fractions : parse.(Float64, fractions)
+	if !(fractions isa Vector{Float64})
+		fractions = Float64.(fractions)
+	end
 	algs = parsedargs["algs"]
 	onlymaxdistinct = parsedargs["onlymaxdistinct"]
 
@@ -941,8 +986,6 @@ function CLI_main()
 
 	gcp = parsedargs["gcp"]
 	shutdowngcp = parsedargs["shutdowngcp"]
-
-	readsfiles = parsedargs["allreadsfiles"]
 
 	substitutionmatrix = eval(parsedargs["substitutionmatrix"])
 	similarityscorecutoff = parsedargs["similarityscorecutoff"]
@@ -955,6 +998,10 @@ function CLI_main()
 	if allprotsfilesfofn != ""
 		allprotsfiles = split(readline(allprotsfilesfofn), " ")
 	end
+	if allreadsfilesfofn != ""
+		allreadsfiles = split(readline(allreadsfilesfofn), " ")
+	end
+
 	if samplenamesfile != ""
 		samplenames = split(readline(samplenamesfile), " ")
 	end
@@ -973,7 +1020,7 @@ function CLI_main()
 		firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
 		maxmainthreads, outdir, algs, onlymaxdistinct,
 		gcp, shutdowngcp,
-		readsfiles,
+		allreadsfiles,
 		substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups,
 	)
 end
@@ -989,21 +1036,22 @@ end
 # distinctfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.06.02.2024-09:29:20.csv"
 # readsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz"
 # allprotsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
-
-# distinctfile = "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.Fraction0_1.06.02.2024-10:55:32.csv"
-# allprotsfile = "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
-# readsfile = "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz"
-# fractions = [0.1]
-
 # samplename = "GRIA"
+# firstcolpos = 15
+# onlymaxdistinct = false
+
+# distinctfile =  "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/DistinctProteins/comp183648_c0_seq1.DistinctUniqueProteins.21.03.2024-22:37:27.csv"
+# allprotsfile = "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/ProteinsFiles/comp183648_c0_seq1.unique_proteins.csv.gz"
+# readsfile = "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/ReadsFiles/comp183648_c0_seq1.reads.csv.gz"
+# samplename = "comp183648_c0_seq1"	
+# firstcolpos = 16
+
 # delim = "\t"
 # innerdelim = ","
 # truestrings = ["TRUE", "True", "true"]
 # falsestrings = ["FALSE", "False", "false"]
-# firstcolpos = 15
-
+# onlymaxdistinct = true
 # algs = ["Ascending", "Descending"]
-# onlymaxdistinct = false
 # maxmainthreads = 30
 # fractions = [1.0]
 
@@ -1036,29 +1084,40 @@ end
 # 	end
 # end
 
-# # Int(maximum(Δ)) # maximum distance between any two proteins
-# # Int(minimum(Δ)) # minimum distance between any two proteins
+# # # Int(maximum(Δ)) # maximum distance between any two proteins
+# # # Int(minimum(Δ)) # minimum distance between any two proteins
 
 
-# solution = distinctdf[distinctdf[!, "NumUniqueSamples"].==maximum(distinctdf[!, "NumUniqueSamples"]), "Index"][1]
-# @assert length(solution) == 1 # should be a single element - not a vector
+# # solution = distinctdf[distinctdf[!, "NumUniqueSamples"].==maximum(distinctdf[!, "NumUniqueSamples"]), "Index"][1]
+# # @assert length(solution) == 1 # should be a single element - not a vector
 
-# solution = 15
+# # solution = 15
 
-# # considering only desired solutions (rows' indices)
+# # # considering only desired solutions (rows' indices)
 # solutions = choosesolutions(distinctdf, fractions, algs, onlymaxdistinct)
 
-# # allsubsolutions = collect(Iterators.partition(solutions, maxmainthreads))
+# # # allsubsolutions = collect(Iterators.partition(solutions, maxmainthreads))
 
-# # minmainthreads = minimum([Int(Threads.nthreads() / 5), Int(length(solutions) / 4)])
-# minmainthreads = 8
+
+# minmainthreads = max(
+# 	1,
+# 	min(
+# 		Int(round(Threads.nthreads() / 5)),
+# 		Int(round(length(solutions) / 4))
+# 	)
+# )
+
+
+# # minmainthreads = 8
 # allsubsolutions = collect(Iterators.partition(solutions, minmainthreads))
 
 # results = tcollect(
 # 	additional_assignments(distinctdf, allprotsdf, firstcolpos,
-# 	Δ, subsolutions, readsdf)
+# 	Δ, subsolutions, readsdf, samplename)
 # 	for subsolutions ∈ allsubsolutions
 # )
+
+
 # # finalresults = vcat(Iterators.flatten(results)...)
 # # finalresults = vcat(skipmissing(Iterators.flatten(results)...))
 # finalresults = vcat((skipmissing(Iterators.flatten(results))...))
