@@ -1589,6 +1589,48 @@ def get_f1_max_expression_df(chrom, expression_file, max_distinct_per_fraction_d
     expression_df["AdditionalSupportingProteinsIDs"] = expression_df[
         "AdditionalSupportingProteinsIDs"
     ].apply(lambda x: "" if pd.isna(x) else x.split(","))
+    
+    expression_df["FlattenedAdditionalSupportingReadsIDs"] = expression_df[
+        "AdditionalSupportingReadsIDs"
+    ].apply(lambda x: sorted(set(chain.from_iterable(x))))
+
+    expression_df["FlattenedAllReads"] = expression_df.apply(
+        lambda x: x["Reads"] + x["FlattenedAdditionalSupportingReadsIDs"], axis=1
+    )
+    expression_df["FlattenedAllReadsStatuses"] = expression_df.apply(
+        lambda x: ["Original"] * len(x["Reads"])
+        + ["Additional"] * len(x["FlattenedAdditionalSupportingReadsIDs"]),
+        axis=1,
+    )
+
+    assert (
+        expression_df["FlattenedAllReads"]
+        .apply(len)
+        .eq(expression_df["FlattenedAllReadsStatuses"].apply(len))
+        .all()
+    )
+    
+    expression_df = (
+        expression_df
+        .sort_values("TotalWeightedSupportingReads", ascending=False)
+        .reset_index(drop=True)
+    )
+    expression_df["#Protein"] = list(range(1, len(expression_df) + 1))
+    expression_df["%RelativeExpression"] = (
+        100
+        * expression_df["TotalWeightedSupportingReads"]
+        / expression_df["TotalWeightedSupportingReads"].sum()
+    )
+    expression_df["%CummulativeRelativeExpression"] = expression_df[
+        "%RelativeExpression"
+    ].cumsum()
+    
+    expression_df["%Reads/TotalWeightedSupportingReads"] = (
+        100 * expression_df["NumOfReads"] / expression_df["TotalWeightedSupportingReads"]
+    )
+    expression_df["%AdditionalReads/TotalWeightedSupportingReads"] = (
+        100 * expression_df["AdditionalWeightedSupportingReads"] / expression_df["TotalWeightedSupportingReads"]
+    )
 
     return expression_df
 
@@ -1629,25 +1671,32 @@ max_expression_df = pd.concat(max_expression_dfs, ignore_index=True)
 #     axis=1,
 # )
 
-max_expression_df["FlattenedAdditionalSupportingReadsIDs"] = max_expression_df[
-    "AdditionalSupportingReadsIDs"
-].apply(lambda x: sorted(set(chain.from_iterable(x))))
+# max_expression_df["FlattenedAdditionalSupportingReadsIDs"] = max_expression_df[
+#     "AdditionalSupportingReadsIDs"
+# ].apply(lambda x: sorted(set(chain.from_iterable(x))))
 
-max_expression_df["FlattenedAllReads"] = max_expression_df.apply(
-    lambda x: x["Reads"] + x["FlattenedAdditionalSupportingReadsIDs"], axis=1
-)
-max_expression_df["FlattenedAllReadsStatuses"] = max_expression_df.apply(
-    lambda x: ["Original"] * len(x["Reads"])
-    + ["Additional"] * len(x["FlattenedAdditionalSupportingReadsIDs"]),
-    axis=1,
-)
+# max_expression_df["FlattenedAllReads"] = max_expression_df.apply(
+#     lambda x: x["Reads"] + x["FlattenedAdditionalSupportingReadsIDs"], axis=1
+# )
+# max_expression_df["FlattenedAllReadsStatuses"] = max_expression_df.apply(
+#     lambda x: ["Original"] * len(x["Reads"])
+#     + ["Additional"] * len(x["FlattenedAdditionalSupportingReadsIDs"]),
+#     axis=1,
+# )
 
-assert (
-    max_expression_df["FlattenedAllReads"]
-    .apply(len)
-    .eq(max_expression_df["FlattenedAllReadsStatuses"].apply(len))
-    .all()
-)
+# assert (
+#     max_expression_df["FlattenedAllReads"]
+#     .apply(len)
+#     .eq(max_expression_df["FlattenedAllReadsStatuses"].apply(len))
+#     .all()
+# )
+
+# max_expression_df["%Reads/TotalWeightedSupportingReads"] = (
+#     100 * max_expression_df["NumOfReads"] / max_expression_df["TotalWeightedSupportingReads"]
+# )
+# max_expression_df["%AdditionalReads/TotalWeightedSupportingReads"] = (
+#     100 * max_expression_df["AdditionalWeightedSupportingReads"] / max_expression_df["TotalWeightedSupportingReads"]
+# )
 
 max_expression_df
 
@@ -6562,7 +6611,8 @@ ax.set(xscale="log")
 
 # %%
 ambigous_positions_in_reads_dfs = []
-for reads_df, chrom in zip(reads_dfs, chroms):
+# for reads_df, chrom in zip(reads_dfs, chroms):
+for reads_df, chrom, condition in zip(reads_dfs, chroms, conditions):
     # reads_df = reads_df.loc[:, [condition_col, "Read", "AmbigousPositions"]].rename(
     #     columns={"AmbigousPositions": "NAsPerRead"}
     # )
@@ -6643,6 +6693,24 @@ del ambigous_positions_in_reads_df["indicator"]
 ambigous_positions_in_reads_df
 
 # %%
+ambigous_positions_in_reads_df.loc[
+    (ambigous_positions_in_reads_df["Gene"]=="IQEC1")
+    & (ambigous_positions_in_reads_df["NAPositions"]==ambigous_positions_in_reads_df.loc[ambigous_positions_in_reads_df["Gene"]=="IQEC1", "NAPositions"].max())
+]
+
+# %%
+reads_dfs[1]
+
+# %%
+reads_dfs[1]["1375"].value_counts()
+
+# %%
+reads_dfs[1].loc[reads_dfs[1]["Read"]=="IBW"]
+
+# %%
+unique_proteins_dfs[1].loc[unique_proteins_dfs[1]["Protein"].isin(max_expression_df.loc[max_expression_df["Gene"]=="IQEC1", "Protein"].values), "Protein"].values]
+
+# %%
 # ambigous_positions_in_reads_df.groupby([condition_col, "Status"])[
 #     [
 #         "EditingFrequency",
@@ -6668,7 +6736,7 @@ ambigous_positions_in_reads_df.groupby([condition_col, "Status"])[
     [
         "mean",
     ]
-).round(3)
+).round(2)
 
 # %%
 for col in [
@@ -6735,6 +6803,41 @@ fig.update_layout(
     template=template,
     barmode="overlay",
     # title="Squid's UMI long-reads - merged samples",
+)
+fig.show()
+
+# %%
+fig = px.scatter(
+    ambigous_positions_in_reads_df,
+    x="ReadLength",
+    y="NAPositions",
+    
+    # color=condition_col,
+    # color_discrete_map=color_discrete_map,
+    # facet_col="Status",
+    
+    color="Status",
+    facet_col=condition_col,
+    facet_row="Status",
+    
+    # labels={"NAsPerRead": "NAs / read"},
+    # histnorm="percent",
+    # cumulative=True,
+    # log_y=True,
+    category_orders={condition_col: conditions, "Status": ["Original", "Reassigned"]},
+    trendline="ols",
+    trendline_color_override="black",
+)
+# fig.update_traces(opacity=0.75)
+fig.update_traces(opacity=0.55)
+fig.update_yaxes(range=[0, None])
+fig.update_layout(
+    width=600,
+    # height=350,
+    height=600,
+    template=template,
+    barmode="overlay",
+    showlegend=False
 )
 fig.show()
 
@@ -6843,42 +6946,24 @@ fig.show()
 # fig.show()
 
 # %%
-fig = px.scatter(
-    max_expression_df,
-    x="NumOfReads",
-    y="TotalWeightedSupportingReads",
-    
-    color=condition_col,
-    color_discrete_map=color_discrete_map,
-    # facet_col="Status",
-    
-    # color="Status",
-    # facet_col=condition_col,
-    
-    # labels={"NAsPerRead": "NAs / read"},
-    # histnorm="percent",
-    # cumulative=True,
-    log_x=True,
-    log_y=True,
-    marginal_x="box",
-    marginal_y="box",
-    # category_orders={condition_col: conditions, "Status": ["Original", "Reassigned"]},
-)
-# fig.update_traces(opacity=0.75)
-fig.update_traces(opacity=0.55)
-# fig.update_xaxes(dtick=3000, range=[0, 21000])
-# fig.update_xaxes(tick0=0, dtick=3000, 
-#                 #  tickangle=45
-#                  )
-# fig.update_yaxes(title="Reads", dtick=3000)
-fig.update_layout(
-    width=500,
-    height=500,
-    template=template,
-    barmode="overlay",
-    # title="Squid's UMI long-reads - merged samples",
-)
-fig.show()
+max_expression_df
+
+# %%
+max_expression_df.groupby([condition_col])[
+    [
+        "NumOfReads",
+        "AdditionalWeightedSupportingReads",
+        "TotalWeightedSupportingReads",
+        "AdditionalSupportingProteins",
+        "%RelativeExpression",
+        "%Reads/TotalWeightedSupportingReads",
+        "%AdditionalReads/TotalWeightedSupportingReads"
+    ]
+].agg(
+    [
+        "mean",
+    ]
+).round(3)
 
 # %%
 fig = px.histogram(
@@ -6921,6 +7006,44 @@ fig.show()
 fig = px.scatter(
     max_expression_df,
     x="NumOfReads",
+    y="TotalWeightedSupportingReads",
+    
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    # facet_col="Status",
+    
+    # color="Status",
+    # facet_col=condition_col,
+    
+    # labels={"NAsPerRead": "NAs / read"},
+    # histnorm="percent",
+    # cumulative=True,
+    log_x=True,
+    log_y=True,
+    marginal_x="box",
+    marginal_y="box",
+    # category_orders={condition_col: conditions, "Status": ["Original", "Reassigned"]},
+)
+# fig.update_traces(opacity=0.75)
+fig.update_traces(opacity=0.55)
+# fig.update_xaxes(dtick=3000, range=[0, 21000])
+# fig.update_xaxes(tick0=0, dtick=3000, 
+#                 #  tickangle=45
+#                  )
+# fig.update_yaxes(title="Reads", dtick=3000)
+fig.update_layout(
+    width=500,
+    height=500,
+    template=template,
+    barmode="overlay",
+    # title="Squid's UMI long-reads - merged samples",
+)
+fig.show()
+
+# %%
+fig = px.scatter(
+    max_expression_df,
+    x="NumOfReads",
     y="AdditionalSupportingProteins",
     
     color=condition_col,
@@ -6949,6 +7072,92 @@ fig.update_traces(opacity=0.55)
 fig.update_layout(
     width=500,
     height=500,
+    template=template,
+    barmode="overlay",
+    # title="Squid's UMI long-reads - merged samples",
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    max_expression_df,
+    x="%Reads/TotalWeightedSupportingReads",
+    # y="%AdditionalReads/TotalWeightedSupportingReads",
+    
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    # facet_col="Status",
+    
+    # color="Status",
+    # facet_col=condition_col,
+    # facet_col_spacing=0.1,
+    
+    # labels={"NAsPerRead": "NAs / read"},
+    histnorm="percent",
+    # cumulative=True,
+    # log_x=True,
+    # log_y=True,
+    # marginal_x="box",
+    # marginal_y="box",
+    # marginal_x="histogram",
+    # marginal_y="histogram",
+    # category_orders={condition_col: conditions, "Status": ["Original", "Reassigned"]},
+)
+# fig.update_traces(opacity=0.75)
+fig.update_traces(opacity=0.55)
+# fig.update_xaxes(range=[0, 100], dtick=20)
+# fig.update_yaxes(range=[0, None], dtick=1) 
+fig.update_xaxes(range=[0, None], dtick=20)
+fig.update_layout(
+    width=500,
+    # height=500,
+    # width=1000,
+    height=350,
+    template=template,
+    barmode="overlay",
+    # title="Squid's UMI long-reads - merged samples",
+)
+fig.show()
+
+# %%
+fig = px.scatter(
+    max_expression_df,
+    # x="NumOfReads",
+    # x="TotalWeightedSupportingReads",
+    x="%Reads/TotalWeightedSupportingReads",
+    # x="%AdditionalReads/TotalWeightedSupportingReads",
+    
+    y="%RelativeExpression",
+    
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    # facet_col="Status",
+    
+    # color="Status",
+    # facet_col=condition_col,
+    # facet_col_spacing=0.1,
+    
+    # labels={"NAsPerRead": "NAs / read"},
+    # histnorm="percent",
+    # cumulative=True,
+    # log_x=True,
+    log_y=True,
+    marginal_x="box",
+    marginal_y="box",
+    # marginal_x="histogram",
+    # marginal_y="histogram",
+    # category_orders={condition_col: conditions, "Status": ["Original", "Reassigned"]},
+)
+# fig.update_traces(opacity=0.75)
+fig.update_traces(opacity=0.55)
+# fig.update_xaxes(range=[0, None])
+# fig.update_yaxes(range=[0, None], dtick=1) 
+# fig.update_xaxes(range=[0, None], dtick=20)
+fig.update_layout(
+    width=500,
+    height=500,
+    # width=1000,
+    # height=350,
     template=template,
     barmode="overlay",
     # title="Squid's UMI long-reads - merged samples",
