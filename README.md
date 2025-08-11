@@ -832,6 +832,34 @@ Code/Simulations/expressionlevels.jl \
 * alu 18
 * 4049123
 
+
+
+Calculating exp levels considering entropy of each unchosen prot:
+
+```bash
+WD="D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30"
+
+
+nohup \
+julia \
+--project=. \
+--threads 60 \
+Code/Simulations/expressionlevels.jl \
+--distinctfiles $WD/GRIA-CNS-RESUB.DistinctUniqueProteins.06.02.2024-09:29:20.csv $WD/PCLO-CNS-RESUB.DistinctUniqueProteins.06.02.2024-09:46:24.csv \
+--allprotsfiles $WD/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz $WD/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+--allreadsfiles $WD/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz $WD/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz \
+--samplenames GRIA PCLO \
+--firstcolpos 15 \
+--fractions 1.0 \
+--outdir $WD \
+--considerentropy \
+--postfix_to_add .EntropyConsidered \
+> $WD/expressionlevels.regular.7.8.2025.out &
+```
+* alu 18
+* 3644062
+  
+
 #### Regular - fraction 0.1 only
 
 ##### Finding isoforms
@@ -1621,44 +1649,24 @@ tail -n 15 /private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMIL
 ```bash
 UMI_DIR=D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples
 
-# python \
-# Code/Simulations/prepare_fofns_for_expression.py \
-# --proteins_dir $UMI_DIR \
-# --distinct_proteins_dir $UMI_DIR \
-# --proteins_postfix ".gz" \
-# --out_dir $UMI_DIR
-
-# nohup \
-# julia \
-# --project=. \
-# --threads 40 \
-# Code/Simulations/expressionlevels.jl \
-# --distinctfilesfofn $UMI_DIR/DistinctProteinsForExpressionLevels.txt \
-# --allprotsfilesfofn $UMI_DIR/UniqueProteinsForExpressionLevels.txt \
-# --samplenamesfile $UMI_DIR/ChromsNamesForExpressionLevels.txt \
-# --firstcolpos 15 \
-# --fractions 0.2 0.4 0.6 0.8 1.0 \
-# --outdir $UMI_DIR \
-# > $UMI_DIR/expressionlevels.2.2.25.out &
-
-
 nohup \
 julia \
 --project=. \
---threads 50 \
+--threads 60 \
 Code/Simulations/expressionlevels.jl \
 --distinctfiles $UMI_DIR/ADAR1.Merged.DistinctUniqueProteins.*.csv $UMI_DIR/IQEC.Merged.DistinctUniqueProteins.*.csv \
 --allprotsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
---allreadsfile $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz \
+--allreadsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz \
 --samplenames ADAR1 IQEC1 \
 --firstcolpos 15 \
---fractions 1.0 \
+--onlymaxdistinct \
 --outdir $UMI_DIR \
-> $UMI_DIR/expressionlevels.28.7.25.out &
+--minloglevel -1000 \
+> $UMI_DIR/expressionlevels.7.8.25.out &
 ```
+* alu 18
+* 3661886
 
-- alu 16
-- 3904426
 
 ## Squid long reads w/ UMIs - unique reads - merged samples
 

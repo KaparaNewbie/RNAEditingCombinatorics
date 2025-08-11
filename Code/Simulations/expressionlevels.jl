@@ -13,6 +13,7 @@ using BioAlignments # for SubstitutionMatrix
 using LinearAlgebra
 using DataStructures # for Counter
 using CairoMakie
+using Logging, LoggingExtras
 
 
 include(joinpath(@__DIR__, "consts.jl")) # for `AA_groups` (polar/non-polar/positive/negative)
@@ -23,6 +24,7 @@ include(joinpath(@__DIR__, "timeformatters.jl"))
 function prepare_distinctdf(
 	distinctfile, delim, innerdelim, truestrings, falsestrings,
 )
+	@info "$(loggingtime())\tprepare_distinctdf" distinctfile
 	# distinctdf = DataFrame(CSV.File(distinctfile; delim, truestrings, falsestrings))
 	distinctdf = DataFrame(CSV.File(distinctfile; delim, truestrings, falsestrings, types = Dict("UniqueSamples" => String, "AvailableReads" => String)))
 	# distinctdf[!, "UniqueSamples"] = InlineString.(distinctdf[!, "UniqueSamples"])
@@ -40,6 +42,7 @@ toAAset(x, innerdelim) = Set(map(aa -> convert(AminoAcid, only(aa)), split(x, in
 
 
 function prepare_readsdf(readsfile, delim)
+	@info "$(loggingtime())\tprepare_readsdf" readsfile delim
 	readsdf = DataFrame(
 		CSV.File(
 			readsfile,
@@ -58,6 +61,7 @@ function prepare_allprotsdf!(
 	truestrings, falsestrings, firstcolpos,
 	readsdf,
 )
+	@info "$(loggingtime())\tprepare_allprotsdf!" allprotsfile
 
 	df1 = DataFrame(CSV.File(allprotsfile, delim = delim, select = collect(1:firstcolpos-1), types = Dict("Protein" => String, "Reads" => String)))
 	df1[!, "Protein"] = InlineString.(df1[!, :Protein])
@@ -124,6 +128,7 @@ function finddistinctAAsets(
 	AAsets::Set{Set{AminoAcid}},
 	aagroups::Dict{AminoAcid, String},
 )
+	@info "$(loggingtime())\tfinddistinctAAsets" AAsets aagroups
 	ThreadsX.Set(
 		[
 		(x, y)
@@ -143,6 +148,7 @@ function finddistinctAAsets(
 	AAsets::Set{Set{AminoAcid}},
 	substitutionmatrix::SubstitutionMatrix{AminoAcid, Int64}, similarityscorecutoff::Int64, similarityvalidator::Function,
 )
+	@info "$(loggingtime())\tfinddistinctAAsets" AAsets substitutionmatrix similarityscorecutoff similarityvalidator
 	ThreadsX.Set(
 		[
 		(x, y)
@@ -155,6 +161,7 @@ end
 
 """Return pairs of sets of AAs with no two possible shared AAs."""
 function finddistinctAAsets(AAsets::Set{Set{AminoAcid}})
+	@info "$(loggingtime())\tfinddistinctAAsets" AAsets
 	ThreadsX.Set(
 		[(x, y)
 		 for x ∈ AAsets
@@ -173,6 +180,7 @@ in which the two contain no possible amino acids `(AAᵦ, AAᵧ) ∈ (Sᵢ x S�
 such that both `AAᵦ` and `AAᵧ` share the same classification in `aagroups`.
 """
 function distances(M::Matrix{Set{AminoAcid}}, aagroups::Dict{AminoAcid, String})
+	@info "$(loggingtime())\tdistances" aagroups
 	AAsets = ThreadsX.Set([x for row ∈ eachrow(M) for x ∈ row])
 	distinctAAsets = finddistinctAAsets(AAsets, aagroups)
 	return distances(M, distinctAAsets)
@@ -192,6 +200,7 @@ function distances(
 	M::Matrix{Set{AminoAcid}},
 	substitutionmatrix::SubstitutionMatrix{AminoAcid, Int64}, similarityscorecutoff::Int64, similarityvalidator::Function,
 )
+	@info "$(loggingtime())\tdistances" substitutionmatrix similarityscorecutoff similarityvalidator
 	AAsets = ThreadsX.Set([x for row ∈ eachrow(M) for x ∈ row])
 	distinctAAsets = finddistinctAAsets(AAsets, substitutionmatrix, similarityscorecutoff, similarityvalidator)
 	return distances(M, distinctAAsets)
@@ -206,6 +215,7 @@ The distance between a `rowᵢ` to a `rowⱼ` is determined by the number of cor
 in which the two share no possible amino acid.
 """
 function distances(M::Matrix{Set{AminoAcid}})
+	@info "$(loggingtime())\tdistances"
 	AAsets = ThreadsX.Set([x for row ∈ eachrow(M) for x ∈ row])
 	distinctAAsets = finddistinctAAsets(AAsets)
 	return distances(M, distinctAAsets)
@@ -229,6 +239,7 @@ The distance between a `rowᵢ` to a `rowⱼ` is determined by the number of cor
 in which the two share no possible amino acid according to `distinctAAsets`.
 """
 function distances(M::Matrix{Set{AminoAcid}}, distinctAAsets::Set{Tuple{Set{AminoAcid}, Set{AminoAcid}}})
+	@info "$(loggingtime())\tdistances - main function" size(M) = size(M) distinctAAsets
 	nrows = size(M, 1)
 	Δmax = size(M, 2)  # maximal possible difference between any two proteins
 	uint = smallestuint(Δmax)  # type of each cell in the final distances matrix `Δ`
@@ -242,6 +253,7 @@ end
 
 
 function distances(M::Matrix{Set{AminoAcid}}, ::Empty{Set})
+	@info "$(loggingtime())\tdistances - main function - empty distinctAAsets" size(M) = size(M)
 	# the number of proteins to compare agaisnt each other
 	nrows = size(M, 1)
 	# since the are no distinctAAsets (distinctAAsets::Empty{Set}),
@@ -327,13 +339,18 @@ All possible distinct sets  between any two cells are given at `distinctAAsets`.
 function i_js_distances(
 	M::Matrix{Set{AminoAcid}}, distinctAAsets, uint, i,
 )
+	@debug "$(loggingtime())\ti_js_distances - start" size(M) = size(M) i
 
 	@views rowᵢ = M[i, :]
 	nrows = size(M, 1)
 	δᵢ = Vector{uint}(undef, nrows - i + 1)
 	# the distance between `rowᵢ` to itself
 	δᵢ[1] = 0
-	i == nrows && return δᵢ
+	# i == nrows && return δᵢ
+	if i == nrows
+		@debug "$(loggingtime())\ti_js_distances - end" size(M) = size(M) i
+		return δᵢ
+	end
 	# the distances between `rowᵢ` to every `rowⱼ` where `i < j`
 	for j ∈ i+1:nrows   # todo use @inbounds? https://docs.julialang.org/en/v1/base/base/#Base.@inbounds
 		@views rowⱼ = M[j, :]
@@ -347,6 +364,7 @@ function i_js_distances(
 		end
 		δᵢ[j-i+1] = δᵢⱼ
 	end
+	@debug "$(loggingtime())\ti_js_distances - end" size(M) = size(M) i
 	return δᵢ
 end
 
@@ -387,6 +405,7 @@ end
 
 "Get indices of eligible solutions from `distinctdf` on which expression levels should be calculated."
 function choosesolutions(distinctdf, fractions, algs, onlymaxdistinct)
+	@info "$(loggingtime())\tchoosesolutions" fractions algs onlymaxdistinct
 
 	_distinctdf = distinctdf[in.(distinctdf.Algorithm, Ref(algs)).&in.(distinctdf.Fraction, Ref(fractions)), :]
 
@@ -403,22 +422,91 @@ function choosesolutions(distinctdf, fractions, algs, onlymaxdistinct)
 end
 
 
+colhasambiguousAAs(col) = any(length.(col) .> 1)
+
+
+"""
+	Calculate the entropy of the disfferent AAs distribution in a position.
+	`col` is a vector of sets of AminoAcids, where each set represents the possible AAs in the position.
+"""
+function colAAentropy(col::Vector{Set{AminoAcid}})
+	# keep only unambiguous AAs for this col
+	col = col[length.(col).==1]
+	# counts = collect(values(counter(col)))
+	counts = values(counter(col))
+	# S = - sum(p_i * log2(p_i))
+	# where p_i = count_i / sum(counts)
+	totalcount = sum(counts)
+	if totalcount == 0
+		return 0.0
+	end
+	p = counts ./ totalcount
+	return -sum(p .* log2.(p))
+end
+
+
+"""
+	Calculate the entropy of the amino acids in a protein.
+	`protAAs` is a vector of sets of AminoAcids, where each set represents the possible AAs in the position.
+	The entropy is the sum of the entropies of each unambiguous position of the protein.
+"""
+protentropy(protAAs::Vector{Set{AminoAcid}}, s_cols::Vector{Float64}) = sum(
+	[
+	s_col
+	for (s_col, AAs) in zip(s_cols, protAAs)
+	if length(AAs) == 1
+]
+)
+
+
+"""
+	Annotate proteins with sufficient entropy.
+	`allprotsdf` is a DataFrame of proteins, where the first column is the protein name and the last ones are the amino acids in each position.
+	`firstcolpos` is the position of the first column with amino acids.
+	Returns a DataFrame with an additional column "SufficientEntropy" indicating whether the protein has 
+	sufficient entropy, and the updated `firstcolpos` position.
+
+	How do we determine whether a protein has sufficient entropy?
+	Assuming we have N ambiguous positions (i.e., positions where for at least one protein, we have two possible AAs),
+	each having 2/3 unambiguous options, with known probabilities.
+	For each of these positions, the entropy is -sum(p * log2(p)), 
+	where p is the probability of each unambiguous AA in the position.
+	The total entropy (approximation, neglecting correlations) s_0 is the sum of all S values for all positions.
+	For each protein, its entropy s_prot is the sum of the S values over the AA for which it has known values. 
+	If this sum s_prot > S_0 / 2, this protein may be reassigned.
+"""
+function findprotswithsufficiententropy!(
+	allprotsdf, firstcolpos, samplename,
+)
+	@info "$(loggingtime())\tfindprotswithsufficiententropy" samplename firstcolpos
+
+	df = allprotsdf[:, firstcolpos:end]
+	df = df[
+		:,
+		[i for (i, col) in enumerate(eachcol(df)) if colhasambiguousAAs(col)],
+	]
+
+	s_cols = colAAentropy.(eachcol(df))
+	s_0 = sum(s_cols)
+	s_prots = protentropy.(Vector.(eachrow(df)), Ref(s_cols))
+	sufficiententropy = s_prots .> s_0 / 2  # the proteins that have enough entropy to be accepted
+
+	proteincolpos = findfirst(names(allprotsdf) .== "Protein")
+	insertcols!(allprotsdf, proteincolpos + 1, "SufficientEntropy" => sufficiententropy)
+	firstcolpos += 1
+
+	return allprotsdf, firstcolpos
+end
+
+
 possibly_empty_array_sum(arr) = isempty(arr) ? 0 : sum(arr)
 
 
-# solution = 73  # 74, 77, 65, 78, 66, 69, 70
-# result = one_solution_additional_assignment_considering_available_reads(
-# 	distinctdf, allprotsdf, firstcolpos, Δ, solution,
-# 	readsdf,
-# )
-
-
-# solution = 1
-
 function one_solution_additional_assignment_considering_available_reads(
 	distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename,
+	considerentropy::Bool = false,
 )
-	@info "$(loggingtime())\tone_solution_additional_assignment_considering_available_reads" samplename solution
+	@info "$(loggingtime())\tone_solution_additional_assignment_considering_available_reads" samplename solution considerentropy
 
 	solutionrow = distinctdf[solution, :]
 
@@ -463,6 +551,14 @@ function one_solution_additional_assignment_considering_available_reads(
 
 	chosendf = filter("Protein" => x -> x ∈ prots_in_solution, baseallprotsdf)
 	unchosendf = filter("Protein" => x -> x ∉ prots_in_solution, baseallprotsdf)
+
+	# counter(chosendf[:, "SufficientEntropy"])
+	# counter(unchosendf[:, "SufficientEntropy"])
+
+	if considerentropy
+		# filter out unchosen proteins with insufficient entropy
+		unchosendf = filter("SufficientEntropy" => x -> x, unchosendf)
+	end
 
 	chosenindices = chosendf[:, "Index"] # indices of chosen proteins in the complete Δ matrix
 	unchosenindices = unchosendf[:, "Index"] # indices of unchosen proteins in the complete Δ matrix
@@ -673,14 +769,15 @@ function one_solution_additional_assignment_considering_available_reads(
 end
 
 
-
-
-function additional_assignments(distinctdf, allprotsdf, firstcolpos, Δ, solutions, readsdf, samplename)
-	@info "$(loggingtime())\tadditional_assignments" samplename solutions
+function additional_assignments(
+	distinctdf, allprotsdf, firstcolpos, Δ, solutions, readsdf, samplename, considerentropy,
+)
+	@info "$(loggingtime())\tadditional_assignments" samplename solutions considerentropy
 	results = map(solutions) do solution
 		try
 			one_solution_additional_assignment_considering_available_reads(
 				distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename,
+				considerentropy,
 			)
 		catch e
 			@warn "Error in additional_assignments:" e solution
@@ -700,8 +797,9 @@ function run_sample(
 	similarityscorecutoff::Int64,
 	similarityvalidator::Function,
 	aagroups::Union{Dict{AminoAcid, String}, Nothing},
+	considerentropy::Bool,
 )
-	@info "$(loggingtime())\trun_sample" distinctfile allprotsfile readsfile samplename
+	@info "$(loggingtime())\trun_sample" distinctfile allprotsfile readsfile samplename considerentropy
 
 	distinctdf = prepare_distinctdf(
 		distinctfile, delim, innerdelim, truestrings, falsestrings,
@@ -713,6 +811,12 @@ function run_sample(
 		allprotsfile, delim, innerdelim, truestrings, falsestrings, firstcolpos,
 		readsdf,
 	)
+
+	if considerentropy
+		allprotsdf, firstcolpos = findprotswithsufficiententropy!(
+			allprotsdf, firstcolpos, samplename,
+		)
+	end
 
 	# the possible amino acids each protein has in each position
 	M = Matrix(allprotsdf[:, firstcolpos:end])
@@ -745,6 +849,7 @@ function run_sample(
 	results = tcollect(
 		additional_assignments(
 			distinctdf, allprotsdf, firstcolpos, Δ, subsolutions, readsdf, samplename,
+			considerentropy,
 		)
 		for subsolutions ∈ allsubsolutions
 	)
@@ -787,6 +892,61 @@ function run_sample(
 	distinctfilepostfixstart = findlast('.', distinctfile)
 	updateddistinctfile = distinctfile[begin:distinctfilepostfixstart-1] * ".Updated" * "$postfix_to_add" * distinctfile[distinctfilepostfixstart:end]
 	CSV.write(updateddistinctfile, newdistinctdf; delim)
+end
+
+
+function main(
+	distinctfiles, allprotsfiles, samplenames,
+	postfix_to_add,
+	firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
+	maxmainthreads, outdir, algs, onlymaxdistinct,
+	gcp, shutdowngcp,
+	readsfiles,
+	substitutionmatrix::Union{SubstitutionMatrix, Nothing},
+	similarityscorecutoff::Int64,
+	similarityvalidator::Function,
+	aagroups::Union{Dict{AminoAcid, String}, Nothing},
+	considerentropy::Bool,
+	logtostdout::Bool,
+	minloglevel,
+)
+	# logfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/expression.logger.log"
+
+	# logfile !== nothing && global_logger(FileLogger(logfile; append = true))
+
+	# logfile !== nothing && global_logger(MinLevelLogger(FileLogger(logfile; append = true), Logging.Info))
+	# if logfile === nothing
+	# 	logfile = "$outdir/expressionlevels$postfix_to_add.$(Dates.format(now(), "dd.mm.YYYY")).log"
+	# end
+	if logtostdout
+		global_logger(MinLevelLogger(ConsoleLogger(stdout, minloglevel), minloglevel))
+	else
+		logfile = "$outdir/expressionlevels$postfix_to_add.$(Dates.format(now(), "dd.mm.YYYY")).log"
+		# global_logger(MinLevelLogger(FileLogger(logfile; append = true), minloglevel))
+		global_logger(MinLevelLogger(FileLogger(logfile), minloglevel))
+	end
+
+
+	@info "$(loggingtime())\tmain" distinctfiles allprotsfiles readsfiles samplenames postfix_to_add firstcolpos delim innerdelim truestrings falsestrings fractions maxmainthreads outdir algs onlymaxdistinct gcp shutdowngcp substitutionmatrix similarityscorecutoff similarityvalidator aagroups considerentropy logtostdout minloglevel
+
+	length(distinctfiles) == length(allprotsfiles) == length(readsfiles) == length(samplenames) || error("Unequal input files' lengths!")
+
+	# run each sample using the `run_sample` function
+	for (distinctfile, allprotsfile, samplename, readsfile) ∈ zip(distinctfiles, allprotsfiles, samplenames, readsfiles)
+		run_sample(
+			distinctfile, allprotsfile, samplename, postfix_to_add,
+			firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
+			maxmainthreads, outdir, algs, onlymaxdistinct,
+			readsfile,
+			substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups,
+			considerentropy,
+		)
+	end
+
+	@info "$(loggingtime())\tmain - finished sucessfully!"
+
+	# shutdown gcp vm (if needed)
+	gcp && shutdowngcp && run(`sudo shutdown`) # https://cloud.google.com/compute/docs/shutdownscript
 end
 
 
@@ -872,6 +1032,7 @@ function parsecmd()
 		default = [1.0]
 		nargs = '+'
 		action = :store_arg
+		arg_type = Float64
 		"--algs"
 		help = "Consider only solutions achieved by desired algorithms."
 		default = ["Ascending", "Descending"]
@@ -912,41 +1073,27 @@ function parsecmd()
 		help = "Use predifined AAs classification as a stricter criteria for determination of distinct AAs. Use in conjuction with `datatype == Proteins`. Not compatible with `substitutionmatrix`."
 		arg_type = Symbol
 		range_tester = x -> x ∈ [:AA_groups, :AA_groups_Miyata1979]
+		"--considerentropy"
+		help = "If `true`, will only reassign unchosen proteins with sufficient entropy."
+		action = :store_true
+
+		"--logtostdout"
+		help = """
+		Write log messages to `stdout` instead of a designated file 
+		(its path will be configured by `outdir` and `postfix_to_add`)
+		However, the time flushing to `stdout` is not guaranteed, so it is recommended 
+		to let the program flush the logging to a log file to follow in real time.
+		"""
+		action = :store_true
+		"--minloglevel"
+		# default = Logging.Info
+		# arg_type = LogLevel
+		default = 0
+		arg_type = Int
+		help = "Minimum log level to be logged. Default is 0 (Info). Use -1000 for debugging."
 
 	end
 	return parse_args(s)
-end
-
-
-function main(
-	distinctfiles, allprotsfiles, samplenames,
-	postfix_to_add,
-	firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
-	maxmainthreads, outdir, algs, onlymaxdistinct,
-	gcp, shutdowngcp,
-	readsfiles,
-	substitutionmatrix::Union{SubstitutionMatrix, Nothing},
-	similarityscorecutoff::Int64,
-	similarityvalidator::Function,
-	aagroups::Union{Dict{AminoAcid, String}, Nothing},
-)
-	@info "$(loggingtime())\tmain" distinctfiles allprotsfiles readsfiles samplenames postfix_to_add firstcolpos delim innerdelim truestrings falsestrings fractions maxmainthreads outdir algs onlymaxdistinct gcp shutdowngcp substitutionmatrix similarityscorecutoff similarityvalidator aagroups
-
-	length(distinctfiles) == length(allprotsfiles) == length(readsfiles) == length(samplenames) || error("Unequal input files' lengths!")
-
-	# run each sample using the `run_sample` function
-	for (distinctfile, allprotsfile, samplename, readsfile) ∈ zip(distinctfiles, allprotsfiles, samplenames, readsfiles)
-		run_sample(
-			distinctfile, allprotsfile, samplename, postfix_to_add,
-			firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
-			maxmainthreads, outdir, algs, onlymaxdistinct,
-			readsfile,
-			substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups,
-		)
-	end
-
-	# shutdown gcp vm (if needed)
-	gcp && shutdowngcp && run(`sudo shutdown`) # https://cloud.google.com/compute/docs/shutdownscript
 end
 
 
@@ -973,7 +1120,7 @@ function CLI_main()
 	falsestrings = parsedargs["falsestrings"]
 
 	fractions = parsedargs["fractions"]
-	# println("fractions = $fractions")
+	# println("fractions = $fractions, typeof(fractions) = $typeof(fractions)")
 	# fractions = fractions isa Vector{Float64} ? fractions : parse.(Float64, fractions)
 	if !(fractions isa Vector{Float64})
 		fractions = Float64.(fractions)
@@ -991,6 +1138,11 @@ function CLI_main()
 	similarityscorecutoff = parsedargs["similarityscorecutoff"]
 	similarityvalidator = eval(parsedargs["similarityvalidator"])
 	aagroups = eval(parsedargs["aagroups"])
+
+	considerentropy = parsedargs["considerentropy"]
+
+	logtostdout = parsedargs["logtostdout"]
+	minloglevel = LogLevel(parsedargs["minloglevel"])
 
 	if distinctfilesfofn != ""
 		distinctfiles = split(readline(distinctfilesfofn), " ")
@@ -1022,6 +1174,8 @@ function CLI_main()
 		gcp, shutdowngcp,
 		allreadsfiles,
 		substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups,
+		considerentropy,
+		logtostdout, minloglevel,
 	)
 end
 
@@ -1031,6 +1185,11 @@ if abspath(PROGRAM_FILE) == @__FILE__
 end
 
 
+# distinctfile =  "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/DistinctProteins/comp183648_c0_seq1.DistinctUniqueProteins.21.03.2024-22:37:27.csv"
+# allprotsfile = "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/ProteinsFiles/comp183648_c0_seq1.unique_proteins.csv.gz"
+# readsfile = "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/ReadsFiles/comp183648_c0_seq1.reads.csv.gz"
+# samplename = "comp183648_c0_seq1"	
+# firstcolpos = 16
 
 
 # distinctfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.06.02.2024-09:29:20.csv"
@@ -1038,13 +1197,10 @@ end
 # allprotsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
 # samplename = "GRIA"
 # firstcolpos = 15
-# onlymaxdistinct = false
+# onlymaxdistinct = true
+# considerentropy = true
 
-# distinctfile =  "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/DistinctProteins/comp183648_c0_seq1.DistinctUniqueProteins.21.03.2024-22:37:27.csv"
-# allprotsfile = "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/ProteinsFiles/comp183648_c0_seq1.unique_proteins.csv.gz"
-# readsfile = "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/ReadsFiles/comp183648_c0_seq1.reads.csv.gz"
-# samplename = "comp183648_c0_seq1"	
-# firstcolpos = 16
+
 
 # delim = "\t"
 # innerdelim = ","
@@ -1071,6 +1227,13 @@ end
 # 	allprotsfile, delim, innerdelim, truestrings, falsestrings, firstcolpos, readsdf,
 # )
 
+# if considerentropy
+# 	allprotsdf, firstcolpos = findprotswithsufficiententropy!(
+# 		allprotsdf, firstcolpos
+# 	)
+# end
+
+
 # # the possible amino acids each protein has in each position
 # M = Matrix(allprotsdf[:, firstcolpos:end])
 # # the distances between any two proteins according to `M`
@@ -1084,21 +1247,47 @@ end
 # 	end
 # end
 
-# # # Int(maximum(Δ)) # maximum distance between any two proteins
-# # # Int(minimum(Δ)) # minimum distance between any two proteins
 
 
-# # solution = distinctdf[distinctdf[!, "NumUniqueSamples"].==maximum(distinctdf[!, "NumUniqueSamples"]), "Index"][1]
-# # @assert length(solution) == 1 # should be a single element - not a vector
+# # # # Int(maximum(Δ)) # maximum distance between any two proteins
+# # # # Int(minimum(Δ)) # minimum distance between any two proteins
+
+
+# solution = distinctdf[distinctdf[!, "NumUniqueSamples"].==maximum(distinctdf[!, "NumUniqueSamples"]), "Index"][1]
+# @assert length(solution) == 1 # should be a single element - not a vector
+
+# result = one_solution_additional_assignment_considering_available_reads(
+# 				distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename,
+# 				considerentropy
+# 			)
+
+# result = result[1]
+
+
+# prots_in_solution = distinctdf[solution, "UniqueSamples"]
+
+# chosendf = filter("Protein" => x -> x ∈ prots_in_solution, allprotsdf)
+# unchosendf = filter("Protein" => x -> x ∉ prots_in_solution, allprotsdf)
+
+# unique_reassigned_prots = filter(x -> !isempty(x), unique(vcat(split.(result[!, "AdditionalSupportingProteinsIDs"], ",")...)))
+
+# reassigned_prots_counter = counter(filter(x -> !isempty(x), vcat(split.(result[!, "AdditionalSupportingProteinsIDs"], ",")...)))
+
+
+# reassigned_unchosendf = filter("Protein" => x -> x ∈ unique_reassigned_prots, unchosendf)
+
+# unreassigned_unchosendf = filter("Protein" => x -> x ∉ unique_reassigned_prots, unchosendf)
+
+
+# counter(reassigned_unchosendf[:, "SufficientEntropy"])
+# counter(unreassigned_unchosendf[:, "SufficientEntropy"])
+
 
 # # solution = 15
 
-# # # considering only desired solutions (rows' indices)
+# considering only desired solutions (rows' indices)
 # solutions = choosesolutions(distinctdf, fractions, algs, onlymaxdistinct)
-
-# # # allsubsolutions = collect(Iterators.partition(solutions, maxmainthreads))
-
-
+# solutions = choosesolutions(distinctdf, [0.2], algs, false)
 # minmainthreads = max(
 # 	1,
 # 	min(
@@ -1106,10 +1295,22 @@ end
 # 		Int(round(length(solutions) / 4))
 # 	)
 # )
-
-
 # # minmainthreads = 8
 # allsubsolutions = collect(Iterators.partition(solutions, minmainthreads))
+
+
+
+
+
+# logfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/expression.logger.log"
+# logger = FileLogger(logfile; append = true)
+# # logger = ConsoleLogger()
+# global_logger(logger)
+# results = tcollect(
+# 	additional_assignments(distinctdf, allprotsdf, firstcolpos,
+# 	Δ, subsolutions, readsdf, samplename)
+# 	for subsolutions ∈ allsubsolutions
+# )
 
 # results = tcollect(
 # 	additional_assignments(distinctdf, allprotsdf, firstcolpos,
