@@ -1668,6 +1668,36 @@ Code/Simulations/expressionlevels.jl \
 * 3661886
 
 
+Considering entropy:
+
+```bash
+UMI_DIR=D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples
+
+nohup \
+julia \
+--project=. \
+--threads 60 \
+Code/Simulations/expressionlevels.jl \
+--distinctfiles $UMI_DIR/ADAR1.Merged.DistinctUniqueProteins.26.03.2025-04:39:41.csv $UMI_DIR/IQEC.Merged.DistinctUniqueProteins.26.03.2025-00:27.csv \
+--allprotsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+--allreadsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz \
+--samplenames ADAR1 IQEC1 \
+--firstcolpos 15 \
+--onlymaxdistinct \
+--innerthreadedassignment \
+--considerentropy \
+--outdir $UMI_DIR \
+--minloglevel -1000 \
+--postfix_to_add .EntropyConsidered \
+> $UMI_DIR/expressionlevels.EntropyConsidered.12.8.25.out &
+```
+* alu 17
+* 1669504
+
+
+
+
+
 ## Squid long reads w/ UMIs - unique reads - merged samples
 
 Using the unique reads found by the notebook `umi_long_read.ipynb` by exact UMI seq of 12 bases.
@@ -1743,19 +1773,6 @@ Code/Simulations/maximal_independent_set_5.jl \
 UMI_DIR=D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMISubSeq.MergedSamples
 
 
-# nohup \
-# julia \
-# --project=. \
-# --threads 70 \
-# Code/Simulations/expressionlevels.jl \
-# --distinctfiles $UMI_DIR/ADAR1.Merged.DistinctUniqueProteins.10.06.2025-16:10:38.csv $UMI_DIR/IQEC.Merged.DistinctUniqueProteins.10.06.2025-14:42:26.csv \
-# --allprotsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
-# --samplenames ADAR1 IQEC1 \
-# --firstcolpos 15 \
-# --fractions 0.2 0.4 0.6 0.8 1.0 \
-# --outdir $UMI_DIR \
-# > $UMI_DIR/expressionlevels.4.7.2025.out &
-
 nohup \
 julia \
 --project=. \
@@ -1770,9 +1787,34 @@ Code/Simulations/expressionlevels.jl \
 --outdir $UMI_DIR \
 > $UMI_DIR/expressionlevels.28.7.2025.out &
 ```
-
 - alu 14
 - 287396
+
+Considering entropy:
+
+```bash
+UMI_DIR=D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMISubSeq.MergedSamples
+
+nohup \
+julia \
+--project=. \
+--threads 30 \
+Code/Simulations/expressionlevels.jl \
+--distinctfiles $UMI_DIR/ADAR1.Merged.DistinctUniqueProteins.04.07.2025-15:59:37.csv $UMI_DIR/IQEC.Merged.DistinctUniqueProteins.04.07.2025-15:34:47.csv \
+--allprotsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+--allreadsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz \
+--samplenames ADAR1 IQEC1 \
+--firstcolpos 15 \
+--onlymaxdistinct \
+--innerthreadedassignment \
+--considerentropy \
+--outdir $UMI_DIR \
+--postfix_to_add .EntropyConsidered \
+> $UMI_DIR/expressionlevels.EntropyConsidered.12.8.25.out &
+```
+* alu 13
+* 209040
+
 
 ## O.vul single-cell data
 

@@ -502,11 +502,12 @@ end
 possibly_empty_array_sum(arr) = isempty(arr) ? 0 : sum(arr)
 
 
-function one_solution_additional_assignment_considering_available_reads(
-	distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename,
-	considerentropy::Bool = false,
-)
-	@info "$(loggingtime())\tone_solution_additional_assignment_considering_available_reads" samplename solution considerentropy
+function prepare_solution_data_for_reassignment(distinctdf, allprotsdf, firstcolpos, solution, readsdf, samplename, considerentropy::Bool = false)
+	"""
+	Common pre-processing for both original and threaded versions.
+	Returns (chosendf, unchosendf, chosenindices, newsolutionrow) ready for processing.
+	"""
+	@info "$(loggingtime())\tprepare_solution_data_for_reassignment" samplename solution considerentropy
 
 	solutionrow = distinctdf[solution, :]
 
@@ -552,9 +553,6 @@ function one_solution_additional_assignment_considering_available_reads(
 	chosendf = filter("Protein" => x -> x ∈ prots_in_solution, baseallprotsdf)
 	unchosendf = filter("Protein" => x -> x ∉ prots_in_solution, baseallprotsdf)
 
-	# counter(chosendf[:, "SufficientEntropy"])
-	# counter(unchosendf[:, "SufficientEntropy"])
-
 	if considerentropy
 		# filter out unchosen proteins with insufficient entropy
 		unchosendf = filter("SufficientEntropy" => x -> x, unchosendf)
@@ -580,62 +578,13 @@ function one_solution_additional_assignment_considering_available_reads(
 	unchosenprot_chosenprot_distances = Δ[unchosenindices, chosenindices] # the distances between the unchosen proteins to chosen proteins
 	unchosenprot_chosenprot_minimum_distances = minimum.(eachrow(unchosenprot_chosenprot_distances))
 	# these are the candidates - unchosen prots with distance > 0 to each chosen prot
-	unchosen_prots_with_min_d_1_rel_indices = findall(unchosenprot_chosenprot_minimum_distances .!== 0x00)
+	# unchosen_prots_with_min_d_1_rel_indices = findall(unchosenprot_chosenprot_minimum_distances .!== 0x00)
+	unchosen_prots_with_min_d_1_rel_indices = findall(unchosenprot_chosenprot_minimum_distances .!== convert(eltype(unchosenprot_chosenprot_distances), 0))
 
 	if isempty(unchosen_prots_with_min_d_1_rel_indices)
 		missing_chosen_prots = []
 	else
 		unchosen_prots_with_min_d_1_abs_indices = unchosenindices[unchosen_prots_with_min_d_1_rel_indices]
-
-		# baseallprotsdf[unchosen_prots_with_min_d_1_abs_indices, "Protein"]
-
-
-		# chosen_prots_with_min_d_to_missing_unchosen_rel_indices = []
-		# for row in eachrow(Δ[unchosen_prots_with_min_d_1_abs_indices, chosenindices])
-		# 	row_min = minimum(row)
-		# 	push!(
-		# 		chosen_prots_with_min_d_to_missing_unchosen_rel_indices,
-		# 		findall(row .== row_min)
-		# 	)
-		# end
-		# describe(length.(chosen_prots_with_min_d_to_missing_unchosen_rel_indices))
-
-		# f = Figure(size = (400, 400))
-		# xs = length.(chosen_prots_with_min_d_to_missing_unchosen_rel_indices)
-		# ax = Axis(f[1, 1],
-		# 	xlabel = "Closeset chosen proteins",
-		# 	ylabel = "Missing proteins",
-		# 	# yscale = log10,
-		# 	# title = "Reassignments per unchosen protein",
-		# 	limits = (0, nothing, 0, nothing),
-		# 	xticks = 0:20:maximum(xs)+20,
-		# 	# yticks = 0:50:600,
-		# )
-		# hist!(ax, xs, color = :red, strokecolor = :black, strokewidth = 1)
-		# f
-
-		# chosen_prots_with_min_d_to_missing_unchosen_rel_indices_counter = counter(
-		# 	vcat(chosen_prots_with_min_d_to_missing_unchosen_rel_indices...)
-		# )
-		# df = DataFrame(ChosenProtRelIndex = vcat(chosen_prots_with_min_d_to_missing_unchosen_rel_indices...))
-		# df = combine(
-		# 	groupby(df, "ChosenProtRelIndex"),
-		# 	nrow
-		# )
-
-		# f = Figure(size = (400, 400))
-		# xs = df[!, :nrow]
-		# ax = Axis(f[1, 1],
-		# 	xlabel = "Missing proteins being closest\nto a chosen protein",
-		# 	ylabel = "Chosen proteins",
-		# 	# yscale = log10,
-		# 	# title = "Reassignments per unchosen protein",
-		# 	# limits = (0, nothing, 0, nothing),
-		# 	xticks = 1:maximum(xs),
-		# 	yticks = 0:50:600,
-		# )
-		# hist!(ax, xs, color = :red, strokecolor = :black, strokewidth = 1)
-		# f
 
 		final_unchosen_prots_with_min_d_1_abs_indices = unchosen_prots_with_min_d_1_abs_indices[
 			sum.(eachrow(Δ[unchosen_prots_with_min_d_1_abs_indices, unchosen_prots_with_min_d_1_abs_indices])).==0
@@ -665,6 +614,202 @@ function one_solution_additional_assignment_considering_available_reads(
 		"FractionRepetition" => solutionrow["FractionRepetition"],
 		"Algorithm" => solutionrow["Algorithm"],
 		"AlgorithmRepetition" => solutionrow["AlgorithmRepetition"],
+	)
+
+	return chosendf, unchosendf, chosenindices, newsolutionrow
+end
+
+
+"""
+Reassign a few unchosen proteins `unchosenprot_rows` to the chosen proteins `chosendf` based on their distances `Δ`.
+"""
+function inner_loop_one_solution_additional_assignment_considering_available_reads(
+	unchosenprot_rows, chosendf, chosenindices, Δ,
+)
+	# Create a working copy of chosendf with only the columns we need to modify
+	working_chosendf = select(chosendf,
+		:Index,
+		:NumOfReads,
+		:AdditionalEqualSupportingReads,
+		:AdditionalWeightedSupportingReads,
+		:AdditionalSupportingReadsIDs,
+		:AdditionalSupportingProteinsIDs,
+		:AdditionalSupportingProteinsDistances,
+		:AdditionalSupportingProteinsMeanNAPositions,
+		:AdditionalEqualSupportingReadsContributionPerProtein,
+		:AdditionalWeightedSupportingReadsContributionPerProtein,
+	)
+
+	# Reset the columns to their initial state for this thread
+	working_chosendf[!, :AdditionalEqualSupportingReads] .= 0.0
+	working_chosendf[!, :AdditionalWeightedSupportingReads] .= 0.0
+	working_chosendf[!, :AdditionalSupportingReadsIDs] .= [[] for _ in 1:nrow(working_chosendf)]
+	working_chosendf[!, :AdditionalSupportingProteinsIDs] .= [[] for _ in 1:nrow(working_chosendf)]
+	working_chosendf[!, :AdditionalSupportingProteinsDistances] .= [[] for _ in 1:nrow(working_chosendf)]
+	working_chosendf[!, :AdditionalSupportingProteinsMeanNAPositions] .= [[] for _ in 1:nrow(working_chosendf)]
+	working_chosendf[!, :AdditionalEqualSupportingReadsContributionPerProtein] .= [[] for _ in 1:nrow(working_chosendf)]
+	working_chosendf[!, :AdditionalWeightedSupportingReadsContributionPerProtein] .= [[] for _ in 1:nrow(working_chosendf)]
+
+	for unchosenprot in unchosenprot_rows
+		unchosenprot_index = unchosenprot["Index"]
+		unchosenprot_distances = Δ[unchosenprot_index, chosenindices]
+		unchosenprot_distances_argmins = allargmins(unchosenprot_distances)
+
+		minchosendf = working_chosendf[unchosenprot_distances_argmins, :]
+		unchosenreads = unchosenprot["NumOfReads"]
+
+		equal_addition = unchosenreads / size(minchosendf, 1)
+		weighted_additions = unchosenreads .* minchosendf[:, "NumOfReads"] ./ sum(minchosendf[:, "NumOfReads"])
+
+		@assert isapprox(equal_addition * size(minchosendf, 1), sum(weighted_additions))
+
+		# 1. Equal supporting reads
+		working_chosendf[unchosenprot_distances_argmins, "AdditionalEqualSupportingReads"] .+= equal_addition
+
+		# 2. Weighted supporting reads
+		working_chosendf[unchosenprot_distances_argmins, "AdditionalWeightedSupportingReads"] .+= weighted_additions
+
+		newsupportingreads = unchosenprot["Reads"]
+		newsupportingprotein = unchosenprot["Protein"]
+
+		if !isassigned(newsupportingreads)
+			@warn "newsupportingreads or newsupportingprotein is not assigned" newsupportingreads newsupportingprotein
+			continue
+		end
+
+		# 3. Supporting reads IDs
+		for existingsupportingreads ∈ working_chosendf[unchosenprot_distances_argmins, "AdditionalSupportingReadsIDs"]
+			push!(existingsupportingreads, newsupportingreads)
+		end
+
+		# 4. Supporting proteins IDs
+		for existingsupportingproteins ∈ working_chosendf[unchosenprot_distances_argmins, "AdditionalSupportingProteinsIDs"]
+			push!(existingsupportingproteins, newsupportingprotein)
+		end
+
+		min_distance = minimum(unchosenprot_distances)
+		mean_na_positions = unchosenprot["MeanNAPositions"]
+
+		# 5. Supporting proteins distances
+		push!.(working_chosendf[unchosenprot_distances_argmins, "AdditionalSupportingProteinsDistances"], min_distance)
+
+		# 6. Supporting proteins mean NA positions
+		push!.(working_chosendf[unchosenprot_distances_argmins, "AdditionalSupportingProteinsMeanNAPositions"], mean_na_positions)
+
+		# 7. Equal supporting reads contribution per protein
+		push!.(working_chosendf[unchosenprot_distances_argmins, "AdditionalEqualSupportingReadsContributionPerProtein"], equal_addition)
+
+		# 8. Weighted supporting reads contribution per protein
+		for (existingsupportingreadscontrib, weighted_addition) ∈ zip(
+			working_chosendf[unchosenprot_distances_argmins, "AdditionalWeightedSupportingReadsContributionPerProtein"],
+			weighted_additions,
+		)
+			push!(existingsupportingreadscontrib, weighted_addition)
+		end
+	end
+
+	return working_chosendf
+end
+
+
+function merge_chosendf_results!(main_chosendf, thread_results)
+	@info "$(loggingtime())\tmerge_chosendf_results!" size(main_chosendf) = size(main_chosendf) size.(thread_results) = size.(thread_results)
+	for thread_result in thread_results
+		# 1 & 2. Sum numerical values using broadcasting
+		main_chosendf[!, "AdditionalEqualSupportingReads"] .+= thread_result[!, "AdditionalEqualSupportingReads"]
+		main_chosendf[!, "AdditionalWeightedSupportingReads"] .+= thread_result[!, "AdditionalWeightedSupportingReads"]
+
+		# 3-8. Append arrays using broadcasting (much faster than row-by-row)
+		append!.(main_chosendf[!, "AdditionalSupportingReadsIDs"], thread_result[!, "AdditionalSupportingReadsIDs"])
+		append!.(main_chosendf[!, "AdditionalSupportingProteinsIDs"], thread_result[!, "AdditionalSupportingProteinsIDs"])
+		append!.(main_chosendf[!, "AdditionalSupportingProteinsDistances"], thread_result[!, "AdditionalSupportingProteinsDistances"])
+		append!.(main_chosendf[!, "AdditionalSupportingProteinsMeanNAPositions"], thread_result[!, "AdditionalSupportingProteinsMeanNAPositions"])
+		append!.(main_chosendf[!, "AdditionalEqualSupportingReadsContributionPerProtein"], thread_result[!, "AdditionalEqualSupportingReadsContributionPerProtein"])
+		append!.(main_chosendf[!, "AdditionalWeightedSupportingReadsContributionPerProtein"], thread_result[!, "AdditionalWeightedSupportingReadsContributionPerProtein"])
+	end
+end
+
+
+function finalize_solution_data(chosendf, allprotsdf, solution)
+	"""
+	Common post-processing for both original and threaded versions.
+	Returns the final processed chosendf.
+	"""
+	@info "$(loggingtime())\tfinalize_solution_data" solution
+
+	@assert all(
+		isapprox(
+			possibly_empty_array_sum.(chosendf[:, "AdditionalEqualSupportingReadsContributionPerProtein"]),
+			chosendf[:, "AdditionalEqualSupportingReads"],
+		),
+	)
+	@assert all(
+		isapprox(
+			possibly_empty_array_sum.(chosendf[:, "AdditionalWeightedSupportingReadsContributionPerProtein"]),
+			chosendf[:, "AdditionalWeightedSupportingReads"],
+		),
+	)
+
+	chosendf[:, "TotalEqualSupportingReads"] .= chosendf[:, "NumOfReads"] .+ chosendf[:, "AdditionalEqualSupportingReads"]
+	chosendf[:, "TotalWeightedSupportingReads"] .= chosendf[:, "NumOfReads"] .+ chosendf[:, "AdditionalWeightedSupportingReads"]
+	chosendf[:, "AdditionalSupportingProteins"] .= length.(chosendf[:, "AdditionalSupportingProteinsIDs"])
+
+	sort!(chosendf, "AdditionalSupportingProteins")
+
+	transform!(chosendf, :AdditionalSupportingProteinsIDs => ByRow(x -> join(x, ",")) => :AdditionalSupportingProteinsIDs)
+	transform!(chosendf, :AdditionalSupportingReadsIDs => ByRow(x -> join(join.(x, ","), ";")) => :AdditionalSupportingReadsIDs)
+
+	@assert all(length.(allprotsdf[!, "AdditionalSupportingReadsIDs"]) .== [0 for _ ∈ 1:size(allprotsdf, 1)]) """Solution: $solution"""
+	@assert all(length.(allprotsdf[!, "AdditionalSupportingProteinsIDs"]) .== [0 for _ ∈ 1:size(allprotsdf, 1)]) """Solution: $solution"""
+
+	return chosendf
+end
+
+
+function threaded_one_solution_additional_assignment_considering_available_reads(
+	distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename, n_threads::Int,
+	considerentropy::Bool = false,
+)
+	@info "$(loggingtime())\tthreaded_one_solution_additional_assignment_considering_available_reads" samplename solution n_threads considerentropy
+
+	chosendf, unchosendf, chosenindices, newsolutionrow = prepare_solution_data_for_reassignment(
+		distinctdf, allprotsdf, firstcolpos, solution, readsdf, samplename, considerentropy,
+	)
+
+
+	# Partition unchosen proteins among threads
+	n_threads = min(n_threads, nrow(unchosendf))
+	unchosen_partitions = collect(Iterators.partition(eachrow(unchosendf), max(1, div(nrow(unchosendf), n_threads))))
+	@assert sum(length.(unchosen_partitions)) == nrow(unchosendf) "Unchosen partitions do not match the number of unchosen proteins"
+
+	# Run multithreaded processing
+	thread_results = Vector{DataFrame}(undef, length(unchosen_partitions))
+	@threads for i in 1:length(unchosen_partitions)
+		thread_results[i] = inner_loop_one_solution_additional_assignment_considering_available_reads(
+			collect(unchosen_partitions[i]), chosendf, chosenindices, Δ,
+		)
+	end
+
+	# Merge results back into chosendf
+	merge_chosendf_results!(chosendf, thread_results)
+
+
+	chosendf = finalize_solution_data(chosendf, allprotsdf, solution)
+
+	# return chosendf
+	return chosendf, newsolutionrow
+
+end
+
+
+function one_solution_additional_assignment_considering_available_reads(
+	distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename,
+	considerentropy::Bool = false,
+)
+	@info "$(loggingtime())\tone_solution_additional_assignment_considering_available_reads" samplename solution considerentropy
+
+	chosendf, unchosendf, chosenindices, newsolutionrow = prepare_solution_data_for_reassignment(
+		distinctdf, allprotsdf, firstcolpos, solution, readsdf, samplename, considerentropy,
 	)
 
 	for unchosenprot ∈ eachrow(unchosendf)  # a row of unchosen protein relative to the chosen proteins in the solution
@@ -735,33 +880,7 @@ function one_solution_additional_assignment_considering_available_reads(
 	end
 
 
-	@assert all(
-		isapprox(
-			possibly_empty_array_sum.(chosendf[:, "AdditionalEqualSupportingReadsContributionPerProtein"]),
-			chosendf[:, "AdditionalEqualSupportingReads"],
-		),
-	)
-	@assert all(
-		isapprox(
-			possibly_empty_array_sum.(chosendf[:, "AdditionalWeightedSupportingReadsContributionPerProtein"]),
-			chosendf[:, "AdditionalWeightedSupportingReads"],
-		),
-	)
-
-	chosendf[:, "TotalEqualSupportingReads"] .= chosendf[:, "NumOfReads"] .+ chosendf[:, "AdditionalEqualSupportingReads"]
-	chosendf[:, "TotalWeightedSupportingReads"] .= chosendf[:, "NumOfReads"] .+ chosendf[:, "AdditionalWeightedSupportingReads"]
-	chosendf[:, "AdditionalSupportingProteins"] .= length.(chosendf[:, "AdditionalSupportingProteinsIDs"])
-
-	sort!(chosendf, "AdditionalSupportingProteins")
-
-	transform!(chosendf, :AdditionalSupportingProteinsIDs => ByRow(x -> join(x, ",")) => :AdditionalSupportingProteinsIDs)
-	transform!(chosendf, :AdditionalSupportingReadsIDs => ByRow(x -> join(join.(x, ","), ";")) => :AdditionalSupportingReadsIDs)
-
-	# chosendf[:, :AdditionalSupportingProteinsIDs]
-	# transform(chosendf, :AdditionalSupportingReadsIDs => ByRow(x -> join(join.(x, ","), ";")) => :AdditionalSupportingReadsIDs)[:, :AdditionalSupportingReadsIDs]
-
-	@assert all(length.(allprotsdf[!, "AdditionalSupportingReadsIDs"]) .== [0 for _ ∈ 1:size(allprotsdf, 1)]) """Solution: $solution"""
-	@assert all(length.(allprotsdf[!, "AdditionalSupportingProteinsIDs"]) .== [0 for _ ∈ 1:size(allprotsdf, 1)]) """Solution: $solution"""
+	chosendf = finalize_solution_data(chosendf, allprotsdf, solution)
 
 	# return chosendf
 	return chosendf, newsolutionrow
@@ -769,16 +888,112 @@ function one_solution_additional_assignment_considering_available_reads(
 end
 
 
+function compare_original_vs_threaded_results(original_result, threaded_result; verbose = false)
+	"""
+	Compare results from one_solution_additional_assignment_considering_available_reads 
+	vs threaded_one_solution_additional_assignment_considering_available_reads.
+
+	Returns true if they are equivalent (accounting for order differences in vector columns).
+	"""
+
+	# Check basic structure
+	if size(original_result) != size(threaded_result)
+		verbose && println("ERROR: Different sizes - Original: $(size(original_result)), Threaded: $(size(threaded_result))")
+		return false
+	end
+
+	if names(original_result) != names(threaded_result)
+		verbose && println("ERROR: Different column names")
+		verbose && println("Original: $(names(original_result))")
+		verbose && println("Threaded: $(names(threaded_result))")
+		return false
+	end
+
+	# Compare each column
+	all_equal = true
+
+	for col_name in names(original_result)
+		if col_name in ["AdditionalEqualSupportingReads", "AdditionalWeightedSupportingReads", "TotalEqualSupportingReads", "TotalWeightedSupportingReads"]
+			# Ops 1&2: Numerical columns - should be exactly equal
+			# if !isapprox(original_result[!, col_name], threaded_result[!, col_name])
+			if !all(isapprox.(original_result[!, col_name], threaded_result[!, col_name]))
+				verbose && println("ERROR: Column '$col_name' values differ")
+				# verbose && println("Original: $(original_result[!, col_name])")
+				# verbose && println("Threaded: $(threaded_result[!, col_name])")
+				all_equal = false
+			else
+				verbose && println("✓ Column '$col_name' matches")
+			end
+
+		elseif col_name in [
+			"AdditionalSupportingReadsIDs",
+			"AdditionalSupportingProteinsIDs",
+			"AdditionalSupportingProteinsDistances",
+			"AdditionalSupportingProteinsMeanNAPositions",
+			"AdditionalEqualSupportingReadsContributionPerProtein",
+			"AdditionalWeightedSupportingReadsContributionPerProtein",
+		]
+			# Ops 3-8: Vector columns - compare as sets (order-independent)
+			for row_idx in 1:nrow(original_result)
+				orig_vec = original_result[row_idx, col_name]
+				thread_vec = threaded_result[row_idx, col_name]
+
+				# Convert to sets for order-independent comparison
+				if Set(orig_vec) != Set(thread_vec)
+					verbose && println("ERROR: Row $row_idx, Column '$col_name' differs")
+					# verbose && println("Original: $orig_vec")
+					# verbose && println("Threaded: $thread_vec")
+					# verbose && println("Original set: $(Set(orig_vec))")
+					# verbose && println("Threaded set: $(Set(thread_vec))")
+					all_equal = false
+				end
+			end
+			if all_equal  # Only print success if no errors found
+				verbose && println("✓ Column '$col_name' matches (order-independent)")
+			end
+
+		else
+			# Other columns - exact comparison
+			if original_result[!, col_name] != threaded_result[!, col_name]
+				verbose && println("ERROR: Column '$col_name' differs")
+				# verbose && println("Original: $(original_result[!, col_name])")
+				# verbose && println("Threaded: $(threaded_result[!, col_name])")
+				all_equal = false
+			else
+				verbose && println("✓ Column '$col_name' matches")
+			end
+		end
+	end
+
+	if all_equal
+		verbose && println("\n🎉 SUCCESS: Original and threaded results are equivalent!")
+	else
+		verbose && println("\n❌ FAILURE: Results differ")
+	end
+
+	return all_equal
+end
+
+
 function additional_assignments(
-	distinctdf, allprotsdf, firstcolpos, Δ, solutions, readsdf, samplename, considerentropy,
+	distinctdf, allprotsdf, firstcolpos, Δ, solutions, readsdf, samplename, assignment_inner_threads, considerentropy,
 )
-	@info "$(loggingtime())\tadditional_assignments" samplename solutions considerentropy
+	@info "$(loggingtime())\tadditional_assignments" samplename solutions assignment_inner_threads considerentropy
 	results = map(solutions) do solution
 		try
-			one_solution_additional_assignment_considering_available_reads(
-				distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename,
-				considerentropy,
-			)
+			if assignment_inner_threads > 1
+				# if we have more than one thread, use the threaded version
+				threaded_one_solution_additional_assignment_considering_available_reads(
+					distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename,
+					assignment_inner_threads, considerentropy,
+				)
+			else
+				# if we have only one thread, use the original version
+				one_solution_additional_assignment_considering_available_reads(
+					distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename,
+					considerentropy,
+				)
+			end
 		catch e
 			@warn "Error in additional_assignments:" e solution
 			missing
@@ -791,7 +1006,7 @@ end
 function run_sample(
 	distinctfile, allprotsfile, samplename, postfix_to_add,
 	firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
-	maxmainthreads, outdir, algs, onlymaxdistinct,
+	maxthreads, innerthreadedassignment, outdir, algs, onlymaxdistinct,
 	readsfile,
 	substitutionmatrix::Union{SubstitutionMatrix, Nothing},
 	similarityscorecutoff::Int64,
@@ -799,7 +1014,7 @@ function run_sample(
 	aagroups::Union{Dict{AminoAcid, String}, Nothing},
 	considerentropy::Bool,
 )
-	@info "$(loggingtime())\trun_sample" distinctfile allprotsfile readsfile samplename considerentropy
+	@info "$(loggingtime())\trun_sample" distinctfile allprotsfile readsfile samplename
 
 	distinctdf = prepare_distinctdf(
 		distinctfile, delim, innerdelim, truestrings, falsestrings,
@@ -834,22 +1049,29 @@ function run_sample(
 	# considering only desired solutions (rows' indices)
 	solutions = choosesolutions(distinctdf, fractions, algs, onlymaxdistinct)
 
-	# allsubsolutions = collect(Iterators.partition(solutions, maxmainthreads))
-
-	# minmainthreads = minimum([Int(Threads.nthreads() / 5), Int(length(solutions) / 4)])
 	minmainthreads = max(
 		1,
 		min(
-			Int(round(Threads.nthreads() / 5)),
+			Int(round(maxthreads / 5)),
 			Int(round(length(solutions) / 4)),
 		),
 	)
 	allsubsolutions = collect(Iterators.partition(solutions, minmainthreads))
 
+	if innerthreadedassignment
+		# if innerthreadedassignment is true, we will use multiple threads to process each subsolution
+		# the number of threads to use for each subsolution
+		assignment_inner_threads = Int(round(maxthreads / minmainthreads))
+	else
+		# assignment_inner_threads = 1 will signify that we will not use multiple threads for each subsolution
+		assignment_inner_threads = 1
+	end
+
+
 	results = tcollect(
 		additional_assignments(
 			distinctdf, allprotsdf, firstcolpos, Δ, subsolutions, readsdf, samplename,
-			considerentropy,
+			assignment_inner_threads, considerentropy,
 		)
 		for subsolutions ∈ allsubsolutions
 	)
@@ -899,7 +1121,7 @@ function main(
 	distinctfiles, allprotsfiles, samplenames,
 	postfix_to_add,
 	firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
-	maxmainthreads, outdir, algs, onlymaxdistinct,
+	maxthreads, innerthreadedassignment, outdir, algs, onlymaxdistinct,
 	gcp, shutdowngcp,
 	readsfiles,
 	substitutionmatrix::Union{SubstitutionMatrix, Nothing},
@@ -927,7 +1149,7 @@ function main(
 	end
 
 
-	@info "$(loggingtime())\tmain" distinctfiles allprotsfiles readsfiles samplenames postfix_to_add firstcolpos delim innerdelim truestrings falsestrings fractions maxmainthreads outdir algs onlymaxdistinct gcp shutdowngcp substitutionmatrix similarityscorecutoff similarityvalidator aagroups considerentropy logtostdout minloglevel
+	@info "$(loggingtime())\tmain" distinctfiles allprotsfiles readsfiles samplenames postfix_to_add firstcolpos delim innerdelim truestrings falsestrings fractions maxthreads innerthreadedassignment outdir algs onlymaxdistinct gcp shutdowngcp substitutionmatrix similarityscorecutoff similarityvalidator aagroups considerentropy logtostdout minloglevel
 
 	length(distinctfiles) == length(allprotsfiles) == length(readsfiles) == length(samplenames) || error("Unequal input files' lengths!")
 
@@ -936,7 +1158,7 @@ function main(
 		run_sample(
 			distinctfile, allprotsfile, samplename, postfix_to_add,
 			firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
-			maxmainthreads, outdir, algs, onlymaxdistinct,
+			maxthreads, innerthreadedassignment, outdir, algs, onlymaxdistinct,
 			readsfile,
 			substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups,
 			considerentropy,
@@ -1043,9 +1265,13 @@ function parsecmd()
 		help = "Consider only solution with maximum number of distinct proteins, within allowed fractions and algorithms."
 		action = :store_true
 
-		"--maxmainthreads"
-		default = 30
+		"--maxthreads"
+		# default = 50
+		default = Threads.nthreads()
 		arg_type = Int
+		"--innerthreadedassignment"
+		action = :store_true
+		help = "Use multithreading for the inner assignment of additional reads to chosen proteins. Else, use the original single-threaded assignment. This is especially recomended when only reassigning one solution (`onlymaxdistinct`)."
 
 		"--outdir"
 		help = "Write output files to this directory."
@@ -1128,7 +1354,8 @@ function CLI_main()
 	algs = parsedargs["algs"]
 	onlymaxdistinct = parsedargs["onlymaxdistinct"]
 
-	maxmainthreads = parsedargs["maxmainthreads"]
+	maxthreads = parsedargs["maxthreads"]
+	innerthreadedassignment = parsedargs["innerthreadedassignment"]
 	outdir = parsedargs["outdir"]
 
 	gcp = parsedargs["gcp"]
@@ -1170,7 +1397,7 @@ function CLI_main()
 		distinctfiles, allprotsfiles, samplenames,
 		postfix_to_add,
 		firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
-		maxmainthreads, outdir, algs, onlymaxdistinct,
+		maxthreads, innerthreadedassignment, outdir, algs, onlymaxdistinct,
 		gcp, shutdowngcp,
 		allreadsfiles,
 		substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups,
@@ -1199,6 +1426,7 @@ end
 # firstcolpos = 15
 # onlymaxdistinct = true
 # considerentropy = true
+# # considerentropy = false
 
 
 
@@ -1208,13 +1436,14 @@ end
 # falsestrings = ["FALSE", "False", "false"]
 # onlymaxdistinct = true
 # algs = ["Ascending", "Descending"]
-# maxmainthreads = 30
+# maxthreads = 50
 # fractions = [1.0]
 
 # substitutionmatrix = nothing
 # aagroups = nothing
 # similarityscorecutoff = 0
 # similarityvalidator = :(>=)
+
 
 
 # distinctdf = prepare_distinctdf(
@@ -1229,7 +1458,7 @@ end
 
 # if considerentropy
 # 	allprotsdf, firstcolpos = findprotswithsufficiententropy!(
-# 		allprotsdf, firstcolpos
+# 		allprotsdf, firstcolpos, samplename
 # 	)
 # end
 
@@ -1247,21 +1476,55 @@ end
 # 	end
 # end
 
-
-
-# # # # Int(maximum(Δ)) # maximum distance between any two proteins
-# # # # Int(minimum(Δ)) # minimum distance between any two proteins
+# # # # # Int(maximum(Δ)) # maximum distance between any two proteins
+# # # # # Int(minimum(Δ)) # minimum distance between any two proteins
 
 
 # solution = distinctdf[distinctdf[!, "NumUniqueSamples"].==maximum(distinctdf[!, "NumUniqueSamples"]), "Index"][1]
 # @assert length(solution) == 1 # should be a single element - not a vector
 
-# result = one_solution_additional_assignment_considering_available_reads(
+# original_result = one_solution_additional_assignment_considering_available_reads(
 # 				distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename,
 # 				considerentropy
 # 			)
+# original_result = original_result[1]
 
-# result = result[1]
+# threaded_result = threaded_one_solution_additional_assignment_considering_available_reads(
+# 	distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename,
+# 	10,
+# 	considerentropy
+# )
+# threaded_result = threaded_result[1]
+
+
+# are_equal = compare_original_vs_threaded_results(original_result, threaded_result, verbose=true)
+
+
+
+# using Chairmarks
+
+# benchmarks = [
+# 	@be one_solution_additional_assignment_considering_available_reads(
+# 				distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename,
+# 				considerentropy
+# 			)
+# 	@be threaded_one_solution_additional_assignment_considering_available_reads(
+# 				distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename,
+# 				5,
+# 				considerentropy
+# 			)
+# 	@be threaded_one_solution_additional_assignment_considering_available_reads(
+# 		distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename,
+# 		10,
+# 		considerentropy
+# 	)
+# 	@be threaded_one_solution_additional_assignment_considering_available_reads(
+# 		distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename,
+# 		20,
+# 		considerentropy
+# 	)
+# ]
+
 
 
 # prots_in_solution = distinctdf[solution, "UniqueSamples"]
@@ -2114,290 +2377,5 @@ end
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# unique(finalresults[!, "#Solution"])
-
-
-# distinctfiles = split(readchomp(`cat "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/DistinctProteinsForExpressionLevels.txt"`))
-# allprotsfiles = split(readchomp(`cat "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/UniqueProteinsForExpressionLevels.txt"`))
-# samplenames = split(readchomp(`cat "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/ChromsNamesForExpressionLevels.txt"`))
-
-# `echo O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/*.ExpressionLevels.csv`
-
-# run(`echo "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/*.ExpressionLevels.csv"`)
-
-# read(`echo "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/*.ExpressionLevels.csv"`, String)
-
-# expressionfiles = split(read(`echo "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles/*.ExpressionLevels.csv"`, String))
-
-# protsdir = "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles"
-
-# expressionfiles = [
-#     f for f in readdir(protsdir) if occursin("ExpressionLevels.csv", f)
-# ]
-
-# outdir = "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq/ProteinsFiles"
-# postfix_to_add = ""
-# firstcolpos = 16
-# delim = "\t"
-# innerdelim = ","
-# truestrings = ["TRUE", "True", "true"]
-# falsestrings = ["FALSE", "False", "false"]
-# # fractions = [1.0]
-# fractions = [0.2, 0.4, 0.6, 0.8, 1.0]
-# maxmainthreads = 30
-# algs = ["Ascending", "Descending"]
-# onlymaxdistinct = false
-# gcp = false
-# shutdowngcp = false
-# substitutionmatrix = nothing
-# aagroups = nothing
-# similarityscorecutoff = 0
-# similarityvalidator = >=
-
-# x = 59
-
-# distinctdf = prepare_distinctdf(
-#     distinctfiles[x], delim, innerdelim, truestrings, falsestrings
-# )
-
-# allprotsdf, firstcolpos = prepare_allprotsdf!(
-#     allprotsfiles[x], delim, innerdelim, truestrings, falsestrings, firstcolpos
-# )
-
-# M = Matrix(allprotsdf[:, firstcolpos:end])
-
-# Δ = distances(M)
-
-# solutions = choosesolutions(distinctdf, fractions, algs, onlymaxdistinct)
-
-
-# main(
-#     distinctfiles, allprotsfiles, samplenames, postfix_to_add,
-#     firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
-#     maxmainthreads, outdir, algs, onlymaxdistinct,
-#     gcp, shutdowngcp,
-#     substitutionmatrix,
-#     similarityscorecutoff,
-#     similarityvalidator,
-#     aagroups
-# )
-
-
-
-
-
-# distinctfiles = [
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.DistinctUniqueProteins.03.03.2023-15:36:38.csv"
-# ]
-# allprotsfiles = [
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
-# ]
-# samplenames = [
-#     "GRIA",
-# ]
-# outdir = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3"
-
-
-# # input
-
-# distinctfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.DistinctUniqueProteins.03.03.2023-15:36:38.csv"
-# allprotsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
-# samplename = "GRIA"
-# outdir = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3"
-# postfix_to_add = ""
-
-# firstcolpos = 15
-# delim = "\t"
-# innerdelim = ","
-# truestrings = ["TRUE", "True", "true"]
-# falsestrings = ["FALSE", "False", "false"]
-# fractions = [1.0]
-# maxmainthreads = 30
-# algs = ["Ascending", "Descending"]
-# onlymaxdistinct = false
-
-
-# # # # run_sample
-
-# distinctdf = prepare_distinctdf(
-#     distinctfile, delim, innerdelim, truestrings, falsestrings
-# )
-
-# # considering only desired solutions (rows' indices)
-# # solutions = distinctdf[:, "Index"]
-
-# _distinctdf1 = subset(
-#     distinctdf, 
-#     "Fraction" => x -> x .∈ fractions,  # keep only solutions of desired fractions
-#     # "Algorithm" => x -> occursin.(x, algs) # keep only solutions of desired algortihms
-# )
-
-# occursin.("Ascending", Ref(algs))
-# occursin.("Ascending", algs)
-# any(occursin.("Ascending", algs))
-
-# _distinctdf2 = subset(
-#     distinctdf, 
-#     # "Algorithm" => x -> occursin.(x, algs) # keep only solutions of desired algortihms
-#     "Algorithm" => x -> occursin.(x, Ref(algs)) # keep only solutions of desired algortihms
-#     # "Algorithm" => x -> any(occursin.(x, algs)) # keep only solutions of desired algortihms
-# )
-
-# subset(
-#     distinctdf[!, ["Algorithm"]],
-#     # "Algorithm" => x -> any(occursin.(x, algs)) # keep only solutions of desired algortihms
-#     "Algorithm" => x -> occursin.(x, algs) # keep only solutions of desired algortihms
-#     # "Algorithm" => x -> x .∈ algs # keep only solutions of desired algortihms
-# )
-
-
-
-
-# df = DataFrame(
-#     Algorithm = ["Ascending", "Ascending", "Naive", "Naive", "Descending", "Descending"],
-#     Fraction = [0.5, 1.0, 0.5, 1.0, 0.5, 1.0]
-# )
-# algs = ["Ascending", "Descending"]
-# fractions = [1.0]
-# # subset(
-# #     df,
-# #     "Algorithm" => x -> any(occursin.(x, algs)) # keep only solutions of desired algortihms
-# #     # "Algorithm" => x -> occursin.(x, algs) # keep only solutions of desired algortihms
-# #     # "Algorithm" => x -> x .∈ algs # keep only solutions of desired algortihms
-# # )
-
-# in.(df.Algorithm, Ref(algs))
-# in.(df.Fraction, Ref(fractions))
-
-# in.(df.Algorithm, Ref(algs)) .& in.(df.Fraction, Ref(fractions))
-
-# df[in.(df.Algorithm, Ref(algs)) .& in.(df.Fraction, Ref(fractions)), :]
-
-# occursin.("Ascending", algs)
-
-
-# a = [true, false]
-# b = [true, true]
-# a .& b
-# a .| b
-
-# _distinctdf = subset(
-#     distinctdf, 
-#     "Fraction" => x -> x .∈ fractions,  # keep only solutions of desired fractions
-#     "Algorithm" => x -> occursin.(x, algs) # keep only solutions of desired algortihms
-# )
-
-
-# solutions = choosesolutions(distinctdf, fractions, algs, onlymaxdistinct)
-
-# # considering only solutions of desired fractions
-
-# algs = ["Ascending"]
-
-
-# distinctdf = subset(distinctdf, "Fraction" => x -> x .∈ fractions, "Algorithm" => x -> occursin.(x, algs))
-
-
-# maxdistinct = maximum(distinctdf[!, "NumUniqueSamples"])
-# distinctdf = subset(distinctdf, "NumUniqueSamples" => x -> x .== maxdistinct)
-
-
-
-# subset(distinctdf, "Fraction" => x -> x .∈ fractions, "NumUniqueSamples" => x -> x .== maxdistinct)
-
-
-# # original
-# solutions = subset(distinctdf, "Fraction" => x -> x .∈ fractions)[:, "Index"]
-
-
-# # basesize = Int(round(Threads.nthreads()))
-# # maxmainthreads = Int(round(Threads.nthreads() / 5))
-# # basesize = Int(round(Threads.nthreads() / 5))
-# allsubsolutions = collect(Iterators.partition(solutions, maxmainthreads))
-# results = tcollect(
-#     additional_assignments(distinctdf, allprotsdf, firstcolpos, Δ, subsolutions)
-#     for subsolutions ∈ allsubsolutions
-# )
-# finalresults = vcat(Iterators.flatten(results)...)
-
-# # save the results
-# outfile = joinpath(abspath(outdir), "$samplename.DistinctUniqueProteins.ExpressionLevels$postfix_to_add.csv")
-# CSV.write(outfile, finalresults; delim)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# main(
-#     distinctfiles, allprotsfiles, samplenames,
-#     firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
-#     maxmainthreads, outdir
-# )
 
 
