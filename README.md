@@ -1687,12 +1687,11 @@ Code/Simulations/expressionlevels.jl \
 --innerthreadedassignment \
 --considerentropy \
 --outdir $UMI_DIR \
---minloglevel -1000 \
 --postfix_to_add .EntropyConsidered \
-> $UMI_DIR/expressionlevels.EntropyConsidered.12.8.25.out &
+> $UMI_DIR/expressionlevels.EntropyConsidered.14.8.25.out &
 ```
 * alu 17
-* 1669504
+* 2508766
 
 
 
@@ -1798,7 +1797,7 @@ UMI_DIR=D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMISubSeq.Merg
 nohup \
 julia \
 --project=. \
---threads 30 \
+--threads 60 \
 Code/Simulations/expressionlevels.jl \
 --distinctfiles $UMI_DIR/ADAR1.Merged.DistinctUniqueProteins.04.07.2025-15:59:37.csv $UMI_DIR/IQEC.Merged.DistinctUniqueProteins.04.07.2025-15:34:47.csv \
 --allprotsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
@@ -1810,10 +1809,10 @@ Code/Simulations/expressionlevels.jl \
 --considerentropy \
 --outdir $UMI_DIR \
 --postfix_to_add .EntropyConsidered \
-> $UMI_DIR/expressionlevels.EntropyConsidered.12.8.25.out &
+> $UMI_DIR/expressionlevels.EntropyConsidered.14.8.25.out &
 ```
-* alu 13
-* 209040
+* alu 17
+* 1220256
 
 
 ## O.vul single-cell data

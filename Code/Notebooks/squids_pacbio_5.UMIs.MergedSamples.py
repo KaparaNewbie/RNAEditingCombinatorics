@@ -1481,8 +1481,48 @@ max_distinct_proteins_df
 # ## Expression
 
 # %%
-# def remove_wrapping_quote_marks_from_elements(elements):
-#     return [x[1:-1] for x in elements]
+def is_iterable(obj):
+    try:
+        iter(obj)
+        return True
+    except TypeError:
+        return False
+
+
+def calc_total_uniquely_assigned_weighted_reads(
+    num_of_reads, additional_supporting_prots_ids, additional_weighted_contrib_per_prot, uniquely_reassigned_prots
+):
+    if additional_supporting_prots_ids == "":
+        if not is_iterable(additional_weighted_contrib_per_prot):
+            if pd.isna(additional_weighted_contrib_per_prot):
+                return num_of_reads  # no additional supporting proteins, so just return the number of reads
+            else:
+                raise ValueError(
+                    "When additional_supporting_prots_ids is an empty string, "
+                    "additional_weighted_contrib_per_prot should be NaN, and vice versa."
+                )
+        else:
+            raise ValueError(
+                    "When additional_supporting_prots_ids is an empty string, "
+                    "additional_weighted_contrib_per_prot should be NaN, and vice versa."
+                )
+    if not is_iterable(additional_weighted_contrib_per_prot):
+        if pd.isna(additional_weighted_contrib_per_prot):
+            raise ValueError(
+                    "When additional_supporting_prots_ids is an empty string, "
+                    "additional_weighted_contrib_per_prot should be NaN, and vice versa."
+                )
+            
+    return num_of_reads + sum(
+        [
+            float(contrib)
+            for prot, contrib in zip(
+                additional_supporting_prots_ids, additional_weighted_contrib_per_prot
+            )
+            if prot in uniquely_reassigned_prots
+        ]
+    )
+
 
 # %%
 def get_f1_max_expression_df(chrom, expression_file, max_distinct_per_fraction_df):
@@ -1602,15 +1642,24 @@ def get_f1_max_expression_df(chrom, expression_file, max_distinct_per_fraction_d
     additional_supporting_prots_counter = Counter(chain.from_iterable(
         expression_df["AdditionalSupportingProteinsIDs"]))
     uniquely_reassigned_prots = [prot for prot, reassignments in additional_supporting_prots_counter.items() if reassignments == 1]
-    expression_df["TotalUniquelyAssignedWeightedReads"] = expression_df.loc[
-        :, ["NumOfReads", "AdditionalSupportingProteinsIDs", "AdditionalWeightedSupportingReadsContributionPerProtein"]
-        ].apply(
-        lambda x: x["NumOfReads"] + sum(
-            [
-                float(contrib)
-                for prot, contrib in zip(x["AdditionalSupportingProteinsIDs"], x["AdditionalWeightedSupportingReadsContributionPerProtein"]) 
-                if prot in uniquely_reassigned_prots
-            ]
+    # expression_df["TotalUniquelyAssignedWeightedReads"] = expression_df.loc[
+    #     :, ["NumOfReads", "AdditionalSupportingProteinsIDs", "AdditionalWeightedSupportingReadsContributionPerProtein"]
+    #     ].apply(
+    #     lambda x: x["NumOfReads"] + sum(
+    #         [
+    #             float(contrib)
+    #             for prot, contrib in zip(x["AdditionalSupportingProteinsIDs"], x["AdditionalWeightedSupportingReadsContributionPerProtein"]) 
+    #             if prot in uniquely_reassigned_prots
+    #         ]
+    #     ),
+    #     axis=1
+    # )
+    expression_df["TotalUniquelyAssignedWeightedReads"] = expression_df.apply(
+        lambda x: calc_total_uniquely_assigned_weighted_reads(
+            x["NumOfReads"],
+            x["AdditionalSupportingProteinsIDs"],
+            x["AdditionalWeightedSupportingReadsContributionPerProtein"],
+            uniquely_reassigned_prots,
         ),
         axis=1
     )
@@ -6325,20 +6374,6 @@ ax.set(xscale="log")
 # * Y axis - num. of distinct proteins this read now supports via reassignment
 
 # %%
-# reads_dfs[0]
-
-# %%
-# max_expression_df
-
-# %%
-# max_expression_df.loc[max_expression_df["NumOfReads"].ge(2)]
-
-# %%
-# condition = conditions[0]
-
-# max_expression_df.loc[max_expression_df[condition_col] == condition,]
-
-# %%
 ambigous_positions_in_reads_dfs = []
 for reads_df, unique_proteins_df, chrom, condition in zip(reads_dfs, unique_proteins_dfs, chroms, conditions):
     # reads_df = reads_df.loc[:, [condition_col, "Read", "AmbigousPositions"]].rename(
@@ -6360,17 +6395,6 @@ for reads_df, unique_proteins_df, chrom, condition in zip(reads_dfs, unique_prot
     
     reads_df.insert(0, "Chrom", chrom)
 
-    # unique_reassigned_reads = set(
-    #     chain.from_iterable(
-    #         max_expression_df.loc[
-    #             max_expression_df[condition_col] == condition, "FlattenedAllReads"
-    #         ].apply(lambda x: x[1:])
-    #     )
-    # )
-    # reads_df["Status"] = reads_df["Read"].apply(
-    #     lambda x: "Original" if x not in unique_reassigned_reads else "Reassigned"
-    # )
-
     unique_original_reads = set(
         chain.from_iterable(
             max_expression_df.loc[
@@ -6378,8 +6402,18 @@ for reads_df, unique_proteins_df, chrom, condition in zip(reads_dfs, unique_prot
             ]
         )
     )
+    # reads_df["Status"] = reads_df["Read"].apply(
+    #     lambda x: "Original" if x in unique_original_reads else "Reassigned"
+    # )
+    unique_reassigned_reads = set(
+        chain.from_iterable(
+            max_expression_df.loc[
+                max_expression_df[condition_col] == condition, "FlattenedAdditionalSupportingReadsIDs"
+            ]
+        )
+    )
     reads_df["Status"] = reads_df["Read"].apply(
-        lambda x: "Original" if x in unique_original_reads else "Reassigned"
+        lambda x: "Original" if x in unique_original_reads else "Reassigned" if x in unique_reassigned_reads else "Discarded"
     )
 
     reassignment_counter = Counter(
@@ -6393,15 +6427,30 @@ for reads_df, unique_proteins_df, chrom, condition in zip(reads_dfs, unique_prot
     reassignment_counter_df = reassignment_counter_series.reset_index().rename(
         columns={"index": "Read", 0: "NumOfReassignments"}
     )
+    # reads_df = reads_df.merge(
+    #     reassignment_counter_df, how="inner", on="Read", indicator="indicator"
+    # )
+    # assert (
+    #     reads_df.loc[reads_df["Status"].eq("Original"), "NumOfReassignments"]
+    #     .eq(1)
+    #     .all()
+    # )
+    # reads_df.loc[reads_df["Status"].eq("Original"), "NumOfReassignments"] = 0
     reads_df = reads_df.merge(
-        reassignment_counter_df, how="inner", on="Read", indicator="indicator"
+        reassignment_counter_df, how="left", on="Read", 
+        # indicator="indicator"
     )
     assert (
         reads_df.loc[reads_df["Status"].eq("Original"), "NumOfReassignments"]
         .eq(1)
         .all()
     )
-    reads_df.loc[reads_df["Status"].eq("Original"), "NumOfReassignments"] = 0
+    assert (
+        reads_df.loc[reads_df["Status"].eq("Discarded"), "NumOfReassignments"]
+        .isna()
+        .all()
+    )
+    reads_df.loc[reads_df["Status"].isin(["Original", "Discarded"]), "NumOfReassignments"] = 0
     
     unique_proteins_df = unique_proteins_df.loc[:, ["Protein", "Reads"]]
     unique_proteins_df["Reads"] = unique_proteins_df["Reads"].str.split(",")
@@ -6431,16 +6480,13 @@ ambigous_positions_in_reads_df = (
     .drop(columns="NewRead")
 )
 
-# assert ambigous_positions_in_reads_df.loc[
-#     ambigous_positions_in_reads_df["Status"].eq("Original"), "NumOfReassignments"
-# ].eq(1).all()
-assert ambigous_positions_in_reads_df["indicator"].value_counts()["both"] == (
-    ambigous_positions_in_reads_df.shape[0]
-)
+# assert ambigous_positions_in_reads_df["indicator"].value_counts()["both"] == (
+#     ambigous_positions_in_reads_df.shape[0]
+# )
 
 assert ambigous_positions_in_reads_df.groupby([condition_col, "Protein"])["NumOfReassignments"].nunique().eq(1).all(), "For each reassigned protein, there should be only one number of reassignments for all of its reads"
 
-del ambigous_positions_in_reads_df["indicator"]
+# del ambigous_positions_in_reads_df["indicator"]
 
 ambigous_positions_in_reads_df
 

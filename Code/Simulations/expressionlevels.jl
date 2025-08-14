@@ -502,7 +502,7 @@ end
 possibly_empty_array_sum(arr) = isempty(arr) ? 0 : sum(arr)
 
 
-function prepare_solution_data_for_reassignment(distinctdf, allprotsdf, firstcolpos, solution, readsdf, samplename, considerentropy::Bool = false)
+function prepare_solution_data_for_reassignment(distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename, considerentropy::Bool = false)
 	"""
 	Common pre-processing for both original and threaded versions.
 	Returns (chosendf, unchosendf, chosenindices, newsolutionrow) ready for processing.
@@ -579,7 +579,7 @@ function prepare_solution_data_for_reassignment(distinctdf, allprotsdf, firstcol
 	unchosenprot_chosenprot_minimum_distances = minimum.(eachrow(unchosenprot_chosenprot_distances))
 	# these are the candidates - unchosen prots with distance > 0 to each chosen prot
 	# unchosen_prots_with_min_d_1_rel_indices = findall(unchosenprot_chosenprot_minimum_distances .!== 0x00)
-	unchosen_prots_with_min_d_1_rel_indices = findall(unchosenprot_chosenprot_minimum_distances .!== convert(eltype(unchosenprot_chosenprot_distances), 0))
+	unchosen_prots_with_min_d_1_rel_indices = findall(unchosenprot_chosenprot_minimum_distances .!= convert(eltype(unchosenprot_chosenprot_distances), 0))
 
 	if isempty(unchosen_prots_with_min_d_1_rel_indices)
 		missing_chosen_prots = []
@@ -773,7 +773,7 @@ function threaded_one_solution_additional_assignment_considering_available_reads
 	@info "$(loggingtime())\tthreaded_one_solution_additional_assignment_considering_available_reads" samplename solution n_threads considerentropy
 
 	chosendf, unchosendf, chosenindices, newsolutionrow = prepare_solution_data_for_reassignment(
-		distinctdf, allprotsdf, firstcolpos, solution, readsdf, samplename, considerentropy,
+		distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename, considerentropy,
 	)
 
 
@@ -809,7 +809,7 @@ function one_solution_additional_assignment_considering_available_reads(
 	@info "$(loggingtime())\tone_solution_additional_assignment_considering_available_reads" samplename solution considerentropy
 
 	chosendf, unchosendf, chosenindices, newsolutionrow = prepare_solution_data_for_reassignment(
-		distinctdf, allprotsdf, firstcolpos, solution, readsdf, samplename, considerentropy,
+		distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename, considerentropy,
 	)
 
 	for unchosenprot ∈ eachrow(unchosendf)  # a row of unchosen protein relative to the chosen proteins in the solution
@@ -1077,7 +1077,16 @@ function run_sample(
 	)
 	# finalresults = vcat(Iterators.flatten(results)...)
 	# finalresults = vcat(skipmissing(Iterators.flatten(results)...))
-	finalresults = vcat((skipmissing(Iterators.flatten(results))...))
+	# Filter out missing values and ensure all results are valid 2-element tuples
+	all_results = collect(Iterators.flatten(results))
+	valid_results = filter(x -> !ismissing(x) && isa(x, Tuple) && length(x) == 2, all_results)
+	finalresults = collect(valid_results)
+
+	# Check if we have any valid results
+	if isempty(finalresults)
+		@warn "No valid results found for sample $samplename"
+		return nothing
+	end
 
 	# save these into seperate files, 
 	# the first being `outfile` and the second an "updated" version of the `distinctfile`
@@ -1155,7 +1164,7 @@ function main(
 
 	# run each sample using the `run_sample` function
 	for (distinctfile, allprotsfile, samplename, readsfile) ∈ zip(distinctfiles, allprotsfiles, samplenames, readsfiles)
-		run_sample(
+		result = run_sample(
 			distinctfile, allprotsfile, samplename, postfix_to_add,
 			firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
 			maxthreads, innerthreadedassignment, outdir, algs, onlymaxdistinct,
@@ -1163,6 +1172,9 @@ function main(
 			substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups,
 			considerentropy,
 		)
+		if result === nothing
+			@warn "Skipping sample $samplename due to processing errors"
+		end
 	end
 
 	@info "$(loggingtime())\tmain - finished sucessfully!"
@@ -1412,6 +1424,28 @@ if abspath(PROGRAM_FILE) == @__FILE__
 end
 
 
+# outdir = "D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMISubSeq.MergedSamples"
+# distinctfiles = [
+# 	"$outdir/ADAR1.Merged.DistinctUniqueProteins.04.07.2025-15:59:37.csv",
+# 	"$outdir/IQEC.Merged.DistinctUniqueProteins.04.07.2025-15:34:47.csv",
+# ]
+# allprotsfiles = [
+# 	"$outdir/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz",
+# 	"$outdir/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz",
+# ]
+# allreadsfiles = [
+# 	"$outdir/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz",
+# 	"$outdir/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz",
+# ]
+# samplenames = ["ADAR1", "IQEC1"]
+
+# distinctfile = distinctfiles[1]
+# allprotsfile = allprotsfiles[1]
+# readsfile = allreadsfiles[1]
+# samplename = samplenames[1]
+
+
+
 # distinctfile =  "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/DistinctProteins/comp183648_c0_seq1.DistinctUniqueProteins.21.03.2024-22:37:27.csv"
 # allprotsfile = "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/ProteinsFiles/comp183648_c0_seq1.unique_proteins.csv.gz"
 # readsfile = "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/ReadsFiles/comp183648_c0_seq1.reads.csv.gz"
@@ -1424,19 +1458,20 @@ end
 # allprotsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
 # samplename = "GRIA"
 # firstcolpos = 15
+
+# firstcolpos = 15
 # onlymaxdistinct = true
 # considerentropy = true
-# # considerentropy = false
-
+# postfix_to_add = ".EntropyConsidered"
+# innerthreadedassignment = true
 
 
 # delim = "\t"
 # innerdelim = ","
 # truestrings = ["TRUE", "True", "true"]
 # falsestrings = ["FALSE", "False", "false"]
-# onlymaxdistinct = true
 # algs = ["Ascending", "Descending"]
-# maxthreads = 50
+# maxthreads = Threads.nthreads()
 # fractions = [1.0]
 
 # substitutionmatrix = nothing
@@ -1458,7 +1493,7 @@ end
 
 # if considerentropy
 # 	allprotsdf, firstcolpos = findprotswithsufficiententropy!(
-# 		allprotsdf, firstcolpos, samplename
+# 		allprotsdf, firstcolpos, samplename,
 # 	)
 # end
 
@@ -1491,13 +1526,51 @@ end
 
 # threaded_result = threaded_one_solution_additional_assignment_considering_available_reads(
 # 	distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename,
-# 	10,
+# 	40,
 # 	considerentropy
 # )
 # threaded_result = threaded_result[1]
 
 
 # are_equal = compare_original_vs_threaded_results(original_result, threaded_result, verbose=true)
+
+
+
+# # considering only desired solutions (rows' indices)
+# solutions = choosesolutions(distinctdf, fractions, algs, onlymaxdistinct)
+
+# minmainthreads = max(
+# 	1,
+# 	min(
+# 		Int(round(maxthreads / 5)),
+# 		Int(round(length(solutions) / 4)),
+# 	),
+# )
+# allsubsolutions = collect(Iterators.partition(solutions, minmainthreads))
+
+# if innerthreadedassignment
+# 	# if innerthreadedassignment is true, we will use multiple threads to process each subsolution
+# 	# the number of threads to use for each subsolution
+# 	assignment_inner_threads = Int(round(maxthreads / minmainthreads))
+# else
+# 	# assignment_inner_threads = 1 will signify that we will not use multiple threads for each subsolution
+# 	assignment_inner_threads = 1
+# end
+
+
+# results = tcollect(
+# 	additional_assignments(
+# 		distinctdf, allprotsdf, firstcolpos, Δ, subsolutions, readsdf, samplename,
+# 		assignment_inner_threads, considerentropy,
+# 	)
+# 	for subsolutions ∈ allsubsolutions
+# )
+# # finalresults = vcat(Iterators.flatten(results)...)
+# # finalresults = vcat(skipmissing(Iterators.flatten(results)...))
+# # Filter out missing values and ensure all results are valid 2-element tuples
+# all_results = collect(Iterators.flatten(results))
+# valid_results = filter(x -> !ismissing(x) && isa(x, Tuple) && length(x) == 2, all_results)
+# finalresults = collect(valid_results)
 
 
 

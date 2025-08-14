@@ -628,6 +628,9 @@ reads_dfs[0]
 
 
 # %%
+reads_dfs[1]
+
+# %%
 pd.concat(
     [reads_df[[condition_col, "EditedPositions"]] for reads_df in reads_dfs],
 ).rename(columns={"EditedPositions": "EditedPositionsPerRead"}).groupby(
@@ -6254,30 +6257,11 @@ ax.set(xscale="log")
 # * Y axis - num. of distinct proteins this read now supports via reassignment
 
 # %%
-# reads_dfs[0]
-
-# %%
-# max_expression_df
-
-# %%
-# max_expression_df.loc[max_expression_df["NumOfReads"].ge(2)]
-
-# %%
-# condition = conditions[0]
-
-# max_expression_df.loc[max_expression_df[condition_col] == condition,]
-
-# %%
-len(reads_dfs)
-
-# %%
 ambigous_positions_in_reads_dfs = []
 for reads_df, unique_proteins_df, chrom, condition in zip(reads_dfs, unique_proteins_dfs, chroms, conditions):
     # reads_df = reads_df.loc[:, [condition_col, "Read", "AmbigousPositions"]].rename(
     #     columns={"AmbigousPositions": "NAsPerRead"}
     # )
-    
-    ic(condition)
     
     num_of_sites = reads_df.iloc[:, reads_first_col_pos:].shape[1]
     # ic(num_of_sites)
@@ -6393,12 +6377,10 @@ ambigous_positions_in_reads_df
 ambigous_positions_in_reads_df.groupby([condition_col, "Status"])["NAPositions"].describe().round(2)
 
 # %%
-conditions
+5
 
 # %%
-
-# %%
-ambigous_positions_in_reads_df.groupby([condition_col, "Status"])[
+ambigous_positions_in_reads_df.groupby([condition_col, "Status"], dropna=False)[
     [
         # "EditingFrequency",
         "EditedPositions",
