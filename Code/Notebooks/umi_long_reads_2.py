@@ -3263,16 +3263,16 @@ min_prct_btr_barcode_identity = 100
 
 # min_rel_loc_of_target_start = 90
 
-max_gap_openings_per_btr_barcode = 1
+# max_gap_openings_per_btr_barcode = 1
 
-# max_total_gaps_per_btr_barcode = 4
-max_total_gaps_per_btr_barcode = 1
+# # max_total_gaps_per_btr_barcode = 4
+# max_total_gaps_per_btr_barcode = 1
 
 
-possible_gap_openings_per_btr_barcode = list(
-    range(0, max_gap_openings_per_btr_barcode + 1)
-)
-possible_total_gaps_per_btr_barcode = list(range(0, max_total_gaps_per_btr_barcode + 1))
+# possible_gap_openings_per_btr_barcode = list(
+#     range(0, max_gap_openings_per_btr_barcode + 1)
+# )
+# possible_total_gaps_per_btr_barcode = list(range(0, max_total_gaps_per_btr_barcode + 1))
 
 
 # max_umi_seq_length = 12
@@ -3307,16 +3307,16 @@ best_gene_specific_concat_alignments_df = (
         #         min_prct_btg_gene_cov
         #     )
         # )
-        & (
-            gene_specific_concat_alignments_df["NumOfBTRBarcodeGapOpenings"].isin(
-                possible_gap_openings_per_btr_barcode
-            )
-        )
-        & (
-            gene_specific_concat_alignments_df["BTRGaps"].isin(
-                possible_total_gaps_per_btr_barcode
-            )
-        )
+        # & (
+        #     gene_specific_concat_alignments_df["NumOfBTRBarcodeGapOpenings"].isin(
+        #         possible_gap_openings_per_btr_barcode
+        #     )
+        # )
+        # & (
+        #     gene_specific_concat_alignments_df["BTRGaps"].isin(
+        #         possible_total_gaps_per_btr_barcode
+        #     )
+        # )
     ]
     .sort_values(
         [
@@ -3331,33 +3331,42 @@ best_gene_specific_concat_alignments_df = (
     .reset_index(drop=True)
 )
 
-best_gene_specific_concat_alignments_df["Read2"] = (
-    best_gene_specific_concat_alignments_df["Read"]
-)
-best_gene_specific_concat_alignments_df = (
-    best_gene_specific_concat_alignments_df.groupby("Read2")
-    .apply(choose_best_btr_barcode_alignment_for_read, include_groups=False)
-    .reset_index(drop=True)
-)
+# make sure there are no duplicates - only one alignment per gene-repeat-read
 assert (
-    best_gene_specific_concat_alignments_df.drop_duplicates(
-        ["Gene", "Repeat", "Read"]
-    ).shape[0]
-    == best_gene_specific_concat_alignments_df.shape[0]
-)
+        best_gene_specific_concat_alignments_df.drop_duplicates(
+            ["Gene", "Repeat", "Read"]
+        ).shape[0]
+        == best_gene_specific_concat_alignments_df.shape[0]
+    )
+
+# # drop duplicates if needed - keep only best alignment per gene-repeat-read
+# if (
+#     best_gene_specific_concat_alignments_df.drop_duplicates(
+#         ["Gene", "Repeat", "Read"]
+#     ).shape[0]
+#     != best_gene_specific_concat_alignments_df.shape[0]
+# ):
+#     best_gene_specific_concat_alignments_df["Read2"] = (
+#         best_gene_specific_concat_alignments_df["Read"]
+#     )
+#     best_gene_specific_concat_alignments_df = (
+#         best_gene_specific_concat_alignments_df.groupby("Read2")
+#         .apply(choose_best_btr_barcode_alignment_for_read, include_groups=False)
+#         .reset_index(drop=True)
+#     )
+#     assert (
+#         best_gene_specific_concat_alignments_df.drop_duplicates(
+#             ["Gene", "Repeat", "Read"]
+#         ).shape[0]
+#         == best_gene_specific_concat_alignments_df.shape[0]
+#     )
 
 assert (
     best_gene_specific_concat_alignments_df["BTRStrand"].value_counts()["-"]
     == best_gene_specific_concat_alignments_df.shape[0]
 )
 
-best_gene_specific_concat_alignments_df
-
-# %%
-best_gene_specific_concat_alignments_df.groupby("Gene").size()
-
-# %%
-best_gene_specific_concat_alignments_df.loc[
+assert best_gene_specific_concat_alignments_df.loc[
     :,
     [
         "%BTRBarcodeCoverage",
@@ -3365,7 +3374,14 @@ best_gene_specific_concat_alignments_df.loc[
         "NumOfBTRBarcodeGapOpenings",
         "BTRGaps",
     ],
-].describe()
+].min().eq([100, 100, 0, 0]).all(), "No gaps are expected since we required 100% coverage and identity."
+
+
+
+best_gene_specific_concat_alignments_df
+
+# %%
+best_gene_specific_concat_alignments_df.groupby("Gene").size()
 
 # %%
 principle_exact_umi_seq_length = 12
@@ -3451,6 +3467,9 @@ best_gene_specific_concat_alignments_df.loc[
     best_gene_specific_concat_alignments_df["BTGGeneEnd"].isna()
 ]
 
+# %% [markdown]
+# ## Further tests
+
 # %%
 i = 0
 
@@ -3494,20 +3513,20 @@ pd.DataFrame(
 3389 - 3365
 
 # %%
+aligned_pairs = read.get_aligned_pairs(matches_only=False, with_cigar=True)
+aligned_pairs
+
+# %%
 aligned_pairs_df.loc[
     aligned_pairs_df["ReadPos"].ge(3365) & aligned_pairs_df["ReadPos"].le(3389)
 ]
 
 # %%
-aligned_pairs_df = pd.DataFrame(
-    read.get_aligned_pairs(matches_only=False, with_cigar=True),
-    columns=["ReadPos", "RefPos", "Cigar"],
-)
-aligned_pairs_df
-
-# %%
-aligned_pairs = read.get_aligned_pairs(matches_only=False, with_cigar=True)
-aligned_pairs
+# aligned_pairs_df = pd.DataFrame(
+#     read.get_aligned_pairs(matches_only=False, with_cigar=True),
+#     columns=["ReadPos", "RefPos", "Cigar"],
+# )
+# aligned_pairs_df
 
 # %%
 aligned_pairs
@@ -3864,16 +3883,14 @@ best_gene_specific_concat_alignments_df
 
 # %%
 def is_pcr_barcode_found(
-    btr_barcode_coords,
-    btr_barcode_identity,
-    btr_barcode_coverage,
-    btr_alignment_length,
-    pcr_barcode_seq_length,
-    gene_btr_read_end,
-    pcr_btr_read_start,
-    # acceptable_range_between_gene_and_pcr=range(8, 16),
-    # acceptable_range_between_gene_and_pcr=range(8, 17),
-    acceptable_range_between_gene_and_pcr=range(10, 15),
+    btr_barcode_coords, # "BTRBarcodeCoords_PCR"
+    btr_barcode_identity, # "%BTRBarcodeIdentity_PCR"
+    btr_barcode_coverage, # "%BTRBarcodeCoverage_PCR"
+    btr_alignment_length, # "BTRAlignmentLength_PCR"
+    pcr_barcode_seq_length, # "BarcodeSeqLength_PCR"
+    gene_btr_read_end, # "BTRReadEnd"
+    pcr_btr_read_start, # "BTRReadStart_PCR"
+    acceptable_range_between_gene_and_pcr=range(10, 15), # range(expected_spanning_umi_seq_len - 2, expected_spanning_umi_seq_len + 3)
     min_regular_btr_barcode_coverage=90,
     min_regular_btr_barcode_identity=90,
     min_special_btr_alignment_length=10,
@@ -3938,14 +3955,6 @@ best_gene_specific_pcr_amplified_concat_alignments_df = concat_alignments_df.loc
     suffixes=["_PCR", None],
 )
 
-# best_gene_specific_pcr_amplified_concat_alignments_df = (
-#     best_gene_specific_pcr_amplified_concat_alignments_df.loc[
-#         best_gene_specific_pcr_amplified_concat_alignments_df["BTRReadStart_PCR"]
-#         .sub(best_gene_specific_pcr_amplified_concat_alignments_df["BTRReadEnd"])
-#         .isin(range(8, 15))
-#     ]
-# )
-
 # min_spanning_umi_seq_len = 10
 # max_spanning_umi_seq_len = 14
 # umi_sub_seq_len = 10
@@ -4007,32 +4016,56 @@ best_gene_specific_pcr_amplified_concat_alignments_df.loc[
 ].describe().round(2)
 
 # %%
+best_gene_specific_pcr_amplified_concat_alignments_df["BTRBarcodeCoords_PCR"].apply(len).describe()
+
+# %%
 best_gene_specific_pcr_amplified_concat_alignments_df.loc[
     best_gene_specific_pcr_amplified_concat_alignments_df.duplicated(
         subset="Read", keep=False
     )
 ]
 
+# %%
+best_gene_specific_pcr_amplified_concat_alignments_df.loc[
+    best_gene_specific_pcr_amplified_concat_alignments_df.duplicated(
+        subset="Read", keep=False
+    )
+].loc[:, ["Gene", "Read"]].value_counts().describe()
+
+
+# %%
+# read_df = best_gene_specific_pcr_amplified_concat_alignments_df.loc[
+#     best_gene_specific_pcr_amplified_concat_alignments_df["Read"].eq("m64296e_241222_071206/100206692/ccs")
+# ].copy()
+# read_df
+
+# %%
+# read_df.sample(n=1, random_state=seed)
 
 # %%
 def choose_best_pcr_btr_barcode_alignment_for_read(
-    read_df: pd.DataFrame, ideal_spanning_umi_seq_len: int = 12
+    read_df: pd.DataFrame, seed: int, ideal_spanning_umi_seq_len: int = 12
 ) -> pd.Series:
     """
     Choose the best barcode-to-read alignment for this read based on the criteria defined.
     """
-    # if read_df.empty:
-    #     return pd.Series()
-    read_df["DistnaceFromIdealSpanningUMISeqLength"] = (
+    if read_df.shape[0] == 1:
+        # return read_df.iloc[0]
+        return read_df
+    
+    # ic(seed, ideal_spanning_umi_seq_len)
+    
+    read_df["DistanceFromIdealSpanningUMISeqLength"] = (
         read_df["SpanningUMISeqLength"].sub(ideal_spanning_umi_seq_len).abs()
     )
 
     criteria_cols_and_optimization_funcs = [
-        ("DistnaceFromIdealSpanningUMISeqLength", min),
+        ("DistanceFromIdealSpanningUMISeqLength", min),
         ("%BTRBarcodeCoverage_PCR", max),
         ("%BTRBarcodeIdentity_PCR", max),
         ("NumOfBTRBarcodeGapOpenings_PCR", min),
         ("BTRGaps_PCR", min),
+        ("BTRAlignmentLength_PCR", max)
     ]
     optimized_cols = []
     is_optimized_cols = []
@@ -4046,31 +4079,43 @@ def choose_best_pcr_btr_barcode_alignment_for_read(
 
     read_df["NumOfOptimizedCols"] = read_df[is_optimized_cols].sum(axis=1)
 
-    criteria_cols = []
-    ascending_sortings = []
-    for col, optimization_func in criteria_cols_and_optimization_funcs:
-
-        criteria_cols.append(optimized_col)
-        ascending_sortings.append(True if optimization_func == max else False)
+    # criteria_cols = []
+    # ascending_sortings = []
+    # for col, optimization_func in criteria_cols_and_optimization_funcs:
+    #     criteria_cols.append(optimized_col)
+    #     ascending_sortings.append(True if optimization_func == max else False)
+    criteria_cols = [col for col, _ in criteria_cols_and_optimization_funcs]
 
     read_df = (
         read_df.loc[
             read_df["NumOfOptimizedCols"].eq(read_df["NumOfOptimizedCols"].max())
         ]
-        .sort_values(by=criteria_cols, ascending=ascending_sortings)
+        # .sort_values(by=criteria_cols, ascending=ascending_sortings)
         .drop(
             columns=criteria_cols
             + optimized_cols
             + is_optimized_cols
             + ["NumOfOptimizedCols"]
         )
-        .iloc[0]
+        # .iloc[0]
+        .sample(n=1, random_state=seed)  
     )
 
-    del read_df["DistnaceFromIdealSpanningUMISeqLength"]
+    # del read_df["DistanceFromIdealSpanningUMISeqLength"]
 
     return read_df
 
+
+# %%
+# read_df = best_gene_specific_pcr_amplified_concat_alignments_df.loc[
+#     best_gene_specific_pcr_amplified_concat_alignments_df["Read"].eq("m64296e_241222_071206/100206692/ccs")
+# ].copy()
+# read_df
+
+# %%
+# read_df.groupby("Read2").apply(
+#     choose_best_pcr_btr_barcode_alignment_for_read, seed, expected_spanning_umi_seq_len, include_groups=False
+#     )
 
 # %%
 best_gene_specific_pcr_amplified_concat_alignments_df["Read2"] = (
@@ -4079,7 +4124,9 @@ best_gene_specific_pcr_amplified_concat_alignments_df["Read2"] = (
 
 best_gene_specific_pcr_amplified_concat_alignments_df = (
     best_gene_specific_pcr_amplified_concat_alignments_df.groupby("Read2")
-    .apply(choose_best_pcr_btr_barcode_alignment_for_read, include_groups=False)
+    .apply(choose_best_pcr_btr_barcode_alignment_for_read, seed, expected_spanning_umi_seq_len, include_groups=False)
+    # .apply(choose_best_pcr_btr_barcode_alignment_for_read, include_groups=False, seed=seed, ideal_spanning_umi_seq_len=expected_spanning_umi_seq_len)
+    # .apply(choose_best_pcr_btr_barcode_alignment_for_read, (seed, expected_spanning_umi_seq_len), include_groups=False)
     .reset_index(drop=True)
 )
 best_gene_specific_pcr_amplified_concat_alignments_df
