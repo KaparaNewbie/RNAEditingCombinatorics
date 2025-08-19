@@ -33,6 +33,8 @@ import pysam
 from Bio import Align
 from Bio.Seq import Seq, reverse_complement, complement
 from icecream import ic
+import matplotlib.pyplot as plt
+import networkx as nx
 
 # %%
 pio.templates.default = "plotly_white"
@@ -58,6 +60,15 @@ unmapped_bam_files
 # %%
 mapped_bam_files = list(mapped_bams_dir.glob("*.bam"))
 mapped_bam_files
+
+# %%
+merged_bams_dir = Path(
+    "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads.MergedSamples"
+)
+
+# %%
+mapped_merged_bam_files = list(reversed(list(merged_bams_dir.glob("*.bam"))))
+mapped_merged_bam_files
 
 # %%
 min_read_quality = 0.998
@@ -1993,38 +2004,38 @@ test_concat_alignments_df = pd.concat(
 
 test_concat_alignments_df
 
+
 # %%
-test_concat_alignments_df = pd.concat(
-    [
-        concat_alignments_df.loc[
-            (concat_alignments_df["Barcode"] != "PCR")
-            & (concat_alignments_df["Gene"].eq(concat_alignments_df["MappedGene"]))
-            & (concat_alignments_df["Gene"].eq(concat_alignments_df["Barcode"]))
-            & (concat_alignments_df["BTRGaps"].gt(0))
-        ].sample(n=3, random_state=seed),
-        concat_alignments_df.loc[
-            (concat_alignments_df["Barcode"] != "PCR")
-            & (concat_alignments_df["Gene"].eq(concat_alignments_df["MappedGene"]))
-            & (concat_alignments_df["Gene"].eq(concat_alignments_df["Barcode"]))
-            & (concat_alignments_df["BTRGaps"].eq(0))
-        ].sample(n=3, random_state=seed),
-    ],
-    ignore_index=True,
-)
+# test_concat_alignments_df = pd.concat(
+#     [
+#         concat_alignments_df.loc[
+#             (concat_alignments_df["Barcode"] != "PCR")
+#             & (concat_alignments_df["Gene"].eq(concat_alignments_df["MappedGene"]))
+#             & (concat_alignments_df["Gene"].eq(concat_alignments_df["Barcode"]))
+#             & (concat_alignments_df["BTRGaps"].gt(0))
+#         ].sample(n=3, random_state=seed),
+#         concat_alignments_df.loc[
+#             (concat_alignments_df["Barcode"] != "PCR")
+#             & (concat_alignments_df["Gene"].eq(concat_alignments_df["MappedGene"]))
+#             & (concat_alignments_df["Gene"].eq(concat_alignments_df["Barcode"]))
+#             & (concat_alignments_df["BTRGaps"].eq(0))
+#         ].sample(n=3, random_state=seed),
+#     ],
+#     ignore_index=True,
+# )
 
-test_concat_alignments_df.insert(
-    test_concat_alignments_df.columns.get_loc("BTRReadCoords") + 1,
-    "BTRReadStart",
-    test_concat_alignments_df["BTRReadCoords"].apply(lambda x: x[0][0]),
-)
-test_concat_alignments_df.insert(
-    test_concat_alignments_df.columns.get_loc("BTRReadCoords") + 2,
-    "BTRReadEnd",
-    test_concat_alignments_df["BTRReadCoords"].apply(lambda x: x[-1][-1]),
-)
+# test_concat_alignments_df.insert(
+#     test_concat_alignments_df.columns.get_loc("BTRReadCoords") + 1,
+#     "BTRReadStart",
+#     test_concat_alignments_df["BTRReadCoords"].apply(lambda x: x[0][0]),
+# )
+# test_concat_alignments_df.insert(
+#     test_concat_alignments_df.columns.get_loc("BTRReadCoords") + 2,
+#     "BTRReadEnd",
+#     test_concat_alignments_df["BTRReadCoords"].apply(lambda x: x[-1][-1]),
+# )
 
-test_concat_alignments_df
-
+# test_concat_alignments_df
 
 # %%
 def get_genomic_coord_for_read_coord(aligned_pairs, required_read_pos):
@@ -3564,318 +3575,11 @@ best_gene_specific_concat_alignments_df.loc[
 # fig.show()
 
 # %% [markdown]
-# # Find unique reads by exact UMI seqs in gene-specific selected barcodes
+# # Find unique reads by UMI sub-seqs in gene-specific PCR-amplified selected barcodes
 #
-
-# %%
-best_gene_specific_concat_alignments_df.loc[
-    best_gene_specific_concat_alignments_df["ExactUMISeqLength"].lt(
-        principle_exact_umi_seq_length
-    ),
-].groupby("Gene").size()
-
-# %%
-best_exact_umi_gene_specific_concat_alignments_df = (
-    best_gene_specific_concat_alignments_df.loc[
-        best_gene_specific_concat_alignments_df["ExactUMISeqLength"].ge(
-            principle_exact_umi_seq_length
-        ),
-    ].reset_index(drop=True)
-)
-
-best_exact_umi_gene_specific_concat_alignments_df
-
-# %%
-best_exact_umi_gene_specific_concat_alignments_df["ExactUMISeq"].nunique()
-
-# %%
-best_exact_umi_gene_specific_concat_alignments_df.groupby("Sample").size()
-
-# %%
-best_exact_umi_gene_specific_concat_alignments_df.groupby("Sample")[
-    "ExactUMISeq"
-].nunique()
-
-# %%
-best_exact_umi_gene_specific_concat_alignments_df.groupby("Sample")[
-    "ExactUMISeq"
-].nunique().sum()
-
-# %%
-# unique_best_exact_umi_gene_specific_concat_alignments_df = (
-#     best_exact_umi_gene_specific_concat_alignments_df.groupby(
-#         ["Sample", "ExactUMISeq"]
-#     ).sample(n=1, random_state=seed)
-# )
-
-# when deduplicating reads per sample based on exact UMI sequence,
-# we'd like to keep the longest read for each UMI sequence
-unique_best_exact_umi_gene_specific_concat_alignments_df = (
-    best_exact_umi_gene_specific_concat_alignments_df.sort_values(
-        by=["Sample", "ExactUMISeq", "ReadSeqLength"], ascending=[True, True, False]
-    )
-    .drop_duplicates(subset=["Sample", "ExactUMISeq"])
-    .reset_index(drop=True)
-)
-
-unique_best_exact_umi_gene_specific_concat_alignments_df
-
-# %%
-assert (
-    unique_best_exact_umi_gene_specific_concat_alignments_df["Read"].nunique()
-    == unique_best_exact_umi_gene_specific_concat_alignments_df.shape[0]
-)
-
-# %%
-unique_reads_out_file = Path(
-    "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads.MergedSamples",
-    "UniqueReadsByExactUMISeq.tsv",
-)
-
-unique_best_exact_umi_gene_specific_concat_alignments_df.loc[
-    :, ["Sample", "Gene", "Repeat", "Read"]
-].to_csv(
-    unique_reads_out_file,
-    sep="\t",
-    index=False,
-    # na_rep="NA",
-    # float_format="%.2f",
-)
-
-# %%
-mapped_merged_bam_files = [
-    "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.bam",
-    "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.bam",
-]
-
-# %%
-unique_reads_dir = Path(
-    "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads.UniqueReadsByUMI.MergedSamples"
-)
-unique_reads_dir.mkdir(parents=True, exist_ok=True)
-
-# %%
-# Get the set of unique read names to keep
-reads_to_keep = set(unique_best_exact_umi_gene_specific_concat_alignments_df["Read"])
-
-for bam_path in mapped_merged_bam_files:
-    out_bam_path = Path(unique_reads_dir, Path(bam_path).name)
-
-    with pysam.AlignmentFile(bam_path, "rb") as in_bam, pysam.AlignmentFile(
-        out_bam_path, "wb", template=in_bam
-    ) as out_bam:
-        for read in in_bam:
-            if read.query_name in reads_to_keep:
-                out_bam.write(read)
-
-    print(f"Filtered BAM written to: {out_bam_path}")
-
-
-# %%
-# !samtools index -M {unique_reads_dir}/*.bam
 
 # %% [markdown]
-# # Find unique reads by sub UMI seqs in gene-specific selected barcodes
-#
-
-# %%
-def at_least_one_shared_subset(umi_1_unique_subseqs: set, umi_2_unique_subseqs: set):
-
-    # return umi_1_unique_subseqs & umi_2_unique_subseqs != set()
-
-    for umi_1_unique_subseq in umi_1_unique_subseqs:
-        if umi_1_unique_subseq in umi_2_unique_subseqs:
-            return True
-    return False
-
-
-# %%
-def process_gene_and_repeat_df(
-    gene_and_repeat_df: pd.DataFrame,
-) -> pd.DataFrame:
-    df = gene_and_repeat_df.loc[:, ["Read", "UMIUniqueSubSeqs"]]
-
-    df["ReadswithIndistinguishableUMISubSeqs"] = df.apply(
-        lambda x: df.loc[
-            df["UMIUniqueSubSeqs"].apply(
-                lambda y: at_least_one_shared_subset(x["UMIUniqueSubSeqs"], y)
-            ),
-            "Read",
-        ].tolist(),
-        axis=1,
-    )
-    df["OtherReadswithIndistinguishableUMISubSeqs"] = df.apply(
-        lambda x: [
-            read
-            for read in x["ReadswithIndistinguishableUMISubSeqs"]
-            if read != x["Read"]
-        ],
-        axis=1,
-    )
-    df["NumOfOtherReadswithIndistinguishableUMISubSeqs"] = df[
-        "OtherReadswithIndistinguishableUMISubSeqs"
-    ].apply(len)
-
-    gene_and_repeat_df = gene_and_repeat_df.merge(
-        df.loc[
-            :,
-            [
-                "Read",
-                "OtherReadswithIndistinguishableUMISubSeqs",
-                "NumOfOtherReadswithIndistinguishableUMISubSeqs",
-            ],
-        ],
-        on="Read",
-        how="outer",
-        indicator="indicator",
-    )
-
-    assert (
-        gene_and_repeat_df["indicator"].value_counts()["both"]
-        == gene_and_repeat_df.shape[0]
-    )
-    del gene_and_repeat_df["indicator"]
-
-    return gene_and_repeat_df
-
-
-# %%
-gene_specific_dfs = []
-
-for gene, repeat in product(genes, list("123")):
-
-    ic(gene, repeat)
-
-    gene_and_repeat_df = best_gene_specific_concat_alignments_df.loc[
-        (best_gene_specific_concat_alignments_df["Gene"] == gene)
-        & (best_gene_specific_concat_alignments_df["Repeat"] == repeat)
-    ]
-
-    gene_specific_dfs.append(gene_and_repeat_df)
-
-with Pool(processes=6) as pool:
-    processed_gene_specific_dfs = pool.map(
-        process_gene_and_repeat_df, gene_specific_dfs
-    )
-
-best_umi_sub_seq_gene_specific_concat_alignments_df = pd.concat(
-    processed_gene_specific_dfs, ignore_index=True
-)
-best_umi_sub_seq_gene_specific_concat_alignments_df
-
-# %%
-best_umi_sub_seq_gene_specific_concat_alignments_df.groupby("Sample").size()
-
-# %%
-best_umi_sub_seq_gene_specific_concat_alignments_df.loc[
-    best_umi_sub_seq_gene_specific_concat_alignments_df[
-        "NumOfOtherReadswithIndistinguishableUMISubSeqs"
-    ].eq(0),
-].groupby("Sample").size()
-
-# %%
-best_umi_sub_seq_gene_specific_concat_alignments_df[
-    "NumOfOtherReadswithIndistinguishableUMISubSeqs"
-].eq(0).sum()
-
-# %%
-best_umi_sub_seq_gene_specific_concat_alignments_df.loc[
-    best_umi_sub_seq_gene_specific_concat_alignments_df[
-        "NumOfOtherReadswithIndistinguishableUMISubSeqs"
-    ].gt(0),
-]
-
-# %%
-exact_umi_seqs_counts = best_umi_sub_seq_gene_specific_concat_alignments_df[
-    "ExactUMISeq"
-].value_counts()
-
-exact_umi_seqs_counts
-
-# %%
-best_umi_sub_seq_gene_specific_concat_alignments_df.loc[
-    (
-        best_umi_sub_seq_gene_specific_concat_alignments_df[
-            "NumOfOtherReadswithIndistinguishableUMISubSeqs"
-        ].gt(0)
-    )
-    & (
-        best_umi_sub_seq_gene_specific_concat_alignments_df["ExactUMISeq"].apply(
-            lambda x: exact_umi_seqs_counts[x] > 1
-        )
-    )
-]
-
-# %%
-read = "m64296e_241222_071206/10027148/ccs"
-other_reads = best_umi_sub_seq_gene_specific_concat_alignments_df.loc[
-    best_umi_sub_seq_gene_specific_concat_alignments_df["Read"].eq(read),
-    "OtherReadswithIndistinguishableUMISubSeqs",
-].values[0]
-df = best_umi_sub_seq_gene_specific_concat_alignments_df.loc[
-    best_umi_sub_seq_gene_specific_concat_alignments_df["Read"].isin(
-        [read] + list(other_reads)
-    )
-]
-df.to_csv(
-    "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads.MergedSamples/ExampleForEli1.csv",
-    index=False,
-)
-df
-
-# %%
-
-# %%
-read = "m64296e_241222_071206/100401593/ccs"
-other_reads = best_umi_sub_seq_gene_specific_concat_alignments_df.loc[
-    best_umi_sub_seq_gene_specific_concat_alignments_df["Read"].eq(read),
-    "OtherReadswithIndistinguishableUMISubSeqs",
-].values[0]
-df = best_umi_sub_seq_gene_specific_concat_alignments_df.loc[
-    best_umi_sub_seq_gene_specific_concat_alignments_df["Read"].isin(
-        [read] + list(other_reads)
-    )
-]
-df.to_csv(
-    "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads.MergedSamples/ExampleForEli2.csv",
-    index=False,
-)
-df
-
-# %%
-read = "m64296e_241222_071206/61737413/ccs"
-other_reads = best_umi_sub_seq_gene_specific_concat_alignments_df.loc[
-    best_umi_sub_seq_gene_specific_concat_alignments_df["Read"].eq(read),
-    "OtherReadswithIndistinguishableUMISubSeqs",
-].values[0]
-df = best_umi_sub_seq_gene_specific_concat_alignments_df.loc[
-    best_umi_sub_seq_gene_specific_concat_alignments_df["Read"].isin(
-        [read] + list(other_reads)
-    )
-]
-df.to_csv(
-    "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads.MergedSamples/ExampleForEli3.csv",
-    index=False,
-)
-df
-
-# %%
-# best_umi_sub_seq_gene_specific_concat_alignments_df.loc[
-#     (
-#         best_umi_sub_seq_gene_specific_concat_alignments_df[
-#             "NumOfOtherReadswithIndistinguishableUMISubSeqs"
-#         ].gt(0)
-#     )
-#     & (
-#         best_umi_sub_seq_gene_specific_concat_alignments_df["ExactUMISeq"].apply(
-#             lambda x: exact_umi_seqs_counts[x] == 1
-#         )
-#     )
-# ]
-
-# %% [markdown]
-# # Find unique reads by sub UMI seqs in gene-specific PCR-amplified selected barcodes
-#
+# ## Find unique acceptable PCR barcodes
 
 # %%
 best_gene_specific_concat_alignments_df
@@ -4016,9 +3720,6 @@ best_gene_specific_pcr_amplified_concat_alignments_df.loc[
 ].describe().round(2)
 
 # %%
-best_gene_specific_pcr_amplified_concat_alignments_df["BTRBarcodeCoords_PCR"].apply(len).describe()
-
-# %%
 best_gene_specific_pcr_amplified_concat_alignments_df.loc[
     best_gene_specific_pcr_amplified_concat_alignments_df.duplicated(
         subset="Read", keep=False
@@ -4032,15 +3733,6 @@ best_gene_specific_pcr_amplified_concat_alignments_df.loc[
     )
 ].loc[:, ["Gene", "Read"]].value_counts().describe()
 
-
-# %%
-# read_df = best_gene_specific_pcr_amplified_concat_alignments_df.loc[
-#     best_gene_specific_pcr_amplified_concat_alignments_df["Read"].eq("m64296e_241222_071206/100206692/ccs")
-# ].copy()
-# read_df
-
-# %%
-# read_df.sample(n=1, random_state=seed)
 
 # %%
 def choose_best_pcr_btr_barcode_alignment_for_read(
@@ -4107,17 +3799,6 @@ def choose_best_pcr_btr_barcode_alignment_for_read(
 
 
 # %%
-# read_df = best_gene_specific_pcr_amplified_concat_alignments_df.loc[
-#     best_gene_specific_pcr_amplified_concat_alignments_df["Read"].eq("m64296e_241222_071206/100206692/ccs")
-# ].copy()
-# read_df
-
-# %%
-# read_df.groupby("Read2").apply(
-#     choose_best_pcr_btr_barcode_alignment_for_read, seed, expected_spanning_umi_seq_len, include_groups=False
-#     )
-
-# %%
 best_gene_specific_pcr_amplified_concat_alignments_df["Read2"] = (
     best_gene_specific_pcr_amplified_concat_alignments_df["Read"]
 )
@@ -4134,13 +3815,64 @@ best_gene_specific_pcr_amplified_concat_alignments_df
 # %%
 best_gene_specific_pcr_amplified_concat_alignments_df["Read"].nunique()
 
+# %% [markdown]
+# ### Save reads with recognized barcodes, before de-duplication
+
+# %%
+reads_with_recognizable_barcodes_out_file = Path(
+    merged_bams_dir,
+    "ReadsWithRecognizableBarcodes.tsv",
+)
+
+best_gene_specific_pcr_amplified_concat_alignments_df.loc[
+    :, ["Sample", "Gene", "Repeat", "Read"]
+].to_csv(
+    reads_with_recognizable_barcodes_out_file,
+    sep="\t",
+    index=False,
+    # na_rep="NA",
+    # float_format="%.2f",
+)
+
+# %%
+reads_with_recognizable_barcodes_dir = Path(
+    "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads.ReadsWithRecognizableBarcodes.MergedSamples"
+)
+reads_with_recognizable_barcodes_dir.mkdir(parents=True, exist_ok=True)
+
+# %%
+# Get the set of unique read names to keep
+reads_to_keep = set(
+    best_gene_specific_pcr_amplified_concat_alignments_df["Read"]
+)
+
+for in_bam_path in mapped_merged_bam_files:
+    out_bam_path = Path(reads_with_recognizable_barcodes_dir, Path(in_bam_path).name)
+
+    with pysam.AlignmentFile(in_bam_path, "rb") as in_bam, pysam.AlignmentFile(
+        out_bam_path, "wb", template=in_bam
+    ) as out_bam:
+        for read in in_bam:
+            if read.query_name in reads_to_keep:
+                out_bam.write(read)
+
+    print(f"Filtered BAM written to: {out_bam_path}")
+
+
+# %%
+# !samtools index -M {reads_with_recognizable_barcodes_dir}/*.bam
+
+# %% [markdown]
+# ## Find unique reads by UMI sub-seqs
+
+# %% [markdown]
+# ### Graph preleminaries
 
 # %%
 def compute_reads_with_indistinguishable_umi_subseqs(df):
     """
     For each read, find all other reads that share at least one UMI sub-sequence.
     Returns a DataFrame with new columns:
-      - ReadswithIndistinguishableUMISubSeqs
       - OtherReadswithIndistinguishableUMISubSeqs
       - NumOfOtherReadswithIndistinguishableUMISubSeqs
     """
@@ -4208,8 +3940,6 @@ best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.groupby(
 ).size()
 
 # %%
-
-# %%
 best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
     best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df[
         "NumOfOtherReadswithIndistinguishableUMISubSeqs"
@@ -4217,10 +3947,338 @@ best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
 ].groupby("Sample").size()
 
 # %%
+best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
+    best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df[
+        "NumOfOtherReadswithIndistinguishableUMISubSeqs"
+    ].eq(0),
+].groupby("Sample").size().mul(100).div(
+    best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.groupby(
+        "Sample"
+    ).size()
+).round(2)
+
+# %%
 best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df[
     "NumOfOtherReadswithIndistinguishableUMISubSeqs"
 ].eq(0).sum()
 
+# %%
+best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
+    best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df[
+        "NumOfOtherReadswithIndistinguishableUMISubSeqs"
+    ].eq(0),
+].shape[0] * 100 / best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.shape[0]
+
+
+# %% [markdown]
+# ### Analyze graph structure
+
+# %%
+def create_indistinguishable_graph(gene_and_repeat_df):
+    # create g by explicitly deepcopying the needed cols
+    reads = gene_and_repeat_df["Read"].tolist()
+    other_indistinguishable_reads = (
+        gene_and_repeat_df["OtherReadswithIndistinguishableUMISubSeqs"]
+        .apply(lambda x: copy.deepcopy(x))
+        .tolist()
+    )
+
+    G = nx.Graph()
+
+    G.add_nodes_from(reads)
+    # ic(G.number_of_nodes())
+
+    for read, neighbours in zip(reads, other_indistinguishable_reads):
+        for neighbour in neighbours:
+            G.add_edge(read, neighbour)
+            
+    # ic(G.number_of_edges());
+    return G
+
+
+# %%
+# Clear any previous outputs and run the loop cleanly
+from IPython.display import clear_output
+clear_output()
+
+print("Starting loop execution...")
+print("Expected iterations:", len(list(product(genes, list("123")))))
+print("-" * 40)
+
+Gs = []
+ccs_dfs = []
+for i, (gene, repeat) in enumerate(product(genes, list("123"))):
+    # i_s.append(i)
+    print(f"Iteration {i}: gene={gene}, repeat={repeat}")
+
+    gene_and_repeat_df = best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
+        (best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df["Gene"] == gene)
+        & (best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df["Repeat"] == repeat),
+        ["Read", "OtherReadswithIndistinguishableUMISubSeqs"]
+    ]
+
+    G = create_indistinguishable_graph(gene_and_repeat_df)
+    Gs.append(G)
+    
+    ccs_df = pd.DataFrame(
+        {
+                "Gene": gene,
+                "Repeat": int(repeat),
+                "CC":  list(nx.connected_components(G)),
+        }
+    )
+    ccs_df["Size"] = ccs_df["CC"].apply(len)
+    ccs_df["Degrees"] = ccs_df["CC"].apply(lambda x: [len(G.adj[read]) for read in x])
+    ccs_df["MeanDegree"] = ccs_df.apply(lambda x: sum(x["Degrees"]) / x["Size"], axis=1)
+    ccs_dfs.append(ccs_df)
+
+print("-" * 40)
+print(f"Loop completed. Processed {i} iterations, created {len(Gs)} graphs.")
+
+concat_ccs_df = pd.concat(ccs_dfs, ignore_index=True)
+
+assert concat_ccs_df.loc[
+    concat_ccs_df["Degrees"].apply(max).ge(concat_ccs_df["Size"])
+].empty, "Max degree in connected components should not exceed the size of the component."
+
+concat_ccs_df["Edges"] = concat_ccs_df["Degrees"].apply(
+    lambda x: sum(x) / 2
+)
+concat_ccs_df["Cliquishness"] = concat_ccs_df.apply(
+    # lambda x: x["Edges"] / ((x["Size"] * (x["Size"] - 1)) / 2) if x["Size"] > 1 else np.nan,
+    lambda x: x["Edges"] / ((x["Size"] * (x["Size"] - 1)) / 2) if x["Size"] > 1 else 1,
+    axis=1
+)
+
+concat_ccs_df
+
+# %%
+# num of nodes per graph
+concat_ccs_df.groupby(["Gene", "Repeat"])["Size"].apply(np.sum).astype(int).reset_index()
+
+# %%
+# num of edges per graph
+concat_ccs_df.groupby(["Gene", "Repeat"])["Edges"].apply(np.sum).astype(int).reset_index()
+
+# %%
+# num of connected components per graph
+concat_ccs_df[["Gene", "Repeat"]].value_counts().reset_index().sort_values(["Gene", "Repeat"]).reset_index(drop=True)
+
+# %%
+# connected components sizes stats
+concat_ccs_df.groupby(["Gene", "Repeat"])["Size"].describe().round(2).reset_index()
+
+# %%
+# % of connected components with size 1
+concat_ccs_df.groupby(["Gene", "Repeat"])["Size"].apply(lambda x: x.eq(1).sum() * 100 / x.size).round(2)
+
+# %%
+# % of nodes in connected components with size 1
+concat_ccs_df.groupby(["Gene", "Repeat"]).apply(
+    lambda x: x.loc[x["Size"].eq(1), "Size"].sum() * 100 / x["Size"].sum(),
+    include_groups=False
+).round(2)
+
+# %%
+fig = px.histogram(
+    concat_ccs_df,
+    x="Size",
+    # y="MeanDegree",
+    # facet_col="Gene",
+    # facet_row="Repeat",
+    facet_col="Repeat",
+    facet_row="Gene",
+    # color="Repeat",
+    # opacity=0.6,
+    # log_x=True,
+    log_y=True,
+    histnorm="percent",
+    # cumulative=True,
+    labels={"Size": "Connected component size"},
+)
+fig.update_layout(
+    width=1200,
+    height=600,
+    # barmode='overlay'
+    title="Connected components size distribution"
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    concat_ccs_df.loc[concat_ccs_df["Size"].ge(2)],
+    x="MeanDegree",
+    # y="MeanDegree",
+    # facet_col="Gene",
+    # facet_row="Repeat",
+    facet_col="Repeat",
+    facet_row="Gene",
+    # color="Repeat",
+    # opacity=0.6,
+    # log_x=True,
+    log_y=True,
+    # histnorm="percent",
+    # cumulative=True,
+    labels={"MeanDegree": "Connected component mean degree"},
+)
+fig.update_layout(
+    width=1200,
+    height=600,
+    # barmode='overlay',
+    title="Mean degree distribution per connected components with size >= 2"
+)
+fig.show()
+
+# %%
+fig = px.scatter(
+    concat_ccs_df.groupby(["Gene", "Repeat", "Size"])["MeanDegree"].agg(["mean", "std"]).reset_index(),
+    x="Size",
+    y="mean",
+    error_y="std",
+    facet_col="Repeat",
+    facet_row="Gene",
+    # color="Repeat",
+    # opacity=0.6,
+    # log_x=True,
+    # log_y=True,
+    # histnorm="percent",
+    # cumulative=True,
+    labels={
+        "Size": "Connected component size", 
+        # "mean": "Connected component mean degree"
+        "mean": "Mean degree"
+        },
+)
+fig.update_xaxes(tick0=0, dtick=5)
+fig.update_yaxes(tick0=0, dtick=5)
+fig.update_layout(
+    width=1200,
+    height=400,
+    # barmode='overlay',
+    # title="Mean degree distribution per connected components with size >= 2"
+)
+fig.show()
+
+# %%
+fig = px.scatter(
+    concat_ccs_df.loc[
+        concat_ccs_df["Size"].ge(2)
+    ].groupby(["Gene", "Repeat", "Size"])["Cliquishness"].agg(["mean", "std"]).reset_index(),
+    x="Size",
+    y="mean",
+    error_y="std",
+    facet_col="Repeat",
+    facet_row="Gene",
+    # color="Repeat",
+    # opacity=0.6,
+    # log_x=True,
+    # log_y=True,
+    # histnorm="percent",
+    # cumulative=True,
+    labels={
+        "Size": "Connected component size", 
+        # "mean": "Connected component mean degree"
+        "mean": "Mean cliquishness<br>(|E| / |E|_clique)"
+        # "mean": "Mean cliquishness<br>(|E| / |V|*(|V|-1)/2)"
+        },
+)
+fig.update_layout(
+    width=1200,
+    height=600,
+    # barmode='overlay',
+    title="How close is a connected component of size >= 2 to be a clique?"
+)
+fig.show()
+
+# %%
+concat_ccs_df
+
+# %%
+ccs_df = concat_ccs_df.loc[
+    (concat_ccs_df["Gene"] == "ADAR1")
+    & (concat_ccs_df["Repeat"] == 1)
+]
+ccs_df
+
+# %%
+G = Gs[0]
+
+# %%
+max_cliques = list(nx.find_cliques(G))
+len(max_cliques)
+
+# %%
+for i, (gene, repeat) in enumerate(product(genes, list("123"))):
+    G = Gs[i]
+    max_cliques = list(nx.find_cliques(G))
+    print(f"Gene: {gene}, Repeat: {repeat}, Max cliques: {len(max_cliques)}")
+    # if len(max_cliques) > 0:
+    #     print("Example max clique:", max_cliques[0])
+    # else:
+    #     print("No max cliques found.")
+    # print("-" * 40)
+
+# %%
+g_cc = nx.Graph()
+g_cc.add_nodes_from(range(1, 6))
+g_cc.add_edges_from(
+   [ [1, 2], [2, 3], [2, 4], [3, 4], [3, 5]]
+)
+
+nx.draw(g_cc, with_labels=True, font_weight='bold')
+
+# %%
+nx.maximal_independent_set(g_cc)
+
+# %%
+# Step 1: Get all maximal cliques from your original graph
+cliques = list(nx.find_cliques(g_cc))
+cliques
+
+# %%
+# Step 2: Create a mapping from max clique graph node IDs to original vertices
+node_to_original_vertices = {i: clique for i, clique in enumerate(cliques)}
+node_to_original_vertices
+
+# %%
+# Step 3: Create the max clique graph
+max_clique_graph = nx.make_max_clique_graph(g_cc)
+
+nx.draw(max_clique_graph, with_labels=True, font_weight='bold')
+
+# %%
+# Step 4: Access original vertices for any node in max_clique_graph
+for node in max_clique_graph.nodes():
+    original_vertices = node_to_original_vertices[node]
+    print(f"Max clique graph node {node} contains original vertices: {original_vertices}")
+
+# %%
+max_clique_graph.edges()
+
+# %%
+max_clique_graph.nodes()
+
+# %%
+max_clique_graph[0]
+
+# %%
+max_clique_graph[0].nodes()
+
+# %%
+max_cliques = list(nx.find_cliques(g_cc))
+max_cliques
+
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+
+# %% [markdown]
+# ### Obtain MIS
 
 # %%
 def choose_mis_of_reads_with_distinct_umi_sub_seqs(df, seed):
@@ -4323,9 +4381,12 @@ distinct_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.groupby(
     "Gene"
 ).size()
 
+# %% [markdown]
+# ### Save reads after de-duplication
+
 # %%
 unique_reads_out_file = Path(
-    "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads.MergedSamples",
+    merged_bams_dir,
     "UniqueReadsByUMISubSeq.tsv",
 )
 
@@ -4338,12 +4399,6 @@ distinct_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
     # na_rep="NA",
     # float_format="%.2f",
 )
-
-# %%
-mapped_merged_bam_files = [
-    "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.bam",
-    "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.bam",
-]
 
 # %%
 unique_reads_dir = Path(
@@ -4371,3 +4426,165 @@ for bam_path in mapped_merged_bam_files:
 
 # %%
 # !samtools index -M {unique_reads_dir}/*.bam
+
+# %% [markdown]
+# # Understanding max_clique_graph vertex mapping
+#
+# When you use `nx.make_max_clique_graph(g_cc)`, each vertex in the resulting `max_clique_graph` represents a maximal clique from the original graph `g_cc`. The nodes in the max clique graph are actually the cliques themselves (represented as frozensets), and you can access the original vertices directly.
+
+# %%
+import networkx as nx
+
+# Create a simple example graph
+g = nx.Graph()
+g.add_edges_from([(1, 2), (2, 3), (3, 4), (4, 1), (1, 3), (5, 6)])
+
+print("Original graph edges:", list(g.edges()))
+
+# Find all maximal cliques in the original graph
+maximal_cliques = list(nx.find_cliques(g))
+print(f"\nMaximal cliques in original graph: {maximal_cliques}")
+
+# Create the max clique graph
+max_clique_graph = nx.make_max_clique_graph(g)
+
+print(f"\nMax clique graph has {max_clique_graph.number_of_nodes()} nodes")
+print(f"Max clique graph nodes: {list(max_clique_graph.nodes())}")
+print(f"Max clique graph edges: {list(max_clique_graph.edges())}")
+
+# The key insight: each node in max_clique_graph corresponds to a clique
+# The node number corresponds to the index in the maximal_cliques list
+print("\nMapping between max clique graph nodes and original vertices:")
+for node_id in max_clique_graph.nodes():
+    if node_id < len(maximal_cliques):
+        original_vertices = maximal_cliques[node_id]
+        print(f"Max clique graph node {node_id} contains original vertices: {original_vertices}")
+    else:
+        print(f"Max clique graph node {node_id} has no corresponding clique (unexpected)")
+
+# Alternative approach: use a direct mapping when creating the graph
+print("\n" + "="*60)
+print("BETTER APPROACH: Create your own mapping")
+print("="*60)
+
+# Get cliques and create a mapping
+cliques = list(nx.find_cliques(g))
+clique_to_node = {tuple(sorted(clique)): i for i, clique in enumerate(cliques)}
+node_to_clique = {i: clique for i, clique in enumerate(cliques)}
+
+print(f"Cliques found: {cliques}")
+print(f"Node to clique mapping: {node_to_clique}")
+
+# Now you can easily get original vertices for any node in the max clique graph
+max_clique_graph = nx.make_max_clique_graph(g)
+for node in max_clique_graph.nodes():
+    if node in node_to_clique:
+        original_vertices = node_to_clique[node]
+        print(f"Max clique graph node {node} → original vertices {original_vertices}")
+
+# %%
+# For your specific use case with g_cc:
+print("="*60)
+print("YOUR SPECIFIC USE CASE")
+print("="*60)
+
+# First, get all maximal cliques from your connected component
+cliques_in_g_cc = list(nx.find_cliques(g_cc))
+print(f"Number of maximal cliques in g_cc: {len(cliques_in_g_cc)}")
+
+# Create the mapping from max clique graph nodes to original vertices
+node_to_original_vertices = {i: clique for i, clique in enumerate(cliques_in_g_cc)}
+
+# Create the max clique graph
+max_clique_graph = nx.make_max_clique_graph(g_cc)
+
+print(f"Max clique graph has {max_clique_graph.number_of_nodes()} nodes")
+
+# Now you can easily access which original vertices each max clique graph node contains
+print("\nMapping for your g_cc:")
+for node_id in max_clique_graph.nodes():
+    if node_id in node_to_original_vertices:
+        original_vertices = node_to_original_vertices[node_id]
+        print(f"Max clique graph node {node_id} contains {len(original_vertices)} original vertices from g_cc")
+        # Print first few if there are many
+        if len(original_vertices) <= 10:
+            print(f"  Original vertices: {original_vertices}")
+        else:
+            print(f"  Original vertices (first 10): {original_vertices[:10]}...")
+    
+print(f"\nMax clique graph edges: {len(list(max_clique_graph.edges()))} edges")
+
+# To access original vertices for a specific node:
+if max_clique_graph.number_of_nodes() > 0:
+    example_node = 0
+    original_vertices = node_to_original_vertices[example_node]
+    print(f"\nExample: Node {example_node} in max_clique_graph contains original vertices: {original_vertices}")
+
+# %% [markdown]
+# ## Summary: How to get original vertices from max_clique_graph nodes
+#
+# **Key insight**: When you use `nx.make_max_clique_graph(g_cc)`, the nodes in the resulting graph are just integers (0, 1, 2, ...), but they correspond to the maximal cliques found in the original graph.
+#
+# **Solution**:
+# 1. Use `nx.find_cliques(g_cc)` to get all maximal cliques from your original graph
+# 2. Create a mapping: `node_to_clique = {i: clique for i, clique in enumerate(cliques)}`
+# 3. For any node `n` in `max_clique_graph`, get the original vertices with `node_to_clique[n]`
+#
+# **Example code**:
+# ```python
+# # Get cliques and create mapping
+# cliques = list(nx.find_cliques(g_cc))
+# node_to_original_vertices = {i: clique for i, clique in enumerate(cliques)}
+#
+# # Create max clique graph
+# max_clique_graph = nx.make_max_clique_graph(g_cc)
+#
+# # Access original vertices for any node
+# for node in max_clique_graph.nodes():
+#     original_vertices = node_to_original_vertices[node]
+#     print(f"Node {node} contains vertices: {original_vertices}")
+# ```
+
+# %% [markdown]
+# # Graph Clique Partitioning Analysis
+#
+# Let's analyze a specific graph to find algorithms that can partition it into cliques.
+
+# %%
+import networkx as nx
+import matplotlib.pyplot as plt
+
+# Create the specific graph
+g_cc = nx.Graph()
+g_cc.add_nodes_from(range(1, 6))
+g_cc.add_edges_from([[1, 2], [2, 3], [2, 4], [3, 4], [3, 5]])
+
+print("Graph edges:", list(g_cc.edges()))
+print("Graph nodes:", list(g_cc.nodes()))
+
+# Visualize the graph
+plt.figure(figsize=(8, 6))
+pos = nx.spring_layout(g_cc)
+nx.draw(g_cc, pos, with_labels=True, node_color='lightblue', 
+        node_size=500, font_size=16, font_weight='bold')
+plt.title("Graph g_cc")
+plt.show()
+
+# Let's analyze the graph properties
+print(f"Number of nodes: {g_cc.number_of_nodes()}")
+print(f"Number of edges: {g_cc.number_of_edges()}")
+print(f"Is connected: {nx.is_connected(g_cc)}")
+print(f"Density: {nx.density(g_cc):.3f}")
+
+# Check what the desired partition [[1], [2,3,4], [5]] represents
+desired_partition = [[1], [2, 3, 4], [5]]
+print(f"\nDesired partition: {desired_partition}")
+
+# Verify if these are cliques
+for i, subset in enumerate(desired_partition):
+    subgraph = g_cc.subgraph(subset)
+    is_clique = nx.is_clique(g_cc, subset)
+    print(f"Subset {subset}: is_clique = {is_clique}")
+    if len(subset) > 1:
+        print(f"  Edges in subset: {list(subgraph.edges())}")
+        print(f"  Complete graph would have {len(subset)*(len(subset)-1)//2} edges, actual: {subgraph.number_of_edges()}")
