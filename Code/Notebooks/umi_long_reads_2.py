@@ -4053,6 +4053,13 @@ concat_ccs_df["Cliquishness"] = concat_ccs_df.apply(
 concat_ccs_df
 
 # %%
+# how many reads are in connected components of size >= 2 that are not cliquish in
+concat_ccs_df.loc[
+    (concat_ccs_df["Size"] >= 1)
+    & (concat_ccs_df["Cliquishness"] < 1),    
+].groupby(["Gene", "Repeat"])["Size"].sum()
+
+# %%
 # num of nodes per graph
 concat_ccs_df.groupby(["Gene", "Repeat"])["Size"].apply(np.sum).astype(int).reset_index()
 
@@ -4219,57 +4226,372 @@ for i, (gene, repeat) in enumerate(product(genes, list("123"))):
     # print("-" * 40)
 
 # %%
-g_cc = nx.Graph()
-g_cc.add_nodes_from(range(1, 6))
-g_cc.add_edges_from(
-   [ [1, 2], [2, 3], [2, 4], [3, 4], [3, 5]]
+for i, (gene, repeat) in enumerate(product(genes, list("123"))):
+    
+    print(f"Iteration {i}: gene={gene}, repeat={repeat}")
+    
+    G = Gs[i]
+    
+    ccs_df = concat_ccs_df.loc[
+        (concat_ccs_df["Gene"] == gene)
+        & (concat_ccs_df["Repeat"] == int(repeat))
+    ]
+    # ccs_df
+
+    gene_and_repeat_df = best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
+        (best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df["Gene"] == gene)
+        & (best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df["Repeat"] == repeat),
+        # ["Read", "OtherReadswithIndistinguishableUMISubSeqs"]
+    ]
+    
+    break
+
+gene_and_repeat_df
+
+# %%
+ccs_df
+
+
+# %%
+# how can we make more stringent definition of an edge between two reads?
+# for each edge (u, v), report:
+# 1 - u's spanning barcode length
+# 2 - v's spanning barcode length
+# 3 - length of the longest common subsequence of u's and v's spanning barcodes
+
+# %%
+def make_edges_umi_df(gene, repeat, G, gene_and_repeat_df, max_alignments):
+    edges_umi_data = []
+
+    for u, v in G.edges():
+        
+        u_v_gene_and_repeat_df = gene_and_repeat_df.loc[
+            gene_and_repeat_df["Read"].isin([u, v]),
+            ["Read", "SpanningUMISeq", "SpanningUMISeqLength",]
+        ].set_index("Read")
+        
+        # u_spanning_umi_seq = u_v_gene_and_repeat_df.loc[u, "SpanningUMISeq"]
+        # v_spanning_umi_seq = u_v_gene_and_repeat_df.loc[v, "SpanningUMISeq"]
+        u_spanning_umi_seq_len = u_v_gene_and_repeat_df.loc[u, "SpanningUMISeqLength"]
+        v_spanning_umi_seq_len = u_v_gene_and_repeat_df.loc[v, "SpanningUMISeqLength"]
+        
+        if v_spanning_umi_seq_len < u_spanning_umi_seq_len:
+            # swap u and v to ensure u has the shorter spanning UMI seq
+            u, v = v, u
+            u_spanning_umi_seq_len, v_spanning_umi_seq_len = (
+                v_spanning_umi_seq_len,
+                u_spanning_umi_seq_len,
+            )
+            
+        
+        for x, y in [(u, v), (v, u)]:
+            x_spanning_umi_seq = u_v_gene_and_repeat_df.loc[x, "SpanningUMISeq"]
+            y_spanning_umi_seq = u_v_gene_and_repeat_df.loc[y, "SpanningUMISeq"]
+            # x_spanning_umi_seq_len = u_v_gene_and_repeat_df.loc[x, "SpanningUMISeqLength"]
+            # y_spanning_umi_seq_len = u_v_gene_and_repeat_df.loc[y, "SpanningUMISeqLength"]
+            # ic(x, y)
+            
+            aligner = Align.PairwiseAligner(
+                # match_score=1.0, mismatch_score=-2.0, gap_score = -2.5,
+                mode="local",  # otherwise we'd get scattered matches of the primer across the read
+                scoring="blastn",
+                # scoring="megablast"
+            )
+            
+            alignments = aligner.align(x_spanning_umi_seq, y_spanning_umi_seq, strand="+")
+
+            for alignment_i, alignment in enumerate(alignments, start=1):
+
+                score = alignment.score
+                gaps, identities, mismatches = alignment.counts()
+                alignment_length = alignment.length
+
+                order = "U, V" if (x, y) == (u, v) else "V, U"
+                u_v_umi_data = [
+                    u, v,
+                    u_spanning_umi_seq_len, v_spanning_umi_seq_len,
+                    order,
+                    alignment_i, score, gaps, identities, mismatches, alignment_length, alignment
+                ]
+                
+                edges_umi_data.append(u_v_umi_data)
+                
+                if (
+                    max_alignments is not None
+                    and i == max_alignments
+                ):
+                    break
+
+    edges_umi_df = pd.DataFrame(
+        {
+            "Gene": gene,
+            "Repeat": repeat,
+            "U": [data[0] for data in edges_umi_data],
+            "V": [data[1] for data in edges_umi_data],
+            "USpanningUMILength": [data[2] for data in edges_umi_data],
+            "VSpanningUMILength": [data[3] for data in edges_umi_data],
+            "Order": [data[4] for data in edges_umi_data],
+            "AlignmentIndex": [data[5] for data in edges_umi_data],
+            "Score": [data[6] for data in edges_umi_data],
+            "Gaps": [data[7] for data in edges_umi_data],
+            "Identities": [data[8] for data in edges_umi_data],
+            "Mismatches": [data[9] for data in edges_umi_data],
+            "AlignmentLength": [data[10] for data in edges_umi_data],
+            "Alignment": [data[11] for data in edges_umi_data],
+        }
+    )
+
+    assert edges_umi_df.groupby(["U", "V"])["AlignmentLength"].nunique().describe()["max"] == 1, "There should be only one alignment length per edge (U, V), regardless of the order (U, V) or (V, U)."
+
+    # following the last assertment, we can safely drop the duplicate edges,
+    # as they will have the same alignment length and other properties,
+    # and also the columns representing the order of the alignment
+    # (as we only keep one (u, v) alignment)
+    edges_umi_df = edges_umi_df.drop_duplicates(["U", "V"]).drop(columns=["Order", "AlignmentIndex", "Score"])
+    
+    edges_umi_df.insert(
+        edges_umi_df.columns.get_loc("VSpanningUMILength") + 1,
+        "SpanningUMISeqAbsDiff",
+        edges_umi_df["USpanningUMILength"].sub(edges_umi_df["VSpanningUMILength"]).abs()
+    )
+
+    edges_umi_df["%AlignmentLength/USpanningUMILength"] = (
+        edges_umi_df["AlignmentLength"].mul(100).div(edges_umi_df["USpanningUMILength"])
+    )
+    edges_umi_df["%AlignmentLength/VSpanningUMILength"] = (
+        edges_umi_df["AlignmentLength"].mul(100).div(edges_umi_df["VSpanningUMILength"])
+    )
+        
+    return edges_umi_df
+
+# %%
+max_alignments = 100
+
+with Pool() as pool:
+    edges_umi_dfs = pool.starmap(
+        func=make_edges_umi_df,
+        iterable=[
+            (
+                gene,
+                repeat,
+                Gs[i], 
+                best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
+                    (best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df["Gene"] == gene)
+                    & (best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df["Repeat"] == repeat),
+                    ["Read", "SpanningUMISeq", "SpanningUMISeqLength",]
+                ],
+                max_alignments
+            )
+            for i, (gene, repeat) in enumerate(product(genes, list("123")))
+        ]
+    )
+
+concat_edges_umi_df = pd.concat(edges_umi_dfs, ignore_index=True)
+
+assert concat_edges_umi_df["Gaps"].describe()["max"] == 0
+del concat_edges_umi_df["Gaps"]
+
+concat_edges_umi_df
+
+# %%
+concat_edges_umi_df["Mismatches"].describe()
+
+# %%
+concat_edges_umi_df["SpanningUMISeqAbsDiff"].describe()
+
+# %%
+# concat_edges_umi_df.loc[:, ["Gene", "Repeat", "USpanningUMILength", "VSpanningUMILength"]].value_counts()
+
+# %%
+fig = px.histogram(
+    concat_edges_umi_df,
+    x="SpanningUMISeqAbsDiff",
+    # y="MeanDegree",
+    facet_col="Repeat",
+    facet_row="Gene",
+    # color="Repeat",
+    # opacity=0.6,
+    # log_x=True,
+    # log_y=True,
+    # histnorm="percent",
+    # cumulative=True,
+    # labels={"MeanDegree": "Connected component mean degree"},
+)
+fig.update_xaxes(dtick=1)
+fig.update_layout(
+    width=800,
+    height=400,
+    # barmode='overlay',
+    # title="Mean degree distribution per connected components with size >= 2"
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    concat_edges_umi_df,
+    x="SpanningUMISeqAbsDiff",
+    # y="MeanDegree",
+    facet_col="Repeat",
+    facet_row="Gene",
+    # color="Repeat",
+    # opacity=0.6,
+    # log_x=True,
+    # log_y=True,
+    histnorm="percent",
+    # cumulative=True,
+    # labels={"MeanDegree": "Connected component mean degree"},
+)
+fig.update_xaxes(dtick=1)
+fig.update_layout(
+    width=800,
+    height=400,
+    # barmode='overlay',
+    # title="Mean degree distribution per connected components with size >= 2"
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    concat_edges_umi_df,
+    x="AlignmentLength",
+    # y="MeanDegree",
+    facet_col="Repeat",
+    facet_row="Gene",
+    facet_row_spacing=0.1,
+    # color="Repeat",
+    # opacity=0.6,
+    # log_x=True,
+    # log_y=True,
+    # histnorm="percent",
+    # cumulative=True,
+    # labels={"MeanDegree": "Connected component mean degree"},
+)
+fig.update_xaxes(dtick=1)
+fig.update_layout(
+    width=800,
+    height=400,
+    # barmode='overlay',
+    # title="Mean degree distribution per connected components with size >= 2"
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    concat_edges_umi_df,
+    x="AlignmentLength",
+    # y="MeanDegree",
+    facet_col="Repeat",
+    facet_row="Gene",
+    facet_row_spacing=0.1,
+    # color="Repeat",
+    # opacity=0.6,
+    # log_x=True,
+    # log_y=True,
+    histnorm="percent",
+    # cumulative=True,
+    # labels={"MeanDegree": "Connected component mean degree"},
+)
+fig.update_xaxes(dtick=1)
+fig.update_layout(
+    width=800,
+    height=400,
+    # barmode='overlay',
+    # title="Mean degree distribution per connected components with size >= 2"
+)
+fig.show()
+
+# %%
+
+# %%
+concat_edges_umi_df
+
+# %%
+# fig = px.scatter(
+#     concat_edges_umi_df,
+#     x="%AlignmentLength/USpanningUMILength",
+#     y="%AlignmentLength/VSpanningUMILength",
+#     # y="MeanDegree",
+#     # facet_col="Repeat",
+#     facet_col="Repeat",
+#     facet_row="Gene",
+#     facet_row_spacing=0.1,
+#     color="SpanningUMISeqAbsDiff",
+#     # opacity=0.6,
+#     # log_x=True,
+#     # log_y=True,
+#     # histnorm="percent",
+#     # cumulative=True,
+#     labels={
+#         "%AlignmentLength/USpanningUMILength": "% alignment length /<br>U's length",
+#         "%AlignmentLength/VSpanningUMILength": "% alignment length /<br>V's length"
+#         },
+# )
+# # fig.update_xaxes(tick0=0, dtick=2)
+# fig.update_layout(
+#     width=900,
+#     height=600,
+#     # barmode='overlay',
+#     # title="Mean degree distribution per connected components with size >= 2"
+# )
+# fig.show()
+
+# %%
+concat_edges_umi_df.loc[
+    (concat_edges_umi_df["Gene"] == "ADAR1") 
+    & (concat_edges_umi_df["Repeat"] == "1") 
+].groupby("SpanningUMISeqAbsDiff").agg(
+    # "%AlignmentLength/USpanningUMILength"=("%AlignmentLength/USpanningUMILength", "unique"),
+    # "%AlignmentLength/VSpanningUMILength"=("%AlignmentLength/VSpanningUMILength", "unique"),
+    size=("SpanningUMISeqAbsDiff", "size"),
+    prct_u=("%AlignmentLength/USpanningUMILength", "unique"),
+    prct_v=("%AlignmentLength/VSpanningUMILength", "unique"),
+).rename(
+    columns={
+        "prct_u": "%AlignmentLength/USpanningUMILength",
+        "prct_v": "%AlignmentLength/VSpanningUMILength"
+    }
 )
 
-nx.draw(g_cc, with_labels=True, font_weight='bold')
-
 # %%
-nx.maximal_independent_set(g_cc)
+# TODO merge to one plot with a single color bar, using gene-repeat to facet rows
 
-# %%
-# Step 1: Get all maximal cliques from your original graph
-cliques = list(nx.find_cliques(g_cc))
-cliques
+for gene, repeat in product(genes, list("123")):
 
-# %%
-# Step 2: Create a mapping from max clique graph node IDs to original vertices
-node_to_original_vertices = {i: clique for i, clique in enumerate(cliques)}
-node_to_original_vertices
+    fig = px.scatter(
+        concat_edges_umi_df.loc[
+            (concat_edges_umi_df["Gene"] == gene) 
+            & (concat_edges_umi_df["Repeat"] == repeat),
+             ["%AlignmentLength/USpanningUMILength", "%AlignmentLength/VSpanningUMILength", "SpanningUMISeqAbsDiff"]
+            ].value_counts().reset_index(),
+        x="%AlignmentLength/USpanningUMILength",
+        y="%AlignmentLength/VSpanningUMILength",
+        # y="MeanDegree",
+        # facet_col="Repeat",
+        # facet_col="Repeat",
+        # facet_row="Gene",
+        # facet_row_spacing=0.1,
+        color="count",
+        facet_col="SpanningUMISeqAbsDiff",
+        # opacity=0.6,
+        # log_x=True,
+        # log_y=True,
+        # histnorm="percent",
+        # cumulative=True,
+        labels={
+            "%AlignmentLength/USpanningUMILength": "% alignment length /<br>U's length",
+            "%AlignmentLength/VSpanningUMILength": "% alignment length /<br>V's length",
+            "count": "Edges"
+            },
+    )
+    # fig.update_xaxes(tick0=0, dtick=2)
+    fig.update_layout(
+        width=1600,
+        height=1600/5,
+        # barmode='overlay',
+        title=f"{gene} - {repeat}",
+    )
+    fig.show()
 
-# %%
-# Step 3: Create the max clique graph
-max_clique_graph = nx.make_max_clique_graph(g_cc)
-
-nx.draw(max_clique_graph, with_labels=True, font_weight='bold')
-
-# %%
-# Step 4: Access original vertices for any node in max_clique_graph
-for node in max_clique_graph.nodes():
-    original_vertices = node_to_original_vertices[node]
-    print(f"Max clique graph node {node} contains original vertices: {original_vertices}")
-
-# %%
-max_clique_graph.edges()
-
-# %%
-max_clique_graph.nodes()
-
-# %%
-max_clique_graph[0]
-
-# %%
-max_clique_graph[0].nodes()
-
-# %%
-max_cliques = list(nx.find_cliques(g_cc))
-max_cliques
-
-
-# %%
 
 # %%
 
@@ -4378,6 +4700,49 @@ distinct_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.groupby(
 
 # %%
 distinct_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.groupby(
+    "Sample"
+).size()
+
+# %%
+ccs_vs_distinct_reads_df = concat_ccs_df[["Gene", "Repeat"]].value_counts().reset_index().sort_values(
+        ["Gene", "Repeat"]
+    ).reset_index(drop=True).rename(columns={"count": "ConnectedComponents"}).transform(
+    lambda x: x.astype({"Repeat": "str"})
+    ).merge(
+    distinct_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.groupby(
+        ["Gene", "Repeat"]
+    ).size().reset_index().rename(columns={0: "DistinctReads"}),
+    on=["Gene", "Repeat"],
+    how="left",
+)
+    
+ccs_vs_distinct_reads_df["DistinctReads/ConnectedComponent"] = ccs_vs_distinct_reads_df["DistinctReads"].div(
+    ccs_vs_distinct_reads_df["ConnectedComponents"]
+).round(2)
+
+# assert ccs_vs_distinct_reads_df["DistinctReads"].ge(
+#     ccs_vs_distinct_reads_df["ConnectedComponents"]
+# ).all(), "Each connected component should have at least one distinct read in it."
+
+assert ccs_vs_distinct_reads_df["DistinctReads/ConnectedComponent"].ge(1).all(), "Each connected component should have at least one distinct read in it."
+
+ccs_vs_distinct_reads_df
+
+# %%
+ccs_vs_distinct_reads_df["DistinctReads"].div(
+    ccs_vs_distinct_reads_df["ConnectedComponents"]
+).round(2)
+
+# %%
+# num of connected components per graph
+concat_ccs_df[["Gene", "Repeat"]].value_counts().reset_index().sort_values(
+        ["Gene", "Repeat"]
+    ).reset_index(drop=True).rename(columns={"count": "ConnectedComponents"}).transform(
+    lambda x: x.astype({"Gene": "str", "Repeat": "str"})
+    )
+
+# %%
+distinct_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.groupby(
     "Gene"
 ).size()
 
@@ -4426,165 +4791,3 @@ for bam_path in mapped_merged_bam_files:
 
 # %%
 # !samtools index -M {unique_reads_dir}/*.bam
-
-# %% [markdown]
-# # Understanding max_clique_graph vertex mapping
-#
-# When you use `nx.make_max_clique_graph(g_cc)`, each vertex in the resulting `max_clique_graph` represents a maximal clique from the original graph `g_cc`. The nodes in the max clique graph are actually the cliques themselves (represented as frozensets), and you can access the original vertices directly.
-
-# %%
-import networkx as nx
-
-# Create a simple example graph
-g = nx.Graph()
-g.add_edges_from([(1, 2), (2, 3), (3, 4), (4, 1), (1, 3), (5, 6)])
-
-print("Original graph edges:", list(g.edges()))
-
-# Find all maximal cliques in the original graph
-maximal_cliques = list(nx.find_cliques(g))
-print(f"\nMaximal cliques in original graph: {maximal_cliques}")
-
-# Create the max clique graph
-max_clique_graph = nx.make_max_clique_graph(g)
-
-print(f"\nMax clique graph has {max_clique_graph.number_of_nodes()} nodes")
-print(f"Max clique graph nodes: {list(max_clique_graph.nodes())}")
-print(f"Max clique graph edges: {list(max_clique_graph.edges())}")
-
-# The key insight: each node in max_clique_graph corresponds to a clique
-# The node number corresponds to the index in the maximal_cliques list
-print("\nMapping between max clique graph nodes and original vertices:")
-for node_id in max_clique_graph.nodes():
-    if node_id < len(maximal_cliques):
-        original_vertices = maximal_cliques[node_id]
-        print(f"Max clique graph node {node_id} contains original vertices: {original_vertices}")
-    else:
-        print(f"Max clique graph node {node_id} has no corresponding clique (unexpected)")
-
-# Alternative approach: use a direct mapping when creating the graph
-print("\n" + "="*60)
-print("BETTER APPROACH: Create your own mapping")
-print("="*60)
-
-# Get cliques and create a mapping
-cliques = list(nx.find_cliques(g))
-clique_to_node = {tuple(sorted(clique)): i for i, clique in enumerate(cliques)}
-node_to_clique = {i: clique for i, clique in enumerate(cliques)}
-
-print(f"Cliques found: {cliques}")
-print(f"Node to clique mapping: {node_to_clique}")
-
-# Now you can easily get original vertices for any node in the max clique graph
-max_clique_graph = nx.make_max_clique_graph(g)
-for node in max_clique_graph.nodes():
-    if node in node_to_clique:
-        original_vertices = node_to_clique[node]
-        print(f"Max clique graph node {node} → original vertices {original_vertices}")
-
-# %%
-# For your specific use case with g_cc:
-print("="*60)
-print("YOUR SPECIFIC USE CASE")
-print("="*60)
-
-# First, get all maximal cliques from your connected component
-cliques_in_g_cc = list(nx.find_cliques(g_cc))
-print(f"Number of maximal cliques in g_cc: {len(cliques_in_g_cc)}")
-
-# Create the mapping from max clique graph nodes to original vertices
-node_to_original_vertices = {i: clique for i, clique in enumerate(cliques_in_g_cc)}
-
-# Create the max clique graph
-max_clique_graph = nx.make_max_clique_graph(g_cc)
-
-print(f"Max clique graph has {max_clique_graph.number_of_nodes()} nodes")
-
-# Now you can easily access which original vertices each max clique graph node contains
-print("\nMapping for your g_cc:")
-for node_id in max_clique_graph.nodes():
-    if node_id in node_to_original_vertices:
-        original_vertices = node_to_original_vertices[node_id]
-        print(f"Max clique graph node {node_id} contains {len(original_vertices)} original vertices from g_cc")
-        # Print first few if there are many
-        if len(original_vertices) <= 10:
-            print(f"  Original vertices: {original_vertices}")
-        else:
-            print(f"  Original vertices (first 10): {original_vertices[:10]}...")
-    
-print(f"\nMax clique graph edges: {len(list(max_clique_graph.edges()))} edges")
-
-# To access original vertices for a specific node:
-if max_clique_graph.number_of_nodes() > 0:
-    example_node = 0
-    original_vertices = node_to_original_vertices[example_node]
-    print(f"\nExample: Node {example_node} in max_clique_graph contains original vertices: {original_vertices}")
-
-# %% [markdown]
-# ## Summary: How to get original vertices from max_clique_graph nodes
-#
-# **Key insight**: When you use `nx.make_max_clique_graph(g_cc)`, the nodes in the resulting graph are just integers (0, 1, 2, ...), but they correspond to the maximal cliques found in the original graph.
-#
-# **Solution**:
-# 1. Use `nx.find_cliques(g_cc)` to get all maximal cliques from your original graph
-# 2. Create a mapping: `node_to_clique = {i: clique for i, clique in enumerate(cliques)}`
-# 3. For any node `n` in `max_clique_graph`, get the original vertices with `node_to_clique[n]`
-#
-# **Example code**:
-# ```python
-# # Get cliques and create mapping
-# cliques = list(nx.find_cliques(g_cc))
-# node_to_original_vertices = {i: clique for i, clique in enumerate(cliques)}
-#
-# # Create max clique graph
-# max_clique_graph = nx.make_max_clique_graph(g_cc)
-#
-# # Access original vertices for any node
-# for node in max_clique_graph.nodes():
-#     original_vertices = node_to_original_vertices[node]
-#     print(f"Node {node} contains vertices: {original_vertices}")
-# ```
-
-# %% [markdown]
-# # Graph Clique Partitioning Analysis
-#
-# Let's analyze a specific graph to find algorithms that can partition it into cliques.
-
-# %%
-import networkx as nx
-import matplotlib.pyplot as plt
-
-# Create the specific graph
-g_cc = nx.Graph()
-g_cc.add_nodes_from(range(1, 6))
-g_cc.add_edges_from([[1, 2], [2, 3], [2, 4], [3, 4], [3, 5]])
-
-print("Graph edges:", list(g_cc.edges()))
-print("Graph nodes:", list(g_cc.nodes()))
-
-# Visualize the graph
-plt.figure(figsize=(8, 6))
-pos = nx.spring_layout(g_cc)
-nx.draw(g_cc, pos, with_labels=True, node_color='lightblue', 
-        node_size=500, font_size=16, font_weight='bold')
-plt.title("Graph g_cc")
-plt.show()
-
-# Let's analyze the graph properties
-print(f"Number of nodes: {g_cc.number_of_nodes()}")
-print(f"Number of edges: {g_cc.number_of_edges()}")
-print(f"Is connected: {nx.is_connected(g_cc)}")
-print(f"Density: {nx.density(g_cc):.3f}")
-
-# Check what the desired partition [[1], [2,3,4], [5]] represents
-desired_partition = [[1], [2, 3, 4], [5]]
-print(f"\nDesired partition: {desired_partition}")
-
-# Verify if these are cliques
-for i, subset in enumerate(desired_partition):
-    subgraph = g_cc.subgraph(subset)
-    is_clique = nx.is_clique(g_cc, subset)
-    print(f"Subset {subset}: is_clique = {is_clique}")
-    if len(subset) > 1:
-        print(f"  Edges in subset: {list(subgraph.edges())}")
-        print(f"  Complete graph would have {len(subset)*(len(subset)-1)//2} edges, actual: {subgraph.number_of_edges()}")

@@ -53,7 +53,7 @@ dependencies:
   # - jupyterlab_code_formatter # todo delete
   - icecream
   # - frozendict
-  # - networkx
+  - networkx
   - matplotlib-venn
   - prinseq
   - bwa-mem2

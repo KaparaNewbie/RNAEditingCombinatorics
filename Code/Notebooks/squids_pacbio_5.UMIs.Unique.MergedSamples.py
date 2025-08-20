@@ -136,7 +136,7 @@ distinct_unique_proteins_files = [
 #     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.DistinctUniqueProteins.Fraction0_1.06.02.2024-11:05:02.csv",
 # ]
 
-# new expression files with supporting reads and unique proteins
+# # new expression files with supporting reads and unique proteins
 expression_files = [
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMISubSeq.MergedSamples/ADAR1.DistinctUniqueProteins.ExpressionLevels.csv",
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMISubSeq.MergedSamples/IQEC1.DistinctUniqueProteins.ExpressionLevels.csv",
