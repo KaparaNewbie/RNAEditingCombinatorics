@@ -651,6 +651,9 @@ function inner_loop_one_solution_additional_assignment_considering_available_rea
 	working_chosendf[!, :AdditionalWeightedSupportingReadsContributionPerProtein] .= [[] for _ in 1:nrow(working_chosendf)]
 
 	for unchosenprot in unchosenprot_rows
+
+		# unchosenprot = unchosenprot_rows[findfirst(unchosenprot_rows[!, "Protein"] .== "nVw"), :]
+
 		unchosenprot_index = unchosenprot["Index"]
 		unchosenprot_distances = Δ[unchosenprot_index, chosenindices]
 		unchosenprot_distances_argmins = allargmins(unchosenprot_distances)
@@ -779,8 +782,21 @@ function threaded_one_solution_additional_assignment_considering_available_reads
 
 	# Partition unchosen proteins among threads
 	n_threads = min(n_threads, nrow(unchosendf))
-	unchosen_partitions = collect(Iterators.partition(eachrow(unchosendf), max(1, div(nrow(unchosendf), n_threads))))
+	# unchosen_partitions = collect(Iterators.partition(eachrow(unchosendf), max(1, div(nrow(unchosendf), n_threads))))
+	unchosen_partitions = collect(Iterators.partition(eachrow(unchosendf), max(1, div(nrow(unchosendf), n_threads - 1))))
 	@assert sum(length.(unchosen_partitions)) == nrow(unchosendf) "Unchosen partitions do not match the number of unchosen proteins"
+
+	# for (unchosen_partition, i) in zip(unchosen_partitions, 1:length(unchosen_partitions))
+	# 	if any(occursin.("nVw", DataFrame(unchosen_partition)[!, "Protein"]))
+	# 		println(i)
+	# 		break
+	# 	end
+	# end
+
+	# unchosenprot_rows = DataFrame(unchosen_partitions[29])
+	# thread_result = inner_loop_one_solution_additional_assignment_considering_available_reads(
+	# 		unchosenprot_rows, chosendf, chosenindices, Δ,
+	# 	)
 
 	# Run multithreaded processing
 	thread_results = Vector{DataFrame}(undef, length(unchosen_partitions))
@@ -814,8 +830,12 @@ function one_solution_additional_assignment_considering_available_reads(
 
 	for unchosenprot ∈ eachrow(unchosendf)  # a row of unchosen protein relative to the chosen proteins in the solution
 
-		# unchosenprot = unchosendf[1, :]  # TODO - comment out - an example row of unchosen protein
+		# unchosenprot = unchosendf[1, :]  # an example row of unchosen protein
 		# unchosenprot = unchosendf[2, :]  
+
+
+		# unchosenprot = unchosendf[findfirst(in.("mhy", unchosendf[!, "Reads"])), :]
+		# unchosenprot["Reads"]
 
 		unchosenprot_index = unchosenprot["Index"] # the row number of the unchosen protein in the distances matrix Δ
 
@@ -1459,7 +1479,13 @@ end
 # samplename = "GRIA"
 # firstcolpos = 15
 
+# distinctfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.DistinctUniqueProteins.26.03.2025-04:39:41.csv"
+# readsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz"
+# allprotsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
+# samplename = "ADAR1"
 # firstcolpos = 15
+
+# # firstcolpos = 15
 # onlymaxdistinct = true
 # considerentropy = true
 # postfix_to_add = ".EntropyConsidered"
@@ -1511,8 +1537,7 @@ end
 # 	end
 # end
 
-# # # # # Int(maximum(Δ)) # maximum distance between any two proteins
-# # # # # Int(minimum(Δ)) # minimum distance between any two proteins
+
 
 
 # solution = distinctdf[distinctdf[!, "NumUniqueSamples"].==maximum(distinctdf[!, "NumUniqueSamples"]), "Index"][1]
@@ -1526,7 +1551,7 @@ end
 
 # threaded_result = threaded_one_solution_additional_assignment_considering_available_reads(
 # 	distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename,
-# 	40,
+# 	50,
 # 	considerentropy
 # )
 # threaded_result = threaded_result[1]

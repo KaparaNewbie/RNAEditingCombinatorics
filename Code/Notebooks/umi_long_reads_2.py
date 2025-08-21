@@ -29,6 +29,8 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.io as pio
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import pysam
 from Bio import Align
 from Bio.Seq import Seq, reverse_complement, complement
@@ -4403,132 +4405,163 @@ concat_edges_umi_df["SpanningUMISeqAbsDiff"].describe()
 # concat_edges_umi_df.loc[:, ["Gene", "Repeat", "USpanningUMILength", "VSpanningUMILength"]].value_counts()
 
 # %%
-fig = px.histogram(
-    concat_edges_umi_df,
-    x="SpanningUMISeqAbsDiff",
-    # y="MeanDegree",
-    facet_col="Repeat",
+fig = px.box(
+    concat_edges_umi_df.transform(
+        lambda x: x.astype({"USpanningUMILength": "str"})
+    ),
+    x="USpanningUMILength",
+    y="VSpanningUMILength",
+    facet_row_spacing=0.15,
+    color="Repeat",
+    # size="Edges",
+    # facet_col="Repeat",
     facet_row="Gene",
-    # color="Repeat",
-    # opacity=0.6,
-    # log_x=True,
-    # log_y=True,
-    # histnorm="percent",
-    # cumulative=True,
-    # labels={"MeanDegree": "Connected component mean degree"},
+    category_orders={
+        "USpanningUMILength": [str(x) for x in range(10, 15)],
+    },
+    labels={
+        "USpanningUMILength": "U's length",
+        "VSpanningUMILength": "V's length",
+        },
 )
-fig.update_xaxes(dtick=1)
+# fig.update_xaxes(tick0=0, dtick=2)
 fig.update_layout(
     width=800,
-    height=400,
-    # barmode='overlay',
-    # title="Mean degree distribution per connected components with size >= 2"
+    height=600,
+    # Reduce spacing between groups and boxes
+    # boxmode='group',   # group by "x" 
+    # boxgap=0.1,        # space between boxes in one group (default ~0.3)
+    # boxgroupgap=0.01   # space between groups (different x values)
 )
 fig.show()
 
 # %%
-fig = px.histogram(
-    concat_edges_umi_df,
-    x="SpanningUMISeqAbsDiff",
-    # y="MeanDegree",
-    facet_col="Repeat",
+# fig = px.box(
+#     concat_edges_umi_df.transform(
+#         lambda x: x.astype({"USpanningUMILength": "str"})
+#     ),
+#     x="USpanningUMILength",
+#     y="VSpanningUMILength",
+#     facet_row_spacing=0.15,
+#     color="AlignmentLength",
+#     # size="Edges",
+#     facet_col="Repeat",
+#     facet_row="Gene",
+#     category_orders={
+#         "USpanningUMILength": [str(x) for x in range(10, 15)],
+#     },
+#     # labels={
+#     #     "%AlignmentLength/USpanningUMILength": "% alignment length /<br>U's length",
+#     #     "%AlignmentLength/VSpanningUMILength": "% alignment length /<br>V's length",
+#     #     "Edges": "% edges in sample"
+#     #     },
+# )
+# # fig.update_xaxes(tick0=0, dtick=2)
+# fig.update_layout(
+#     width=1400,
+#     height=600,
+#     # Reduce spacing between groups and boxes
+#     # boxmode='group',   # group by "x" 
+#     # boxgap=0.1,        # space between boxes in one group (default ~0.3)
+#     # boxgroupgap=0.01   # space between groups (different x values)
+# )
+# fig.show()
+
+# %%
+fig = px.box(
+    concat_edges_umi_df.transform(
+        lambda x: x.astype({"USpanningUMILength": "str"})
+    ),
+    x="USpanningUMILength",
+    y="VSpanningUMILength",
+    facet_row_spacing=0.15,
+    # color="AlignmentLength",
+    # facet_col="Repeat",
+    facet_col="AlignmentLength",
+    color="Repeat",
     facet_row="Gene",
-    # color="Repeat",
-    # opacity=0.6,
-    # log_x=True,
-    # log_y=True,
-    histnorm="percent",
-    # cumulative=True,
-    # labels={"MeanDegree": "Connected component mean degree"},
+    category_orders={
+        "USpanningUMILength": [str(x) for x in range(10, 15)],
+    },
+    labels={
+        "USpanningUMILength": "U's length",
+        "VSpanningUMILength": "V's length",
+        "AlignmentLength": "Alignment length"
+        },
 )
-fig.update_xaxes(dtick=1)
+# fig.update_xaxes(tick0=0, dtick=2)
 fig.update_layout(
-    width=800,
-    height=400,
-    # barmode='overlay',
-    # title="Mean degree distribution per connected components with size >= 2"
+    width=1400,
+    height=600,
+    # Reduce spacing between groups and boxes
+    # boxmode='group',   # group by "x" 
+    # boxgap=0.1,        # space between boxes in one group (default ~0.3)
+    # boxgroupgap=0.01   # space between groups (different x values)
 )
 fig.show()
 
 # %%
-fig = px.histogram(
-    concat_edges_umi_df,
-    x="AlignmentLength",
-    # y="MeanDegree",
-    facet_col="Repeat",
+fig = px.box(
+    concat_edges_umi_df.transform(
+        lambda x: x.astype({"USpanningUMILength": "str"})
+    ),
+    x="USpanningUMILength",
+    # y="%AlignmentLength/USpanningUMILength",
+    y="AlignmentLength",
+    # y="VSpanningUMILength",
+    facet_row_spacing=0.15,
+    # color="AlignmentLength",
+    # facet_col="Repeat",
+    # facet_col="AlignmentLength",
+    # facet_col="VSpanningUMILength",
+    color="Repeat",
     facet_row="Gene",
-    facet_row_spacing=0.1,
-    # color="Repeat",
-    # opacity=0.6,
-    # log_x=True,
-    # log_y=True,
-    # histnorm="percent",
-    # cumulative=True,
-    # labels={"MeanDegree": "Connected component mean degree"},
+    category_orders={
+        "USpanningUMILength": [str(x) for x in range(10, 15)],
+    },
+    labels={
+        "USpanningUMILength": "U's length",
+        # "%AlignmentLength/USpanningUMILength": "% alignment length /<br>U's length",
+        "AlignmentLength": "Alignment length",
+        # "%AlignmentLength/VSpanningUMILength": "% alignment length /<br>V's length",
+        # "Edges": "% edges in sample"
+        },
 )
-fig.update_xaxes(dtick=1)
+# fig.update_xaxes(tick0=0, dtick=2)
+fig.update_traces(
+    line=dict(width=4)  # bolder median line
+)
 fig.update_layout(
     width=800,
-    height=400,
-    # barmode='overlay',
-    # title="Mean degree distribution per connected components with size >= 2"
+    height=600,
+    # Reduce spacing between groups and boxes
+    # boxmode='group',   # group by "x" 
+    # boxgap=0.1,        # space between boxes in one group (default ~0.3)
+    # boxgroupgap=0.01   # space between groups (different x values)
 )
 fig.show()
 
 # %%
-fig = px.histogram(
-    concat_edges_umi_df,
-    x="AlignmentLength",
-    # y="MeanDegree",
-    facet_col="Repeat",
-    facet_row="Gene",
-    facet_row_spacing=0.1,
-    # color="Repeat",
-    # opacity=0.6,
-    # log_x=True,
-    # log_y=True,
-    histnorm="percent",
-    # cumulative=True,
-    # labels={"MeanDegree": "Connected component mean degree"},
-)
-fig.update_xaxes(dtick=1)
-fig.update_layout(
-    width=800,
-    height=400,
-    # barmode='overlay',
-    # title="Mean degree distribution per connected components with size >= 2"
-)
-fig.show()
-
-# %%
-
-# %%
-concat_edges_umi_df
-
-# %%
-# fig = px.scatter(
+# fig = px.histogram(
 #     concat_edges_umi_df,
-#     x="%AlignmentLength/USpanningUMILength",
-#     y="%AlignmentLength/VSpanningUMILength",
-#     # y="MeanDegree",
-#     # facet_col="Repeat",
+#     x="USpanningUMILength",
+#     y="VSpanningUMILength",
 #     facet_col="Repeat",
 #     facet_row="Gene",
 #     facet_row_spacing=0.1,
-#     color="SpanningUMISeqAbsDiff",
+#     # color="Repeat",
 #     # opacity=0.6,
 #     # log_x=True,
 #     # log_y=True,
 #     # histnorm="percent",
+#     histfunc="avg",
 #     # cumulative=True,
-#     labels={
-#         "%AlignmentLength/USpanningUMILength": "% alignment length /<br>U's length",
-#         "%AlignmentLength/VSpanningUMILength": "% alignment length /<br>V's length"
-#         },
+#     # labels={"MeanDegree": "Connected component mean degree"},
 # )
-# # fig.update_xaxes(tick0=0, dtick=2)
+# fig.update_xaxes(dtick=1)
+# fig.update_yaxes(dtick=1, range=[10, None])
 # fig.update_layout(
-#     width=900,
+#     width=1200,
 #     height=600,
 #     # barmode='overlay',
 #     # title="Mean degree distribution per connected components with size >= 2"
@@ -4536,62 +4569,249 @@ concat_edges_umi_df
 # fig.show()
 
 # %%
-concat_edges_umi_df.loc[
-    (concat_edges_umi_df["Gene"] == "ADAR1") 
-    & (concat_edges_umi_df["Repeat"] == "1") 
-].groupby("SpanningUMISeqAbsDiff").agg(
-    # "%AlignmentLength/USpanningUMILength"=("%AlignmentLength/USpanningUMILength", "unique"),
-    # "%AlignmentLength/VSpanningUMILength"=("%AlignmentLength/VSpanningUMILength", "unique"),
-    size=("SpanningUMISeqAbsDiff", "size"),
-    prct_u=("%AlignmentLength/USpanningUMILength", "unique"),
-    prct_v=("%AlignmentLength/VSpanningUMILength", "unique"),
-).rename(
-    columns={
-        "prct_u": "%AlignmentLength/USpanningUMILength",
-        "prct_v": "%AlignmentLength/VSpanningUMILength"
-    }
+fig = px.histogram(
+    concat_edges_umi_df,
+    x="SpanningUMISeqAbsDiff",
+    # y="MeanDegree",
+    facet_col="Repeat",
+    facet_row="Gene",
+    # color="Repeat",
+    # opacity=0.6,
+    # log_x=True,
+    # log_y=True,
+    # histnorm="percent",
+    # cumulative=True,
+    # labels={"MeanDegree": "Connected component mean degree"},
 )
+fig.update_xaxes(dtick=1)
+fig.update_layout(
+    width=800,
+    height=400,
+    # barmode='overlay',
+    # title="Mean degree distribution per connected components with size >= 2"
+)
+fig.show()
 
 # %%
-# TODO merge to one plot with a single color bar, using gene-repeat to facet rows
+fig = px.histogram(
+    concat_edges_umi_df,
+    x="SpanningUMISeqAbsDiff",
+    # y="MeanDegree",
+    facet_col="Repeat",
+    facet_row="Gene",
+    # color="Repeat",
+    # opacity=0.6,
+    # log_x=True,
+    # log_y=True,
+    histnorm="percent",
+    # cumulative=True,
+    # labels={"MeanDegree": "Connected component mean degree"},
+)
+fig.update_xaxes(dtick=1)
+fig.update_layout(
+    width=800,
+    height=400,
+    # barmode='overlay',
+    # title="Mean degree distribution per connected components with size >= 2"
+)
+fig.show()
 
-for gene, repeat in product(genes, list("123")):
+# %%
+fig = px.histogram(
+    concat_edges_umi_df,
+    x="AlignmentLength",
+    # y="MeanDegree",
+    facet_col="Repeat",
+    facet_row="Gene",
+    facet_row_spacing=0.1,
+    # color="Repeat",
+    # opacity=0.6,
+    # log_x=True,
+    # log_y=True,
+    # histnorm="percent",
+    # cumulative=True,
+    # labels={"MeanDegree": "Connected component mean degree"},
+)
+fig.update_xaxes(dtick=1)
+fig.update_layout(
+    width=800,
+    height=400,
+    # barmode='overlay',
+    # title="Mean degree distribution per connected components with size >= 2"
+)
+fig.show()
 
-    fig = px.scatter(
-        concat_edges_umi_df.loc[
-            (concat_edges_umi_df["Gene"] == gene) 
-            & (concat_edges_umi_df["Repeat"] == repeat),
-             ["%AlignmentLength/USpanningUMILength", "%AlignmentLength/VSpanningUMILength", "SpanningUMISeqAbsDiff"]
-            ].value_counts().reset_index(),
-        x="%AlignmentLength/USpanningUMILength",
-        y="%AlignmentLength/VSpanningUMILength",
-        # y="MeanDegree",
-        # facet_col="Repeat",
-        # facet_col="Repeat",
-        # facet_row="Gene",
-        # facet_row_spacing=0.1,
-        color="count",
-        facet_col="SpanningUMISeqAbsDiff",
-        # opacity=0.6,
-        # log_x=True,
-        # log_y=True,
-        # histnorm="percent",
-        # cumulative=True,
-        labels={
-            "%AlignmentLength/USpanningUMILength": "% alignment length /<br>U's length",
-            "%AlignmentLength/VSpanningUMILength": "% alignment length /<br>V's length",
-            "count": "Edges"
-            },
-    )
-    # fig.update_xaxes(tick0=0, dtick=2)
-    fig.update_layout(
-        width=1600,
-        height=1600/5,
-        # barmode='overlay',
-        title=f"{gene} - {repeat}",
-    )
-    fig.show()
+# %%
+fig = px.histogram(
+    concat_edges_umi_df,
+    x="AlignmentLength",
+    # y="MeanDegree",
+    facet_col="Repeat",
+    facet_row="Gene",
+    facet_row_spacing=0.1,
+    # color="Repeat",
+    # opacity=0.6,
+    # log_x=True,
+    # log_y=True,
+    histnorm="percent",
+    # cumulative=True,
+    # labels={"MeanDegree": "Connected component mean degree"},
+)
+fig.update_xaxes(dtick=1)
+fig.update_layout(
+    width=800,
+    height=400,
+    # barmode='overlay',
+    # title="Mean degree distribution per connected components with size >= 2"
+)
+fig.show()
 
+# %%
+# fig = px.histogram(
+#     concat_edges_umi_df,
+#     x="USpanningUMILength",
+#     y="AlignmentLength",
+#     facet_col="Repeat",
+#     facet_row="Gene",
+#     facet_row_spacing=0.1,
+#     # color="Repeat",
+#     # opacity=0.6,
+#     # log_x=True,
+#     # log_y=True,
+#     # histnorm="percent",
+#     histfunc="avg",
+#     # cumulative=True,
+#     # labels={"MeanDegree": "Connected component mean degree"},
+# )
+# fig.update_xaxes(dtick=1)
+# fig.update_yaxes(
+#     # dtick=1, 
+#                  range=[concat_edges_umi_df["AlignmentLength"].min(), None]
+#                  )
+# fig.update_layout(
+#     width=1200,
+#     height=600,
+#     # barmode='overlay',
+#     # title="Mean degree distribution per connected components with size >= 2"
+# )
+# fig.show()
+
+# %%
+# # APPROACH 5: Build plot trace by trace in correct order
+
+
+# df = concat_edges_umi_df.assign(
+#     Sample = concat_edges_umi_df["Gene"] + "-" + concat_edges_umi_df["Repeat"]
+# ).loc[
+#     :, ["Sample", "%AlignmentLength/USpanningUMILength", "%AlignmentLength/VSpanningUMILength", "SpanningUMISeqAbsDiff"]
+# ].groupby("Sample").value_counts(normalize=True).mul(100).div(10).astype(int).apply(lambda x: f"{x*10}-{x*10+10}").reset_index(name="Edges")
+
+# # Get unique samples and spanning diff values for subplot layout
+# samples = [f"{gene}-{repeat}" for gene, repeat in product(genes, list("123"))]
+# spanning_diffs = sorted(df["SpanningUMISeqAbsDiff"].unique())
+
+# # Create subplots
+# fig = make_subplots(
+#     rows=len(spanning_diffs), 
+#     cols=len(samples),
+#     subplot_titles=samples,
+#     vertical_spacing=0.02,
+#     horizontal_spacing=0.02,
+#     row_titles=[f"UMI abs diff = {diff}" for diff in spanning_diffs],
+#     shared_xaxes="all",
+#     shared_yaxes="all",
+#     x_title="% alignment length / U's length",      
+#     y_title="% alignment length / V's length",
+    
+# )
+
+# # Define color mapping for consistent colors
+# desired_order = ["0-10", "10-20", "20-30", "30-40", "40-50", "50-60", "60-70", "70-80", "80-90", "90-100"]
+# colors = px.colors.qualitative.Set1
+# # colors = px.colors.sequential.Plasma_r
+# # colors = px.colors.sequential.Rainbow
+# # colors = px.colors.qualitative.G10
+# colors = px.colors.qualitative.Vivid
+# color_map = {edge: colors[i % len(colors)] for i, edge in enumerate(desired_order)}
+
+# # print("Color mapping:", color_map)
+
+# # Track which edges we've added to legend
+# legend_added = set()
+
+# # Add traces in the correct order
+# for edge in desired_order:
+#     if edge in df["Edges"].values:
+#         edge_data = df[df["Edges"] == edge]
+        
+#         for _, row in edge_data.iterrows():
+#             sample_idx = samples.index(row["Sample"]) + 1
+#             diff_idx = spanning_diffs.index(row["SpanningUMISeqAbsDiff"]) + 1
+            
+#             fig.add_trace(
+#                 go.Scatter(
+#                     x=[row["%AlignmentLength/USpanningUMILength"]],
+#                     y=[row["%AlignmentLength/VSpanningUMILength"]],
+#                     mode='markers',
+#                     marker=dict(color=color_map[edge], size=8),
+#                     name=edge,
+#                     legendgroup=edge,
+#                     showlegend=edge not in legend_added,
+#                     # opacity=0.6
+#                 ),
+#                 row=diff_idx,
+#                 col=sample_idx
+#             )
+            
+#             legend_added.add(edge)
+
+# fig.update_layout(
+#     width=1200,
+#     height=1200*11/14,
+#     # title="Edges by Sample with Correctly Ordered Legend",
+#     legend_title_text="% of edges in sample"
+    
+# )
+
+# # print("Legend order should be:", [edge for edge in desired_order if edge in legend_added])
+# fig.show()
+
+# %%
+# for gene, repeat in product(genes, list("123")):
+
+#     fig = px.scatter(
+#         concat_edges_umi_df.loc[
+#             (concat_edges_umi_df["Gene"] == gene) 
+#             & (concat_edges_umi_df["Repeat"] == repeat),
+#              ["%AlignmentLength/USpanningUMILength", "%AlignmentLength/VSpanningUMILength", "SpanningUMISeqAbsDiff"]
+#             ].value_counts().reset_index().rename(columns={"count": "Edges"}),
+#         x="%AlignmentLength/USpanningUMILength",
+#         y="%AlignmentLength/VSpanningUMILength",
+#         # y="MeanDegree",
+#         # facet_col="Repeat",
+#         # facet_col="Repeat",
+#         # facet_row="Gene",
+#         # facet_row_spacing=0.1,
+#         color="Edges",
+#         facet_col="SpanningUMISeqAbsDiff",
+#         # opacity=0.6,
+#         # log_x=True,
+#         # log_y=True,
+#         # histnorm="percent",
+#         # cumulative=True,
+#         labels={
+#             "%AlignmentLength/USpanningUMILength": "% alignment length /<br>U's length",
+#             "%AlignmentLength/VSpanningUMILength": "% alignment length /<br>V's length",
+#             },
+#     )
+#     # fig.update_xaxes(tick0=0, dtick=2)
+#     fig.update_layout(
+#         width=1600,
+#         height=1600/5,
+#         # barmode='overlay',
+#         title=f"{gene} - {repeat}",
+#     )
+#     fig.show()
 
 # %%
 

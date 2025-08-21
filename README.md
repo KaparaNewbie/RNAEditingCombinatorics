@@ -1678,7 +1678,7 @@ julia \
 --project=. \
 --threads 60 \
 Code/Simulations/expressionlevels.jl \
---distinctfiles $UMI_DIR/ADAR1.Merged.DistinctUniqueProteins.26.03.2025-04:39:41.csv $UMI_DIR/IQEC.Merged.DistinctUniqueProteins.26.03.2025-00:27.csv \
+--distinctfiles $UMI_DIR/ADAR1.Merged.DistinctUniqueProteins.26.03.2025-04:39:41.csv $UMI_DIR/IQEC.Merged.DistinctUniqueProteins.26.03.2025-00:27:18.csv \
 --allprotsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
 --allreadsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz \
 --samplenames ADAR1 IQEC1 \
@@ -1688,10 +1688,11 @@ Code/Simulations/expressionlevels.jl \
 --considerentropy \
 --outdir $UMI_DIR \
 --postfix_to_add .EntropyConsidered \
-> $UMI_DIR/expressionlevels.EntropyConsidered.14.8.25.out &
+> $UMI_DIR/expressionlevels.EntropyConsidered.17.8.25.out &
 ```
 * alu 17
-* 2508766
+* 2078347
+
 
 
 
@@ -1788,6 +1789,121 @@ Code/Simulations/expressionlevels.jl \
 ```
 - alu 14
 - 287396
+
+Considering entropy:
+
+```bash
+UMI_DIR=D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMISubSeq.MergedSamples
+
+nohup \
+julia \
+--project=. \
+--threads 60 \
+Code/Simulations/expressionlevels.jl \
+--distinctfiles $UMI_DIR/ADAR1.Merged.DistinctUniqueProteins.04.07.2025-15:59:37.csv $UMI_DIR/IQEC.Merged.DistinctUniqueProteins.04.07.2025-15:34:47.csv \
+--allprotsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+--allreadsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz \
+--samplenames ADAR1 IQEC1 \
+--firstcolpos 15 \
+--onlymaxdistinct \
+--innerthreadedassignment \
+--considerentropy \
+--outdir $UMI_DIR \
+--postfix_to_add .EntropyConsidered \
+> $UMI_DIR/expressionlevels.EntropyConsidered.14.8.25.out &
+```
+* alu 17
+* 1220256
+
+## Squid long reads w/ UMIs - reads w/ recognizable barcodes - merged samples
+
+Using the reads with recognizable barcodes found by the notebook `umi_long_read_2.ipynb` by finding reads where
+the gene-specific barcode is there and also at least some part of the PCR barcode.
+
+### Pileup
+
+I'm using `--total_mapped_reads 2000` rather than `--total_mapped_reads 50` only as a crude way to use the real sequenced transcripts.
+
+```bash
+OUT_DIR=D.pealeii/MpileupAndTranscripts/UMILongReads.ReadsWithRecognizableBarcodes.MergedSamples
+
+mkdir -p $OUT_DIR
+
+nohup python Code/pileup_with_subparsers.py \
+--transcriptome D.pealeii/Annotations/Jan2025/orfs_squ.fa \
+--known_editing_sites D.pealeii/Annotations/Jan2025/D.pea.EditingSites.bed \
+--exclude_flags 2304 \
+--parity SE \
+--min_rq 0.998 \
+--min_bq 30 \
+--out_dir $OUT_DIR \
+--processes 2 \
+--threads 40 \
+--gz_compression \
+directed_sequencing_data \
+--data_table D.pealeii/Alignment/UMILongReads.ReadsWithRecognizableBarcodes.MergedSamples/DataTable.Squid.MergedUMILongReads.csv \
+--cds_regions D.pealeii/Annotations/Jan2025/orfs_squ.bed \
+> $OUT_DIR/pileup.18.8.25.out &
+```
+* alu 17
+* 3791258
+
+
+### Distinct proteins
+
+#### Regular
+
+##### Distinct isoforms
+
+```bash
+tmux new -s COMB17
+
+COMB
+
+INFILES=$(echo D.pealeii/MpileupAndTranscripts/UMILongReads.ReadsWithRecognizableBarcodes.MergedSamples/*.unique_proteins.csv.gz)
+
+julia \
+--project=. \
+--threads 60 --proc 6 \
+Code/Simulations/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove ".r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz" \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--outdir D.pealeii/MpileupAndTranscripts/UMILongReads.ReadsWithRecognizableBarcodes.MergedSamples \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee D.pealeii/MpileupAndTranscripts/UMILongReads.ReadsWithRecognizableBarcodes.MergedSamples/DistinctProteins.Regular.18.8.25.log
+```
+* alu 17
+
+##### Expression levels
+
+```bash
+UMI_DIR=D.pealeii/MpileupAndTranscripts/UMILongReads.ReadsWithRecognizableBarcodes.MergedSamples
+
+
+nohup \
+julia \
+--project=. \
+--threads 60 \
+Code/Simulations/expressionlevels.jl \
+--distinctfiles $UMI_DIR/ADAR1.Merged.DistinctUniqueProteins.*.csv $UMI_DIR/IQEC.Merged.DistinctUniqueProteins.*.csv \
+--allprotsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+--allreadsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz \
+--samplenames ADAR1 IQEC1 \
+--firstcolpos 15 \
+--onlymaxdistinct \
+--innerthreadedassignment \
+--outdir $UMI_DIR \
+> $UMI_DIR/expressionlevels.17.8.25.out &
+```
+- alu 17
+- 2902140
 
 Considering entropy:
 

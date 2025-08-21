@@ -1530,190 +1530,194 @@ def calc_total_uniquely_assigned_weighted_reads(
 
 
 # %%
-iter_expression_df = expression_df = pd.read_csv(
-    expression_file,
-    sep=sep,
-    dtype={
-        "#Solution": str,
-        "AdditionalSupportingReadsIDs": str,
-        "AdditionalSupportingProteinsIDs": str,
-    },
-    iterator=True,
-    chunksize=1000,
-    usecols=lambda x: x
-    not in [
-        # "MinNonSyns",
-        # "MaxNonSyns",
-        # "MinNonSynsFrequency",
-        # "MaxNonSynsFrequency",
-        "EditingFrequency",
-        # "EditedPositions",
-        # "UneditedPositions",
-        # "AmbigousPositions",
-        "AdditionalEqualSupportingReads",
-        "TotalEqualSupportingReads",
-        "Transcripts",
-        "NumOfTranscripts",
-        "Index",
-        "#Solution",
-    ],
-)
-filtered_expression_chunks = [
-    chunk[chunk["Fraction"] == 1] for chunk in iter_expression_df
-]
+# chrom = chroms[0]
+# expression_file = expression_files[0]
 
-expression_df = pd.concat(filtered_expression_chunks, ignore_index=True)
+# iter_expression_df = expression_df = pd.read_csv(
+#     expression_file,
+#     sep=sep,
+#     dtype={
+#         "#Solution": str,
+#         "AdditionalSupportingReadsIDs": str,
+#         "AdditionalSupportingProteinsIDs": str,
+        
+#         'AdditionalEqualSupportingReadsContributionPerProtein': str,
+#         'AdditionalWeightedSupportingReadsContributionPerProtein': str,
+#         'AdditionalSupportingProteinsDistances': str,
+#         'AdditionalSupportingProteinsMeanNAPositions': str
+#     },
+#     iterator=True,
+#     chunksize=1000,
+#     usecols=lambda x: x
+#     not in [
+#         # "MinNonSyns",
+#         # "MaxNonSyns",
+#         # "MinNonSynsFrequency",
+#         # "MaxNonSynsFrequency",
+#         "EditingFrequency",
+#         # "EditedPositions",
+#         # "UneditedPositions",
+#         # "AmbigousPositions",
+#         "AdditionalEqualSupportingReads",
+#         "TotalEqualSupportingReads",
+#         "Transcripts",
+#         "NumOfTranscripts",
+#         "Index",
+#         "#Solution",
+#     ],
+# )
+# filtered_expression_chunks = [
+#     chunk[chunk["Fraction"] == 1] for chunk in iter_expression_df
+# ]
 
-# retain only rows of the maximal solution
-expression_df = expression_df.merge(
-    max_distinct_per_fraction_df.loc[
-        max_distinct_per_fraction_df["Fraction"].eq(1),
-        [
-            condition_col,
-            "Fraction",
-            "FractionRepetition",
-            "Algorithm",
-            "AlgorithmRepetition",
-        ],
-    ],
-    how="inner",
-)
+# expression_df = pd.concat(filtered_expression_chunks, ignore_index=True)
 
-expression_df = expression_df.drop(
-    columns=[
-        "Fraction",
-        "FractionRepetition",
-        "Algorithm",
-        "AlgorithmRepetition",
-    ]
-)
+# # retain only rows of the maximal solution
+# expression_df = expression_df.merge(
+#     max_distinct_per_fraction_df.loc[
+#         max_distinct_per_fraction_df["Fraction"].eq(1),
+#         [
+#             condition_col,
+#             "Fraction",
+#             "FractionRepetition",
+#             "Algorithm",
+#             "AlgorithmRepetition",
+#         ],
+#     ],
+#     how="inner",
+# )
 
-expression_df.insert(0, "Chrom", chrom)
+# expression_df = expression_df.drop(
+#     columns=[
+#         "Fraction",
+#         "FractionRepetition",
+#         "Algorithm",
+#         "AlgorithmRepetition",
+#     ]
+# )
 
-expression_df["Reads"] = (
-    expression_df["Reads"]
-    # .str.removeprefix("SubString{String}[")
-    # .str.removesuffix("]")
-    # .str.replace('"', "")
-    # .str.split(", ")
-    # .apply(remove_wrapping_quote_marks_from_elements)
-    .str.split(",")
-)
+# expression_df.insert(0, "Chrom", chrom)
 
-expression_df["AdditionalSupportingReadsIDs"] = expression_df[
-    "AdditionalSupportingReadsIDs"
-].apply(lambda x: "" if pd.isna(x) else [y.split(",") for y in x.split(";")])
-expression_df["AdditionalSupportingProteinsIDs"] = expression_df[
-    "AdditionalSupportingProteinsIDs"
-].apply(lambda x: "" if pd.isna(x) else x.split(","))
+# expression_df["Reads"] = (
+#     expression_df["Reads"]
+#     # .str.removeprefix("SubString{String}[")
+#     # .str.removesuffix("]")
+#     # .str.replace('"', "")
+#     # .str.split(", ")
+#     # .apply(remove_wrapping_quote_marks_from_elements)
+#     .str.split(",")
+# )
 
-expression_df["FlattenedAdditionalSupportingReadsIDs"] = expression_df[
-    "AdditionalSupportingReadsIDs"
-].apply(lambda x: sorted(set(chain.from_iterable(x))))
+# expression_df["AdditionalSupportingReadsIDs"] = expression_df[
+#     "AdditionalSupportingReadsIDs"
+# ].apply(lambda x: "" if pd.isna(x) else [y.split(",") for y in x.split(";")])
+# expression_df["AdditionalSupportingProteinsIDs"] = expression_df[
+#     "AdditionalSupportingProteinsIDs"
+# ].apply(lambda x: "" if pd.isna(x) else x.split(","))
 
-expression_df["FlattenedAllReads"] = expression_df.apply(
-    lambda x: x["Reads"] + x["FlattenedAdditionalSupportingReadsIDs"], axis=1
-)
-expression_df["FlattenedAllReadsStatuses"] = expression_df.apply(
-    lambda x: ["Original"] * len(x["Reads"])
-    + ["Additional"] * len(x["FlattenedAdditionalSupportingReadsIDs"]),
-    axis=1,
-)
+# expression_df["FlattenedAdditionalSupportingReadsIDs"] = expression_df[
+#     "AdditionalSupportingReadsIDs"
+# ].apply(lambda x: sorted(set(chain.from_iterable(x))))
 
-assert (
-    expression_df["FlattenedAllReads"]
-    .apply(len)
-    .eq(expression_df["FlattenedAllReadsStatuses"].apply(len))
-    .all()
-)
+# expression_df["FlattenedAllReads"] = expression_df.apply(
+#     lambda x: x["Reads"] + x["FlattenedAdditionalSupportingReadsIDs"], axis=1
+# )
+# expression_df["FlattenedAllReadsStatuses"] = expression_df.apply(
+#     lambda x: ["Original"] * len(x["Reads"])
+#     + ["Additional"] * len(x["FlattenedAdditionalSupportingReadsIDs"]),
+#     axis=1,
+# )
 
-expression_df = (
-    expression_df
-    .sort_values("TotalWeightedSupportingReads", ascending=False)
-    .reset_index(drop=True)
-)
-expression_df["#Protein"] = list(range(1, len(expression_df) + 1))
-expression_df["%RelativeExpression"] = (
-    100
-    * expression_df["TotalWeightedSupportingReads"]
-    / expression_df["TotalWeightedSupportingReads"].sum()
-)
-expression_df["%CummulativeRelativeExpression"] = expression_df[
-    "%RelativeExpression"
-].cumsum()
+# assert (
+#     expression_df["FlattenedAllReads"]
+#     .apply(len)
+#     .eq(expression_df["FlattenedAllReadsStatuses"].apply(len))
+#     .all()
+# )
 
-expression_df["AdditionalWeightedSupportingReadsContributionPerProtein"] = expression_df["AdditionalWeightedSupportingReadsContributionPerProtein"].str.split(",")
-additional_supporting_prots_counter = Counter(chain.from_iterable(
-    expression_df["AdditionalSupportingProteinsIDs"]))
-uniquely_reassigned_prots = [prot for prot, reassignments in additional_supporting_prots_counter.items() if reassignments == 1]
+# expression_df = (
+#     expression_df
+#     .sort_values("TotalWeightedSupportingReads", ascending=False)
+#     .reset_index(drop=True)
+# )
+# expression_df["#Protein"] = list(range(1, len(expression_df) + 1))
+# expression_df["%RelativeExpression"] = (
+#     100
+#     * expression_df["TotalWeightedSupportingReads"]
+#     / expression_df["TotalWeightedSupportingReads"].sum()
+# )
+# expression_df["%CummulativeRelativeExpression"] = expression_df[
+#     "%RelativeExpression"
+# ].cumsum()
 
-expression_df
+# expression_df["AdditionalWeightedSupportingReadsContributionPerProtein"] = expression_df["AdditionalWeightedSupportingReadsContributionPerProtein"].str.split(",")
+# additional_supporting_prots_counter = Counter(chain.from_iterable(
+#     expression_df["AdditionalSupportingProteinsIDs"]))
+# uniquely_reassigned_prots = [prot for prot, reassignments in additional_supporting_prots_counter.items() if reassignments == 1]
 
-# %%
-# expression_df["TotalUniquelyAssignedWeightedReads"] = expression_df.apply(
-#         lambda x: calc_total_uniquely_assigned_weighted_reads(
-#             x["NumOfReads"],
-#             x["AdditionalSupportingProteinsIDs"],
-#             x["AdditionalWeightedSupportingReadsContributionPerProtein"],
-#             uniquely_reassigned_prots,
-#         ),
-#         axis=1
-#     )
+# expression_df
 
 # %%
-expression_df.loc[
-    (expression_df["AdditionalWeightedSupportingReadsContributionPerProtein"].isna())
-    & (expression_df["AdditionalSupportingProteinsIDs"].apply(len).gt(0)),
-    ["NumOfReads", "AdditionalSupportingProteinsIDs", 'AdditionalSupportingReadsIDs', 'AdditionalSupportingProteinsDistances',
-       'AdditionalSupportingProteinsMeanNAPositions', "AdditionalWeightedSupportingReadsContributionPerProtein"]
-]
+# expression_df.loc[
+#     (expression_df["AdditionalWeightedSupportingReadsContributionPerProtein"].isna())
+#     & (expression_df["AdditionalSupportingProteinsIDs"].apply(len).gt(0)),
+#     ["Protein", "NumOfReads", "AdditionalSupportingProteinsIDs", 'AdditionalSupportingReadsIDs', 'AdditionalSupportingProteinsDistances',
+#        'AdditionalSupportingProteinsMeanNAPositions', "AdditionalWeightedSupportingReadsContributionPerProtein"]
+# ]
 
 # %%
-expression_df.loc[
-    (expression_df["AdditionalWeightedSupportingReadsContributionPerProtein"].isna())
-    & (expression_df["AdditionalSupportingProteinsIDs"].apply(len).gt(0)),
-    ["Protein", "NumOfReads", "AdditionalSupportingProteinsIDs", 'AdditionalSupportingReadsIDs', 'AdditionalSupportingProteinsDistances',
-       'AdditionalSupportingProteinsMeanNAPositions', "AdditionalWeightedSupportingReadsContributionPerProtein"]
-]
+# is_na_row = expression_df.isna().any(axis=1)
+# ic(is_na_row.sum())
+
+# is_na_col = expression_df.isna().any()
+# na_cols = list(expression_df.loc[:, is_na_col].columns)
+# na_cols
 
 # %%
-expression_df.loc[
-    # (expression_df["AdditionalWeightedSupportingReadsContributionPerProtein"].isna())
-    # & (expression_df["AdditionalSupportingProteinsIDs"].apply(len).gt(0))
-    # & (expression_df["AdditionalSupportingProteinsIDs"].apply(lambda x: "nVw" in x)),
-    expression_df["AdditionalSupportingProteinsIDs"].apply(lambda x: "nVw" in x),
-    ["Protein", "NumOfReads", "AdditionalSupportingProteinsIDs", 'AdditionalSupportingReadsIDs', 'AdditionalSupportingProteinsDistances',
-       'AdditionalSupportingProteinsMeanNAPositions', "AdditionalWeightedSupportingReadsContributionPerProtein"]
-]
+# expression_df.loc[is_na_row, :]
 
 # %%
-test_df = expression_df.loc[
-    expression_df["AdditionalSupportingProteinsIDs"].apply(len).eq(0),
-    ["NumOfReads", "AdditionalSupportingProteinsIDs", "AdditionalWeightedSupportingReadsContributionPerProtein"]
-]
-test_df
+# expression_df.loc[is_na_row, ["Protein"] + na_cols]
 
 # %%
-test_df.apply(
-        lambda x: calc_total_uniquely_assigned_weighted_reads(
-            x["NumOfReads"],
-            x["AdditionalSupportingProteinsIDs"],
-            x["AdditionalWeightedSupportingReadsContributionPerProtein"],
-            uniquely_reassigned_prots,
-        ),
-        axis=1
-    )
+# expression_df.loc[expression_df["Protein"] == "6M2", ["Protein"] + na_cols]
 
 # %%
-expression_df.loc[
-    expression_df["AdditionalSupportingProteinsIDs"].apply(len).eq(0),
-    "AdditionalWeightedSupportingReadsContributionPerProtein"
-].value_counts(dropna=False)
+# "6M2"
+# expression_df.loc[(is_na_row) & (expression_df["Protein"] == "6M2"), ["Protein"] + na_cols]
 
 # %%
-chrom = chroms[0]
-expression_file = expression_files[0]
+# # Count number of non-NA/null observations
+# expression_df.loc[is_na_row, ["Protein"] + na_cols].count()
 
+# %%
+# expression_df.loc[is_na_row, na_cols].describe()
+
+# %%
+# expression_df.loc[
+#     (expression_df["AdditionalWeightedSupportingReadsContributionPerProtein"].isna())
+#     & (expression_df["AdditionalSupportingProteinsIDs"].apply(len).gt(0)),
+#     ["NumOfReads", "AdditionalSupportingProteinsIDs", 'AdditionalSupportingReadsIDs', 'AdditionalSupportingProteinsDistances',
+#        'AdditionalSupportingProteinsMeanNAPositions', "AdditionalWeightedSupportingReadsContributionPerProtein"]
+# ]
+
+# %%
+# expression_df.loc[
+#     (expression_df["AdditionalWeightedSupportingReadsContributionPerProtein"].isna())
+#     & (expression_df["AdditionalSupportingProteinsIDs"].apply(len).gt(0)),
+#     ["Protein", "NumOfReads", "AdditionalSupportingProteinsIDs", 'AdditionalSupportingReadsIDs', 'AdditionalSupportingProteinsDistances',
+#        'AdditionalSupportingProteinsMeanNAPositions', "AdditionalWeightedSupportingReadsContributionPerProtein"]
+# ]
+
+# %%
+# expression_df.loc[
+#     # (expression_df["AdditionalWeightedSupportingReadsContributionPerProtein"].isna())
+#     # & (expression_df["AdditionalSupportingProteinsIDs"].apply(len).gt(0))
+#     # & (expression_df["AdditionalSupportingProteinsIDs"].apply(lambda x: "nVw" in x)),
+#     expression_df["AdditionalSupportingProteinsIDs"].apply(lambda x: "nVw" in x),
+#     ["Protein", "NumOfReads", "AdditionalSupportingProteinsIDs", 'AdditionalSupportingReadsIDs', 'AdditionalSupportingProteinsDistances',
+#        'AdditionalSupportingProteinsMeanNAPositions', "AdditionalWeightedSupportingReadsContributionPerProtein"]
+# ]
 
 # %%
 def get_f1_max_expression_df(chrom, expression_file, max_distinct_per_fraction_df):
@@ -1724,6 +1728,11 @@ def get_f1_max_expression_df(chrom, expression_file, max_distinct_per_fraction_d
             "#Solution": str,
             "AdditionalSupportingReadsIDs": str,
             "AdditionalSupportingProteinsIDs": str,
+            
+            'AdditionalEqualSupportingReadsContributionPerProtein': str,
+            'AdditionalWeightedSupportingReadsContributionPerProtein': str,
+            'AdditionalSupportingProteinsDistances': str,
+            'AdditionalSupportingProteinsMeanNAPositions': str
         },
         iterator=True,
         chunksize=1000,
@@ -1882,7 +1891,6 @@ max_expression_dfs[0]
 
 # %%
 max_expression_df = pd.concat(max_expression_dfs, ignore_index=True)
-
 
 max_expression_df
 
