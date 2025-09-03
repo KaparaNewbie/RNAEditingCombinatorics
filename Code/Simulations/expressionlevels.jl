@@ -1479,39 +1479,51 @@ end
 # samplename = "GRIA"
 # firstcolpos = 15
 
-# distinctfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.DistinctUniqueProteins.26.03.2025-04:39:41.csv"
-# readsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz"
-# allprotsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
-# samplename = "ADAR1"
+distinctfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.DistinctUniqueProteins.26.03.2025-04:39:41.csv"
+readsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz"
+allprotsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
+samplename = "ADAR1"
+firstcolpos = 15
+
 # firstcolpos = 15
-
-# # firstcolpos = 15
-# onlymaxdistinct = true
-# considerentropy = true
-# postfix_to_add = ".EntropyConsidered"
-# innerthreadedassignment = true
+onlymaxdistinct = true
+considerentropy = true
+postfix_to_add = ".EntropyConsidered"
+innerthreadedassignment = true
 
 
-# delim = "\t"
-# innerdelim = ","
-# truestrings = ["TRUE", "True", "true"]
-# falsestrings = ["FALSE", "False", "false"]
-# algs = ["Ascending", "Descending"]
-# maxthreads = Threads.nthreads()
-# fractions = [1.0]
+delim = "\t"
+innerdelim = ","
+truestrings = ["TRUE", "True", "true"]
+falsestrings = ["FALSE", "False", "false"]
+algs = ["Ascending", "Descending"]
+maxthreads = Threads.nthreads()
+fractions = [1.0]
 
-# substitutionmatrix = nothing
-# aagroups = nothing
-# similarityscorecutoff = 0
-# similarityvalidator = :(>=)
+substitutionmatrix = nothing
+aagroups = nothing
+similarityscorecutoff = 0
+similarityvalidator = :(>=)
 
 
+deduppedreadsfile = "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads.MergedSamples/UniqueReadsByUMISubSeq.tsv"
+oldtonewreadsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.OldToNewReads.csv.gz"
 
-# distinctdf = prepare_distinctdf(
-# 	distinctfile, delim, innerdelim, truestrings, falsestrings,
-# )
+oldtonewreadsdf = DataFrame(CSV.File(oldtonewreadsfile; delim = delim, truestrings = truestrings, falsestrings = falsestrings))
+deduppedreadsdf = DataFrame(CSV.File(deduppedreadsfile; delim = delim, truestrings = truestrings, falsestrings = falsestrings))
+deduppedreadsdf = innerjoin(
+	deduppedreadsdf[:, ["Read"]], oldtonewreadsdf,
+	on = ["Read" => "OldRead"],
+	# makeunique = true,
+)
+deduppedreads = deduppedreadsdf[!, "Read"]
 
-# readsdf = prepare_readsdf(readsfile, delim)
+
+distinctdf = prepare_distinctdf(
+	distinctfile, delim, innerdelim, truestrings, falsestrings,
+)
+
+readsdf = prepare_readsdf(readsfile, delim)
 
 # allprotsdf, firstcolpos = prepare_allprotsdf!(
 # 	allprotsfile, delim, innerdelim, truestrings, falsestrings, firstcolpos, readsdf,

@@ -15,8 +15,8 @@ from collections import defaultdict
 import subprocess
 import sys
 
-code_dir = "/private7/projects/Combinatorics/Code"
-sys.path.append(str(Path(code_dir).absolute()))
+# code_dir = "/private7/projects/Combinatorics/Code"
+# sys.path.append(str(Path(code_dir).absolute()))
 
 import pandas as pd
 import numpy as np
