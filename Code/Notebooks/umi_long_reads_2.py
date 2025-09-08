@@ -107,6 +107,9 @@ merged_old_to_new_reads_files = [
 ]
 
 # %%
+used_reads_first_col_pos = 6
+
+# %%
 reads_with_recognizable_barcodes_dir = Path(
     "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads.ReadsWithRecognizableBarcodes.MergedSamples"
 )
@@ -2116,323 +2119,6 @@ fig.show()
 # # Choose best gene-specific barcode alignment
 
 # %% [markdown]
-# ## Tests before construction
-
-# %%
-# concat_alignments_df
-
-# %%
-# test_concat_alignments_df = pd.concat(
-#     [
-#         concat_alignments_df.loc[
-#             (concat_alignments_df["Barcode"] != "PCR")
-#             & (concat_alignments_df["Gene"].eq(concat_alignments_df["MappedGene"]))
-#             & (concat_alignments_df["Gene"].eq(concat_alignments_df["Barcode"]))
-#             & (concat_alignments_df["BTRGaps"].gt(0))
-#         ].sample(n=3, random_state=seed),
-#         concat_alignments_df.loc[
-#             (concat_alignments_df["Barcode"] != "PCR")
-#             & (concat_alignments_df["Gene"].eq(concat_alignments_df["MappedGene"]))
-#             & (concat_alignments_df["Gene"].eq(concat_alignments_df["Barcode"]))
-#             & (concat_alignments_df["BTRGaps"].eq(0))
-#         ].sample(n=3, random_state=seed),
-#     ],
-#     ignore_index=True,
-# )
-
-# test_concat_alignments_df
-
-# %%
-# test_concat_alignments_df = pd.concat(
-#     [
-#         concat_alignments_df.loc[
-#             (concat_alignments_df["Barcode"] != "PCR")
-#             & (concat_alignments_df["Gene"].eq(concat_alignments_df["MappedGene"]))
-#             & (concat_alignments_df["Gene"].eq(concat_alignments_df["Barcode"]))
-#             & (concat_alignments_df["BTRGaps"].gt(0))
-#         ].sample(n=3, random_state=seed),
-#         concat_alignments_df.loc[
-#             (concat_alignments_df["Barcode"] != "PCR")
-#             & (concat_alignments_df["Gene"].eq(concat_alignments_df["MappedGene"]))
-#             & (concat_alignments_df["Gene"].eq(concat_alignments_df["Barcode"]))
-#             & (concat_alignments_df["BTRGaps"].eq(0))
-#         ].sample(n=3, random_state=seed),
-#     ],
-#     ignore_index=True,
-# )
-
-# test_concat_alignments_df.insert(
-#     test_concat_alignments_df.columns.get_loc("BTRReadCoords") + 1,
-#     "BTRReadStart",
-#     test_concat_alignments_df["BTRReadCoords"].apply(lambda x: x[0][0]),
-# )
-# test_concat_alignments_df.insert(
-#     test_concat_alignments_df.columns.get_loc("BTRReadCoords") + 2,
-#     "BTRReadEnd",
-#     test_concat_alignments_df["BTRReadCoords"].apply(lambda x: x[-1][-1]),
-# )
-
-# test_concat_alignments_df
-
-# %%
-# def get_genomic_coord_for_read_coord(aligned_pairs, required_read_pos):
-#     for read_pos, ref_pos, cigar_op in aligned_pairs:
-#         if read_pos == required_read_pos:
-#             return ref_pos
-#     return None
-
-# %%
-# input_df = test_concat_alignments_df
-
-
-# annotated_dfs = []
-
-# all_required_reads = input_df["Read"].values
-
-# for bam_file in mapped_bam_files:
-
-#     with pysam.AlignmentFile(
-#         bam_file,
-#         "rb",
-#         threads=10,
-#     ) as samfile:
-#         reads = [read for read in samfile if read.query_name in all_required_reads]
-#         reads_names = [
-#             read.query_name for read in reads
-#         ]  # names of reads found in this specific bam file
-#         if len(reads_names) == 0:
-#             continue
-#         aligned_pairs = [
-#             read.get_aligned_pairs(matches_only=False, with_cigar=True)
-#             for read in reads
-#         ]
-#         annotated_df = input_df.loc[input_df["Read"].isin(reads_names)].copy()
-#         aligned_pairs_series = pd.Series(aligned_pairs, index=reads_names)
-#         annotated_df["BTGGeneStart"] = annotated_df.apply(
-#             lambda x: get_genomic_coord_for_read_coord(
-#                 aligned_pairs_series.loc[x["Read"]], x["BTRReadStart"]
-#             ),
-#             axis=1,
-#         )
-#         annotated_df["BTGGeneEnd"] = annotated_df.apply(
-#             lambda x: get_genomic_coord_for_read_coord(
-#                 aligned_pairs_series.loc[x["Read"]], x["BTRReadEnd"]
-#             ),
-#             axis=1,
-#         )
-#         annotated_dfs.append(annotated_df)
-
-# concat_annotated_df = pd.concat(annotated_dfs)
-# concat_annotated_df
-
-# %%
-# annotated_df
-
-# %%
-# aligned_pairs_series
-
-# %%
-# df = pd.DataFrame(
-#     aligned_pairs_series.loc[annotated_df["Read"].values[0]],
-#     columns=["ReadPos", "RefPos", "CigarOp"],
-# ).set_index("ReadPos")
-# df.loc[3371 - 3 :]
-
-# %%
-# df = pd.DataFrame(
-#     aligned_pairs_series.loc[annotated_df["Read"].values[0]],
-#     columns=["ReadPos", "RefPos", "CigarOp"],
-# ).set_index("ReadPos")
-# df.loc[3371 - 3 :]["CigarOp"].value_counts()
-
-# %%
-# def find_btg_gene_coords(input_df):
-
-#     annotated_dfs = []
-
-#     all_required_reads = input_df["Read"].values
-
-#     for bam_file in mapped_bam_files:
-
-#         with pysam.AlignmentFile(
-#             bam_file,
-#             "rb",
-#             threads=10,
-#         ) as samfile:
-#             reads = [read for read in samfile if read.query_name in all_required_reads]
-#             reads_names = [
-#                 read.query_name for read in reads
-#             ]  # names of reads found in this specific bam file
-#             if len(reads_names) == 0:
-#                 continue
-#             aligned_pairs = [
-#                 read.get_aligned_pairs(matches_only=False, with_cigar=True)
-#                 for read in reads
-#             ]
-#             annotated_df = input_df.loc[input_df["Read"].isin(reads_names)].copy()
-#             aligned_pairs_series = pd.Series(aligned_pairs, index=reads_names)
-#             annotated_df["BTGGeneStart"] = annotated_df.apply(
-#                 lambda x: get_genomic_coord_for_read_coord(
-#                     aligned_pairs_series.loc[x["Read"]], x["BTRReadStart"]
-#                 ),
-#                 axis=1,
-#             )
-#             annotated_df["BTGGeneEnd"] = annotated_df.apply(
-#                 lambda x: get_genomic_coord_for_read_coord(
-#                     aligned_pairs_series.loc[x["Read"]], x["BTRReadEnd"]
-#                 ),
-#                 axis=1,
-#             )
-#             annotated_dfs.append(annotated_df)
-
-#     concat_annotated_df = pd.concat(annotated_dfs)
-#     return concat_annotated_df
-
-# %%
-# annotated_test_concat_alignments_df = find_btg_gene_coords(test_concat_alignments_df)
-# annotated_test_concat_alignments_df
-
-# %%
-
-# %%
-# test_aligned_pairs_dfs = []
-
-# for bam_file in mapped_bam_files:
-
-#     with pysam.AlignmentFile(
-#         bam_file,
-#         "rb",
-#         threads=10,
-#     ) as samfile:
-#         reads = [
-#             read
-#             for read in samfile
-#             if read.query_name in test_concat_alignments_df["Read"].values
-#         ]
-#         reads_names = [read.query_name for read in reads]
-#         aligned_pairs = [
-#             read.get_aligned_pairs(matches_only=False, with_cigar=True)
-#             for read in reads
-#         ]
-#         df = pd.Series(aligned_pairs, index=reads_names)
-#         test_aligned_pairs_dfs.append(df)
-
-# concat_test_aligned_pairs_df = pd.concat(test_aligned_pairs_dfs)
-# concat_test_aligned_pairs_df
-
-# %%
-# def get_genomic_coord_for_read_coord(aligned_pairs, required_read_pos):
-#     for read_pos, ref_pos, cigar_op in aligned_pairs:
-#         if read_pos == required_read_pos:
-#             return ref_pos
-#     return None
-
-# %%
-# read = "m64296e_241222_071206/1376592/ccs"
-
-# test_concat_alignments_df.loc[test_concat_alignments_df["Read"].eq(read)]
-
-# %%
-# concat_test_aligned_pairs_df.loc[read]
-
-# %%
-# test_concat_alignments_df["BTGGeneStart2"] = test_concat_alignments_df.apply(
-#     lambda x: get_genomic_coord_for_read_coord(
-#         concat_test_aligned_pairs_df.loc[x["Read"]], x["BTRReadStart"]
-#     ),
-#     axis=1,
-# )
-
-# test_concat_alignments_df
-
-# %%
-# df = pd.DataFrame(
-#     concat_test_aligned_pairs_df.loc["m64296e_241222_071206/32115244/ccs"],
-#     columns=["ReadPos", "RefPos", "CigarOp"],
-# ).set_index("ReadPos")
-# df
-
-# %%
-# df.loc[571 - 2 : 571 + 2]
-
-# %%
-# 1238 + 571
-
-# %%
-# df.loc[df["CigarOp"] == 2]
-
-# %%
-# df.loc[:571, "CigarOp"].value_counts()
-
-# %%
-# df["CigarOp"].value_counts()
-
-# %%
-
-# %%
-
-# %%
-
-# %%
-# single_barcode_min_umi_seq_length = 12
-# single_barcode_max_umi_seq_length = 14
-
-# %%
-
-# %%
-# concat_alignments_df.loc[
-#     (concat_alignments_df["Barcode"] != "PCR")
-#     & (concat_alignments_df["Gene"].eq(concat_alignments_df["MappedGene"]))
-#     & (concat_alignments_df["Gene"].eq(concat_alignments_df["Barcode"]))
-#     # & (concat_alignments_df["Read"].eq(read))
-# ]
-
-# %%
-# concat_alignments_df.loc[
-#     (concat_alignments_df["Barcode"] != "PCR")
-#     & (concat_alignments_df["Gene"].eq(concat_alignments_df["MappedGene"]))
-#     & (concat_alignments_df["Gene"].eq(concat_alignments_df["Barcode"]))
-#     & (concat_alignments_df["BTRGaps"].gt(0))
-# ]
-
-# %%
-# read = "m64296e_241222_071206/100007945/ccs"
-
-
-# concat_alignments_df.loc[
-#     (concat_alignments_df["Barcode"] != "PCR")
-#     & (concat_alignments_df["Gene"].eq(concat_alignments_df["MappedGene"]))
-#     & (concat_alignments_df["Gene"].eq(concat_alignments_df["Barcode"]))
-#     & (concat_alignments_df["Read"].eq(read))
-# ]
-
-# %%
-# read = "m64296e_241222_071206/100008153/ccs"
-
-# concat_alignments_df.loc[
-#     (concat_alignments_df["Barcode"] != "PCR")
-#     & (concat_alignments_df["Gene"].eq(concat_alignments_df["MappedGene"]))
-#     & (concat_alignments_df["Gene"].eq(concat_alignments_df["Barcode"]))
-#     & (concat_alignments_df["Read"].eq(read))
-# ]
-
-# %%
-# read = "m64296e_241222_071206/100073695/ccs"
-
-# concat_alignments_df.loc[
-#     (concat_alignments_df["Barcode"] != "PCR")
-#     & (concat_alignments_df["Gene"].eq(concat_alignments_df["MappedGene"]))
-#     & (concat_alignments_df["Gene"].eq(concat_alignments_df["Barcode"]))
-#     & (concat_alignments_df["Read"].eq(read))
-# ]
-
-# %%
-
-# %%
-
-# %%
-
-# %% [markdown]
 # ## Construction
 
 # %%
@@ -2641,687 +2327,6 @@ gene_specific_concat_alignments_df.groupby("Gene")["BTGGeneStart"].describe()
 # )
 
 # gene_specific_concat_alignments_df
-
-# %% [markdown]
-# ## Tests
-
-# %%
-# gene_specific_concat_alignments_df.groupby("Gene")["BTRBarcodeInTail"].value_counts(
-#     normalize=True
-# ).mul(100).round(2)
-
-# %%
-# gene_specific_concat_alignments_df.groupby("Gene")["BTGGeneStart-RTGGeneEnd"].describe()
-
-# %%
-# # marginal = "histogram"
-# marginal = "box"
-
-# fig = px.scatter(
-#     gene_specific_concat_alignments_df.loc[
-#         gene_specific_concat_alignments_df["BTGGeneStart"].ge(0)
-#     ],
-#     # df,
-#     # x="UMILength",
-#     x="BTGGeneStart",
-#     y="RTGGeneEnd",
-#     color="Gene",
-#     marginal_x=marginal,
-#     marginal_y=marginal,
-#     # facet_col="Gene",
-#     # facet_row="BTRBarcodeInTail",
-#     # color="Repeat",
-#     # facet_row="Sample",
-#     # histnorm="percent",
-#     # cumulative=True,
-#     # labels={"UMISeqLength": "UMI length"},
-#     # log_y=True,
-# )
-# # fig.update_xaxes(range=[0, None])
-# fig.update_layout(
-#     width=600,
-#     #   height=350
-#     height=600,
-# )
-# fig.show()
-
-# %%
-# fig = px.histogram(
-#     gene_specific_concat_alignments_df.loc[
-#         (gene_specific_concat_alignments_df["BTGGeneStart"].ge(0))
-#         # & (~gene_specific_concat_alignments_df["BTRBarcodeInTail"])
-#     ],
-#     # df,
-#     # x="UMILength",
-#     x="RTGGeneEnd",
-#     # color="Gene",
-#     facet_col="Gene",
-#     # facet_row="BTRBarcodeInTail",
-#     # color="BTRBarcodeInTail",
-#     # color="Repeat",
-#     # facet_row="Sample",
-#     # histnorm="percent",
-#     # cumulative=True,
-#     # labels={"UMISeqLength": "UMI length"},
-#     # log_x=True,
-#     log_y=True,
-#     # opacity=0.7,
-# )
-# # fig.update_xaxes(range=[0, None], tick0=0, dtick=100)
-# fig.update_layout(
-#     width=800,
-#     #   height=350
-#     height=350,
-#     barmode="overlay",
-#     # barmode="stack",
-# )
-# fig.show()
-
-# %%
-# fig = px.histogram(
-#     gene_specific_concat_alignments_df.loc[
-#         (gene_specific_concat_alignments_df["BTGGeneStart"].ge(0))
-#         # & (~gene_specific_concat_alignments_df["BTRBarcodeInTail"])
-#     ],
-#     # df,
-#     # x="UMILength",
-#     x="RTGGeneEnd",
-#     # color="Gene",
-#     facet_col="Gene",
-#     # facet_row="BTRBarcodeInTail",
-#     # color="BTRBarcodeInTail",
-#     # color="Repeat",
-#     # facet_row="Sample",
-#     histnorm="percent",
-#     # cumulative=True,
-#     # labels={"UMISeqLength": "UMI length"},
-#     # log_x=True,
-#     log_y=True,
-#     # opacity=0.7,
-# )
-# # fig.update_xaxes(range=[0, None], tick0=0, dtick=100)
-# fig.update_layout(
-#     width=800,
-#     #   height=350
-#     height=350,
-#     barmode="overlay",
-#     # barmode="stack",
-# )
-# fig.show()
-
-# %%
-# fig = px.histogram(
-#     gene_specific_concat_alignments_df.loc[
-#         (gene_specific_concat_alignments_df["BTGGeneStart"].ge(0))
-#         & (~gene_specific_concat_alignments_df["BTRBarcodeInTail"])
-#     ],
-#     # df,
-#     # x="UMILength",
-#     x="BTGGeneStart-RTGGeneEnd",
-#     # color="Gene",
-#     facet_col="Gene",
-#     # facet_row="BTRBarcodeInTail",
-#     # color="BTRBarcodeInTail",
-#     # color="Repeat",
-#     # facet_row="Sample",
-#     # histnorm="percent",
-#     # cumulative=True,
-#     # labels={"UMISeqLength": "UMI length"},
-#     # log_x=True,
-#     log_y=True,
-#     # opacity=0.7,
-# )
-# fig.update_xaxes(range=[0, None], tick0=0, dtick=100)
-# fig.update_layout(
-#     width=800,
-#     #   height=350
-#     height=350,
-#     barmode="overlay",
-#     # barmode="stack",
-# )
-# fig.show()
-
-# %%
-# fig = px.histogram(
-#     gene_specific_concat_alignments_df.loc[
-#         (gene_specific_concat_alignments_df["BTGGeneStart"].ge(0))
-#         # & (~gene_specific_concat_alignments_df["BTRBarcodeInTail"])
-#     ],
-#     # df,
-#     # x="UMILength",
-#     x="BTGGeneStart-RTGGeneEnd",
-#     # color="Gene",
-#     # facet_row="Gene",
-#     # # facet_row="BTRBarcodeInTail",
-#     # # color="BTRBarcodeInTail",
-#     # facet_col="BTRBarcodeInTail",
-#     facet_col="Gene",
-#     # facet_row="BTRBarcodeInTail",
-#     # color="BTRBarcodeInTail",
-#     facet_row="BTRBarcodeInTail",
-#     # color="Repeat",
-#     # facet_row="Sample",
-#     # histnorm="percent",
-#     # cumulative=True,
-#     # labels={"UMISeqLength": "UMI length"},
-#     # log_x=True,
-#     log_y=True,
-#     # opacity=0.7,
-# )
-# # fig.update_xaxes(
-# #     # range=[0, None], tick0=0,
-# #     dtick=20
-# # )
-# fig.update_layout(
-#     width=800,
-#     #   height=350
-#     height=550,
-#     # barmode="overlay",
-#     # barmode="stack",
-# )
-# fig.show()
-
-# %%
-# fig = px.histogram(
-#     gene_specific_concat_alignments_df.loc[
-#         (gene_specific_concat_alignments_df["BTGGeneStart"].ge(0))
-#         & (~gene_specific_concat_alignments_df["BTRBarcodeInTail"])
-#     ],
-#     # df,
-#     # x="UMILength",
-#     x="BTGGeneStart-RTGGeneEnd",
-#     # color="Gene",
-#     facet_row="Gene",
-#     # facet_row="BTRBarcodeInTail",
-#     # color="BTRBarcodeInTail",
-#     # color="Repeat",
-#     # facet_row="Sample",
-#     histnorm="percent",
-#     # cumulative=True,
-#     # labels={"UMISeqLength": "UMI length"},
-#     # log_x=True,
-#     # log_y=True,
-#     # opacity=0.7,
-# )
-# # fig.update_xaxes(range=[0, None], tick0=0, dtick=20)
-# fig.update_layout(
-#     width=1400,
-#     #   height=350
-#     height=550,
-#     # barmode="overlay",
-#     # barmode="stack",
-# )
-# fig.show()
-
-# %%
-# fig = px.histogram(
-#     gene_specific_concat_alignments_df.loc[
-#         gene_specific_concat_alignments_df["BTGGeneStart"].ge(0)
-#     ],
-#     # df,
-#     # x="UMILength",
-#     x="BTGGeneStart",
-#     # color="Gene",
-#     facet_col="Gene",
-#     # facet_row="BTRBarcodeInTail",
-#     color="BTRBarcodeInTail",
-#     # color="Repeat",
-#     # facet_row="Sample",
-#     # histnorm="percent",
-#     # cumulative=True,
-#     # labels={"UMISeqLength": "UMI length"},
-#     log_y=True,
-#     opacity=0.7,
-# )
-# fig.update_xaxes(range=[0, None], tick0=0, dtick=1000)
-# fig.update_layout(
-#     width=800,
-#     #   height=350
-#     height=450,
-#     barmode="overlay",
-#     # barmode="stack",
-# )
-# fig.show()
-
-# %%
-# fig = px.histogram(
-#     gene_specific_concat_alignments_df.loc[
-#         gene_specific_concat_alignments_df["BTGGeneStart"].ge(0)
-#     ],
-#     # df,
-#     # x="UMILength",
-#     x="BTGGeneStart",
-#     # color="Gene",
-#     facet_col="Gene",
-#     # color="BTRBarcodeInTail",
-#     # facet_row="BTRBarcodeInTail",
-#     # color="Repeat",
-#     # facet_row="Sample",
-#     histnorm="percent",
-#     # cumulative=True,
-#     # labels={"UMISeqLength": "UMI length"},
-#     log_y=True,
-#     opacity=0.7,
-# )
-# fig.update_xaxes(range=[0, None], tick0=0, dtick=1000)
-# fig.update_layout(
-#     width=800,
-#     height=350,
-#     # height=600,
-#     # height=450,
-#     # barmode="overlay",
-#     # barmode="stack",
-# )
-# fig.show()
-
-# %%
-# gene_specific_concat_alignments_df.groupby("Gene")["BTGGeneStart"].describe()
-
-# %%
-# gene_specific_concat_alignments_df.loc[
-#     gene_specific_concat_alignments_df["BTGGeneStart"].lt(0),
-#     # [
-#     #     "Sample",
-#     #     "Gene",
-#     #     "Repeat",
-#     #     "Read",
-#     #     "ReadSeq",
-#     #     "RTGStrand",
-#     #     "RTGGeneStart",
-#     #     "BTRReadStart",
-#     #     "RTGReadStart",
-#     #     "BTGGeneStart",
-#     # ],
-# ]
-
-# %%
-# Out[279]["RTGGeneStart"].describe()
-
-# %%
-# Out[279]["BTRReadStart"].describe()
-
-# %%
-# Out[279]["RTGReadStart"].describe()
-
-# %%
-# Out[279]["BTRReadStart"] - Out[279]["RTGReadStart"]
-
-# %%
-# fig = px.histogram(
-#     gene_specific_concat_alignments_df,
-#     # df,
-#     # x="UMILength",
-#     x="BTGGeneStart",
-#     # color="Gene",
-#     facet_col="Gene",
-#     # facet_row="UMISeqLength>20",
-#     # color="Repeat",
-#     # facet_row="Sample",
-#     # histnorm="percent",
-#     # cumulative=True,
-#     # labels={"UMISeqLength": "UMI length"},
-# )
-# # fig.update_xaxes(dtick=1)
-# fig.update_layout(width=800, height=350)
-# fig.show()
-
-# %%
-# gene_specific_concat_alignments_df["BTRReadStart"]
-
-# %%
-# (
-#     gene_specific_concat_alignments_df["ReadSeqLength"].sub(
-#         gene_specific_concat_alignments_df["BTRReadStart"]
-#     )
-# ).describe()
-
-# %%
-# (
-#     (
-#         gene_specific_concat_alignments_df["ReadSeqLength"].sub(
-#             gene_specific_concat_alignments_df["BTRReadStart"]
-#         )
-#     )
-#     .mul(100)
-#     .div(gene_specific_concat_alignments_df["ReadSeqLength"])
-# ).describe()
-
-# %%
-# (
-#     (
-#         gene_specific_concat_alignments_df["ReadSeqLength"].sub(
-#             gene_specific_concat_alignments_df["BTRReadStart"]
-#         )
-#     )
-#     .mul(100)
-#     .div(gene_specific_concat_alignments_df["ReadSeqLength"])
-# ).add(gene_specific_concat_alignments_df["%BTRRelLocOfReadStart"]).describe()
-
-# %%
-# gene_specific_concat_alignments_df.loc[
-#     (
-#         gene_specific_concat_alignments_df["Gene"].eq(
-#             gene_specific_concat_alignments_df["MappedGene"]
-#         )
-#     )
-#     & (
-#         gene_specific_concat_alignments_df["Gene"].eq(
-#             gene_specific_concat_alignments_df["Barcode"]
-#         )
-#     ),
-#     # & (gene_specific_concat_alignments_df["BTRStrand"].eq("-"))
-#     "RTGReadTailLength",
-# ].describe().round(2)
-
-# %%
-# gene_specific_concat_alignments_df.loc[
-#     (
-#         gene_specific_concat_alignments_df["Gene"].eq(
-#             gene_specific_concat_alignments_df["MappedGene"]
-#         )
-#     )
-#     & (
-#         gene_specific_concat_alignments_df["Gene"].eq(
-#             gene_specific_concat_alignments_df["Barcode"]
-#         )
-#     ),
-#     # & (gene_specific_concat_alignments_df["BTRStrand"].eq("-"))
-#     "RTGReadTailLength",
-# ].describe().round(2)
-
-# %%
-# gene_specific_concat_alignments_df.loc[
-#     (
-#         gene_specific_concat_alignments_df["Gene"].eq(
-#             gene_specific_concat_alignments_df["MappedGene"]
-#         )
-#     )
-#     & (
-#         gene_specific_concat_alignments_df["Gene"].eq(
-#             gene_specific_concat_alignments_df["Barcode"]
-#         )
-#     )
-#     & (gene_specific_concat_alignments_df["BTRStrand"].eq("-")),
-#     # "RTGReadTail",
-# ].groupby("Gene")["RTGReadTailLength"].describe().round(2)
-
-# %%
-# gene_specific_concat_alignments_df.loc[
-#     (
-#         gene_specific_concat_alignments_df["Gene"].eq(
-#             gene_specific_concat_alignments_df["MappedGene"]
-#         )
-#     )
-#     & (
-#         gene_specific_concat_alignments_df["Gene"].eq(
-#             gene_specific_concat_alignments_df["Barcode"]
-#         )
-#     )
-#     & (gene_specific_concat_alignments_df["BTRStrand"].eq("-"))
-#     & (gene_specific_concat_alignments_df["RTGReadTailLength"].ge(100)),
-#     # "RTGReadTail",
-# ].groupby("Gene")["RTGReadTailLength"].describe().round(2)
-
-# %%
-# gene_specific_concat_alignments_df.loc[
-#     (
-#         gene_specific_concat_alignments_df["Gene"].eq(
-#             gene_specific_concat_alignments_df["MappedGene"]
-#         )
-#     )
-#     & (
-#         gene_specific_concat_alignments_df["Gene"].eq(
-#             gene_specific_concat_alignments_df["Barcode"]
-#         )
-#     )
-#     & (gene_specific_concat_alignments_df["BTRStrand"].eq("-"))
-#     & (gene_specific_concat_alignments_df["RTGReadTailLength"].ge(33)),
-#     # "RTGReadTail",
-# ].groupby("Gene")["RTGReadTailLength"].describe().round(2)["count"].sum()
-
-# %%
-# 142493.0 + 169132.0
-
-# %%
-# pcr_primer_len = len(primers_dict["PCR"])
-# for gene in genes:
-#     primers_len_without_pcr = len(primers_dict[gene]) + 10  # minimal UMI length
-#     primers_len_with_pcr = primers_len_without_pcr + pcr_primer_len
-#     ic(gene, primers_len_without_pcr, primers_len_with_pcr)
-
-# %%
-# gene_specific_concat_alignments_df.loc[
-#     (
-#         (gene_specific_concat_alignments_df["Gene"].eq("ADAR1"))
-#         & (gene_specific_concat_alignments_df["RTGReadTailLength"].ge(56))
-#     )
-#     | (
-#         (gene_specific_concat_alignments_df["Gene"].eq("IQEC"))
-#         & (gene_specific_concat_alignments_df["RTGReadTailLength"].ge(54))
-#     ),
-#     # "RTGReadTail",
-# ]
-
-# %%
-# gene_specific_concat_alignments_df.loc[
-#     (
-#         (gene_specific_concat_alignments_df["Gene"].eq("ADAR1"))
-#         & (gene_specific_concat_alignments_df["RTGReadTailLength"].ge(56))
-#     )
-#     | (
-#         (gene_specific_concat_alignments_df["Gene"].eq("IQEC"))
-#         & (gene_specific_concat_alignments_df["RTGReadTailLength"].ge(54))
-#     ),
-#     # "RTGReadTail",
-# ].groupby("Gene")["RTGReadTailLength"].describe().round(2)
-
-# %%
-# fig = px.histogram(
-#     gene_specific_concat_alignments_df.loc[
-#         (
-#             gene_specific_concat_alignments_df["Gene"].eq(
-#                 gene_specific_concat_alignments_df["MappedGene"]
-#             )
-#         )
-#         & (
-#             gene_specific_concat_alignments_df["Gene"].eq(
-#                 gene_specific_concat_alignments_df["Barcode"]
-#             )
-#         )
-#         & (gene_specific_concat_alignments_df["BTRStrand"].eq("-"))
-#         & (gene_specific_concat_alignments_df["RTGReadTailLength"].le(100))
-#     ],
-#     x="RTGReadTailLength",
-#     facet_col="Gene",
-#     # facet_row="BTRStrand",
-#     # log_x=True,
-#     log_y=True,
-# )
-# fig.update_xaxes(dtick=5)
-# fig.update_layout(width=800, height=350, template="plotly_white")
-# fig.show()
-
-# %%
-# fig = px.histogram(
-#     gene_specific_concat_alignments_df.loc[
-#         (
-#             gene_specific_concat_alignments_df["Gene"].eq(
-#                 gene_specific_concat_alignments_df["MappedGene"]
-#             )
-#         )
-#         & (
-#             gene_specific_concat_alignments_df["Gene"].eq(
-#                 gene_specific_concat_alignments_df["Barcode"]
-#             )
-#         )
-#         # & (gene_specific_concat_alignments_df["BTRStrand"].eq("-"))
-#     ],
-#     x="BTGGeneStart-ORFEnd",
-#     facet_col="Gene",
-#     facet_row="BTRStrand",
-#     log_y=True,
-# )
-# fig.update_layout(width=800, height=500, template="plotly_white")
-# fig.show()
-
-# %%
-# (
-#     gene_specific_concat_alignments_df.loc[
-#         (
-#             gene_specific_concat_alignments_df["Gene"].eq(
-#                 gene_specific_concat_alignments_df["MappedGene"]
-#             )
-#         )
-#         & (
-#             gene_specific_concat_alignments_df["Gene"].eq(
-#                 gene_specific_concat_alignments_df["Barcode"]
-#             )
-#         )
-#         # & (gene_specific_concat_alignments_df["BTRStrand"].eq("-"))
-#     ]
-#     .groupby(
-#         [
-#             "Gene",
-#             "BTRStrand",
-#         ]
-#     )["BTGGeneStart-ORFEnd"]
-#     .describe()
-#     .round(2)
-# )
-
-# %%
-# gene_specific_concat_alignments_df.loc[
-#     (
-#         gene_specific_concat_alignments_df["Gene"].eq(
-#             gene_specific_concat_alignments_df["MappedGene"]
-#         )
-#     )
-#     & (
-#         gene_specific_concat_alignments_df["Gene"].eq(
-#             gene_specific_concat_alignments_df["Barcode"]
-#         )
-#     )
-#     & (gene_specific_concat_alignments_df["%RTGORFCoverageUntilBarcode"] < 0),
-#     "%RTGORFCoverageUntilBarcode",
-# ].describe()
-
-# %%
-# genes_orfs_boundries_dict
-
-# %%
-# fig = px.histogram(
-#     gene_specific_concat_alignments_df.loc[
-#         (
-#             gene_specific_concat_alignments_df["Gene"].eq(
-#                 gene_specific_concat_alignments_df["MappedGene"]
-#             )
-#         )
-#         & (
-#             gene_specific_concat_alignments_df["Gene"].eq(
-#                 gene_specific_concat_alignments_df["Barcode"]
-#             )
-#         )
-#     ],
-#     x="%RTGORFCoverageUntilBarcode",
-#     facet_col="Gene",
-#     histnorm="percent",
-#     log_y=True,
-#     cumulative=True,
-# )
-# fig.update_xaxes(dtick=10)
-# fig.update_layout(width=800, height=400, template="plotly_white")
-# fig.show()
-
-# %%
-# gene_specific_concat_alignments_df.loc[
-#     (
-#         gene_specific_concat_alignments_df["BTGGeneStart"].ge(
-#             gene_specific_concat_alignments_df["ORFEnd"]
-#         )
-#     )
-# ]
-
-# %%
-# gene_specific_concat_alignments_df.loc[
-#     (
-#         gene_specific_concat_alignments_df["BTGGeneStart"].lt(
-#             gene_specific_concat_alignments_df["ORFEnd"]
-#         )
-#     )
-# ]
-
-# %%
-
-# %%
-# gene_specific_concat_alignments_df.loc[
-#     (
-#         gene_specific_concat_alignments_df["BTGGeneStart"].ge(
-#             gene_specific_concat_alignments_df["ORFEnd"]
-#         )
-#     )
-#     & (
-#         gene_specific_concat_alignments_df["BTRReadStart"].ge(
-#             gene_specific_concat_alignments_df["RTGReadEnd"]
-#         )
-#     )
-#     & (
-#         gene_specific_concat_alignments_df["RTGGeneEnd"].ge(
-#             gene_specific_concat_alignments_df["ORFEnd"]
-#         )
-#     )
-# ]
-
-# %%
-# gene_specific_concat_alignments_df.loc[
-#     (
-#         gene_specific_concat_alignments_df["BTRReadStart"].ge(
-#             gene_specific_concat_alignments_df["RTGReadEnd"]
-#         )
-#     )
-#     & (
-#         gene_specific_concat_alignments_df["RTGGeneEnd"].ge(
-#             gene_specific_concat_alignments_df["ORFEnd"]
-#         )
-#     )
-# ]
-
-# %%
-# gene_specific_concat_alignments_df.apply(
-#     lambda x: 
-# )
-
-# %%
-# genes_orfs_boundries_dict
-
-# %%
-# gene_specific_concat_alignments_df.drop_duplicates(["Gene", "Repeat", "Read"]).shape[0]
-
-# %%
-# {
-#     "TargetName": "Read",
-#     "QueryName": "Barcode",
-#     "TargetSeq": "ReadSeq",
-#     "GenomicTargetStrand": "RTGStrand",
-#     "TargetStrand": "BTRStrand",
-#     "%QueryIdentity": "%BTRBarcodeIdentity",
-#     "%QueryCoverage": "%BTRBarcodeCoverage",
-#     "TargetSeqLength": "ReadSeqLength",
-#     "QuerySeqLength": "BarcodeSeqLength",
-#     "AlignmentLength": "BTRAlignmentLength",
-#     "AlignedTargetCoords": "BTRReadCoords",
-#     "AlignedQueryCoords": "BTRBarcodeCoords",
-#     "AlignmentObject": "BTRAlignmentObject",
-#     "NumOfAlignedTargetCoords": "NumOfBTRReadCoords",
-#     "NumOfAlignedQueryCoords": "NumOfBTRBarcodeCoords",
-#     "QueryGapOpenings": "BTRBarcodeGapOpenings",
-#     "Score": "BTRScore",
-#     "Gaps": "BTRGaps",
-#     "Identitites": "BTRIdentitites",
-#     "Mismatches": "BTRMismatches",
-#     "TargetStart": "BTRReadStart",
-#     "TargetEnd": "BTRReadEnd",
-#     "%RelLocOfTargetStart": "%BTRRelLocOfReadStart",
-# }
 
 # %% [markdown]
 # ## Actually choosing
@@ -3612,100 +2617,6 @@ best_gene_specific_concat_alignments_df.loc[
 
 
 # %% [markdown]
-# ## Further tests
-
-# %%
-# i = 0
-
-# row = best_gene_specific_concat_alignments_df.iloc[i]
-# print(row)
-
-# %%
-# sample = row["Sample"]
-# mapped_bam_file = [file for file in mapped_bam_files if sample in file.name][0]
-
-# read_name = row["Read"]
-
-# with pysam.AlignmentFile(
-#     mapped_bam_file,
-#     "rb",
-#     threads=10,
-# ) as samfile:
-#     read = [read for read in samfile if read.query_name == read_name][0]
-# # print()
-# print(read)
-
-# %%
-# btr_read_start = row["BTRReadStart"]
-# btr_read_end = row["BTRReadEnd"]
-# btg_gene_start = row["BTGGeneStart"]
-# btg_gene_end = row["BTGGeneEnd"]
-# btg_expected_gene_start = row["BTGExpectedGeneStart"]
-# btg_expected_gene_end = row["BTGExpectedGeneEnd"]
-
-# pd.DataFrame(
-#     [
-#         [btr_read_start, btr_read_end],
-#         [btg_gene_start, btg_gene_end],
-#         [btg_expected_gene_start, btg_expected_gene_end],
-#     ],
-#     index=["BTRRead", "BTGGene", "BTGExpectedGene"],
-#     columns=["Start", "End"],
-# )
-
-# %%
-# 3389 - 3365
-
-# %%
-# aligned_pairs = read.get_aligned_pairs(matches_only=False, with_cigar=True)
-# aligned_pairs
-
-# %%
-# aligned_pairs_df.loc[
-#     aligned_pairs_df["ReadPos"].ge(3365) & aligned_pairs_df["ReadPos"].le(3389)
-# ]
-
-# %%
-# aligned_pairs_df = pd.DataFrame(
-#     read.get_aligned_pairs(matches_only=False, with_cigar=True),
-#     columns=["ReadPos", "RefPos", "Cigar"],
-# )
-# aligned_pairs_df
-
-# %%
-# aligned_pairs
-
-# %%
-# def get_genomic_coord_for_read_coord(aligned_pairs, required_read_pos):
-#     for read_pos, ref_pos, cigar_op in aligned_pairs:
-#         if read_pos == required_read_pos:
-#             return ref_pos
-#     return None
-
-# %%
-# best_gene_specific_concat_alignments_df.groupby("Gene")["BTG%GeneCoverage"].describe()
-
-# %%
-# best_gene_specific_concat_alignments_df.loc[
-#     best_gene_specific_concat_alignments_df["BTG%GeneCoverage"].ge(80)
-# ]
-
-# %%
-# fig = px.histogram(
-#     best_gene_specific_concat_alignments_df,
-#     x="%BTRBarcodeCoverage",
-#     facet_col="Gene",
-#     # facet_row="BTRStrand",
-#     # log_x=True,
-#     # log_y=True,
-#     histnorm="percent",
-#     cumulative=True,
-#     color="Gene",
-# )
-# fig.update_layout(showlegend=False)
-# fig.show()
-
-# %% [markdown]
 # # Find unique reads by UMI sub-seqs in gene-specific PCR-amplified selected barcodes
 #
 
@@ -3958,6 +2869,9 @@ best_gene_specific_pcr_amplified_concat_alignments_df
 
 
 best_gene_specific_pcr_amplified_concat_alignments_df.drop_duplicates(["Gene", "Read"]).shape[0]
+
+# %%
+best_gene_specific_pcr_amplified_concat_alignments_df.groupby("Sample").size()
 
 # %% [markdown]
 # ### Save reads with recognized barcodes, before de-duplication
@@ -4215,7 +3129,7 @@ concat_ccs_df
 # %%
 # how many reads are in connected components of size >= 2 that are not cliquish in
 concat_ccs_df.loc[
-    (concat_ccs_df["Size"] >= 1)
+    (concat_ccs_df["Size"] >= 2)
     & (concat_ccs_df["Cliquishness"] < 1),    
 ].groupby(["Gene", "Repeat"])["Size"].sum()
 
@@ -5321,7 +4235,7 @@ distinct_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.groupby(
 ).size()
 
 # %% [markdown]
-# ### Save reads after de-duplication
+# #### Save reads after de-duplication
 
 # %%
 unique_reads_out_file = Path(
@@ -5422,7 +4336,8 @@ def compute_reads_with_indistinguishable_umi_subseqs(df):
 
 
 # %%
-partial_umi_sub_seq_len = 5
+# partial_umi_sub_seq_len = 5
+partial_umi_sub_seq_len = 10 # just to compare editing status of reads with identical UMIs
 
 gene_specific_pcr_amplified_dfs = []
 
@@ -5461,10 +4376,14 @@ best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.groupby(
 )["NumOfOtherReadswithIndistinguishableUMISubSeqs"].describe().round(2)
 
 # %%
-max_gaps = 0
-max_mismatches = 1
-max_len_to_alignment_len_abs_diff = 1
-max_alignments = 1
+# max_gaps = 0
+# max_mismatches = 1
+# max_len_to_alignment_len_abs_diff = 1
+# max_alignments = 1
+# processes = 30
+
+# %%
+max_errors = 1
 processes = 30
 
 # %%
@@ -5478,8 +4397,21 @@ one_sample_df = best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_d
 one_sample_df
 
 # %%
+# potential_edges_df = (
+#     one_sample_df.loc[:, ["Read", "OtherReadswithIndistinguishableUMISubSeqs"]].explode("OtherReadswithIndistinguishableUMISubSeqs")
+#     .rename(columns={"Read": "U", "OtherReadswithIndistinguishableUMISubSeqs": "V"})
+# )
+
+# potential_edges_df['SortedEdge'] = potential_edges_df.apply(
+#     lambda row: tuple(sorted([row['U'], row['V']])), axis=1
+# )
+
+# potential_edges_df
+
+# %%
 potential_edges = set(
-    (u, v)
+    # (u, v)
+    tuple(sorted((u, v)))
     for u, vs in one_sample_df.loc[:, ["Read", "OtherReadswithIndistinguishableUMISubSeqs"]].values.tolist()
     for v in vs
 )
@@ -5488,19 +4420,44 @@ assert len(potential_edges) <= one_sample_df["OtherReadswithIndistinguishableUMI
 # potential_edges
 
 # %%
-read_and_umi_series = one_sample_df.loc[:, ["Read", "SpanningUMISeq"]].set_index("Read").squeeze()
-read_and_umi_series
+# read_and_umi_series = one_sample_df.loc[:, ["Read", "SpanningUMISeq"]].set_index("Read").squeeze()
+# assert read_and_umi_series.isna().sum() == 0
+# # read_and_umi_series
+
+# umi_seqs_overlap_inputs = (
+#     (
+#         u, 
+#         v, 
+#         read_and_umi_series[u], 
+#         read_and_umi_series[v], 
+#         max_len_to_alignment_len_abs_diff,
+#         max_gaps, 
+#         max_mismatches, 
+#         max_alignments
+#     )
+#     for u, v in potential_edges
+# )
+# umi_seqs_overlap_inputs = [
+#     input 
+#     for input in umi_seqs_overlap_inputs
+#     if umi_processing.umi_seqs_overlap_early_filter(
+#         input[2], input[3], max_len_to_alignment_len_abs_diff, max_gaps, max_mismatches
+#     )
+# ]
+# len(umi_seqs_overlap_inputs)
 
 # %%
+read_and_umi_series = one_sample_df.loc[:, ["Read", "SpanningUMISeq"]].set_index("Read").squeeze()
+assert read_and_umi_series.isna().sum() == 0
+# read_and_umi_series
+
 umi_seqs_overlap_inputs = (
     (
         u, 
         v, 
         read_and_umi_series[u], 
         read_and_umi_series[v], 
-        max_len_to_alignment_len_abs_diff,
-        max_gaps, 
-        max_mismatches, 
+        max_errors,
         max_alignments
     )
     for u, v in potential_edges
@@ -5509,7 +4466,7 @@ umi_seqs_overlap_inputs = [
     input 
     for input in umi_seqs_overlap_inputs
     if umi_processing.umi_seqs_overlap_early_filter(
-        input[2], input[3], max_len_to_alignment_len_abs_diff, max_gaps, max_mismatches
+        input[2], input[3], max_errors
     )
 ]
 len(umi_seqs_overlap_inputs)
@@ -5539,18 +4496,26 @@ with ctx.Pool(processes=processes) as pool:
 umi_seqs_overlap_results_df = pd.DataFrame(
     # umi_seqs_overlap_results,
     list(chain.from_iterable(umi_seqs_overlap_batched_results)),
-    columns=["U", "V", "Overlap"]
+    columns=["U", "V", "Overlap", "MinimalErrors"]
 )
-umi_seqs_overlap_results_df_2 = umi_seqs_overlap_results_df.copy()
-umi_seqs_overlap_results_df_2.insert(0, "U2", umi_seqs_overlap_results_df_2["V"])
-umi_seqs_overlap_results_df_2.insert(1, "V2", umi_seqs_overlap_results_df_2["U"])
-umi_seqs_overlap_results_df_2 = umi_seqs_overlap_results_df_2.drop(columns=["U", "V"]).rename(columns={"U2": "U", "V2": "V"})
+umi_seqs_overlap_results_df_2 = pd.DataFrame(
+    {
+        "U": umi_seqs_overlap_results_df["V"],
+        "V": umi_seqs_overlap_results_df["U"],
+        "Overlap": umi_seqs_overlap_results_df["Overlap"],
+        "MinimalErrors": umi_seqs_overlap_results_df["MinimalErrors"],
+    }
+)
 # now the df is symmetric
 umi_seqs_overlap_results_df = pd.concat(
     [umi_seqs_overlap_results_df, umi_seqs_overlap_results_df_2],
     ignore_index=True
 )
+assert len(umi_seqs_overlap_inputs) * 2 == umi_seqs_overlap_results_df.shape[0]
 
+umi_seqs_overlap_results_df
+
+# %%
 # find for each read the other reads with indistinguishable UMI sequences
 reads_and_indistinguishable_reads_df = umi_seqs_overlap_results_df.groupby("U").apply(
     lambda x: x.loc[x["Overlap"], "V"].tolist(),
@@ -5558,10 +4523,83 @@ reads_and_indistinguishable_reads_df = umi_seqs_overlap_results_df.groupby("U").
 ).reset_index(name="OtherReadswithIndistinguishableUMIs").rename(columns={"U": "Read"})
 reads_and_indistinguishable_reads_df["NumOfOtherReadswithIndistinguishableUMIs"] = reads_and_indistinguishable_reads_df["OtherReadswithIndistinguishableUMIs"].apply(len)
 
+num_of_unique_reads_in_inputs = len(set(
+    x 
+    for u, v, *_, in umi_seqs_overlap_inputs
+    for x in (u, v)
+))
+assert reads_and_indistinguishable_reads_df.shape[0] == num_of_unique_reads_in_inputs
+
+reads_and_indistinguishable_reads_df
+
+# %%
+reads_and_indistinguishable_reads_df.loc[
+    reads_and_indistinguishable_reads_df["NumOfOtherReadswithIndistinguishableUMIs"].ge(1)
+]
+
+# %%
+umi_seqs_overlap_results_df.loc[
+    (umi_seqs_overlap_results_df["U"].eq(read))
+    & (umi_seqs_overlap_results_df["V"].isin(other_reads))
+]
+
+
+# %%
+def get_minimal_errors_for_read_and_other_reads(read, other_reads, umi_seqs_overlap_results_df):
+    return [
+        umi_seqs_overlap_results_df.loc[
+            (umi_seqs_overlap_results_df["U"].eq(read)) 
+            & (umi_seqs_overlap_results_df["V"].eq(other_read)),
+            "MinimalErrors"
+        ].values[0]
+        for other_read in other_reads
+    ]
+
+
+# %%
+read = "BLx"
+other_reads = ['o52', 'FiF']
+
+get_minimal_errors_for_read_and_other_reads(read, other_reads, umi_seqs_overlap_results_df)
+
+# %%
+
+# %%
+reads_and_indistinguishable_reads_df.loc[
+    reads_and_indistinguishable_reads_df["NumOfOtherReadswithIndistinguishableUMIs"].ge(1)
+].apply(
+    lambda x
+)
+
+# %%
+one_sample_df
+
+# %%
+one_sample_df.merge(
+    reads_and_indistinguishable_reads_df,
+    how="left"
+)
+
+# %%
 one_sample_df = one_sample_df.merge(
     reads_and_indistinguishable_reads_df,
     how="left"
 )
+
+# fillna for reads with no indistinguishable UMIs, 
+# which weren't even suspected to have any
+# (i.e. they didn't appear in the potential_edges set)
+one_sample_df.loc[
+    one_sample_df["OtherReadswithIndistinguishableUMIs"].isna(),
+    "NumOfOtherReadswithIndistinguishableUMIs"
+] = 0
+one_sample_df.loc[
+    one_sample_df["OtherReadswithIndistinguishableUMIs"].isna(),
+    "OtherReadswithIndistinguishableUMIs"
+] = one_sample_df.loc[
+    one_sample_df["OtherReadswithIndistinguishableUMIs"].isna(),
+    "OtherReadswithIndistinguishableUMIs"
+].apply(lambda x: [])
 
 best_umi_overlap_seq_gene_specific_pcr_amplified_alignments_dfs = [one_sample_df]
 
@@ -5569,10 +4607,6 @@ best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df = pd.conca
     best_umi_overlap_seq_gene_specific_pcr_amplified_alignments_dfs, ignore_index=True
 )
 best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df
-
-# %%
-
-# %%
 
 # %%
 best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df.groupby(
@@ -5622,12 +4656,12 @@ best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
 # %%
 def compute_reads_with_indistinguishable_umis(
     one_sample_df: pd.DataFrame,
-    max_gaps: int = 2,
-    max_mismatches: int = 2,
+    max_gaps: int = 0,
+    max_mismatches: int = 1,
     max_len_to_alignment_len_abs_diff: int = 1, 
     processes: int = 10,
     # batch_size: int | None = None,
-    max_alignments: int | None = 2,
+    max_alignments: int | None = 1,
 ):
     """
     For each read, find all other reads that have sufficient overlap with its UMI.
@@ -5635,43 +4669,51 @@ def compute_reads_with_indistinguishable_umis(
       - OtherReadswithIndistinguishableUMIIs
       - NumOfOtherReadswithIndistinguishableUMIIs
     """
-    reads_and_umis = one_sample_df.loc[:, ["Read", "SpanningUMISeq"]].values.tolist()
+    potential_edges = set(
+        (u, v)
+        for u, vs in one_sample_df.loc[:, ["Read", "OtherReadswithIndistinguishableUMISubSeqs"]].values.tolist()
+        for v in vs
+    )
+    # ic(len(potential_edges))
+    assert len(potential_edges) <= one_sample_df["OtherReadswithIndistinguishableUMISubSeqs"].apply(len).sum()
     
+    read_and_umi_series = one_sample_df.loc[:, ["Read", "SpanningUMISeq"]].set_index("Read").squeeze()
+    assert read_and_umi_series.isna().sum() == 0
+    # read_and_umi_series
+
+    umi_seqs_overlap_inputs = (
+        (
+            u, 
+            v, 
+            read_and_umi_series[u], 
+            read_and_umi_series[v], 
+            max_len_to_alignment_len_abs_diff,
+            max_gaps, 
+            max_mismatches, 
+            max_alignments
+        )
+        for u, v in potential_edges
+    )
     umi_seqs_overlap_inputs = [
-        (u, v, u_umi_seq, v_umi_seq, max_gaps, max_mismatches, max_len_to_alignment_len_abs_diff, max_alignments)
-        for (u, u_umi_seq), (v, v_umi_seq) in itertools.combinations(reads_and_umis, 2)
+        input 
+        for input in umi_seqs_overlap_inputs
+        if umi_processing.umi_seqs_overlap_early_filter(
+            input[2], input[3], max_len_to_alignment_len_abs_diff, max_gaps, max_mismatches
+        )
     ]
-    # assert len(umi_seqs_overlap_inputs) == (len(reads_and_umis) * (len(reads_and_umis) - 1)) / 2
+    # ic(len(umi_seqs_overlap_inputs))
     
-    # if batch_size is None:
-    #     batch_size = len(umi_seqs_overlap_inputs) // processes
-    # ic(len(umi_seqs_overlap_inputs), processes, batch_size)
-    # umi_seqs_overlap_inputs_batches = itertools.batched(umi_seqs_overlap_inputs, n=batch_size)
-    
-    # TODO consider using more_itertools' distribute or divide for this purpose to explicitly divide the data according to number of processes
-    # https://more-itertools.readthedocs.io/en/stable/api.html#more_itertools.distribute
-
-    umi_seqs_overlap_inputs_batches = more_itertools.divide(processes, umi_seqs_overlap_inputs)
-
-    # with Pool(processes=processes) as pool:
-    #     umi_seqs_overlap_batched_results = pool.map(
-    #         func=one_batch_umi_seqs_overlap,
-    #         iterable=umi_seqs_overlap_inputs_batches
-    #     )
-        
     ctx = mp.get_context("spawn")
     with ctx.Pool(processes=processes) as pool:
         umi_seqs_overlap_batched_results = pool.map(
-            # func=one_batch_umi_seqs_overlap,
             func=umi_processing.one_batch_umi_seqs_overlap,
-            iterable=umi_seqs_overlap_inputs_batches
+            iterable=more_itertools.divide(processes, umi_seqs_overlap_inputs)
         )
-        
-    umi_seqs_overlap_results = list(chain.from_iterable(umi_seqs_overlap_batched_results))
     
     # create a symmetric df with all pairs (U, V) and (V, U)
     umi_seqs_overlap_results_df = pd.DataFrame(
-        umi_seqs_overlap_results,
+        # umi_seqs_overlap_results,
+        list(chain.from_iterable(umi_seqs_overlap_batched_results)),
         columns=["U", "V", "Overlap"]
     )
     umi_seqs_overlap_results_df_2 = umi_seqs_overlap_results_df.copy()
@@ -5695,40 +4737,32 @@ def compute_reads_with_indistinguishable_umis(
         reads_and_indistinguishable_reads_df,
         how="left"
     )
+
+    # fillna for reads with no indistinguishable UMIs, 
+    # which weren't even suspected to have any
+    # (i.e. they didn't appear in the potential_edges set)
+    one_sample_df.loc[
+        one_sample_df["OtherReadswithIndistinguishableUMIs"].isna(),
+        "NumOfOtherReadswithIndistinguishableUMIs"
+    ] = 0
+    one_sample_df.loc[
+        one_sample_df["OtherReadswithIndistinguishableUMIs"].isna(),
+        "OtherReadswithIndistinguishableUMIs"
+    ] = one_sample_df.loc[
+        one_sample_df["OtherReadswithIndistinguishableUMIs"].isna(),
+        "OtherReadswithIndistinguishableUMIs"
+    ].apply(lambda x: [])
+    
     return one_sample_df
+    
 
 
 # %%
-max_gaps = 2
-max_mismatches = 2
+max_gaps = 0
+max_mismatches = 1
 max_len_to_alignment_len_abs_diff = 1
-max_alignments = 2
-# batch_size = 1000
-# batch_size = None
-processes = 8
-
-# compute_reads_with_indistinguishable_umis_inputs = [
-#     (
-#         best_gene_specific_pcr_amplified_concat_alignments_df.loc[
-#             (best_gene_specific_pcr_amplified_concat_alignments_df["Gene"] == gene)
-#             & (best_gene_specific_pcr_amplified_concat_alignments_df["Repeat"] == repeat)
-#         ],
-#         max_gaps,
-#         max_mismatches,
-#         max_len_to_alignment_len_abs_diff,
-#         max_alignments,
-#         batch_size,
-#         processes,
-#     )
-#     for gene, repeat in product(genes, list("123"))
-# ]
-
-# with Pool(processes=6) as pool:
-#     processed_gene_specific_pcr_amplified_dfs_2 = pool.starmap(
-#         # func=process_gene_and_repeat_df,
-#         func=compute_reads_with_indistinguishable_umis,
-#         iterable=compute_reads_with_indistinguishable_umis_inputs,
-#     )
+max_alignments = 1
+processes = 10
 
 
 best_umi_overlap_seq_gene_specific_pcr_amplified_alignments_dfs = []
@@ -5737,9 +4771,9 @@ for gene, repeat in product(genes, list("123")):
     
     ic(gene, repeat)
     
-    one_sample_df = best_gene_specific_pcr_amplified_concat_alignments_df.loc[
-        (best_gene_specific_pcr_amplified_concat_alignments_df["Gene"] == gene)
-        & (best_gene_specific_pcr_amplified_concat_alignments_df["Repeat"] == repeat)
+    one_sample_df = best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
+        (best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df["Gene"] == gene)
+        & (best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df["Repeat"] == repeat)
     ]
     one_sample_df = compute_reads_with_indistinguishable_umis(
         one_sample_df,
@@ -5747,15 +4781,12 @@ for gene, repeat in product(genes, list("123")):
         max_mismatches,
         max_len_to_alignment_len_abs_diff,
         processes,
-        # batch_size,
         max_alignments,
     )
     best_umi_overlap_seq_gene_specific_pcr_amplified_alignments_dfs.append(
         one_sample_df
     )
     
-    break # TODO: remove - just for testing
-
 
 
 best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df = pd.concat(
@@ -5764,39 +4795,44 @@ best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df = pd.conca
 best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df
 
 # %%
-best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.groupby(
+best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df.groupby(
     "Sample"
 ).size()
 
 # %%
-best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
-    best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df[
-        "NumOfOtherReadswithIndistinguishableUMISubSeqs"
+best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df.groupby(
+    "Sample"
+)["NumOfOtherReadswithIndistinguishableUMIs"].describe().round(2)
+
+# %%
+best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
+    best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df[
+        "NumOfOtherReadswithIndistinguishableUMIs"
     ].eq(0),
 ].groupby("Sample").size()
 
 # %%
-best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
-    best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df[
-        "NumOfOtherReadswithIndistinguishableUMISubSeqs"
+best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
+    best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df[
+        "NumOfOtherReadswithIndistinguishableUMIs"
     ].eq(0),
 ].groupby("Sample").size().mul(100).div(
-    best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.groupby(
+    best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df.groupby(
         "Sample"
     ).size()
 ).round(2)
 
 # %%
-best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df[
-    "NumOfOtherReadswithIndistinguishableUMISubSeqs"
+best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df[
+    "NumOfOtherReadswithIndistinguishableUMIs"
 ].eq(0).sum()
 
 # %%
-best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
-    best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df[
-        "NumOfOtherReadswithIndistinguishableUMISubSeqs"
+best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
+    best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df[
+        "NumOfOtherReadswithIndistinguishableUMIs"
     ].eq(0),
-].shape[0] * 100 / best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.shape[0]
+].shape[0] * 100 / best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df.shape[0]
 
 
 # %% [markdown]
@@ -5863,7 +4899,7 @@ for i, (gene, repeat) in enumerate(product(genes, list("123"))):
     ccs_df["MeanDegree"] = ccs_df.apply(lambda x: sum(x["Degrees"]) / x["Size"], axis=1)
     ccs_dfs.append(ccs_df)
     
-    break # TODO: remove - just for testing
+    # break # TODO: remove - just for testing
 
 print("-" * 40)
 print(f"Loop completed. Processed {i} iterations, created {len(Gs)} graphs.")
@@ -5888,7 +4924,7 @@ concat_ccs_df
 # %%
 # how many reads are in connected components of size >= 2 that are not cliquish in
 concat_ccs_df.loc[
-    (concat_ccs_df["Size"] >= 1)
+    (concat_ccs_df["Size"] >= 2)
     & (concat_ccs_df["Cliquishness"] < 1),    
 ].groupby(["Gene", "Repeat"])["Size"].sum()
 
@@ -5918,3 +4954,440 @@ concat_ccs_df.groupby(["Gene", "Repeat"]).apply(
     lambda x: x.loc[x["Size"].eq(1), "Size"].sum() * 100 / x["Size"].sum(),
     include_groups=False
 ).round(2)
+
+# %%
+fig = px.histogram(
+    concat_ccs_df,
+    x="Size",
+    # y="MeanDegree",
+    # facet_col="Gene",
+    # facet_row="Repeat",
+    facet_col="Repeat",
+    facet_row="Gene",
+    # color="Repeat",
+    # opacity=0.6,
+    # log_x=True,
+    log_y=True,
+    histnorm="percent",
+    # cumulative=True,
+    labels={"Size": "Connected component size"},
+)
+fig.update_layout(
+    width=1200,
+    height=600,
+    # barmode='overlay'
+    title="Connected components size distribution"
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    concat_ccs_df.loc[concat_ccs_df["Size"].ge(2)],
+    x="MeanDegree",
+    # y="MeanDegree",
+    # facet_col="Gene",
+    # facet_row="Repeat",
+    facet_col="Repeat",
+    facet_row="Gene",
+    # color="Repeat",
+    # opacity=0.6,
+    # log_x=True,
+    log_y=True,
+    # histnorm="percent",
+    # cumulative=True,
+    labels={"MeanDegree": "Connected component mean degree"},
+)
+fig.update_layout(
+    width=1200,
+    height=600,
+    # barmode='overlay',
+    title="Mean degree distribution per connected components with size >= 2"
+)
+fig.show()
+
+# %%
+fig = px.scatter(
+    concat_ccs_df.groupby(["Gene", "Repeat", "Size"])["MeanDegree"].agg(["mean", "std"]).reset_index(),
+    x="Size",
+    y="mean",
+    error_y="std",
+    facet_col="Repeat",
+    facet_row="Gene",
+    # color="Repeat",
+    # opacity=0.6,
+    # log_x=True,
+    # log_y=True,
+    # histnorm="percent",
+    # cumulative=True,
+    labels={
+        "Size": "Connected component size", 
+        # "mean": "Connected component mean degree"
+        "mean": "Mean degree"
+        },
+)
+fig.update_xaxes(tick0=0, dtick=5)
+fig.update_yaxes(tick0=0, dtick=5)
+fig.update_layout(
+    width=1200,
+    height=400,
+    # barmode='overlay',
+    # title="Mean degree distribution per connected components with size >= 2"
+)
+fig.show()
+
+# %%
+fig = px.scatter(
+    concat_ccs_df.loc[
+        concat_ccs_df["Size"].ge(2)
+    ].groupby(["Gene", "Repeat", "Size"])["Cliquishness"].agg(["mean", "std"]).reset_index(),
+    x="Size",
+    y="mean",
+    error_y="std",
+    facet_col="Repeat",
+    facet_row="Gene",
+    # color="Repeat",
+    # opacity=0.6,
+    # log_x=True,
+    # log_y=True,
+    # histnorm="percent",
+    # cumulative=True,
+    labels={
+        "Size": "Connected component size", 
+        # "mean": "Connected component mean degree"
+        "mean": "Mean cliquishness<br>(|E| / |E|_clique)"
+        # "mean": "Mean cliquishness<br>(|E| / |V|*(|V|-1)/2)"
+        },
+)
+fig.update_layout(
+    width=1200,
+    height=600,
+    # barmode='overlay',
+    title="How close is a connected component of size >= 2 to be a clique?"
+)
+fig.show()
+
+# %%
+best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df
+
+# %%
+gene = genes[0]
+repeat = "1"
+
+one_sample_df = best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
+    (best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df["Gene"] == gene)
+    & (best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df["Repeat"] == repeat)
+    & (best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df["NumOfOtherReadswithIndistinguishableUMIs"].gt(0))
+]
+one_sample_df
+
+# %%
+one_sample_df.loc[:, ["Read", "NumOfOtherReadswithIndistinguishableUMIs"]]
+
+# %%
+potential_perfect_edges = set(
+    (u, v)
+    for u, vs in one_sample_df.loc[:, ["Read", "OtherReadswithIndistinguishableUMIs"]].values.tolist()
+    for v in vs
+)
+ic(len(potential_perfect_edges))
+
+# %%
+potential_perfect_edges_df = (
+    one_sample_df.loc[:, ["Read", "OtherReadswithIndistinguishableUMIs"]].explode("OtherReadswithIndistinguishableUMIs")
+    .rename(columns={"Read": "U", "OtherReadswithIndistinguishableUMIs": "V"})
+)
+
+potential_perfect_edges_df['edge_sorted'] = potential_perfect_edges_df.apply(
+    lambda row: tuple(sorted([row['U'], row['V']])), axis=1
+)
+
+potential_perfect_edges_df
+
+# %%
+potential_perfect_edges_df["edge_sorted"].value_counts()
+
+# %%
+potential_perfect_edges_df.drop_duplicates("edge_sorted")
+
+# %% [markdown]
+# ### Obtain MIS
+
+# %%
+best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df
+
+
+# %%
+def create_indistinguishable_graph(
+    gene_and_repeat_df, 
+    indistinguishable_reads_col="OtherReadswithIndistinguishableUMIs"
+):
+    # create g by explicitly deepcopying the needed cols
+    reads = gene_and_repeat_df["Read"].tolist()
+    other_indistinguishable_reads = (
+        gene_and_repeat_df[indistinguishable_reads_col]
+        .apply(lambda x: copy.deepcopy(x))
+        .tolist()
+    )
+
+    G = nx.Graph()
+
+    G.add_nodes_from(reads)
+    # ic(G.number_of_nodes())
+
+    for read, neighbours in zip(reads, other_indistinguishable_reads):
+        for neighbour in neighbours:
+            G.add_edge(read, neighbour)
+            
+    # ic(G.number_of_edges());
+    return G
+
+
+# %%
+def editing_site_entropy(site_values):
+    site_value_counts = site_values.value_counts()
+    unedited_counts = site_value_counts.get(0, 0)
+    edited_counts = site_value_counts.get(1, 0)
+    counts = [unedited_counts, edited_counts]
+    total_count = sum(counts)
+    probs = [count / total_count for count in counts]
+    entropy = -sum(p * np.log2(p) for p in probs if p > 0)
+    return entropy
+
+
+# %%
+def read_entropy(read_values, editing_site_entropies):
+    unambiguous_read_values = read_values.loc[read_values.ne(-1)]
+    entropy = editing_site_entropies.loc[unambiguous_read_values.index].sum()
+    return entropy
+
+
+# %%
+def calc_reads_entropy(
+    reads_file,
+    gene,
+    used_reads_first_col_pos = 6
+):
+    used_reads_df = pd.read_csv(reads_file, sep="\t")
+    used_reads_df["Gene"] = gene
+    
+    used_reads_id_cols_df = used_reads_df.loc[:, ["Gene", "Read"]]
+    
+    # keep only the columns with -1 in them (indicating an unkown editing status)
+    used_reads_editing_status_df = used_reads_df.iloc[:, used_reads_first_col_pos:]
+    used_reads_editing_status_df = used_reads_editing_status_df.loc[:, used_reads_editing_status_df.eq(-1).any()]
+    
+    editing_site_entropies = used_reads_editing_status_df.apply(
+        editing_site_entropy
+    )
+    
+    reads_entropies = used_reads_editing_status_df.apply(
+        lambda row: read_entropy(row, editing_site_entropies),
+        axis=1,
+    )
+    
+    reads_entropy_df = used_reads_id_cols_df.join(reads_entropies.rename("Entropy"))
+    
+    return reads_entropy_df
+
+
+# %%
+def choose_read_with_max_entropy_from_cc(cc_row, concat_reads_entropy_df, seed):
+    cc_df = pd.DataFrame(cc_row).T.explode("CC").rename(columns={"CC": "Read"})
+    
+    # if there are multiple reads - choose the one with the max entropy
+    if cc_df.shape[0] > 1:
+        cc_df = cc_df.merge(
+            concat_reads_entropy_df,
+            on=["Gene", "Read"],
+            how="left",
+        )
+        cc_df = cc_df.loc[cc_df["Entropy"].eq(cc_df["Entropy"].max())]
+        cc_df = cc_df.drop(columns="Entropy") # we don't need it anymore
+        # if there are multiple reads with the same max entropy, choose one at random
+        if cc_df.shape[0] > 1:
+            cc_df = cc_df.sample(n=1, random_state=seed)
+    
+    # Return as Series instead of DataFrame
+    cc_row = cc_df.iloc[0]
+    
+    return cc_row
+
+
+# %%
+def choose_reads_with_distinct_umis_by_max_entropy(
+    gene_and_repeat_df, gene, repeat, seed, concat_reads_entropy_df, 
+    indistinguishable_reads_col="OtherReadswithIndistinguishableUMIs"
+):
+    # intialize a random number generator with the given seed
+    # to select a random high-degree read at each step
+    rng = np.random.default_rng(seed)
+
+    G = create_indistinguishable_graph(gene_and_repeat_df, indistinguishable_reads_col)
+
+    ccs_df = pd.DataFrame(
+        {
+            "Gene": gene,
+            "Repeat": repeat,
+            "CC":  list(nx.connected_components(G)),
+        }
+    )
+    
+    distinct_reads_df = ccs_df.apply(
+        lambda row: choose_read_with_max_entropy_from_cc(row, concat_reads_entropy_df, seed=rng),
+        axis=1,
+    )
+    
+    return distinct_reads_df
+
+
+# %%
+concat_reads_entropy_df = pd.concat(
+    [
+        calc_reads_entropy(reads_file, gene, used_reads_first_col_pos)
+        for reads_file, gene in zip(merged_annotated_reads_files, genes)
+    ], 
+    ignore_index=True
+)
+concat_reads_entropy_df
+
+# %%
+distinct_umis_gene_specific_pcr_amplified_alignments_dfs = []
+
+for gene, repeat in product(genes, list("123")):
+
+    ic(gene, repeat)
+
+    gene_and_repeat_df = (
+        best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
+            (
+                best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df[
+                    "Gene"
+                ]
+                == gene
+            )
+            & (
+                best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df[
+                    "Repeat"
+                ]
+                == repeat
+            )
+        ]
+    )
+    distinct_reads_df = choose_reads_with_distinct_umis_by_max_entropy(
+        gene_and_repeat_df, gene, repeat, seed, concat_reads_entropy_df
+    )
+    gene_and_repeat_df = gene_and_repeat_df.merge(
+        distinct_reads_df,
+        # on=["Gene", "Repeat", "Read"],
+        how="inner",
+    )
+
+    distinct_umis_gene_specific_pcr_amplified_alignments_dfs.append(
+        gene_and_repeat_df
+    )
+
+
+distinct_umis_gene_specific_pcr_amplified_concat_alignments_df = pd.concat(
+    distinct_umis_gene_specific_pcr_amplified_alignments_dfs, ignore_index=True
+)
+distinct_umis_gene_specific_pcr_amplified_concat_alignments_df
+
+# %%
+distinct_umis_gene_specific_pcr_amplified_concat_alignments_df.groupby(
+    "Sample"
+).size()
+
+# %%
+ccs_vs_distinct_reads_df = concat_ccs_df[["Gene", "Repeat"]].value_counts().reset_index().sort_values(
+        ["Gene", "Repeat"]
+    ).reset_index(drop=True).rename(columns={"count": "ConnectedComponents"}).transform(
+    lambda x: x.astype({"Repeat": "str"})
+    ).merge(
+    distinct_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.groupby(
+        ["Gene", "Repeat"]
+    ).size().reset_index().rename(columns={0: "DistinctReads"}),
+    on=["Gene", "Repeat"],
+    how="left",
+)
+    
+ccs_vs_distinct_reads_df["DistinctReads/ConnectedComponent"] = ccs_vs_distinct_reads_df["DistinctReads"].div(
+    ccs_vs_distinct_reads_df["ConnectedComponents"]
+).round(2)
+
+# assert ccs_vs_distinct_reads_df["DistinctReads"].ge(
+#     ccs_vs_distinct_reads_df["ConnectedComponents"]
+# ).all(), "Each connected component should have at least one distinct read in it."
+
+assert ccs_vs_distinct_reads_df["DistinctReads/ConnectedComponent"].ge(1).all(), "Each connected component should have at least one distinct read in it."
+
+ccs_vs_distinct_reads_df
+
+# %%
+ccs_vs_distinct_reads_df["DistinctReads"].div(
+    ccs_vs_distinct_reads_df["ConnectedComponents"]
+).round(2)
+
+# %%
+# num of connected components per graph
+concat_ccs_df[["Gene", "Repeat"]].value_counts().reset_index().sort_values(
+        ["Gene", "Repeat"]
+    ).reset_index(drop=True).rename(columns={"count": "ConnectedComponents"}).transform(
+    lambda x: x.astype({"Gene": "str", "Repeat": "str"})
+    )
+
+# %%
+distinct_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.groupby(
+    "Gene"
+).size()
+
+# %% [markdown]
+# #### Save reads after de-duplication
+
+# %%
+distinct_umis_gene_specific_pcr_amplified_concat_alignments_df
+
+# %%
+deduped_reads_out_file = Path(
+    merged_bams_dir,
+    "DedupedReadsByUMISeq.tsv",
+)
+
+distinct_umis_gene_specific_pcr_amplified_concat_alignments_df.loc[
+    :, ["Sample", "Gene", "Repeat", "Read", "OldRead"]
+].to_csv(
+    deduped_reads_out_file,
+    sep="\t",
+    index=False,
+    # na_rep="NA",
+    # float_format="%.2f",
+)
+
+# %%
+# # # Get the set of unique read names to keep
+# # reads_to_keep = set(
+# #     best_gene_specific_pcr_amplified_concat_alignments_df["Read"]
+# # )
+
+# for in_bam_path, gene in zip(mapped_merged_bam_files, genes):
+    
+#     # Get the set of unique read names to keep
+#     reads_to_keep = set(
+#         best_gene_specific_pcr_amplified_concat_alignments_df.loc[
+#             best_gene_specific_pcr_amplified_concat_alignments_df["Gene"] == gene,
+#             "OldRead"
+#         ]
+#     )
+#     out_bam_path = Path(reads_with_recognizable_barcodes_dir, in_bam_path.name)
+
+#     with pysam.AlignmentFile(in_bam_path, "rb") as in_bam, pysam.AlignmentFile(
+#         out_bam_path, "wb", template=in_bam
+#     ) as out_bam:
+#         for read in in_bam:
+#             if read.query_name in reads_to_keep:
+#                 out_bam.write(read)
+
+#     print(f"Filtered BAM written to: {out_bam_path}")
+    
+# # !samtools index -M {reads_with_recognizable_barcodes_dir}/*.bam
+
+# %%
