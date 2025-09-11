@@ -1,5 +1,8 @@
 import numpy as np
+import pandas as pd
 from Bio import Align
+import parasail
+from icecream import ic
 
 
 def umi_seqs_overlap_early_filter_old(
@@ -122,7 +125,7 @@ def umi_seqs_overlap_old(
     return u, v, False  # no reliable overlap found between the two UMI sequences
 
 
-def umi_seqs_overlap(
+def umi_seqs_overlap_old_2(
     u,
     v,
     u_umi_seq,
@@ -209,6 +212,59 @@ def umi_seqs_overlap(
         False,
         minimal_errors,
     )  # no reliable overlap found between the two UMI sequences
+
+
+def umi_seqs_overlap(
+    u,
+    v,
+    u_umi_seq,
+    v_umi_seq,
+    maximum_errors: int = 1,
+    matrix=parasail.matrix_create("ACGT", 1, 0),
+    debug: bool = False,
+):
+
+    u_umi_seq_len = len(u_umi_seq)
+    v_umi_seq_len = len(v_umi_seq)
+
+    result = parasail.sw_trace(u_umi_seq, v_umi_seq, 0, 0, matrix)
+
+    aligned_ref = result.traceback.ref
+    aligned_query = result.traceback.query
+    aligned_comp = result.traceback.comp.replace(" ", "-")
+
+    alignment_length = len(result.traceback.ref)
+    gaps = aligned_comp.count("-")
+    mismatches = aligned_comp.count(".")
+
+    u_len_to_alignment_len_abs_diff = np.abs(u_umi_seq_len - alignment_length)
+    v_len_to_alignment_len_abs_diff = np.abs(v_umi_seq_len - alignment_length)
+
+    errors = (
+        gaps
+        + mismatches
+        + u_len_to_alignment_len_abs_diff
+        + v_len_to_alignment_len_abs_diff
+    )
+
+    if debug:
+        for a in [aligned_ref, aligned_comp, aligned_query]:
+            print(a)
+
+        ic(
+            u_umi_seq_len,
+            v_umi_seq_len,
+            gaps,
+            mismatches,
+            alignment_length,
+            u_len_to_alignment_len_abs_diff,
+            v_len_to_alignment_len_abs_diff,
+            errors,
+        )
+
+    umis_sufficiently_similar = errors <= maximum_errors
+
+    return (u, v, umis_sufficiently_similar, errors)
 
 
 # # case 1
@@ -342,3 +398,47 @@ def umi_seqs_overlap(
 
 def one_batch_umi_seqs_overlap(one_batch_umi_seqs_overlap_inputs):
     return [umi_seqs_overlap(*inputs) for inputs in one_batch_umi_seqs_overlap_inputs]
+
+
+def agg_one_u_overlap_vs_results_df(
+    one_u_overlap_results_df: pd.DataFrame,
+) -> pd.Series:
+    """
+    Aggregate the results for one read U from the umi_seqs_overlap_results_df DataFrame.
+
+    `one_u_overlap_results_df` contains the columns:
+    * U - the read of interest (same for all rows)
+    * V - other reads that their UMI may overlap with U's
+    * Overlap - boolean indicating if U and V have overlapping UMI sequences
+    * MinimalErrors - minimal number of alignment errors between UMI sequences of U and V
+
+    Return a series with:
+    * Read - the read U
+    * OtherReadswithIndistinguishableUMIs - list of reads V that have overlapping UMI sequences with U
+    * NumOfOtherReadswithIndistinguishableUMIs - number of such reads V
+    * MinimalErrorsToOtherReadswithIndistinguishableUMIs - list of minimal alignment errors to each such read V's UMI sequence
+    """
+    u = one_u_overlap_results_df.iloc[0]["U"]
+    one_u_overlap_results_df = one_u_overlap_results_df.loc[
+        one_u_overlap_results_df["Overlap"]
+    ]
+    return pd.Series(
+        {
+            "Read": u,
+            "OtherReadswithIndistinguishableUMIs": one_u_overlap_results_df[
+                "V"
+            ].tolist(),
+            "NumOfOtherReadswithIndistinguishableUMIs": one_u_overlap_results_df.shape[
+                0
+            ],
+            "MinimalErrorsWithOtherReadswithIndistinguishableUMIs": one_u_overlap_results_df[
+                "MinimalErrors"
+            ].tolist(),
+        }
+    )
+
+
+def process_one_u_overlap_vs_group(item):
+    """A convenience wrapper to unpack the item tuple, when we do parallel processing over an iterable."""
+    _, g = item  # _ is u
+    return agg_one_u_overlap_vs_results_df(g)
