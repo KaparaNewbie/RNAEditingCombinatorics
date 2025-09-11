@@ -4814,6 +4814,7 @@ def compute_reads_with_indistinguishable_umis(
         one_sample_df["OtherReadswithIndistinguishableUMIs"].isna(),
         "NumOfOtherReadswithIndistinguishableUMIs"
     ] = 0
+    one_sample_df["NumOfOtherReadswithIndistinguishableUMIs"] = one_sample_df["NumOfOtherReadswithIndistinguishableUMIs"].astype(int)
     one_sample_df.loc[
         one_sample_df["OtherReadswithIndistinguishableUMIs"].isna(),
         "MinimalErrorsWithOtherReadswithIndistinguishableUMIs"
@@ -4851,10 +4852,6 @@ for gene, repeat in product(genes, list("123")):
     
     ic(gene, repeat)
     
-    # one_sample_df = best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
-    #     (best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df["Gene"] == gene)
-    #     & (best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df["Repeat"] == repeat)
-    # ]
     one_sample_df = best_gene_specific_pcr_amplified_concat_alignments_df.loc[
         (best_gene_specific_pcr_amplified_concat_alignments_df["Gene"] == gene)
         & (best_gene_specific_pcr_amplified_concat_alignments_df["Repeat"] == repeat)
@@ -4874,7 +4871,7 @@ for gene, repeat in product(genes, list("123")):
         one_sample_df
     )
     
-    break # TODO: remove this break after testing
+    # break # TODO: remove this break after testing
 
 
 best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df = pd.concat(
@@ -4898,9 +4895,6 @@ best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
         "NumOfOtherReadswithIndistinguishableUMIs"
     ].eq(0),
 ].groupby("Sample").size()
-
-# %%
-10 // 2
 
 # %%
 best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
