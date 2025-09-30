@@ -220,14 +220,18 @@ def umi_seqs_overlap(
     u_umi_seq,
     v_umi_seq,
     maximum_errors: int = 1,
-    matrix=parasail.matrix_create("ACGT", 1, 0),
+    # matrix=parasail.matrix_create("ACGT", 1, 0),
+    matrix=parasail.nuc44,
+    gap_open=10,
+    gap_extend=1,
     debug: bool = False,
 ):
 
     u_umi_seq_len = len(u_umi_seq)
     v_umi_seq_len = len(v_umi_seq)
 
-    result = parasail.sw_trace(u_umi_seq, v_umi_seq, 0, 0, matrix)
+    # result = parasail.sw_trace(u_umi_seq, v_umi_seq, gap_open, gap_extend, matrix)
+    result = parasail.nw_trace(v_umi_seq, u_umi_seq, gap_open, gap_extend, matrix)
 
     aligned_ref = result.traceback.ref
     aligned_query = result.traceback.query
@@ -237,14 +241,14 @@ def umi_seqs_overlap(
     gaps = aligned_comp.count("-")
     mismatches = aligned_comp.count(".")
 
-    u_len_to_alignment_len_abs_diff = np.abs(u_umi_seq_len - alignment_length)
-    v_len_to_alignment_len_abs_diff = np.abs(v_umi_seq_len - alignment_length)
+    # u_len_to_alignment_len_abs_diff = np.abs(u_umi_seq_len - alignment_length)
+    # v_len_to_alignment_len_abs_diff = np.abs(v_umi_seq_len - alignment_length)
 
     errors = (
         gaps
         + mismatches
-        + u_len_to_alignment_len_abs_diff
-        + v_len_to_alignment_len_abs_diff
+        # + u_len_to_alignment_len_abs_diff
+        # + v_len_to_alignment_len_abs_diff
     )
 
     if debug:
@@ -257,8 +261,8 @@ def umi_seqs_overlap(
             gaps,
             mismatches,
             alignment_length,
-            u_len_to_alignment_len_abs_diff,
-            v_len_to_alignment_len_abs_diff,
+            # u_len_to_alignment_len_abs_diff,
+            # v_len_to_alignment_len_abs_diff,
             errors,
         )
 
@@ -442,3 +446,83 @@ def process_one_u_overlap_vs_group(item):
     """A convenience wrapper to unpack the item tuple, when we do parallel processing over an iterable."""
     _, g = item  # _ is u
     return agg_one_u_overlap_vs_results_df(g)
+
+
+def compare_u_v_editing_statuses_light(
+    gene: str,
+    repeat: str,
+    num_of_editing_sites_in_gene: int,
+    u: str,
+    v: str,
+    minimal_errors: int,
+    used_reads_df: pd.DataFrame,
+    used_reads_first_col_pos: int = 6,
+):
+    """
+    Compare editing statuses of two reads u and v.
+
+    Parameters:
+    - u, v: read identifiers
+    - minimal_errors: minimal number of alignment errors between u and v UMIs
+    - used_reads_df: DataFrame containing editing status information for reads
+    - used_reads_first_col_pos: position of the first editing status column (0-based index)
+
+    Returns:
+    A series with counts of various editing status comparisons.
+    """
+    row_used_reads_df = (
+        used_reads_df.loc[used_reads_df["Read"].isin([u, v])]
+        .set_index("Read")
+        .rename(columns={"AmbigousPositions": "AmbiguousPositions"})
+        .iloc[:, used_reads_first_col_pos - 1 :]
+    )
+
+    ambiguous_positions_count = row_used_reads_df.apply(lambda x: x.eq(-1).any()).sum()
+    unambiguous_positions_count = (
+        num_of_editing_sites_in_gene - ambiguous_positions_count
+    )
+
+    # strongly_agreeing_positions_count = row_used_reads_df.apply(
+    #     lambda x: x.nunique() == 1
+    # ).sum()
+    # weakly_agreeing_positions_count = row_used_reads_df.apply(
+    #     lambda x: (x.eq(-1).any()) or (x.nunique() == 1)
+    # ).sum()
+
+    # strongly_agreeing_positions_prct = 100 * strongly_agreeing_positions_count / num_of_editing_sites_in_gene
+    # weakly_agreeing_positions_prct = 100 * weakly_agreeing_positions_count / num_of_editing_sites_in_gene
+
+    strongly_disagreeing_positions_count = row_used_reads_df.apply(
+        lambda x: x.nunique() == 2 and not x.eq(-1).any()
+    ).sum()
+    weakly_disagreeing_positions_count = row_used_reads_df.apply(
+        lambda x: x.nunique() == 2
+    ).sum()
+    strongly_disagreeing_positions_prct = (
+        100 * strongly_disagreeing_positions_count / num_of_editing_sites_in_gene
+    )
+    weakly_disagreeing_positions_prct = (
+        100 * weakly_disagreeing_positions_count / num_of_editing_sites_in_gene
+    )
+
+    result = pd.Series(
+        {
+            "Gene": gene,
+            "Repeat": repeat,
+            "EditingSitesInGene": num_of_editing_sites_in_gene,
+            "U": u,
+            "V": v,
+            "MinimalErrors": minimal_errors,
+            "AmbiguousPositions": ambiguous_positions_count,
+            "UnambiguousPositions": unambiguous_positions_count,
+            # "StronglyAgreeingPositions": strongly_agreeing_positions_count,
+            # "WeaklyAgreeingPositions": weakly_agreeing_positions_count,
+            # "%StronglyAgreeingPositions": strongly_agreeing_positions_prct,
+            # "%WeaklyAgreeingPositions": weakly_agreeing_positions_prct
+            "StronglyDisagreeingPositions": strongly_disagreeing_positions_count,
+            "WeaklyDisagreeingPositions": weakly_disagreeing_positions_count,
+            "%StronglyDisagreeingPositions": strongly_disagreeing_positions_prct,
+            "%WeaklyDisagreeingPositions": weakly_disagreeing_positions_prct,
+        }
+    )
+    return result

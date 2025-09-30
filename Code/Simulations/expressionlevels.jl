@@ -21,28 +21,16 @@ include(joinpath(@__DIR__, "issimilar.jl")) # for issimilar
 include(joinpath(@__DIR__, "timeformatters.jl"))
 
 
-function prepare_distinctdf(
-	distinctfile, delim, innerdelim, truestrings, falsestrings,
-)
-	@info "$(loggingtime())\tprepare_distinctdf" distinctfile
-	# distinctdf = DataFrame(CSV.File(distinctfile; delim, truestrings, falsestrings))
-	distinctdf = DataFrame(CSV.File(distinctfile; delim, truestrings, falsestrings, types = Dict("UniqueSamples" => String, "AvailableReads" => String)))
-	# distinctdf[!, "UniqueSamples"] = InlineString.(distinctdf[!, "UniqueSamples"])
-
-	transform!(distinctdf, :UniqueSamples => (x -> split.(x, innerdelim)) => :UniqueSamples)
-	if "AvailableReads" ∈ names(distinctdf)
-		transform!(distinctdf, :AvailableReads => (x -> split.(x, innerdelim)) => :AvailableReads)
-	end
-	distinctdf[!, "Index"] = collect(1:size(distinctdf, 1))
-	return distinctdf
+function prepare_readssubsetdf(readssubsetfile, samplename, delim)
+	@info "$(loggingtime())\tprepare_readssubsetdf" readssubsetfile
+	readssubsetdf = DataFrame(CSV.File(readssubsetfile; delim = delim))
+	readssubsetdf = readssubsetdf[readssubsetdf[!, "Gene"] .== samplename, :]
+	return readssubsetdf
 end
 
 
-toAAset(x, innerdelim) = Set(map(aa -> convert(AminoAcid, only(aa)), split(x, innerdelim)))
-
-
 function prepare_readsdf(readsfile, delim)
-	@info "$(loggingtime())\tprepare_readsdf" readsfile delim
+	# @info "$(loggingtime())\tprepare_readsdf" readsfile delim
 	readsdf = DataFrame(
 		CSV.File(
 			readsfile,
@@ -54,6 +42,25 @@ function prepare_readsdf(readsfile, delim)
 	rename!(readsdf, "AmbigousPositions" => "NAPositions")
 	return readsdf
 end
+
+
+function prepare_readsdf(readsfile, delim, ::Any, ::Nothing)
+	@info "$(loggingtime())\tprepare_readsdf" readsfile delim
+	readsdf = prepare_readsdf(readsfile, delim)
+	return readsdf
+end
+
+
+function prepare_readsdf(readsfile, delim, samplename, readssubsetfile)
+	@info "$(loggingtime())\tprepare_readsdf" readsfile delim samplename readssubsetfile
+	readssubsetdf = prepare_readssubsetdf(readssubsetfile, samplename, delim)
+	readsdf = prepare_readsdf(readsfile, delim)
+	readsdf = readsdf[in.(readsdf[!, "Read"], Ref(readssubsetdf[!, "Read"])), :]
+	return readsdf
+end
+
+
+toAAset(x, innerdelim) = Set(map(aa -> convert(AminoAcid, only(aa)), split(x, innerdelim)))
 
 
 function prepare_allprotsdf!(
@@ -72,19 +79,30 @@ function prepare_allprotsdf!(
 	allprotsdf = hcat(df1, df2)
 
 	transform!(allprotsdf, :Reads => (x -> split.(x, innerdelim)) => :Reads)
-
+	
+	available_reads = readsdf[!, "Read"]
 
 	# calculate the mean na positions per each protein's reads - the current stats are inaccurate
 	# readsdf = prepare_readsdf(readsfile, delim)
 	mean_na_positions_per_prot = []
 	for row in eachrow(allprotsdf)
 		rows_reads = row["Reads"]
+		# keep only currently available reads (for whatever reason)
+		rows_reads = rows_reads[in.(rows_reads, Ref(available_reads))]
+		# update the reads column to only contain the available reads
+		row["Reads"] = rows_reads
+		# also update num of reads accordingly 
+		row["NumOfReads"] = length(rows_reads)
+		# now calculate the mean na positions of the used reads
 		na_positions_of_reads = readsdf[readsdf[!, "Read"].∈Ref(rows_reads), "NAPositions"]
 		mean_na_positions_of_reads = mean(na_positions_of_reads)
 		push!(mean_na_positions_per_prot, mean_na_positions_of_reads)
 	end
 	allprotsdf[!, "AmbigousPositions"] .= mean_na_positions_per_prot
 	rename!(allprotsdf, "AmbigousPositions" => "MeanNAPositions")
+
+	# filter out proteins not supported by any currently available reads
+	allprotsdf = allprotsdf[allprotsdf[!, "NumOfReads"] .> 0, :]
 
 	insertcols!(allprotsdf, firstcolpos, :Index => 1:size(allprotsdf, 1))
 	firstcolpos += 1
@@ -106,6 +124,46 @@ function prepare_allprotsdf!(
 	firstcolpos += 6
 
 	return allprotsdf, firstcolpos
+end
+
+
+function prepare_distinctdf(
+	distinctfile, delim, innerdelim, truestrings, falsestrings,
+	readsdf, allprotsdf
+)
+	@info "$(loggingtime())\tprepare_distinctdf" distinctfile
+	# distinctdf = DataFrame(CSV.File(distinctfile; delim, truestrings, falsestrings))
+	distinctdf = DataFrame(CSV.File(distinctfile; delim, truestrings, falsestrings, types = Dict("UniqueSamples" => String, "AvailableReads" => String)))
+	# distinctdf[!, "UniqueSamples"] = InlineString.(distinctdf[!, "UniqueSamples"])
+
+	transform!(distinctdf, :UniqueSamples => (x -> split.(x, innerdelim)) => :UniqueSamples)
+	if "AvailableReads" ∈ names(distinctdf)
+		transform!(distinctdf, :AvailableReads => (x -> split.(x, innerdelim)) => :AvailableReads)
+	end
+
+	available_reads = readsdf[!, "Read"]
+	available_proteins = allprotsdf[!, "Protein"]
+
+	# row = eachrow(distinctdf)[1]
+	
+	for row in eachrow(distinctdf)
+		# keep only currently available reads (for whatever reason)
+		if "AvailableReads" ∈ names(distinctdf)
+			rows_available_reads = row["AvailableReads"]
+			rows_available_reads = rows_available_reads[in.(rows_available_reads, Ref(available_reads))]
+			row["AvailableReads"] = rows_available_reads
+		end
+
+		# keep only proteins supported by currently available reads (for whatever reason)
+		rows_proteins = row["UniqueSamples"]
+		rows_proteins = rows_proteins[in.(rows_proteins, Ref(available_proteins))]
+		row["UniqueSamples"] = rows_proteins
+	end
+
+	
+
+	distinctdf[!, "Index"] = collect(1:size(distinctdf, 1))
+	return distinctdf
 end
 
 
@@ -1444,7 +1502,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
 end
 
 
-# outdir = "D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMISubSeq.MergedSamples"
+outdir = "D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMISubSeq.MergedSamples"
 # distinctfiles = [
 # 	"$outdir/ADAR1.Merged.DistinctUniqueProteins.04.07.2025-15:59:37.csv",
 # 	"$outdir/IQEC.Merged.DistinctUniqueProteins.04.07.2025-15:34:47.csv",
@@ -1506,28 +1564,29 @@ similarityscorecutoff = 0
 similarityvalidator = :(>=)
 
 
-deduppedreadsfile = "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads.MergedSamples/UniqueReadsByUMISubSeq.tsv"
-oldtonewreadsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.OldToNewReads.csv.gz"
+readssubsetfile = "/private6/projects/Combinatorics/D.pealeii/Alignment/UMILongReads.MergedSamples/DedupedReadsByUMISeq.tsv"
 
-oldtonewreadsdf = DataFrame(CSV.File(oldtonewreadsfile; delim = delim, truestrings = truestrings, falsestrings = falsestrings))
-deduppedreadsdf = DataFrame(CSV.File(deduppedreadsfile; delim = delim, truestrings = truestrings, falsestrings = falsestrings))
-deduppedreadsdf = innerjoin(
-	deduppedreadsdf[:, ["Read"]], oldtonewreadsdf,
-	on = ["Read" => "OldRead"],
-	# makeunique = true,
+
+# readsdf = prepare_readsdf(readsfile, delim,)
+# readsdf = readsdf[in.(readsdf[!, "Read"], Ref(readssubsetdf[!, "Read"])), :]
+
+readsdf = prepare_readsdf(readsfile, delim, samplename, readssubsetfile)
+
+allprotsdf, firstcolpos = prepare_allprotsdf!(
+	allprotsfile, delim, innerdelim, truestrings, falsestrings, firstcolpos, readsdf,
 )
-deduppedreads = deduppedreadsdf[!, "Read"]
+
+# describe(allprotsdf[!, "NumOfReads"])
 
 
 distinctdf = prepare_distinctdf(
 	distinctfile, delim, innerdelim, truestrings, falsestrings,
 )
 
-readsdf = prepare_readsdf(readsfile, delim)
+describe(length.(distinctdf[!, "UniqueSamples"]))
 
-# allprotsdf, firstcolpos = prepare_allprotsdf!(
-# 	allprotsfile, delim, innerdelim, truestrings, falsestrings, firstcolpos, readsdf,
-# )
+
+
 
 # if considerentropy
 # 	allprotsdf, firstcolpos = findprotswithsufficiententropy!(
