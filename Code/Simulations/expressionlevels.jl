@@ -160,7 +160,8 @@ function prepare_distinctdf(
 		row["UniqueSamples"] = rows_proteins
 	end
 
-	
+	# filter out solutions w/o any  proteins supported by any currently available reads
+	distinctdf = distinctdf[length.(distinctdf[!, "UniqueSamples"]) .> 0, :]
 
 	distinctdf[!, "Index"] = collect(1:size(distinctdf, 1))
 	return distinctdf
@@ -1081,6 +1082,129 @@ function additional_assignments(
 end
 
 
+# function run_sample(
+# 	distinctfile, allprotsfile, samplename, postfix_to_add,
+# 	firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
+# 	maxthreads, innerthreadedassignment, outdir, algs, onlymaxdistinct,
+# 	readsfile,
+# 	substitutionmatrix::Union{SubstitutionMatrix, Nothing},
+# 	similarityscorecutoff::Int64,
+# 	similarityvalidator::Function,
+# 	aagroups::Union{Dict{AminoAcid, String}, Nothing},
+# 	considerentropy::Bool,
+# )
+# 	@info "$(loggingtime())\trun_sample" distinctfile allprotsfile readsfile samplename
+
+# 	distinctdf = prepare_distinctdf(
+# 		distinctfile, delim, innerdelim, truestrings, falsestrings,
+# 	)
+
+# 	readsdf = prepare_readsdf(readsfile, delim)
+
+# 	allprotsdf, firstcolpos = prepare_allprotsdf!(
+# 		allprotsfile, delim, innerdelim, truestrings, falsestrings, firstcolpos,
+# 		readsdf,
+# 	)
+
+# 	if considerentropy
+# 		allprotsdf, firstcolpos = findprotswithsufficiententropy!(
+# 			allprotsdf, firstcolpos, samplename,
+# 		)
+# 	end
+
+# 	# the possible amino acids each protein has in each position
+# 	M = Matrix(allprotsdf[:, firstcolpos:end])
+# 	# the distances between any two proteins according to `M`
+# 	Δ = begin
+# 		if substitutionmatrix !== nothing
+# 			distances(M, substitutionmatrix, similarityscorecutoff, similarityvalidator)
+# 		elseif aagroups !== nothing
+# 			distances(M, aagroups)
+# 		else
+# 			distances(M)
+# 		end
+# 	end
+
+# 	# considering only desired solutions (rows' indices)
+# 	solutions = choosesolutions(distinctdf, fractions, algs, onlymaxdistinct)
+
+# 	minmainthreads = max(
+# 		1,
+# 		min(
+# 			Int(round(maxthreads / 5)),
+# 			Int(round(length(solutions) / 4)),
+# 		),
+# 	)
+# 	allsubsolutions = collect(Iterators.partition(solutions, minmainthreads))
+
+# 	if innerthreadedassignment
+# 		# if innerthreadedassignment is true, we will use multiple threads to process each subsolution
+# 		# the number of threads to use for each subsolution
+# 		assignment_inner_threads = Int(round(maxthreads / minmainthreads))
+# 	else
+# 		# assignment_inner_threads = 1 will signify that we will not use multiple threads for each subsolution
+# 		assignment_inner_threads = 1
+# 	end
+
+
+# 	results = tcollect(
+# 		additional_assignments(
+# 			distinctdf, allprotsdf, firstcolpos, Δ, subsolutions, readsdf, samplename,
+# 			assignment_inner_threads, considerentropy,
+# 		)
+# 		for subsolutions ∈ allsubsolutions
+# 	)
+# 	# finalresults = vcat(Iterators.flatten(results)...)
+# 	# finalresults = vcat(skipmissing(Iterators.flatten(results)...))
+# 	# Filter out missing values and ensure all results are valid 2-element tuples
+# 	all_results = collect(Iterators.flatten(results))
+# 	valid_results = filter(x -> !ismissing(x) && isa(x, Tuple) && length(x) == 2, all_results)
+# 	finalresults = collect(valid_results)
+
+# 	# Check if we have any valid results
+# 	if isempty(finalresults)
+# 		@warn "No valid results found for sample $samplename"
+# 		return nothing
+# 	end
+
+# 	# save these into seperate files, 
+# 	# the first being `outfile` and the second an "updated" version of the `distinctfile`
+# 	finalexpresults = vcat([result[1] for result in finalresults]...)
+# 	newdistinctdf = vcat([result[2] for result in finalresults]...)
+
+
+# 	# save the expression results
+# 	finalexpresults[!, "Reads"] .= join.(finalexpresults[!, "Reads"], innerdelim)
+# 	roundelements(x, digits = 5) = round.(x; digits)
+# 	stringifyelements(x) = string.(x)
+# 	intifyelements(x) = Int.(x)
+# 	transform!(finalexpresults, :AdditionalEqualSupportingReadsContributionPerProtein => x -> stringifyelements.(roundelements.(x)), renamecols = false)
+# 	finalexpresults[!, "AdditionalEqualSupportingReadsContributionPerProtein"] .= join.(finalexpresults[!, "AdditionalEqualSupportingReadsContributionPerProtein"], innerdelim)
+# 	transform!(finalexpresults, :AdditionalWeightedSupportingReadsContributionPerProtein => x -> stringifyelements.(roundelements.(x)), renamecols = false)
+# 	finalexpresults[!, "AdditionalWeightedSupportingReadsContributionPerProtein"] .= join.(finalexpresults[!, "AdditionalWeightedSupportingReadsContributionPerProtein"], innerdelim)
+# 	transform!(finalexpresults, :AdditionalSupportingProteinsDistances => x -> stringifyelements.(intifyelements.(x)), renamecols = false)
+# 	finalexpresults[!, "AdditionalSupportingProteinsDistances"] .= join.(finalexpresults[!, "AdditionalSupportingProteinsDistances"], innerdelim)
+# 	transform!(finalexpresults, :AdditionalSupportingProteinsMeanNAPositions => x -> stringifyelements.(roundelements.(x)), renamecols = false)
+# 	finalexpresults[!, "AdditionalSupportingProteinsMeanNAPositions"] .= join.(finalexpresults[!, "AdditionalSupportingProteinsMeanNAPositions"], innerdelim)
+
+# 	expoutfile = joinpath(abspath(outdir), "$samplename.DistinctUniqueProteins.ExpressionLevels$postfix_to_add.csv")
+# 	CSV.write(expoutfile, finalexpresults; delim)
+
+# 	# save the updated distinctdf
+# 	empty_arr_to_empty_string(arr) = isempty(arr) ? "" : arr
+# 	newdistinctdf[!, "MissingUniqueSamples"] .= join.(empty_arr_to_empty_string.(newdistinctdf[!, "MissingUniqueSamples"]))
+# 	newdistinctdf = outerjoin(distinctdf, newdistinctdf, on = names(distinctdf))
+# 	sort!(newdistinctdf, "Index")
+# 	# newdistinctdf[!, "MissingUniqueSamples"] .= ifelse.(ismissing.(newdistinctdf[!, "MissingUniqueSamples"]), [[]], newdistinctdf[!, "MissingUniqueSamples"])
+# 	# newdistinctdf[!, "NumMissingUniqueSamples"] .= ifelse.(ismissing.(newdistinctdf[!, "NumMissingUniqueSamples"]), 0, newdistinctdf[!, "NumMissingUniqueSamples"])
+# 	newdistinctdf[!, "UniqueSamples"] .= join.(newdistinctdf[!, "UniqueSamples"], innerdelim)
+# 	newdistinctdf[!, "AvailableReads"] .= join.(newdistinctdf[!, "AvailableReads"], innerdelim)
+# 	distinctfilepostfixstart = findlast('.', distinctfile)
+# 	updateddistinctfile = distinctfile[begin:distinctfilepostfixstart-1] * ".Updated" * "$postfix_to_add" * distinctfile[distinctfilepostfixstart:end]
+# 	CSV.write(updateddistinctfile, newdistinctdf; delim)
+# end
+
+
 function run_sample(
 	distinctfile, allprotsfile, samplename, postfix_to_add,
 	firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
@@ -1091,18 +1215,28 @@ function run_sample(
 	similarityvalidator::Function,
 	aagroups::Union{Dict{AminoAcid, String}, Nothing},
 	considerentropy::Bool,
+	readssubsetfile::Union{String, Nothing},
 )
 	@info "$(loggingtime())\trun_sample" distinctfile allprotsfile readsfile samplename
 
-	distinctdf = prepare_distinctdf(
-		distinctfile, delim, innerdelim, truestrings, falsestrings,
-	)
+	
+	
+	# distinctdf = prepare_distinctdf(
+	# 	distinctfile, delim, innerdelim, truestrings, falsestrings,
+	# )
 
-	readsdf = prepare_readsdf(readsfile, delim)
+	# readsdf = prepare_readsdf(readsfile, delim)
+
+	readsdf = prepare_readsdf(readsfile, delim, samplename, readssubsetfile)
 
 	allprotsdf, firstcolpos = prepare_allprotsdf!(
-		allprotsfile, delim, innerdelim, truestrings, falsestrings, firstcolpos,
+		allprotsfile, delim, innerdelim, truestrings, falsestrings, firstcolpos, 
 		readsdf,
+	)
+
+	distinctdf = prepare_distinctdf(
+		distinctfile, delim, innerdelim, truestrings, falsestrings,
+		readsdf, allprotsdf
 	)
 
 	if considerentropy
@@ -1216,6 +1350,7 @@ function main(
 	similarityvalidator::Function,
 	aagroups::Union{Dict{AminoAcid, String}, Nothing},
 	considerentropy::Bool,
+	readssubsetfile::Union{String, Nothing},
 	logtostdout::Bool,
 	minloglevel,
 )
@@ -1236,7 +1371,7 @@ function main(
 	end
 
 
-	@info "$(loggingtime())\tmain" distinctfiles allprotsfiles readsfiles samplenames postfix_to_add firstcolpos delim innerdelim truestrings falsestrings fractions maxthreads innerthreadedassignment outdir algs onlymaxdistinct gcp shutdowngcp substitutionmatrix similarityscorecutoff similarityvalidator aagroups considerentropy logtostdout minloglevel
+	@info "$(loggingtime())\tmain" distinctfiles allprotsfiles readsfiles samplenames postfix_to_add firstcolpos delim innerdelim truestrings falsestrings fractions maxthreads innerthreadedassignment outdir algs onlymaxdistinct gcp shutdowngcp substitutionmatrix similarityscorecutoff similarityvalidator aagroups considerentropy readssubsetfile logtostdout minloglevel
 
 	length(distinctfiles) == length(allprotsfiles) == length(readsfiles) == length(samplenames) || error("Unequal input files' lengths!")
 
@@ -1249,6 +1384,7 @@ function main(
 			readsfile,
 			substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups,
 			considerentropy,
+			readssubsetfile
 		)
 		if result === nothing
 			@warn "Skipping sample $samplename due to processing errors"
@@ -1289,6 +1425,10 @@ function parsecmd()
 		action = :store_arg
 		# required = true
 		# default = []
+		"--readssubsetfile"
+		help = """If provided, only consider reads in this file (one read ID per line) for reassignment.
+		Useful for controlling which reads are included in the analysis."""
+		default = nothing
 
 		"--distinctfilesfofn"
 		help = "One or more csv files representing distinct unique proteins."
@@ -1491,7 +1631,8 @@ function CLI_main()
 		gcp, shutdowngcp,
 		allreadsfiles,
 		substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups,
-		considerentropy,
+		considerentropy, 
+		readssubsetfile,
 		logtostdout, minloglevel,
 	)
 end
@@ -1502,7 +1643,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
 end
 
 
-outdir = "D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMISubSeq.MergedSamples"
+# outdir = "D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMISubSeq.MergedSamples"
 # distinctfiles = [
 # 	"$outdir/ADAR1.Merged.DistinctUniqueProteins.04.07.2025-15:59:37.csv",
 # 	"$outdir/IQEC.Merged.DistinctUniqueProteins.04.07.2025-15:34:47.csv",
@@ -1537,55 +1678,55 @@ outdir = "D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMISubSeq.Me
 # samplename = "GRIA"
 # firstcolpos = 15
 
-distinctfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.DistinctUniqueProteins.26.03.2025-04:39:41.csv"
-readsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz"
-allprotsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
-samplename = "ADAR1"
-firstcolpos = 15
-
+# distinctfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.DistinctUniqueProteins.26.03.2025-04:39:41.csv"
+# readsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz"
+# allprotsfile = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
+# samplename = "ADAR1"
 # firstcolpos = 15
-onlymaxdistinct = true
-considerentropy = true
-postfix_to_add = ".EntropyConsidered"
-innerthreadedassignment = true
+
+# # firstcolpos = 15
+# onlymaxdistinct = true
+# considerentropy = true
+# postfix_to_add = ".EntropyConsidered"
+# innerthreadedassignment = true
 
 
-delim = "\t"
-innerdelim = ","
-truestrings = ["TRUE", "True", "true"]
-falsestrings = ["FALSE", "False", "false"]
-algs = ["Ascending", "Descending"]
-maxthreads = Threads.nthreads()
-fractions = [1.0]
+# delim = "\t"
+# innerdelim = ","
+# truestrings = ["TRUE", "True", "true"]
+# falsestrings = ["FALSE", "False", "false"]
+# algs = ["Ascending", "Descending"]
+# maxthreads = Threads.nthreads()
+# fractions = [1.0]
 
-substitutionmatrix = nothing
-aagroups = nothing
-similarityscorecutoff = 0
-similarityvalidator = :(>=)
-
-
-readssubsetfile = "/private6/projects/Combinatorics/D.pealeii/Alignment/UMILongReads.MergedSamples/DedupedReadsByUMISeq.tsv"
+# substitutionmatrix = nothing
+# aagroups = nothing
+# similarityscorecutoff = 0
+# similarityvalidator = :(>=)
 
 
-# readsdf = prepare_readsdf(readsfile, delim,)
-# readsdf = readsdf[in.(readsdf[!, "Read"], Ref(readssubsetdf[!, "Read"])), :]
-
-readsdf = prepare_readsdf(readsfile, delim, samplename, readssubsetfile)
-
-allprotsdf, firstcolpos = prepare_allprotsdf!(
-	allprotsfile, delim, innerdelim, truestrings, falsestrings, firstcolpos, readsdf,
-)
-
-# describe(allprotsdf[!, "NumOfReads"])
+# readssubsetfile = "/private6/projects/Combinatorics/D.pealeii/Alignment/UMILongReads.MergedSamples/DedupedReadsByUMISeq.tsv"
 
 
-distinctdf = prepare_distinctdf(
-	distinctfile, delim, innerdelim, truestrings, falsestrings,
-)
+# # readsdf = prepare_readsdf(readsfile, delim,)
+# # readsdf = readsdf[in.(readsdf[!, "Read"], Ref(readssubsetdf[!, "Read"])), :]
 
-describe(length.(distinctdf[!, "UniqueSamples"]))
+# readsdf = prepare_readsdf(readsfile, delim, samplename, readssubsetfile)
+
+# allprotsdf, firstcolpos = prepare_allprotsdf!(
+# 	allprotsfile, delim, innerdelim, truestrings, falsestrings, 
+# 	firstcolpos, readsdf,
+# )
+
+# # describe(allprotsdf[!, "NumOfReads"])
 
 
+# distinctdf = prepare_distinctdf(
+# 	distinctfile, delim, innerdelim, truestrings, falsestrings,
+# 	readsdf, allprotsdf
+# )
+
+# # describe(length.(distinctdf[!, "UniqueSamples"]))
 
 
 # if considerentropy
