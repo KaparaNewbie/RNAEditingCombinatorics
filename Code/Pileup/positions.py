@@ -65,15 +65,20 @@ def replace_reads_names(
             old_reads_str, old_to_new_mapping, reads_sep
         )
     )
-
+    
     # verify correct replacement of substrings of old to new reads, `both` seperated by `reads_sep`
     # tests 1 - proof that `reads_sep` is used in `reads_col` only to sepearate reads, i.e., reads don't have `reads_sep` in their names
     # if positions_df[total_coverage_col].ne(positions_df[reads_col].str.count(reads_sep) + 1).any():
-    if (
-        ~positions_df[total_coverage_col]
-        .eq(positions_df[reads_col].str.count(reads_sep) + 1)
-        .all()
-    ):
+    # if (
+    #     ~positions_df[total_coverage_col]
+    #     .eq(positions_df[reads_col].str.count(reads_sep) + 1)
+    #     .all()
+    # ):
+    if not positions_df.loc[
+        positions_df[total_coverage_col].ne(
+            positions_df[reads_col].str.count(reads_sep) + 1
+        )
+    ].empty:
         raise Exception()  # todo add text to exception
     # test 2
     new_unique_reads_from_df = set(
@@ -807,6 +812,33 @@ def finalize_basic_simulated_positions_df(
     return positions_df
 
 
+# pileup_file = Path("/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/Test/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.pileup")
+# strand = "+"
+# min_percent_of_max_coverage=0.1
+# snp_noise_level=0.1
+# top_x_noisy_positions=3
+# assurance_factor=1.5
+# known_sites_file = '/private7/projects/Combinatorics/D.pealeii/Annotations/Jan2025/D.pea.EditingSites.bed'
+# cds_regions_file = '/private7/projects/Combinatorics/D.pealeii/Annotations/Jan2025/orfs_squ.bed'
+# positions_out_file = Path(
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/Test",
+#     "ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz"
+# )
+# problamatic_regions_file = None
+# reads_mapping_file = Path(
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/Test",
+#     "ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.OldToNewReads.csv.gz"
+# )
+# out_files_sep: str = "\t"
+# keep_pileup_file: bool = True
+# remove_non_refbase_noisy_positions: bool = True,
+# denovo_detection: bool = True
+
+# positions_of_intrest = [1203, 1204, 1205, 2212, 2213]
+# old_reads_of_interest = ['m64296e_241222_071206/143264517/ccs', 'm64296e_241222_071206/117507010/ccs']
+# new_reads_of_interest = ["d8x", "zN7"]
+
+
 def pileup_to_positions(
     pileup_file: Path,
     strand: str,
@@ -887,7 +919,9 @@ def pileup_to_positions(
     for row_num, row in enumerate(positions_df.itertuples()):
         bases = row.MappedBases
         reads = row.Reads.split(",")
-        if len(bases) != len(reads):
+        phreds = row.Phred
+        # if len(bases) != len(reads):
+        if not len(bases) == len(reads) == len(phreds):
             raise ValueError(
                 f"Line {row_num} in {pileup_file} contains indels and/or doesn't have the "
                 "same number of mapped bases and reads."
@@ -965,6 +999,78 @@ def pileup_to_positions(
         subprocess.run(f"rm {pileup_file}", shell=True)
 
     # return positions_df
+
+
+# positions_df.columns
+
+# # zcat /private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/Test/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.OldToNewReads.csv.gz | \
+# #     grep "m64296e_241222_071206/3997725/ccs"
+
+# # m64296e_241222_071206/143264517/ccs     k0x
+# # m64296e_241222_071206/117507010/ccs     Ah4
+# # m64296e_241222_071206/175966200/ccs     1rI
+# # m64296e_241222_071206/109248924/ccs     JK8
+# # m64296e_241222_071206/3997725/ccs       z57
+
+# prev_new_test_reads = ["d8x", "zNF", "573", "5TR", "KV"]
+# old_test_reads = [
+#     "m64296e_241222_071206/143264517/ccs",
+#     "m64296e_241222_071206/117507010/ccs",
+#     "m64296e_241222_071206/175966200/ccs",
+#     "m64296e_241222_071206/109248924/ccs",
+#     "m64296e_241222_071206/3997725/ccs"
+# ]
+# current_new_test_reads = ["k0x", "Ah4", "1rI", "JK8", "z57"]
+
+
+# # test_read = current_new_test_reads[0]
+
+# test_positions = [1203, 1204, 1205]
+
+# # pos = 1204
+
+# for pos in test_positions:
+
+#     print(f"{pos = }")
+    
+#     reads_at_pos = positions_df.loc[
+#         positions_df["Position"].eq(pos),
+#         "Reads"
+#     ].values[0].split(",")
+#     bases_at_pos = positions_df.loc[
+#         positions_df["Position"].eq(pos),
+#         "MappedBases"
+#     ].values[0]
+#     phreds_at_pos = positions_df.loc[
+#         positions_df["Position"].eq(pos),
+#         "Phred"
+#     ].values[0]
+
+#     for current_test_read, prev_test_read in zip(current_new_test_reads, prev_new_test_reads):
+#         if current_test_read in reads_at_pos:
+#             index = reads_at_pos.index(current_test_read)
+#             base = bases_at_pos[index]
+#             phred = ord(phreds_at_pos[index]) - 33
+#             print(f"{current_test_read = }, {prev_test_read = }, {index = }, {base = }, {phred = }")
+#         else:
+#             print(f"{current_test_read = }, {prev_test_read = } not found")
+            
+#     print()
+
+
+
+# cat /private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/Test/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.pileup | \
+# awk '$2 == 1205' | \
+# grep "m64296e_241222_071206/175966200/ccs"
+
+# cat /private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/Test/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.pileup | \
+# grep "m64296e_241222_071206/175966200/cc" | \
+# lesss
+
+
+
+
+
 
 
 # pileup_to_positions(*pileup_to_positions_inputs)

@@ -42,6 +42,7 @@ def mpileup(
     out_file: Path,
     threads: int,
     override_existing_pileup_files: bool,
+    disable_baq: bool = False,
 ):
     # only run mpileup if `out_file` doesn't exist or if it does,
     # but the user whishes to recreate it
@@ -68,6 +69,8 @@ def mpileup(
         mpileup_cmd += f"--excl-flags {exclude_flags} "  # 2304 (default) = remove secondary and supplementary (chimeric) alignments
     if min_bq:
         mpileup_cmd += f"--min-BQ {min_bq} "
+    if disable_baq:
+        mpileup_cmd += f"--no-BAQ "
     # mpileup_cmd += f"{in_bam} --output {out_file} "
     mpileup_cmd += f"--output {out_file} {in_bam}"
 

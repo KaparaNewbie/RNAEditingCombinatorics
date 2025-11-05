@@ -219,6 +219,11 @@ def umi_seqs_overlap(
     v,
     u_umi_seq,
     v_umi_seq,
+    # u_rtg_gene_start,
+    # v_rtg_gene_start,
+    # u_rtg_gene_end,
+    # v_rtg_gene_end,
+    # max_dist_between_two_reads_start_or_end,
     maximum_errors: int = 1,
     # matrix=parasail.matrix_create("ACGT", 1, 0),
     matrix=parasail.nuc44,
@@ -226,6 +231,12 @@ def umi_seqs_overlap(
     gap_extend=1,
     debug: bool = False,
 ):
+
+    # if (
+    #     np.abs(u_rtg_gene_start - v_rtg_gene_start) > max_dist_between_two_reads_start_or_end
+    #     or np.abs(u_rtg_gene_end - v_rtg_gene_end) > max_dist_between_two_reads_start_or_end
+    # ):
+    #     return (u, v, False, np.nan) # (u, v, umis_sufficiently_similar, errors)
 
     u_umi_seq_len = len(u_umi_seq)
     v_umi_seq_len = len(v_umi_seq)
@@ -456,6 +467,7 @@ def compare_u_v_editing_statuses_light(
     v: str,
     minimal_errors: int,
     used_reads_df: pd.DataFrame,
+    expected_disagreements_per_position_series: pd.Series,
     used_reads_first_col_pos: int = 6,
 ):
     """
@@ -470,40 +482,77 @@ def compare_u_v_editing_statuses_light(
     Returns:
     A series with counts of various editing status comparisons.
     """
-    row_used_reads_df = (
+    u_v_reads_df = (
         used_reads_df.loc[used_reads_df["Read"].isin([u, v])]
         .set_index("Read")
         .rename(columns={"AmbigousPositions": "AmbiguousPositions"})
         .iloc[:, used_reads_first_col_pos - 1 :]
     )
+    u_v_reads_df.columns = u_v_reads_df.columns.astype(int)
 
-    ambiguous_positions_count = row_used_reads_df.apply(lambda x: x.eq(-1).any()).sum()
-    unambiguous_positions_count = (
-        num_of_editing_sites_in_gene - ambiguous_positions_count
+    u_ambiguous_positions = u_v_reads_df.loc[u, :].eq(-1)
+    v_ambiguous_positions = u_v_reads_df.loc[v, :].eq(-1)
+
+    all_ambiguous_positions = u_ambiguous_positions | v_ambiguous_positions
+    shared_ambiguous_positions = u_ambiguous_positions & v_ambiguous_positions
+    u_unique_ambiguous_positions = u_ambiguous_positions & ~v_ambiguous_positions
+    v_unique_ambiguous_positions = ~u_ambiguous_positions & v_ambiguous_positions
+
+    shared_unambiguous_positions = ~all_ambiguous_positions
+
+    all_ambiguous_positions_count = all_ambiguous_positions.sum()
+    shared_ambiguous_positions_count = shared_ambiguous_positions.sum()
+    u_unique_ambiguous_positions_count = u_unique_ambiguous_positions.sum()
+    v_unique_ambiguous_positions_count = v_unique_ambiguous_positions.sum()
+
+    total_u_unique_ambiguous_positions_prct = (
+        100 * u_unique_ambiguous_positions_count / num_of_editing_sites_in_gene
+    )
+    total_v_unique_ambiguous_positions_prct = (
+        100 * v_unique_ambiguous_positions_count / num_of_editing_sites_in_gene
+    )
+    relative_u_unique_ambiguous_positions_prct = (
+        100 * u_unique_ambiguous_positions_count / all_ambiguous_positions_count
+    )
+    relative_v_unique_ambiguous_positions_prct = (
+        100 * v_unique_ambiguous_positions_count / all_ambiguous_positions_count
     )
 
-    # strongly_agreeing_positions_count = row_used_reads_df.apply(
-    #     lambda x: x.nunique() == 1
-    # ).sum()
-    # weakly_agreeing_positions_count = row_used_reads_df.apply(
-    #     lambda x: (x.eq(-1).any()) or (x.nunique() == 1)
-    # ).sum()
+    shared_unambiguous_positions_count = shared_unambiguous_positions.sum()
 
-    # strongly_agreeing_positions_prct = 100 * strongly_agreeing_positions_count / num_of_editing_sites_in_gene
-    # weakly_agreeing_positions_prct = 100 * weakly_agreeing_positions_count / num_of_editing_sites_in_gene
+    strongly_disagreeing_positions_count = (
+        u_v_reads_df.loc[:, shared_unambiguous_positions]
+        .apply(lambda x: x.nunique() == 2)
+        .sum()
+    )
+    expected_strongly_disagreeing_positions = (
+        expected_disagreements_per_position_series.loc[
+            shared_unambiguous_positions
+        ].sum()
+    )
 
-    strongly_disagreeing_positions_count = row_used_reads_df.apply(
-        lambda x: x.nunique() == 2 and not x.eq(-1).any()
-    ).sum()
-    weakly_disagreeing_positions_count = row_used_reads_df.apply(
-        lambda x: x.nunique() == 2
-    ).sum()
-    strongly_disagreeing_positions_prct = (
+    weakly_disagreeing_positions_count = (
+        strongly_disagreeing_positions_count
+        + u_v_reads_df.loc[:, all_ambiguous_positions]
+        .apply(lambda x: x.nunique() == 2)
+        .sum()
+    )
+
+    total_strongly_disagreeing_positions_prct = (
         100 * strongly_disagreeing_positions_count / num_of_editing_sites_in_gene
     )
-    weakly_disagreeing_positions_prct = (
+    total_weakly_disagreeing_positions_prct = (
         100 * weakly_disagreeing_positions_count / num_of_editing_sites_in_gene
     )
+    # % of strongly disagreeing positions out of unambiguous positions in u-v
+    if shared_unambiguous_positions_count > 0:
+        relative_strongly_disagreeing_positions_prct = (
+            100
+            * strongly_disagreeing_positions_count
+            / shared_unambiguous_positions_count
+        )
+    else:
+        relative_strongly_disagreeing_positions_prct = np.nan
 
     result = pd.Series(
         {
@@ -513,16 +562,21 @@ def compare_u_v_editing_statuses_light(
             "U": u,
             "V": v,
             "MinimalErrors": minimal_errors,
-            "AmbiguousPositions": ambiguous_positions_count,
-            "UnambiguousPositions": unambiguous_positions_count,
-            # "StronglyAgreeingPositions": strongly_agreeing_positions_count,
-            # "WeaklyAgreeingPositions": weakly_agreeing_positions_count,
-            # "%StronglyAgreeingPositions": strongly_agreeing_positions_prct,
-            # "%WeaklyAgreeingPositions": weakly_agreeing_positions_prct
+            "AllAmbiguousPositions": all_ambiguous_positions_count,
+            "SharedAmbiguousPositions": shared_ambiguous_positions_count,
+            "UUniqueAmbiguousPositions": u_unique_ambiguous_positions_count,
+            "VUniqueAmbiguousPositions": v_unique_ambiguous_positions_count,
+            "%TotalUUniqueAmbiguousPositions": total_u_unique_ambiguous_positions_prct,
+            "%TotalVUniqueAmbiguousPositions": total_v_unique_ambiguous_positions_prct,
+            "%RelativeUUniqueAmbiguousPositions": relative_u_unique_ambiguous_positions_prct,
+            "%RelativeVUniqueAmbiguousPositions": relative_v_unique_ambiguous_positions_prct,
+            "SharedUnambiguousPositions": shared_unambiguous_positions_count,
             "StronglyDisagreeingPositions": strongly_disagreeing_positions_count,
+            "ExpectedStronglyDisagreeingPositions": expected_strongly_disagreeing_positions,
             "WeaklyDisagreeingPositions": weakly_disagreeing_positions_count,
-            "%StronglyDisagreeingPositions": strongly_disagreeing_positions_prct,
-            "%WeaklyDisagreeingPositions": weakly_disagreeing_positions_prct,
+            "%TotalStronglyDisagreeingPositions": total_strongly_disagreeing_positions_prct,
+            "%TotalWeaklyDisagreeingPositions": total_weakly_disagreeing_positions_prct,
+            "%RelativeStronglyDisagreeingPositions": relative_strongly_disagreeing_positions_prct,
         }
     )
     return result

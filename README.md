@@ -1695,6 +1695,143 @@ Code/Simulations/expressionlevels.jl \
 
 
 
+## Squid long reads w/ UMIs - merged samples - no BAQ
+
+Using the new transcriptome with long ADAR1 version.
+BAQ is disabled to check if it makes any difference w.r.t. soft editing status disagreements of reads with the same UMI.
+
+### Pileup
+
+I'm using `--total_mapped_reads 2000` rather than `--total_mapped_reads 50` only as a crude way to use the real sequenced transcripts.
+
+```bash
+out_dir=D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples.NoBAQ
+
+mkdir -p $out_dir
+
+nohup python Code/pileup_with_subparsers.py \
+--transcriptome D.pealeii/Annotations/Jan2025/orfs_squ.fa \
+--known_editing_sites D.pealeii/Annotations/Jan2025/D.pea.EditingSites.bed \
+--exclude_flags 2304 \
+--parity SE \
+--min_rq 0.998 \
+--min_bq 30 \
+--disable_baq \
+--keep_pileup_files \
+--out_dir $out_dir \
+--processes 2 \
+--threads 15 \
+--gz_compression \
+directed_sequencing_data \
+--data_table D.pealeii/Alignment/UMILongReads.MergedSamples/DataTable.Squid.MergedUMILongReads.csv \
+--cds_regions D.pealeii/Annotations/Jan2025/orfs_squ.bed \
+> $out_dir/pileup.28.10.25.out &
+```
+* 3038934
+* alu 17
+* 15:29
+  
+
+> (combinatorics) [kobish@alu17 Combinatorics]$ zcat /private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz | wc -l
+> 147741
+> (combinatorics) [kobish@alu17 Combinatorics]$ zcat /private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz | wc -l
+> 153954
+
+### Distinct proteins
+
+#### Regular
+
+##### Distinct isoforms
+
+```bash
+tmux new -s COMB18
+
+COMB
+
+# mkdir -p D.pealeii/MpileupAndTranscripts/UMILongReads.TotalCoverage50/DistinctProteins
+
+INFILES=$(echo D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/*.unique_proteins.csv.gz)
+
+julia \
+--project=. \
+--threads 60 --proc 6 \
+Code/Simulations/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove ".r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz" \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--outdir D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/DistinctProteins.Regular.25.3.2025.log
+```
+
+- alu 13
+- 15:07
+
+```bash
+tail -n 15 /private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.DistinctUniq
+ueProteins.29.01.2025-22:57:33.csv | cut -f 1-5
+# ~29K
+
+tail -n 15 /private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.DistinctUniqueProteins.29.01.2025-18:40:32.csv | cut -f 1-5
+# ~23K
+```
+
+##### Expression levels
+
+```bash
+UMI_DIR=D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples
+
+nohup \
+julia \
+--project=. \
+--threads 60 \
+Code/Simulations/expressionlevels.jl \
+--distinctfiles $UMI_DIR/ADAR1.Merged.DistinctUniqueProteins.*.csv $UMI_DIR/IQEC.Merged.DistinctUniqueProteins.*.csv \
+--allprotsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+--allreadsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz \
+--samplenames ADAR1 IQEC1 \
+--firstcolpos 15 \
+--onlymaxdistinct \
+--outdir $UMI_DIR \
+--minloglevel -1000 \
+> $UMI_DIR/expressionlevels.7.8.25.out &
+```
+* alu 18
+* 3661886
+
+
+Considering entropy:
+
+```bash
+UMI_DIR=D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples
+
+nohup \
+julia \
+--project=. \
+--threads 60 \
+Code/Simulations/expressionlevels.jl \
+--distinctfiles $UMI_DIR/ADAR1.Merged.DistinctUniqueProteins.26.03.2025-04:39:41.csv $UMI_DIR/IQEC.Merged.DistinctUniqueProteins.26.03.2025-00:27:18.csv \
+--allprotsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+--allreadsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz \
+--samplenames ADAR1 IQEC1 \
+--firstcolpos 15 \
+--onlymaxdistinct \
+--innerthreadedassignment \
+--considerentropy \
+--outdir $UMI_DIR \
+--postfix_to_add .EntropyConsidered \
+> $UMI_DIR/expressionlevels.EntropyConsidered.17.8.25.out &
+```
+* alu 17
+* 2078347
+
+
 
 
 
@@ -1814,6 +1951,8 @@ Code/Simulations/expressionlevels.jl \
 ```
 * alu 17
 * 1220256
+
+
 
 ## Squid long reads w/ UMIs - reads w/ recognizable barcodes - merged samples
 

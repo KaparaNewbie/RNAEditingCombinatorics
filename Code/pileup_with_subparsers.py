@@ -669,6 +669,7 @@ def directed_sequencing_main(
     sample_reads: bool,
     num_sampled_reads: int,
     seed: int,
+    disable_baq: bool,
     **kwargs,
 ):
     """
@@ -784,6 +785,7 @@ def directed_sequencing_main(
                     out_pileup,
                     threads,
                     override_existing_pileup_files,
+                    disable_baq,
                 )
                 for region, in_bam, out_pileup in zip(
                     pileup_formatted_regions,
@@ -1027,6 +1029,11 @@ def define_args() -> argparse.Namespace:
             + "as if the --ignore-overlaps option has been set. "
             + "Use this flag for Illumina reads."
         ),
+    )
+    parser.add_argument(
+        "--disable_baq",
+        action="store_true",
+        help="Disable BAQ computation in mpileup. See `--no-BAQ` in https://www.htslib.org/doc/samtools-mpileup.html.",
     )
     parser.add_argument(
         "--snp_noise_level",
