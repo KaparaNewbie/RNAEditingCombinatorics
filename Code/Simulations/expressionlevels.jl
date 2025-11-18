@@ -24,7 +24,7 @@ include(joinpath(@__DIR__, "timeformatters.jl"))
 function prepare_readssubsetdf(readssubsetfile, samplename, delim)
 	@info "$(loggingtime())\tprepare_readssubsetdf" readssubsetfile
 	readssubsetdf = DataFrame(CSV.File(readssubsetfile; delim = delim))
-	readssubsetdf = readssubsetdf[readssubsetdf[!, "Gene"] .== samplename, :]
+	readssubsetdf = readssubsetdf[readssubsetdf[!, "Gene"].==samplename, :]
 	return readssubsetdf
 end
 
@@ -79,7 +79,7 @@ function prepare_allprotsdf!(
 	allprotsdf = hcat(df1, df2)
 
 	transform!(allprotsdf, :Reads => (x -> split.(x, innerdelim)) => :Reads)
-	
+
 	available_reads = readsdf[!, "Read"]
 
 	# calculate the mean na positions per each protein's reads - the current stats are inaccurate
@@ -102,7 +102,7 @@ function prepare_allprotsdf!(
 	rename!(allprotsdf, "AmbigousPositions" => "MeanNAPositions")
 
 	# filter out proteins not supported by any currently available reads
-	allprotsdf = allprotsdf[allprotsdf[!, "NumOfReads"] .> 0, :]
+	allprotsdf = allprotsdf[allprotsdf[!, "NumOfReads"].>0, :]
 
 	insertcols!(allprotsdf, firstcolpos, :Index => 1:size(allprotsdf, 1))
 	firstcolpos += 1
@@ -129,7 +129,7 @@ end
 
 function prepare_distinctdf(
 	distinctfile, delim, innerdelim, truestrings, falsestrings,
-	readsdf, allprotsdf
+	readsdf, allprotsdf,
 )
 	@info "$(loggingtime())\tprepare_distinctdf" distinctfile
 	# distinctdf = DataFrame(CSV.File(distinctfile; delim, truestrings, falsestrings))
@@ -145,7 +145,7 @@ function prepare_distinctdf(
 	available_proteins = allprotsdf[!, "Protein"]
 
 	# row = eachrow(distinctdf)[1]
-	
+
 	for row in eachrow(distinctdf)
 		# keep only currently available reads (for whatever reason)
 		if "AvailableReads" ∈ names(distinctdf)
@@ -161,7 +161,7 @@ function prepare_distinctdf(
 	end
 
 	# filter out solutions w/o any  proteins supported by any currently available reads
-	distinctdf = distinctdf[length.(distinctdf[!, "UniqueSamples"]) .> 0, :]
+	distinctdf = distinctdf[length.(distinctdf[!, "UniqueSamples"]).>0, :]
 
 	distinctdf[!, "Index"] = collect(1:size(distinctdf, 1))
 	return distinctdf
@@ -1219,8 +1219,8 @@ function run_sample(
 )
 	@info "$(loggingtime())\trun_sample" distinctfile allprotsfile readsfile samplename
 
-	
-	
+
+
 	# distinctdf = prepare_distinctdf(
 	# 	distinctfile, delim, innerdelim, truestrings, falsestrings,
 	# )
@@ -1230,13 +1230,13 @@ function run_sample(
 	readsdf = prepare_readsdf(readsfile, delim, samplename, readssubsetfile)
 
 	allprotsdf, firstcolpos = prepare_allprotsdf!(
-		allprotsfile, delim, innerdelim, truestrings, falsestrings, firstcolpos, 
+		allprotsfile, delim, innerdelim, truestrings, falsestrings, firstcolpos,
 		readsdf,
 	)
 
 	distinctdf = prepare_distinctdf(
 		distinctfile, delim, innerdelim, truestrings, falsestrings,
-		readsdf, allprotsdf
+		readsdf, allprotsdf,
 	)
 
 	if considerentropy
@@ -1384,7 +1384,7 @@ function main(
 			readsfile,
 			substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups,
 			considerentropy,
-			readssubsetfile
+			readssubsetfile,
 		)
 		if result === nothing
 			@warn "Skipping sample $samplename due to processing errors"
@@ -1567,6 +1567,8 @@ function CLI_main()
 	allreadsfilesfofn = parsedargs["allreadsfilesfofn"]
 	samplenamesfile = parsedargs["samplenamesfile"]
 
+	readssubsetfile = parsedargs["readssubsetfile"]
+
 	postfix_to_add = parsedargs["postfix_to_add"]
 
 	firstcolpos = parsedargs["firstcolpos"]
@@ -1631,7 +1633,7 @@ function CLI_main()
 		gcp, shutdowngcp,
 		allreadsfiles,
 		substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups,
-		considerentropy, 
+		considerentropy,
 		readssubsetfile,
 		logtostdout, minloglevel,
 	)

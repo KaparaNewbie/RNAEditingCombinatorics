@@ -6,6 +6,7 @@ from itertools import chain
 
 from Bio import SeqIO, motifs  # biopython
 import pandas as pd  # pandas
+import numpy as np  # numpy
 import matplotlib.pyplot as plt  # matplotlib
 from logomaker import Logo  # logomaker
 
@@ -88,6 +89,87 @@ def plot_single_logo(
         + [str(x) for x in range(1, middle_xtick + 1)]
     )
     plot.ax.set_xticklabels(xticklabels)
+    fig.subplots_adjust(hspace=0.4)
+
+    return fig
+
+
+def plot_multiple_non_adar_logos(
+    freq_dfs: list[pd.DataFrame],
+    titles: list[str],
+    main_title: Union[str, None],
+    width: float = WIDTH,
+    height: float = HEIGHT,
+    max_cols: int = MAX_COLS,
+    xdtick: int = 2,
+    ydtick: float = 0.2,
+):
+    """
+    Plot a figure with multiple motifs of ADAR out of the frequency dfs.
+    """
+    # define fig, sub plots and titles
+    num_of_plots = len(freq_dfs)
+
+    # ncols = max_cols if max_cols >= 4 else num_of_plots
+    # nrows = ceil(num_of_plots / ncols)
+
+    # cols = min(facet_col_wrap, len(conditions), 4)
+    # rows = ceil(len(conditions) / cols)
+
+    ncols = min((max_cols if max_cols >= 4 else num_of_plots), num_of_plots)
+    nrows = ceil(num_of_plots / ncols)
+
+    fig, axes = plt.subplots(
+        nrows=nrows,
+        ncols=ncols,
+        figsize=(width, height),
+        # gridspec_kw={"wspace": 0.5},
+        gridspec_kw={"wspace": 0.3},
+        squeeze=False,
+    )
+    # axes = list(chain.from_iterable(axes))
+    axes = axes.flat
+    if main_title:
+        fig.subplots_adjust(top=0.8)
+        # fig.suptitle(main_title, y=1.0, fontsize="x-large")
+        fig.suptitle(main_title, fontsize="x-large")
+    plots = []
+    for ax, title, freq_df in zip(axes, titles, freq_dfs):
+        ax.set_title(title, pad=15)
+        ax.set_title(title)
+        plot = Logo(df=freq_df, ax=ax, vpad=0.02)
+
+        # style plot
+        # style plots using Logo methods
+        plot.style_spines(visible=False)
+        plot.style_spines(spines=("left", "bottom"), visible=True)
+        # style plots using matplotlib's Axes methods
+        # plot.ax.set_ylabel("Probability", labelpad=5)
+        # plot.ax.set_xlabel("Position", labelpad=5)
+
+        # xticks = list(freq_df.index)
+        # plot.ax.set_xticks(xticks)
+        # middle_xtick = floor(len(xticks) / 2)
+        # xticklabels = (
+        #     [str(x) for x in range(-middle_xtick, 0)]
+        #     + ["0"]
+        #     + [str(x) for x in range(1, middle_xtick + 1)]
+        # )
+        # plot.ax.set_xticklabels(xticklabels)
+
+        xticks = np.arange(0, freq_df.shape[0], xdtick)
+        xticklabels = [str(x + 1) for x in xticks]
+        # ax.set_xticks(np.arange(1, freq_df.shape[0] + 1, xdtick))
+        plot.ax.set_xticks(xticks)
+        plot.ax.set_xticklabels(xticklabels)
+        ax.set_yticks(np.arange(0, 1 + ydtick, ydtick))
+
+        plots.append(plot)
+
+    # todo check if this helps to show x-axis title
+    _, top_ylim = plt.ylim()
+
+    # fig.tight_layout(h_pad=10, w_pad=10)
     fig.subplots_adjust(hspace=0.4)
 
     return fig

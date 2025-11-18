@@ -40,7 +40,7 @@ import plotly.io as pio
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pysam
-from Bio import Align
+from Bio import Align, motifs
 from Bio.Seq import Seq, reverse_complement, complement
 from icecream import ic
 import matplotlib.pyplot as plt
@@ -51,6 +51,7 @@ import parasail
 
 sys.path.append(str(Path(code_dir).absolute()))
 from Alignment import umi_processing
+from EditingUtils.logo import plot_multiple_non_adar_logos
 
 # %%
 pio.templates.default = "plotly_white"
@@ -143,6 +144,12 @@ primers_dict = {
 primers_dict
 
 # %%
+primers_dict["IQEC"].reverse_complement()
+
+# %%
+primers_dict["PCR"].reverse_complement()
+
+# %%
 STRANDS = ["+", "-"]
 
 # %%
@@ -192,6 +199,9 @@ for gene in genes:
     btr_read_coords = alignment.aligned[0][0]
     expected_barcode_locations_on_gene_dict[gene] = btr_read_coords
 
+expected_barcode_locations_on_gene_dict
+
+# %%
 expected_barcode_locations_on_gene_dict
 
 
@@ -1221,9 +1231,11 @@ concat_bams_df["Gene"].value_counts()
 # %%
 concat_bams_df.groupby(["Gene", "Repeat"]).size().reset_index(name="NumOfReads")
 
+# %%
+concat_bams_df 
+
 
 # %%
-# 
 
 # %% [markdown]
 # # Find barcodes in reads
@@ -3027,6 +3039,17 @@ best_gene_specific_pcr_amplified_concat_alignments_df = (
 best_gene_specific_pcr_amplified_concat_alignments_df
 
 # %%
+best_gene_specific_pcr_amplified_concat_alignments_df
+
+# %%
+best_gene_specific_pcr_amplified_concat_alignments_df.groupby("Gene")["SpanningUMISeqLength"].value_counts()
+
+# %%
+best_gene_specific_pcr_amplified_concat_alignments_df.groupby("Gene")["SpanningUMISeqLength"].apply(
+    lambda x: 100 * x.ne(12).sum() / x.size
+)
+
+# %%
 # best_gene_specific_pcr_amplified_concat_alignments_df["Read"].nunique()
 
 
@@ -3065,33 +3088,159 @@ best_gene_specific_pcr_amplified_concat_alignments_df.loc[
     # float_format="%.2f",
 )
 
+
 # %%
-# # Get the set of unique read names to keep
-# reads_to_keep = set(
-#     best_gene_specific_pcr_amplified_concat_alignments_df["Read"]
-# )
+# # # Get the set of unique read names to keep
+# # reads_to_keep = set(
+# #     best_gene_specific_pcr_amplified_concat_alignments_df["Read"]
+# # )
 
-for in_bam_path, gene in zip(mapped_merged_bam_files, genes):
+# for in_bam_path, gene in zip(mapped_merged_bam_files, genes):
     
-    # Get the set of unique read names to keep
-    reads_to_keep = set(
-        best_gene_specific_pcr_amplified_concat_alignments_df.loc[
-            best_gene_specific_pcr_amplified_concat_alignments_df["Gene"] == gene,
-            "OldRead"
-        ]
-    )
-    out_bam_path = Path(reads_with_recognizable_barcodes_dir, in_bam_path.name)
+#     # Get the set of unique read names to keep
+#     reads_to_keep = set(
+#         best_gene_specific_pcr_amplified_concat_alignments_df.loc[
+#             best_gene_specific_pcr_amplified_concat_alignments_df["Gene"] == gene,
+#             "OldRead"
+#         ]
+#     )
+#     out_bam_path = Path(reads_with_recognizable_barcodes_dir, in_bam_path.name)
 
-    with pysam.AlignmentFile(in_bam_path, "rb") as in_bam, pysam.AlignmentFile(
-        out_bam_path, "wb", template=in_bam
-    ) as out_bam:
-        for read in in_bam:
-            if read.query_name in reads_to_keep:
-                out_bam.write(read)
+#     with pysam.AlignmentFile(in_bam_path, "rb") as in_bam, pysam.AlignmentFile(
+#         out_bam_path, "wb", template=in_bam
+#     ) as out_bam:
+#         for read in in_bam:
+#             if read.query_name in reads_to_keep:
+#                 out_bam.write(read)
 
-    print(f"Filtered BAM written to: {out_bam_path}")
+#     print(f"Filtered BAM written to: {out_bam_path}")
     
-# !samtools index -M {reads_with_recognizable_barcodes_dir}/*.bam
+# # !samtools index -M {reads_with_recognizable_barcodes_dir}/*.bam
+
+# %% [markdown]
+# ### Plot 12-nt UMI sequences from recognized barcodes
+
+# %%
+# unique umi seqs
+## per gene
+## both genes together
+
+# non-unique umi seqs
+## per gene
+## both genes together
+
+# %%
+def make_freqs_df(seqs):
+    # make sure all sequences are the same length
+    assert len({len(seq) for seq in seqs}) == 1
+    # create a motif object out of the sequences
+    motif = motifs.create(seqs)
+    # create a counts dataframe out of the motif object
+    counts_df = pd.DataFrame({base: motif.counts[base] for base in "ACGT"})
+    # transfrom the counts to frequencies
+    # (all sequences have the same length, so total coverage in each position = len(seqs)
+    # return the frequency dataframe)
+    freq_df = counts_df / len(seqs)
+    return freq_df
+
+
+# %%
+# non-unique umi seqs
+## per gene
+## both genes together
+
+for x_nt in [10, 11, 12, 13, 14]:
+    
+    x_nt_umis_best_gene_specific_pcr_amplified_concat_alignments_df = best_gene_specific_pcr_amplified_concat_alignments_df.loc[
+        best_gene_specific_pcr_amplified_concat_alignments_df["SpanningUMISeqLength"].eq(x_nt)
+    ]
+
+    main_title = f"Non-unique {x_nt}-nt UMIs"
+
+    titles = []
+    freq_dfs = []
+
+    title = "Both genes together"
+    seqs = x_nt_umis_best_gene_specific_pcr_amplified_concat_alignments_df.loc[
+        :,
+        "SpanningUMISeq"
+    ].values
+    freq_df = make_freqs_df(seqs)
+    titles.append(title)
+    freq_dfs.append(freq_df)
+
+    for gene in genes:
+        title = gene
+        seqs = x_nt_umis_best_gene_specific_pcr_amplified_concat_alignments_df.loc[
+            x_nt_umis_best_gene_specific_pcr_amplified_concat_alignments_df["Gene"].eq(gene),
+            "SpanningUMISeq"
+        ].values
+        freq_df = make_freqs_df(seqs)
+        titles.append(title)
+        freq_dfs.append(freq_df)
+        
+    plot_multiple_non_adar_logos(
+        freq_dfs,
+        titles,
+        main_title,
+        # width = 9.6,
+        # height = 5,
+        # width = 12,
+        # height = 4,
+        width = 9,
+        height = 3,
+    );
+
+# %%
+# unique umi seqs
+## per gene
+## both genes together
+
+for x_nt in [10, 11, 12, 13, 14]:
+    
+    x_nt_umis_best_gene_specific_pcr_amplified_concat_alignments_df = best_gene_specific_pcr_amplified_concat_alignments_df.loc[
+        best_gene_specific_pcr_amplified_concat_alignments_df["SpanningUMISeqLength"].eq(x_nt)
+    ]
+
+    main_title = f"Unique {x_nt}-nt UMIs"
+
+    titles = []
+    freq_dfs = []
+
+    title = "Both genes together"
+    seqs = x_nt_umis_best_gene_specific_pcr_amplified_concat_alignments_df.drop_duplicates(subset=["SpanningUMISeq"]).loc[
+        :,
+        "SpanningUMISeq"
+    ].values
+    freq_df = make_freqs_df(seqs)
+    titles.append(title)
+    freq_dfs.append(freq_df)
+
+    for gene in genes:
+        title = gene
+        seqs = x_nt_umis_best_gene_specific_pcr_amplified_concat_alignments_df.loc[
+            x_nt_umis_best_gene_specific_pcr_amplified_concat_alignments_df["Gene"].eq(gene)
+        ].drop_duplicates(subset=["SpanningUMISeq"])["SpanningUMISeq"].values
+        freq_df = make_freqs_df(seqs)
+        titles.append(title)
+        freq_dfs.append(freq_df)
+        
+    plot_multiple_non_adar_logos(
+        freq_dfs,
+        titles,
+        main_title,
+        # width = 9.6,
+        # height = 5,
+        # width = 12,
+        # height = 4,
+        # width = 9,
+        # height = 3,
+        width = 7.5,
+        height = 2.5,
+    );
+
+
+# %%
 
 # %% [markdown]
 # ## Find unique reads by UMI sub-seqs
@@ -5849,7 +5998,183 @@ for positions_file in merged_positions_files:
     
 per_gene_expected_disagreements_per_position_series[0]
 
+
 # %%
+def find_alt_base(ref_base, a_count, t_count, c_count, g_count, seed):
+    
+    bases = list("ATCG")
+    base_counts = [a_count, t_count, c_count, g_count]
+    
+    alt_base_counts = {
+        base: count
+        for base, count in zip(bases, base_counts)
+        if base != ref_base
+    }
+    
+    max_alt_base_count = max(alt_base_counts.values())
+    
+    max_alt_bases = [
+        base
+        for base, count in alt_base_counts.items()
+        if count == max_alt_base_count
+    ]
+
+    # randomly choose one of the equally most frequent alt bases
+    return np.random.default_rng(seed).choice(max_alt_bases)
+
+
+# %%
+def calc_noise(ref_base_count, alt_base_count):
+    try:
+        noise = alt_base_count / (alt_base_count + ref_base_count)
+    except ZeroDivisionError:
+        noise = 0  # if there are no mapped alt bases
+    return noise
+
+
+# %%
+def make_noise_positions_df(positions_file, seed):
+    noise_positions_df = pd.read_csv(positions_file, sep="\t")
+    noise_positions_df = noise_positions_df.loc[
+        (noise_positions_df["CDS"])
+        # & (noise_positions_df["Noise"].notna())
+        & (~noise_positions_df["Edited"])
+        & (noise_positions_df["TotalCoverage"].gt(0))
+    ].drop(columns=["CDS", "Edited", "InProbRegion", "EditingFrequency", "Phred", "KnownEditing"])
+    noise_positions_df["AltBase"] = noise_positions_df.apply(
+        lambda x: find_alt_base(
+            x["RefBase"],
+            x["A"],
+            x["T"],
+            x["C"],
+            x["G"],
+            seed,
+        ), 
+        axis=1
+    )
+    noise_positions_df = noise_positions_df.loc[
+        ~(
+            (noise_positions_df["RefBase"].eq("A"))
+            & (noise_positions_df["AltBase"].eq("G"))
+        )
+    ]
+    noise_positions_df["Noise"] = noise_positions_df.apply(
+        lambda x: calc_noise(x[x["RefBase"]], x[x["AltBase"]]),
+        axis=1
+    )
+    
+    return noise_positions_df
+
+
+# %%
+def add_noise_reads_in_positions(noise_positions_df):
+    unique_reads = set(chain.from_iterable(noise_positions_df["Reads"].str.split(",")))
+    positions_per_read = {read: [] for read in unique_reads}
+
+    # alt_base = "G" if strand == "+" else "C"
+    for x, position_row in enumerate(noise_positions_df.itertuples()):
+        mapped_bases = position_row.MappedBases
+        mapped_reads = position_row.Reads.split(",")
+        alt_base = position_row.AltBase
+        # deal with reads that were mapped to this pos
+        for mapped_base, mapped_read in zip(mapped_bases, mapped_reads):
+            if mapped_base == alt_base:
+                pos_edited_in_read = 1 # mismatch
+            elif mapped_base == ".":
+                pos_edited_in_read = 0  # match
+            else:
+                pos_edited_in_read = (
+                    -1
+                )  # we ignore mismatches that aren't RefBase2AltBase by marking them as NaN
+            positions_per_read[mapped_read].append(pos_edited_in_read)
+        # deal with reads that weren't mapped to this pos
+        unmapped_reads_in_pos = unique_reads - set(mapped_reads)
+        for mapped_read in unmapped_reads_in_pos:
+            pos_edited_in_read = -1
+            positions_per_read[mapped_read].append(pos_edited_in_read)
+        # check all reads got values for pos
+        mapped_pos_dist = {len(bases) for bases in positions_per_read.values()}
+        if len(mapped_pos_dist) != 1:
+            raise Exception(
+                f"Problem at line {x}: not all reads are mapped."
+            )
+            
+    return positions_per_read
+
+
+# %%
+def make_reads_noise_df(
+    positions_file, seed
+):
+    noise_positions_df = make_noise_positions_df(positions_file, seed)
+
+    positions_per_read = add_noise_reads_in_positions(noise_positions_df)
+    
+    reads_noise_df = pd.DataFrame(positions_per_read)
+    reads_noise_df = reads_noise_df.T.reset_index().rename({"index": "Read"}, axis="columns")
+    reads_noise_df = reads_noise_df.rename(
+        columns={
+            old_col: pos
+            for old_col, pos in zip(
+                reads_noise_df.columns[1:], noise_positions_df["Position"]
+            )
+        }
+    )
+    
+    return reads_noise_df
+
+
+# %%
+merged_positions_files
+
+# %%
+zcat /private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz | \
+    tail -n +2 | lesss
+
+# %%
+zcat /private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz | \
+    tail -n +2 | cut -f 16 | less
+
+# %%
+zcat /private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz | \
+    tail -n +2 | cut -f 16 | awk '$1 != "nan"' | less
+
+# %%
+zcat /private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz | \
+    tail -n +2 | cut -f 16 | awk '$1 != "nan"' | sort -k1nr | less
+
+# %%
+reads_noise_dfs = [
+    make_reads_noise_df(positions_file)
+    for positions_file in merged_positions_files
+]
+
+reads_noise_dfs[0]
+
+# %%
+reads_noise_dfs[1]
+
+# %%
+noise_per_position = reads_noise_dfs[1].iloc[:, 1:].apply(
+    lambda x: x.eq(1).sum() / x.ne(-1).sum()
+).sort_values(ascending=False)
+noise_per_position.describe()
+
+# %%
+noise_per_position.loc[
+    noise_per_position.ge(0.1)
+]
+
+# %%
+noise_per_position = reads_noise_dfs[0].iloc[:, 1:].apply(
+    lambda x: x.eq(1).sum() / x.ne(-1).sum()
+).sort_values(ascending=False)
+noise_per_position.describe()
+
+# %%
+noise_per_position.loc[
+    noise_per_position.ge(0.1)
+]
 
 # %%
 
@@ -5869,6 +6194,7 @@ reads_file = merged_annotated_reads_files[1]
 main_mapping_boundaries = main_mapping_boundaries_per_gene[1]
 positions_file = merged_positions_files[1]
 expected_disagreements_per_position_series = per_gene_expected_disagreements_per_position_series[1]
+reads_noise_df = reads_noise_dfs[1]
 # repeat = "1"
 repeat = "3"
 
@@ -6077,6 +6403,9 @@ ic(sample_size);
 umi_seqs_overlap_results_df
 
 # %%
+umi_seqs_overlap_results_df
+
+# %%
 used_reads_df = pd.read_csv(reads_file, sep="\t")
 used_reads_df["Gene"] = gene
 
@@ -6121,6 +6450,34 @@ editing_statuses_df["0/1/2+"] = editing_statuses_df["MinimalErrors"].apply(
 )
 
 editing_statuses_df
+
+# %%
+gene
+
+# %%
+# todo retain only reads in editing_statuses_df to create reads_noise_df -> used_reads_noise_df, 
+# and send that df to compare_u_v_noise_statuses_light
+# (check if it saves time)
+
+edges_to_compare_noise_statuses = [
+    (gene, u, v, reads_noise_df)
+    for u, v in editing_statuses_df.loc[:, ["U", "V", ]].values.tolist()
+]
+with mp.get_context("spawn").Pool(processes=processes) as pool:
+    noise_statuses_series = pool.starmap(
+        func=umi_processing.compare_u_v_noise_statuses_light,
+        iterable=edges_to_compare_noise_statuses
+    )
+noise_statuses_df = pd.DataFrame(noise_statuses_series)
+noise_statuses_df
+
+# %%
+editing_statuses_df = editing_statuses_df.merge(
+    noise_statuses_df
+)
+editing_statuses_df
+
+# %%
 
 # %%
 editing_statuses_df
@@ -6648,6 +7005,7 @@ def make_control_editing_statuses_df(
     repeat,
     one_sample_df, # defined by a gene-repeat combination
     expected_disagreements_per_position_series,
+    reads_noise_df,
     used_reads_first_col_pos = 6,
     min_shared_umi_sub_seq_len = 5,
     max_errors = 1,
@@ -6923,6 +7281,21 @@ def make_control_editing_statuses_df(
             else "2+"
     )
     
+    edges_to_compare_noise_statuses = [
+        (gene, u, v, reads_noise_df)
+        for u, v in editing_statuses_df.loc[:, ["U", "V", ]].values.tolist()
+    ]
+    with mp.get_context("spawn").Pool(processes=processes) as pool:
+        noise_statuses_series = pool.starmap(
+            func=umi_processing.compare_u_v_noise_statuses_light,
+            iterable=edges_to_compare_noise_statuses
+        )
+    noise_statuses_df = pd.DataFrame(noise_statuses_series)
+    
+    editing_statuses_df = editing_statuses_df.merge(
+        noise_statuses_df
+    )
+    
     return editing_statuses_df
 
 # %%
@@ -6949,6 +7322,7 @@ concat_control_editing_statuses_df = pd.concat(
                 & (best_gene_specific_pcr_amplified_concat_alignments_df["Repeat"] == repeat)
             ].copy(),
             expected_disagreements_per_position_series,
+            reads_noise_df,
             sample_fraction=sample_fraction,
             max_error_to_take_all=max_error_to_take_all,
             max_error_to_check=max_error_to_check,
@@ -6961,12 +7335,14 @@ concat_control_editing_statuses_df = pd.concat(
             reads_file, 
             gene, 
             main_mapping_boundaries, 
-            expected_disagreements_per_position_series
+            expected_disagreements_per_position_series,
+            reads_noise_df
         ) in zip(
             merged_annotated_reads_files, 
             genes, 
             main_mapping_boundaries_per_gene, 
-            per_gene_expected_disagreements_per_position_series
+            per_gene_expected_disagreements_per_position_series,
+            reads_noise_dfs,
         )
         for repeat in list("123")
         # for reads_file, gene, main_mapping_boundaries in zip(
@@ -7493,6 +7869,71 @@ fig.show(config=config)
 fig = px.box(
     crude_control_df,
     x="Group",
+    y="%RelativeStronglyDisagreeingNoisePositions",
+    color="Group",
+    facet_row="Gene",
+    facet_col="Repeat",
+
+    # category_orders={
+    #     # "0/1/2+": ["0", "1", "2+"],
+    # },
+    labels={
+        # "MinimalErrors": "Alignment errors",
+        "%RelativeStronglyDisagreeingNoisePositions": "Strongly disagreeing noise positions /<br>unambiguous positions [%]",
+    }
+)
+fig.update_layout(
+    width=800,
+    height=650,
+    showlegend=False,
+)
+# fig.show()
+config = {'staticPlot': True}
+fig.show(config=config)
+
+# %%
+crude_control_df
+
+# %%
+crude_control_df.loc[
+    crude_control_df["Group"].eq("IdenticalUMIs")
+].groupby("Gene")
+
+# %%
+crude_control_df.groupby(
+    ["Gene", "Group"]
+)[["%RelativeStronglyDisagreeingPositions", "%RelativeStronglyDisagreeingNoisePositions"]].describe().round(2).reset_index()
+
+# %%
+fig = px.box(
+    crude_control_df,
+    x="Group",
+    y="%RelativeStronglyDisagreeingPositions",
+    color="Group",
+    facet_row="Gene",
+    facet_col="Repeat",
+
+    # category_orders={
+    #     # "0/1/2+": ["0", "1", "2+"],
+    # },
+    labels={
+        # "MinimalErrors": "Alignment errors",
+        "%RelativeStronglyDisagreeingPositions": "Strongly disagreeing positions /<br>unambiguous positions [%]",
+    }
+)
+fig.update_layout(
+    width=800,
+    height=650,
+    showlegend=False,
+)
+# fig.show()
+config = {'staticPlot': True}
+fig.show(config=config)
+
+# %%
+fig = px.box(
+    crude_control_df,
+    x="Group",
     y="WeaklyDisagreeingPositions",
     color="Group",
     facet_row="Gene",
@@ -7567,6 +8008,26 @@ adar_zero_error_edges_crude_control_df = adar_zero_error_edges_crude_control_df.
 ]
 adar_zero_error_edges_crude_control_df = adar_zero_error_edges_crude_control_df.sort_values(["U", "V"])
 adar_zero_error_edges_crude_control_df
+
+# %%
+adar_positions_df = pd.read_csv(
+    merged_positions_files[0], 
+    sep="\t",
+    usecols=["Position", "EditingFrequency", "CDS", "Edited", "InProbRegion"]
+)
+# retain only edited & reliable positions within coding regions
+adar_positions_df = adar_positions_df.loc[
+    adar_positions_df["CDS"] & adar_positions_df["Edited"] & ~adar_positions_df["InProbRegion"],
+    # ["Position", "EditingFrequency"]
+]
+adar_positions = adar_positions_df["Position"].tolist()
+print(adar_positions)
+
+chrom = chrom_per_gene_dict["ADAR1"]
+adar_sites_bed_file = Path(test_dir, f"ADAR.EditingSites.bed")
+with open(adar_sites_bed_file, "w") as f:
+    for pos in adar_positions:
+        f.write(f"{chrom}\t{pos}\t{pos+1}\n")
 
 # %% [markdown]
 # ###### Crude control - ADAR - 1
@@ -7698,6 +8159,7 @@ with open(gene_orf_bed_file, "w") as f:
 
 output_html_file = Path(test_dir, f"igvjs_viewer.{joined_reads_str}.html")
 # !create_report {str(gene_orf_bed_file)} --fasta {str(reference_fasta)} --tracks {str(filtered_bam_file)} --output {str(output_html_file)}
+# # !create_report {str(adar_sites_bed_file)} --fasta {str(reference_fasta)} --tracks {str(filtered_bam_file)} --output {str(output_html_file)}
       
 # orfs_bed_file = "/private6/projects/Combinatorics/D.pealeii/Annotations/Jan2025/orfs_squ.bed"
 # output_html_file = Path(test_dir, f"igvjs_viewer.{joined_reads_str}.html")
@@ -7786,6 +8248,32 @@ iqec_zero_error_edges_crude_control_df
 iqec_zero_error_edges_crude_control_df
 
 # %%
+iqec_positions_df = pd.read_csv(
+    merged_positions_files[1], 
+    sep="\t",
+    usecols=["Position", "EditingFrequency", "CDS", "Edited", "InProbRegion"]
+)
+# retain only edited & reliable positions within coding regions
+iqec_positions_df = iqec_positions_df.loc[
+    iqec_positions_df["CDS"] & iqec_positions_df["Edited"] & ~iqec_positions_df["InProbRegion"],
+    # ["Position", "EditingFrequency"]
+]
+iqec_positions = iqec_positions_df["Position"].tolist()
+ic(iqec_positions)
+
+chrom = chrom_per_gene_dict["IQEC"]
+iqec_sites_bed_file = Path(test_dir, f"IQEC.EditingSites.bed")
+with open(iqec_sites_bed_file, "w") as f:
+    for pos in iqec_positions:
+        f.write(f"{chrom}\t{pos}\t{pos+1}\n")
+
+# %%
+chrom_per_gene_dict["IQEC"]
+
+# %%
+iqec_example_bams_dict = {}
+
+# %%
 rng = np.random.default_rng(seed)
 iqec_sampled_us = rng.choice(
     iqec_zero_error_edges_crude_control_df["U"].unique(),
@@ -7798,7 +8286,9 @@ iqec_sampled_us
 # ###### Crude control - IQEC - 1
 
 # %%
-u = iqec_sampled_us[0]
+i = 0
+
+u = iqec_sampled_us[i]
 
 vs_of_u = iqec_zero_error_edges_crude_control_df.loc[
     iqec_zero_error_edges_crude_control_df["U"].eq(u),
@@ -7865,6 +8355,7 @@ print()
 
 # %%
 print("10 nt upstream of the BTRReadStart:")
+print(f">{gene}\n{genes_seq_dict[gene][expected_barcode_locations_on_gene_dict[gene][0]-10:]}")
 for read in current_reads:
     read_seq, btr_read_start =  best_gene_specific_pcr_amplified_concat_alignments_df.loc[
         (best_gene_specific_pcr_amplified_concat_alignments_df["Gene"] == gene)
@@ -7912,8 +8403,13 @@ with open(gene_orf_bed_file, "w") as f:
     f.write(f"{chrom}\t{orf_start}\t{orf_end}\n")
 
 output_html_file = Path(test_dir, f"igvjs_viewer.{joined_reads_str}.html")
-# !create_report {str(gene_orf_bed_file)} --fasta {str(reference_fasta)} --tracks {str(filtered_bam_file)} --output {str(output_html_file)}
-      
+# # !create_report {str(gene_orf_bed_file)} --fasta {str(reference_fasta)} --tracks {str(filtered_bam_file)} --output {str(output_html_file)}
+# !create_report {str(iqec_sites_bed_file)} --fasta {str(reference_fasta)} --tracks {str(filtered_bam_file)} --output {str(output_html_file)}
+
+
+iqec_example_bams_dict[i] = filtered_bam_file
+
+
 # orfs_bed_file = "/private6/projects/Combinatorics/D.pealeii/Annotations/Jan2025/orfs_squ.bed"
 # output_html_file = Path(test_dir, f"igvjs_viewer.{joined_reads_str}.html")
 # # !create_report {orfs_bed_file} --fasta {str(reference_fasta)} --tracks {str(filtered_bam_file)} --output {str(output_html_file)}
@@ -7922,7 +8418,9 @@ output_html_file = Path(test_dir, f"igvjs_viewer.{joined_reads_str}.html")
 # ###### Crude control - IQEC - 2
 
 # %%
-u = iqec_sampled_us[1]
+i = 1
+
+u = iqec_sampled_us[i]
 
 vs_of_u = iqec_zero_error_edges_crude_control_df.loc[
     iqec_zero_error_edges_crude_control_df["U"].eq(u),
@@ -7986,6 +8484,7 @@ print()
 
 # %%
 print("10 nt upstream of the BTRReadStart:")
+print(f">{gene}\n{genes_seq_dict[gene][expected_barcode_locations_on_gene_dict[gene][0]-10:]}")
 for read in current_reads:
     read_seq, btr_read_start =  best_gene_specific_pcr_amplified_concat_alignments_df.loc[
         (best_gene_specific_pcr_amplified_concat_alignments_df["Gene"] == gene)
@@ -8033,7 +8532,10 @@ with open(gene_orf_bed_file, "w") as f:
     f.write(f"{chrom}\t{orf_start}\t{orf_end}\n")
 
 output_html_file = Path(test_dir, f"igvjs_viewer.{joined_reads_str}.html")
-# !create_report {str(gene_orf_bed_file)} --fasta {str(reference_fasta)} --tracks {str(filtered_bam_file)} --output {str(output_html_file)}
+# # !create_report {str(gene_orf_bed_file)} --fasta {str(reference_fasta)} --tracks {str(filtered_bam_file)} --output {str(output_html_file)}
+# !create_report {str(iqec_sites_bed_file)} --fasta {str(reference_fasta)} --tracks {str(filtered_bam_file)} --output {str(output_html_file)}
+
+iqec_example_bams_dict[i] = filtered_bam_file
       
 # orfs_bed_file = "/private6/projects/Combinatorics/D.pealeii/Annotations/Jan2025/orfs_squ.bed"
 # output_html_file = Path(test_dir, f"igvjs_viewer.{joined_reads_str}.html")
@@ -8043,7 +8545,9 @@ output_html_file = Path(test_dir, f"igvjs_viewer.{joined_reads_str}.html")
 # ###### Crude control - IQEC - 3
 
 # %%
-u = iqec_sampled_us[2]
+i = 2
+
+u = iqec_sampled_us[i]
 
 vs_of_u = iqec_zero_error_edges_crude_control_df.loc[
     iqec_zero_error_edges_crude_control_df["U"].eq(u),
@@ -8107,7 +8611,8 @@ print()
 
 # %%
 print("10 nt upstream of the BTRReadStart:")
-for read in sorted(current_reads):
+print(f">{gene}\n{genes_seq_dict[gene][expected_barcode_locations_on_gene_dict[gene][0]-10:]}")
+for read in current_reads:
     read_seq, btr_read_start =  best_gene_specific_pcr_amplified_concat_alignments_df.loc[
         (best_gene_specific_pcr_amplified_concat_alignments_df["Gene"] == gene)
         & (best_gene_specific_pcr_amplified_concat_alignments_df["Read"].eq(read)),
@@ -8154,7 +8659,10 @@ with open(gene_orf_bed_file, "w") as f:
     f.write(f"{chrom}\t{orf_start}\t{orf_end}\n")
 
 output_html_file = Path(test_dir, f"igvjs_viewer.{joined_reads_str}.html")
-# !create_report {str(gene_orf_bed_file)} --fasta {str(reference_fasta)} --tracks {str(filtered_bam_file)} --output {str(output_html_file)}
+# # !create_report {str(gene_orf_bed_file)} --fasta {str(reference_fasta)} --tracks {str(filtered_bam_file)} --output {str(output_html_file)}
+# !create_report {str(iqec_sites_bed_file)} --fasta {str(reference_fasta)} --tracks {str(filtered_bam_file)} --output {str(output_html_file)}
+
+iqec_example_bams_dict[i] = filtered_bam_file
       
 # orfs_bed_file = "/private6/projects/Combinatorics/D.pealeii/Annotations/Jan2025/orfs_squ.bed"
 # output_html_file = Path(test_dir, f"igvjs_viewer.{joined_reads_str}.html")
@@ -8164,7 +8672,9 @@ output_html_file = Path(test_dir, f"igvjs_viewer.{joined_reads_str}.html")
 # ###### Crude control - IQEC - 4
 
 # %%
-u = iqec_sampled_us[3]
+i = 3
+
+u = iqec_sampled_us[i]
 
 vs_of_u = iqec_zero_error_edges_crude_control_df.loc[
     iqec_zero_error_edges_crude_control_df["U"].eq(u),
@@ -8228,6 +8738,7 @@ print()
 
 # %%
 print("10 nt upstream of the BTRReadStart:")
+print(f">{gene}\n{genes_seq_dict[gene][expected_barcode_locations_on_gene_dict[gene][0]-10:]}")
 for read in current_reads:
     read_seq, btr_read_start =  best_gene_specific_pcr_amplified_concat_alignments_df.loc[
         (best_gene_specific_pcr_amplified_concat_alignments_df["Gene"] == gene)
@@ -8275,8 +8786,12 @@ with open(gene_orf_bed_file, "w") as f:
     f.write(f"{chrom}\t{orf_start}\t{orf_end}\n")
 
 output_html_file = Path(test_dir, f"igvjs_viewer.{joined_reads_str}.html")
-# !create_report {str(gene_orf_bed_file)} --fasta {str(reference_fasta)} --tracks {str(filtered_bam_file)} --output {str(output_html_file)}
-      
+# # !create_report {str(gene_orf_bed_file)} --fasta {str(reference_fasta)} --tracks {str(filtered_bam_file)} --output {str(output_html_file)}
+# !create_report {str(iqec_sites_bed_file)} --fasta {str(reference_fasta)} --tracks {str(filtered_bam_file)} --output {str(output_html_file)}
+
+iqec_example_bams_dict[i] = filtered_bam_file
+
+ 
 # orfs_bed_file = "/private6/projects/Combinatorics/D.pealeii/Annotations/Jan2025/orfs_squ.bed"
 # output_html_file = Path(test_dir, f"igvjs_viewer.{joined_reads_str}.html")
 # # !create_report {orfs_bed_file} --fasta {str(reference_fasta)} --tracks {str(filtered_bam_file)} --output {str(output_html_file)}
@@ -8285,7 +8800,9 @@ output_html_file = Path(test_dir, f"igvjs_viewer.{joined_reads_str}.html")
 # ###### Crude control - IQEC - 5
 
 # %%
-u = iqec_sampled_us[4]
+i = 4
+
+u = iqec_sampled_us[i]
 
 vs_of_u = iqec_zero_error_edges_crude_control_df.loc[
     iqec_zero_error_edges_crude_control_df["U"].eq(u),
@@ -8349,6 +8866,7 @@ print()
 
 # %%
 print("10 nt upstream of the BTRReadStart:")
+print(f">{gene}\n{genes_seq_dict[gene][expected_barcode_locations_on_gene_dict[gene][0]-10:]}")
 for read in current_reads:
     read_seq, btr_read_start =  best_gene_specific_pcr_amplified_concat_alignments_df.loc[
         (best_gene_specific_pcr_amplified_concat_alignments_df["Gene"] == gene)
@@ -8396,8 +8914,11 @@ with open(gene_orf_bed_file, "w") as f:
     f.write(f"{chrom}\t{orf_start}\t{orf_end}\n")
 
 output_html_file = Path(test_dir, f"igvjs_viewer.{joined_reads_str}.html")
-# !create_report {str(gene_orf_bed_file)} --fasta {str(reference_fasta)} --tracks {str(filtered_bam_file)} --output {str(output_html_file)}
-      
+# # !create_report {str(gene_orf_bed_file)} --fasta {str(reference_fasta)} --tracks {str(filtered_bam_file)} --output {str(output_html_file)}
+# !create_report {str(iqec_sites_bed_file)} --fasta {str(reference_fasta)} --tracks {str(filtered_bam_file)} --output {str(output_html_file)}
+
+iqec_example_bams_dict[i] = filtered_bam_file
+
 # orfs_bed_file = "/private6/projects/Combinatorics/D.pealeii/Annotations/Jan2025/orfs_squ.bed"
 # output_html_file = Path(test_dir, f"igvjs_viewer.{joined_reads_str}.html")
 # # !create_report {orfs_bed_file} --fasta {str(reference_fasta)} --tracks {str(filtered_bam_file)} --output {str(output_html_file)}
@@ -8406,7 +8927,9 @@ output_html_file = Path(test_dir, f"igvjs_viewer.{joined_reads_str}.html")
 # ###### Crude control - IQEC - 6
 
 # %%
-u = iqec_sampled_us[5]
+i = 5
+
+u = iqec_sampled_us[i]
 
 vs_of_u = iqec_zero_error_edges_crude_control_df.loc[
     iqec_zero_error_edges_crude_control_df["U"].eq(u),
@@ -8470,6 +8993,7 @@ print()
 
 # %%
 print("10 nt upstream of the BTRReadStart:")
+print(f">{gene}\n{genes_seq_dict[gene][expected_barcode_locations_on_gene_dict[gene][0]-10:]}")
 for read in current_reads:
     read_seq, btr_read_start =  best_gene_specific_pcr_amplified_concat_alignments_df.loc[
         (best_gene_specific_pcr_amplified_concat_alignments_df["Gene"] == gene)
@@ -8517,19 +9041,38 @@ with open(gene_orf_bed_file, "w") as f:
     f.write(f"{chrom}\t{orf_start}\t{orf_end}\n")
 
 output_html_file = Path(test_dir, f"igvjs_viewer.{joined_reads_str}.html")
-# !create_report {str(gene_orf_bed_file)} --fasta {str(reference_fasta)} --tracks {str(filtered_bam_file)} --output {str(output_html_file)}
-      
+# # !create_report {str(gene_orf_bed_file)} --fasta {str(reference_fasta)} --tracks {str(filtered_bam_file)} --output {str(output_html_file)}
+# !create_report {str(iqec_sites_bed_file)} --fasta {str(reference_fasta)} --tracks {str(filtered_bam_file)} --output {str(output_html_file)}
+
+iqec_example_bams_dict[i] = filtered_bam_file
+ 
 # orfs_bed_file = "/private6/projects/Combinatorics/D.pealeii/Annotations/Jan2025/orfs_squ.bed"
 # output_html_file = Path(test_dir, f"igvjs_viewer.{joined_reads_str}.html")
 # # !create_report {orfs_bed_file} --fasta {str(reference_fasta)} --tracks {str(filtered_bam_file)} --output {str(output_html_file)}
 
-# %%
+# %% [markdown]
+# ###### Crude control - IQEC - unified IGV report
 
 # %%
+iqec_example_bams_dict
 
 # %%
+for bam in iqec_example_bams_dict.values():
+    ic(bam)
 
 # %%
+" ".join(str(bam) for bam in iqec_example_bams_dict.values())
+
+# %%
+output_html_file = Path(test_dir, f"igvjs_viewer.IQEC.html")
+
+# !create_report {str(iqec_sites_bed_file)} \
+#     --fasta {str(reference_fasta)} \
+#         --tracks {" ".join(str(bam) for bam in iqec_example_bams_dict.values())} \
+#             --output {str(output_html_file)} \
+#                 # --roi {str(iqec_sites_bed_file)}
+                # --track-config "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/Test/IJV.TracksConfig.json" \
+
 
 # %%
 

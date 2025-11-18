@@ -463,6 +463,7 @@ def illumina_main(
     prinseq_out_files = [
         Path(trimmed_wo_dup_dir, sample_name) for sample_name in paired_samples_names
     ]
+    # ic(prinseq_out_files)
 
     with Pool(processes=processes) as pool:
         pool.starmap(
@@ -987,7 +988,8 @@ def define_args() -> argparse.ArgumentParser:
     parser.add_argument(
         "--multiqc_path",
         type=expanded_path_from_str,
-        default=Path("~/anaconda3/envs/combinatorics/bin/multiqc").expanduser(),
+        # default=Path("~/anaconda3/envs/combinatorics2/bin/multiqc").expanduser(),
+        default=Path("multiqc"),
         help="MultiQC executable.",
     )
     parser.add_argument(

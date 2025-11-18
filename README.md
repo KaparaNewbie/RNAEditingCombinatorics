@@ -1646,6 +1646,8 @@ tail -n 15 /private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMIL
 
 ##### Expression levels
 
+###### Regular
+
 ```bash
 UMI_DIR=D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples
 
@@ -1693,6 +1695,33 @@ Code/Simulations/expressionlevels.jl \
 * alu 17
 * 2078347
 
+###### Reads w/ recognizable barcodes
+
+Considering entropy:
+
+```bash
+UMI_DIR=D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples
+
+nohup \
+julia \
+--project=. \
+--threads 60 \
+Code/Simulations/expressionlevels.jl \
+--distinctfiles $UMI_DIR/ADAR1.Merged.DistinctUniqueProteins.26.03.2025-04:39:41.csv $UMI_DIR/IQEC.Merged.DistinctUniqueProteins.26.03.2025-00:27:18.csv \
+--allprotsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+--allreadsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz \
+--samplenames ADAR1 IQEC1 \
+--firstcolpos 15 \
+--onlymaxdistinct \
+--innerthreadedassignment \
+--considerentropy \
+--readssubsetfile D.pealeii/Alignment/UMILongReads.MergedSamples/ReadsWithRecognizableBarcodes.tsv \
+--outdir $UMI_DIR \
+--postfix_to_add .EntropyConsidered.ReadsWithRecognizableBarcodes \
+> $UMI_DIR/expressionlevels.EntropyConsidered.ReadsWithRecognizableBarcodes.10.11.25.out &
+```
+* alu 18
+* 4017097
 
 
 ## Squid long reads w/ UMIs - merged samples - no BAQ
@@ -2853,7 +2882,7 @@ Creating a GTF from the ORFs bed file:
 cd D.pealeii/L-GIREMI/Annotations
 ``` -->
 
-```python
+<!-- ```python
 from pathlib import Path
 
 import pandas as pd
@@ -2919,9 +2948,9 @@ transcripts_strands_df.insert(
 transcripts_strands_df.to_csv(out_bed, sep="\t", index=False, header=False)
 
 exit()
-```
+``` -->
 
-```bash
+<!-- ```bash
 cd D.pealeii/L-GIREMI/Annotations
 
 docker run \
@@ -2940,14 +2969,48 @@ docker run \
 agat_convert_sp_gff2gtf.pl \
 --gff /dir/squ.gff \
 -o /dir/squ.gtf
+``` -->
+
+```bash
+L_GIREMI
+cd D.pealeii/L-GIREMI/Annotations
+
+docker run \
+-u $(id -u ${USER}):$(id -g ${USER}) \
+-v $PWD:/dir \
+"quay.io/biocontainers/agat:0.8.0--pl5262hdfd78af_0" \
+agat_convert_bed2gff.pl \
+--bed /dir/transcripts_squ.bed \
+--primary_tag mRNA \
+--inflate_type CDS \
+-o /dir/transcripts_squ.gff
+
+docker run \
+-u $(id -u ${USER}):$(id -g ${USER}) \
+-v $PWD:/dir \
+"quay.io/biocontainers/agat:0.8.0--pl5262hdfd78af_0" \
+agat_convert_sp_gff2gtf.pl \
+--gff /dir/transcripts_squ.gff \
+-o /dir/transcripts_squ.gtf
 ```
 
-### Repeats - with EDTA
+
+### Repeats - with EDTA 
+
+Install with conda/mamba (Linux64)
+
+Recommend to ceate a dedicated environment for EDTA:
+```bash
+conda create -n EDTA-11.11.25
+conda activate EDTA-11.11.25
+# conda install -c conda-forge -c bioconda edta
+conda install -c conda-forge -c bioconda edta "pytorch=*=*cpu*"
+```
 
 Test:
 
 ```bash
-cd /home/alu/kobish/anaconda3/envs/l_giremi/share/EDTA/test/
+cd /home/alu/kobish/anaconda3/envs/EDTA-11.11.25/share/EDTA/test/
 
 # perl EDTA.pl --genome genome.fa --cds genome.cds.fa --curatedlib ../database/rice7.0.0.liban --exclude genome.exclude.bed --overwrite 1 --sensitive 1 --anno 1 --threads 10
 
@@ -2956,84 +3019,43 @@ EDTA.pl --genome genome.fa --cds genome.cds.fa --curatedlib ../database/rice7.0.
 
 Actual analysis:
 
-```bash
-L_GIREMI
 
-cd D.pealeii/L-GIREMI/Annotations
-```
-
-Shorten transcripts IDs - needed to be <= 13 for EDTA:
-
-```python
-from pathlib import Path
-
-import pandas as pd
-import Bio
-from Bio import SeqIO, SeqRecord
-
-in_fasta = Path("orfs_squ.fa")
-out_fasta = Path("orfs_squ.short_ids.fa")
-long_to_short_ids_file = Path("long_to_short_ids.csv")
-
-records = list(SeqIO.parse(in_fasta, "fasta"))
-
-original_ids = []
-shortened_ids = []
-new_records = []
-
-# i = 0
-# record = records[i]
-
-# description = record.description.split("\t")
-
-
-for i, record in enumerate(records):
-    original_id = record.id
-    seq = record.seq
-    transcript_end = len(record.seq)
-    shortened_id = f"chr_{i}"
-    new_record = SeqRecord.SeqRecord(
-        seq, id=shortened_id, description=""
-    )
-    original_ids.append(original_id)
-    shortened_ids.append(shortened_id)
-    new_records.append(new_record)
-
-with open(out_fasta, "w") as output_file:
-    SeqIO.write(new_records, output_file, "fasta-2line")
-
-long_to_short_ids_df = pd.DataFrame(
-    {
-        "LongID": original_ids,
-        "ShortID": shortened_ids
-    }
-)
-
-long_to_short_ids_df.to_csv(long_to_short_ids_file, index=False)
-
-exit()
-```
-
-```bash
-nohup EDTA.pl --genome orfs_squ.short_ids.fa --threads 30 > out.19.5.2025 &
-```
-
-- alu 18
-- 3677597
-
-### Repeats - with EDTA - git cloned
+Using `--force 1` to overcome the lack of intact LTRs in the transcriptome
 
 ```bash
 COMB
+cd D.pealeii/L-GIREMI/Annotations
 
-cd Code
+conda activate EDTA-11.11.25
 
-git clone https://github.com/oushujun/EDTA.git
-
-conda env create -f EDTA/EDTA_2.2.x.yml
+nohup EDTA.pl \
+--genome orfs_squ.short_ids.fa \
+--cds orfs_squ.short_ids.cds.fa \
+--overwrite 1 \
+--sensitive 1 \
+--anno 1 \
+--force 1 \
+--threads 50 \
+> EDTA.11.11.25.out &
 ```
+* alu 17
+* 3549719
 
-### Variant calling
+
+
+
+## Genome annotations
+
+
+https://www.ncbi.nlm.nih.gov/datasets/genome/GCA_023376005.1/
+https://www.nature.com/articles/s41467-022-29748-w
+https://github.com/sofiamedinaruiz/Squid_RNAediting
+https://datadryad.org/dataset/doi:10.6078/D15X38#methods
+
+
+## Variant calling
+
+### Prepare DNA
 
 Download the single squid DNA sample in the SRA archive:
 
@@ -3045,18 +3067,228 @@ mkdir -p D.pealeii/L-GIREMI/DNA/Raw
 prefetch --type sra --check-all yes --max-size 250GB -O D.pealeii/L-GIREMI/DNA/Raw SRR1522984
 
 fasterq-dump D.pealeii/L-GIREMI/DNA/Raw/SRR1522984/SRR1522984.sra --split-files --skip-technical --outdir D.pealeii/L-GIREMI/DNA/Raw
+
+bgzip --threads 30 D.pealeii/L-GIREMI/DNA/Raw/*.fastq
+
+rm -rf D.pealeii/L-GIREMI/DNA/Raw/SRR1522984
 ```
 
 Preparing raw data
 
+
 ```bash
+COMB
+
+# mkdir D.pealeii/L-GIREMI/DNA/Processed
+
 nohup \
 python Code/prepare_data.py \
---in_dir O.bim/Data/PRJNA285380/Raw/ \
---out_dir O.bim/Data/PRJNA285380 \
+--in_dir D.pealeii/L-GIREMI/DNA/Raw \
+--out_dir D.pealeii/L-GIREMI/DNA \
+--threads 15 \
 illumina \
 --min_qual_mean 30 \
-> O.bim/Data/PRJNA285380/prepare_data.out &
+--compress_cmd "bgzip -c --threads 15" \
+--prinseq_lite_path "~/anaconda3/envs/combinatorics2/bin/prinseq-lite.pl" \
+> D.pealeii/L-GIREMI/DNA/prepare_data.13.11.25.out &
+```
+* alu 17
+* 26154
+
+<!-- This part crushed:
+
+```bash
+
+trimmomatic PE \
+-threads 15 \
+-phred33 \
+/private6/projects/Combinatorics/D.pealeii/L-GIREMI/DNA/Raw/SRR1522984_1.fastq \
+/private6/projects/Combinatorics/D.pealeii/L-GIREMI/DNA/Raw/SRR1522984_2.fastq \
+/private6/projects/Combinatorics/D.pealeii/L-GIREMI/DNA/Trimmed/SRR1522984_1.good.fastq \
+/private6/projects/Combinatorics/D.pealeii/L-GIREMI/DNA/Trimmed/SRR1522984_1.bad.fastq \
+/private6/projects/Combinatorics/D.pealeii/L-GIREMI/DNA/Trimmed/SRR1522984_2.good.fastq \
+/private6/projects/Combinatorics/D.pealeii/L-GIREMI/DNA/Trimmed/SRR1522984_2.bad.fastq \
+ILLUMINACLIP:/home/alu/kobish/anaconda3/envs/combinatorics/share/trimmomatic-0.39-2/adapters/TruSeq3-PE-2.fa:2:30:10
+
+
+# W/O adapters file
+trimmomatic PE \
+-threads 15 \
+-phred33 \
+/private6/projects/Combinatorics/D.pealeii/L-GIREMI/DNA/Raw/SRR1522984_1.fastq.gz \
+/private6/projects/Combinatorics/D.pealeii/L-GIREMI/DNA/Raw/SRR1522984_2.fastq.gz \
+/private6/projects/Combinatorics/D.pealeii/L-GIREMI/DNA/Trimmed/SRR1522984_1.good.fastq.gz \
+/private6/projects/Combinatorics/D.pealeii/L-GIREMI/DNA/Trimmed/SRR1522984_1.bad.fastq.gz \
+/private6/projects/Combinatorics/D.pealeii/L-GIREMI/DNA/Trimmed/SRR1522984_2.good.fastq.gz \
+/private6/projects/Combinatorics/D.pealeii/L-GIREMI/DNA/Trimmed/SRR1522984_2.bad.fastq.gz \
+ILLUMINACLIP:TruSeq3-PE-2.fa:2:30:10
+``` -->
+
+### Align DNA
+
+```bash
+mkdir -p D.pealeii/L-GIREMI/Alignment/DNA
+
+nohup \
+python Code/align.py \
+--genome D.pealeii/L-GIREMI/Annotations/orfs_squ.fa \
+--in_dir D.pealeii/L-GIREMI/DNA/Processed/TrimmedWoDup \
+--out_dir D.pealeii/L-GIREMI/Alignment/DNA \
+--threads 40 \
+illumina \
+--require_flags 3 \
+--exclude_flags 2304 \
+> D.pealeii/L-GIREMI/Alignment/DNA/align.11.11.25.out &
+```
+* alu 13
+* 
+
+## RNA alignment
+
+Convert unmapped BAMs to FastQs:
+
+```bash
+L_GIREMI
+
+mkdir D.pealeii/L-GIREMI/RNA
+
+samtools fastq \
+--threads 30 \
+D.pealeii/Data/CCS/BasicCCS/GRIA-CNS-RESUB.C0x1291.ccs.bam \
+> D.pealeii/L-GIREMI/RNA/GRIA-CNS-RESUB.C0x1291.ccs.fq
+
+samtools fastq \
+--threads 30 \
+D.pealeii/Data/CCS/BasicCCS/PCLO-CNS-RESUB.C0x1291.ccs.bam \
+> D.pealeii/L-GIREMI/RNA/PCLO-CNS-RESUB.C0x1291.ccs.fq
+
+bgzip --threads 30 D.pealeii/L-GIREMI/RNA/*.fq
+```
+
+
+
+<!-- Alignment tests:
+
+```bash
+L_GIREMI
+ 
+mkdir -p D.pealeii/L-GIREMI/Alignment/RNA
+
+# minimap2 \
+# -t 8 \ # number of threads [3]
+# -a \ # output in the SAM format (PAF by default)
+# -x splice \ #  - splice/splice:hq - spliced alignment for long reads/accurate long reads
+# -uf \ # how to find GT-AG. f:transcript strand, b:both strands, n:don't match GT-AG [n]
+# --secondary=no \
+# -N 5 \ # retain at most INT secondary alignments [5]
+# --cs \
+# -o D.pealeii/L-GIREMI/Alignment/RNA/GRIA-CNS-RESUB.C0x1291.ccs.sam \
+# D.pealeii/L-GIREMI/Annotations/orfs_squ.fa \
+# D.pealeii/L-GIREMI/RNA/GRIA-CNS-RESUB.C0x1291.ccs.fq.gz
+
+
+# minimap2 -ax splice:hq -uf ref.fa iso-seq.fq > aln.sam       # PacBio Iso-seq/traditional cDNA
+
+minimap2 \
+-t 40 \
+-a \
+-x splice \
+-uf \
+--secondary=no \
+-N 5 \
+--cs \
+-o D.pealeii/L-GIREMI/Alignment/RNA/GRIA-CNS-RESUB.C0x1291.ccs.uf.sam \
+D.pealeii/L-GIREMI/Annotations/orfs_squ.fa \
+D.pealeii/L-GIREMI/RNA/GRIA-CNS-RESUB.C0x1291.ccs.fq.gz
+
+minimap2 \
+-t 40 \
+-a \
+-x splice \
+-ub \
+--secondary=no \
+-N 5 \
+--cs \
+-o D.pealeii/L-GIREMI/Alignment/RNA/GRIA-CNS-RESUB.C0x1291.ccs.ub.sam \
+D.pealeii/L-GIREMI/Annotations/orfs_squ.fa \
+D.pealeii/L-GIREMI/RNA/GRIA-CNS-RESUB.C0x1291.ccs.fq.gz
+
+minimap2 \
+-t 40 \
+-a \
+-x splice:hq \
+-ub \
+--secondary=no \
+-N 5 \
+--cs \
+-o D.pealeii/L-GIREMI/Alignment/RNA/GRIA-CNS-RESUB.C0x1291.ccs.hq.ub.sam \
+D.pealeii/L-GIREMI/Annotations/orfs_squ.fa \
+D.pealeii/L-GIREMI/RNA/GRIA-CNS-RESUB.C0x1291.ccs.fq.gz
+
+cd D.pealeii/L-GIREMI/Alignment/RNA
+
+samtools view -O BAM -F 2052 -h GRIA-CNS-RESUB.C0x1291.ccs.uf.sam | \
+    samtools sort -O BAM -@ 7 -o GRIA-CNS-RESUB.C0x1291.ccs.uf.bam -
+
+samtools view -O BAM -F 2052 -h GRIA-CNS-RESUB.C0x1291.ccs.ub.sam | \
+    samtools sort -O BAM -@ 7 -o GRIA-CNS-RESUB.C0x1291.ccs.ub.bam -
+
+samtools view -O BAM -F 2052 -h GRIA-CNS-RESUB.C0x1291.ccs.hq.ub.sam | \
+    samtools sort -O BAM -@ 7 -o GRIA-CNS-RESUB.C0x1291.ccs.hq.ub.bam -
+
+rm *.sam
+
+samtools index -M *.bam
+
+samtools flagstat GRIA-CNS-RESUB.C0x1291.ccs.uf.bam
+samtools flagstat GRIA-CNS-RESUB.C0x1291.ccs.ub.bam
+samtools flagstat GRIA-CNS-RESUB.C0x1291.ccs.hq.ub.bam
+``` -->
+
+
+```bash
+L_GIREMI
+ 
+mkdir -p D.pealeii/L-GIREMI/Alignment/RNA
+
+minimap2 \
+-t 40 \
+-a \
+-x splice \
+-ub \
+--secondary=no \
+-N 5 \
+--cs \
+-o D.pealeii/L-GIREMI/Alignment/RNA/GRIA-CNS-RESUB.C0x1291.ccs.sam \
+D.pealeii/L-GIREMI/Annotations/orfs_squ.fa \
+D.pealeii/L-GIREMI/RNA/GRIA-CNS-RESUB.C0x1291.ccs.fq.gz
+
+minimap2 \
+-t 40 \
+-a \
+-x splice \
+-ub \
+--secondary=no \
+-N 5 \
+--cs \
+-o D.pealeii/L-GIREMI/Alignment/RNA/PCLO-CNS-RESUB.C0x1291.ccs.sam \
+D.pealeii/L-GIREMI/Annotations/orfs_squ.fa \
+D.pealeii/L-GIREMI/RNA/PCLO-CNS-RESUB.C0x1291.ccs.fq.gz
+
+cd D.pealeii/L-GIREMI/Alignment/RNA
+
+samtools view -O BAM -F 2052 -h GRIA-CNS-RESUB.C0x1291.ccs.sam | \
+    samtools sort -O BAM -@ 7 -o GRIA-CNS-RESUB.C0x1291.ccs.bam -
+
+samtools view -O BAM -F 2052 -h PCLO-CNS-RESUB.C0x1291.ccs.sam | \
+    samtools sort -O BAM -@ 7 -o PCLO-CNS-RESUB.C0x1291.ccs.bam -
+
+rm *.sam
+
+samtools index -M *.bam
+```
+
+
 
 # Notebooks
 
