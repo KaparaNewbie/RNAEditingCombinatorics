@@ -1121,6 +1121,14 @@ Code/Simulations/expressionlevels.jl \
 > D.pealeii/MpileupAndTranscripts/Illumina/expressionlevels.out &
 ```
 
+#### Fixed expression levels on cloud
+
+```bash
+gcloud init
+
+```
+
+
 ## Illumina - 80k sampled reads per transcript
 
 ### Pileup
@@ -3287,6 +3295,9 @@ rm *.sam
 
 samtools index -M *.bam
 ```
+
+
+
 
 
 

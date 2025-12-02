@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.17.3
+#       jupytext_version: 1.18.1
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -230,7 +230,8 @@ chroms_in_unique_proteins_files = [
 # distinct_proteins_files = list(distinct_proteins_dir.glob("*DistinctUniqueProteins.*.csv"))
 distinct_proteins_files = [
     f
-    for f in distinct_proteins_dir.glob("*DistinctUniqueProteins.*.csv")
+    # for f in distinct_proteins_dir.glob("*DistinctUniqueProteins.*.csv")
+    for f in distinct_proteins_dir.glob("*DistinctUniqueProteins.*.Updated.csv")
     if "expression" not in f.name.lower()
 ]
 chroms_in_distinct_proteins_files = [
@@ -5690,6 +5691,247 @@ saved_dispersion_df
 # )
 # # fig.update_yaxes(range=[0, distinct_unique_proteins_df["NumOfProteins"].max()*1.05])
 # fig.show()
+
+# %% [markdown]
+# ### Distinct isoforms vs. coverage, compared to targeted squid genes
+
+# %%
+homologs_dir = Path("/private6/projects/Combinatorics/SquidVsOctopusHomologs")
+
+
+# %%
+subprocess.run(
+    f"python /private7/projects/Combinatorics/Code/squid_vs_oct_orfs.py --output-dir {homologs_dir}", 
+    shell=True
+)
+
+# %%
+squid_to_oct_homologs_file = Path(homologs_dir, "comprehensive_homologs_clean.csv")
+squid_to_oct_homologs_df = pd.read_csv(squid_to_oct_homologs_file)
+squid_to_oct_homologs_df = squid_to_oct_homologs_df.loc[
+    squid_to_oct_homologs_df["MatchDirection"] != "No match"
+]
+squid_to_oct_homologs_df = squid_to_oct_homologs_df.sort_values("IsReciprocal", ascending=False, ignore_index=True)
+squid_to_oct_homologs_df = squid_to_oct_homologs_df.loc[
+    squid_to_oct_homologs_df["OctopusToSquidCoverage"] >= 0.3
+]
+squid_to_oct_homologs_df
+
+# %%
+target_squid_gene_names = squid_to_oct_homologs_df["SquidUniProt"].tolist()
+# target_squid_chrom_names = squid_to_oct_homologs_df["SquidGene"].tolist()
+# chrom_names_of_homologous_squid_genes = squid_to_oct_homologs_df["OctopusGene"].tolist()
+
+# squid_to_oct_homologs_df.loc[
+#     :,
+#     ["SquidGene", "SquidUniProt", "OctopusGene"]
+# ]
+
+# %%
+homologs_of_tageted_squid_genes_distinct_unique_proteins_df = distinct_unique_proteins_df.merge(
+    squid_to_oct_homologs_df.loc[:, ["OctopusGene", "SquidGene", "SquidUniProt"]],
+    how="inner",
+    left_on="Chrom",
+    right_on="OctopusGene"
+)
+homologs_of_tageted_squid_genes_distinct_unique_proteins_df
+
+# %%
+homologous_color_sequence = px.colors.qualitative.G10
+homologous_conditions = target_squid_gene_names
+homologous_color_discrete_map = {
+    condition: color for condition, color in zip(homologous_conditions, homologous_color_sequence)
+}
+
+# %%
+fig = px.scatter(
+    homologs_of_tageted_squid_genes_distinct_unique_proteins_df.sort_values(
+        ["SquidUniProt", "Fraction", "NumOfProteins"],
+        ascending=False
+    ).drop_duplicates(
+        ["SquidUniProt", "Fraction"], 
+        ignore_index=True
+    ),
+    x="NumOfReads",
+    y="NumOfProteins",
+    facet_col="SquidUniProt",
+    facet_col_wrap=3,
+    color="SquidUniProt"
+)
+fig.update_layout(
+    width=800,
+    height=600,
+    showlegend=False,
+    template=template,
+)
+fig.show()
+
+# %%
+x_axis_name = "Mapped reads"
+y_axis_name = "Distinct proteins"
+head_title = (
+    "Distinct proteins vs. sequencing depth"
+    # "<br>"
+    # # f"<sub>({alg_repetitions * 2} repetitions over each fraction of data)</sub>"
+    # "<sub>(100 repetitions over each fraction of data)</sub>"
+)
+_marker_size = 7
+maximal_x = 0
+
+# Initialize figure with subplots
+fig = make_subplots(
+    rows=1, cols=1, print_grid=False, x_title=x_axis_name, y_title=y_axis_name
+)
+
+max_y = 0
+first_data_trace = True
+
+# Add traces
+for condition in homologous_conditions:
+    ic(condition)
+    df = homologs_of_tageted_squid_genes_distinct_unique_proteins_df.loc[
+        homologs_of_tageted_squid_genes_distinct_unique_proteins_df["SquidUniProt"] == condition
+    ]
+    df = df.sort_values(["Fraction", "NumOfProteins"], ascending=False).drop_duplicates(
+        "Fraction", ignore_index=True
+    )
+
+    color = homologous_color_discrete_map[condition]
+    name = condition
+
+    x_measured = df["NumOfReads"]
+    y_measured = df["NumOfProteins"]
+
+    max_y = max(max_y, y_measured.max())
+
+    if first_data_trace:
+        fig.add_trace(
+            go.Scatter(
+                x=x_measured,
+                y=y_measured,
+                mode="lines+markers",
+                marker=dict(
+                    color=color,
+                    size=_marker_size,
+                ),
+                line=dict(
+                    color=color,
+                    width=_marker_size * 0.2,
+                ),
+                # legendgroup="Full-CDS, PacBio",  # this can be any string
+                # legendgrouptitle_text="Full-CDS, PacBio",
+                # legendgroup="Full-CDS, squid's PacBio",  # this can be any string
+                # legendgrouptitle_text="Full-CDS, squid's PacBio",
+                legendgroup="Squid's full-CDS,<br>long-reads",  # this can be any string
+                # legendgrouptitle_text="Squid's full-CDS,<br>long-reads",
+                legendgrouptitle_text="Octopus homologs of<br>targeted squid genes",
+                name=name,
+            ),
+        )
+        first_data_trace = False
+    else:
+        fig.add_trace(
+            go.Scatter(
+                x=x_measured,
+                y=y_measured,
+                mode="lines+markers",
+                marker=dict(
+                    color=color,
+                    size=_marker_size,
+                ),
+                line=dict(
+                    color=color,
+                    width=_marker_size * 0.2,
+                ),
+                # legendgroup="Full-CDS, PacBio",  # this can be any string
+                # legendgroup="Full-CDS, squid's PacBio",  # this can be any string
+                legendgroup="Squid's full-CDS,<br>long-reads",  # this can be any string
+                name=name,
+            ),
+        )
+
+    maximal_x = max(maximal_x, x_measured.max())
+
+# dscam_dashed_lined_width = 3.5
+# dscam_ys = [
+#     36_016,
+#     18_496,
+# ]
+# dscam_legend_names = [
+#     "Theoretical maximum",
+#     "Measured",
+# ]
+# dscam_colors = ["grey", "black"]
+# dscam_dashes = ["dash", "dash"]
+# fig.add_trace(
+#     go.Scatter(
+#         x=[0.05 * maximal_x, 1.05 * maximal_x],
+#         y=[dscam_ys[0], dscam_ys[0]],
+#         mode="lines",
+#         line=dict(
+#             color=dscam_colors[0], dash=dscam_dashes[0], width=dscam_dashed_lined_width
+#         ),
+#         opacity=0.6,
+#         legendgroup="Drosophila’s Dscam",  # this can be any string
+#         legendgrouptitle_text="Drosophila’s Dscam",
+#         name=dscam_legend_names[0],
+#     ),
+# )
+# fig.add_trace(
+#     go.Scatter(
+#         x=[0.05 * maximal_x, 1.05 * maximal_x],
+#         y=[dscam_ys[1], dscam_ys[1]],
+#         mode="lines",
+#         line=dict(
+#             color=dscam_colors[1], dash=dscam_dashes[1], width=dscam_dashed_lined_width
+#         ),
+#         opacity=0.6,
+#         legendgroup="Drosophila’s Dscam",  # this can be any string
+#         name=dscam_legend_names[1],
+#         # name=f"DSCAM {dscam_legend_names[0]}",
+#     ),
+# )
+
+fig.update_yaxes(
+    # type="log",
+    # # tick0=0,
+    # dtick="D2",
+    # # exponentformat="power",
+    # showexponent='all',
+    # range=[0, (floor(np.log10(max_y)) + ceil(np.log10(max_y))) / 2],
+    # range=[0, max(max_y * 1.2, 1.05 * max(dscam_ys))],
+    range=[0, None],
+    # type='log'
+    # zeroline=True
+)
+fig.update_xaxes(range=[0, maximal_x * 1.1])
+fig.update_layout(
+    # title_text=head_title,
+    title_text="Distinct isoforms in pooled octopus samples of targeted squid homologs",
+    template=template,
+    legend_font=dict(size=10),
+    legend_grouptitlefont=dict(size=12),
+    # legend_font=dict(size=8),
+    # legend_grouptitlefont=dict(size=10),
+    # legend_font=dict(size=12),
+    # legend_grouptitlefont=dict(size=14),
+    # legend_font=dict(size=8),
+    # legend_grouptitlefont=dict(size=8),
+    # legend_tracegroupgap=4,
+    # width=100*maximal_x/10
+    height=600,
+    width=900,
+)
+# fig.write_image(
+#     "Distinct proteins vs. sequencing depth - PacBio.svg", width=900, height=600
+# )
+fig.show()
+
+# %%
+
+# %%
+
+# %%
 
 # %% [markdown] toc-hr-collapsed=true
 # ## Expression levels

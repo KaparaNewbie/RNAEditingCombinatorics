@@ -626,15 +626,15 @@ plot_stats_df(
 	Y_rare_proteins,
 	pacbio_stats_df,
 	samples,
-	log2
+	# log2
 )
 
 
-pacbio_stats_df[pacbio_stats_df.Sample .== "ADAR1" .&& pacbio_stats_df.IsSoftComparison, :]
-pacbio_stats_df[pacbio_stats_df.Sample .== "ADAR1" .&& pacbio_stats_df.IsSoftComparison .== false, :]
+# pacbio_stats_df[pacbio_stats_df.Sample .== "ADAR1" .&& pacbio_stats_df.IsSoftComparison, :]
+# pacbio_stats_df[pacbio_stats_df.Sample .== "ADAR1" .&& pacbio_stats_df.IsSoftComparison .== false, :]
 
-pacbio_stats_df[pacbio_stats_df.Sample .== "IQEC1" .&& pacbio_stats_df.IsSoftComparison, :]
-pacbio_stats_df[pacbio_stats_df.Sample .== "IQEC1" .&& pacbio_stats_df.IsSoftComparison .== false, :]
+# pacbio_stats_df[pacbio_stats_df.Sample .== "IQEC1" .&& pacbio_stats_df.IsSoftComparison, :]
+# pacbio_stats_df[pacbio_stats_df.Sample .== "IQEC1" .&& pacbio_stats_df.IsSoftComparison .== false, :]
 
 
 

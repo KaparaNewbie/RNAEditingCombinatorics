@@ -67,6 +67,7 @@ dependencies:
   - orthofinder
   - umap-learn
   - igv-reports
+  - gsutil
   - pip
   - pip:
       - parasail

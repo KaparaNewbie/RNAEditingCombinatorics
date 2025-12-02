@@ -5,7 +5,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.17.3
+#       jupytext_version: 1.18.1
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -724,7 +724,13 @@ concat_mapped_bams_df = pd.concat(mapped_bam_dfs, ignore_index=True)
 concat_mapped_bams_df
 
 # %%
-concat_mapped_bams_df.groupby("Gene").size()
+concat_mapped_bams_df
+
+# %%
+concat_mapped_bams_df.groupby("Gene").size().reset_index()
+
+# %%
+concat_mapped_bams_df.groupby(["Gene", "Repeat"]).size().reset_index()
 
 # %%
 concat_mapped_bams_df["MappedStrand"].value_counts()
@@ -1041,7 +1047,7 @@ mapped_reads_stats_df.loc[mapped_reads_stats_df["Mapped"]].groupby(
 )
 
 # %%
-concat_bams_df.dropna()["%AlignedSeqLength/RawSeqLength"].value_counts(dropna=False)
+# concat_bams_df.dropna()["%AlignedSeqLength/RawSeqLength"].value_counts(dropna=False)
 
 # %%
 # fig = px.histogram(
@@ -1288,7 +1294,13 @@ def find_first_n_pairwise_alignments_for_barcode_and_read(
         for i, alignment in enumerate(alignments, start=1):
 
             score = alignment.score
-            gaps, identities, mismatches = alignment.counts()
+            
+            # gaps, identities, mismatches = alignment.counts()
+            counts = alignment.counts()
+            gaps = counts.gaps
+            identities = counts.identities
+            mismatches = counts.mismatches
+            
             alignment_length = alignment.length
 
             # prct_barcode_identity = 100 * identities / len(barcode_seq) # todo this is a bit stringent, as it takes len(barcode_seq) instead of alignment_length
@@ -1499,7 +1511,6 @@ def get_genomic_coord_for_read_coord(
 
 
 # %%
-
 def find_btg_gene_coords_one_sample(input_df, mapped_bam_file, threads=10):
 
     # required_reads = input_df["Read"].unique().tolist()
@@ -1662,10 +1673,15 @@ concat_alignments_df
 concat_alignments_df["Read"].value_counts().describe()
 
 # %%
-# the local aligner outputed (at most?) only one pairwise alignment for each read-primer couple, one for each strand
-assert concat_alignments_df[
-    "NumOfAllAlignmentsPerStrand"
-].value_counts().index.values == np.array([1])
+concat_alignments_df[
+    "BTRNumOfAllAlignmentsPerStrand"
+].value_counts()
+
+# %%
+# # the local aligner outputed (at most?) only one pairwise alignment for each read-primer couple, one for each strand
+# assert concat_alignments_df[
+#     "BTRNumOfAllAlignmentsPerStrand"
+# ].value_counts().index.values == np.array([1])
 
 # %%
 # # # the local aligner outputed (at most?) only one pairwise alignment for each read-primer couple, one for each strand
@@ -1931,6 +1947,36 @@ mapping_boundaries_stats_df
 # %%
 
 # %%
+gene = genes[0]
+
+mapping_boundaries_stats_df = (
+        concat_bams_df.loc[
+            (concat_bams_df["Gene"].eq(gene))
+            & (concat_bams_df["Gene"].eq(concat_bams_df["MappedGene"]))
+            & (concat_bams_df["Mapped"]),
+            ["GeneStart", "GeneEnd"],
+        ]
+        .describe()
+        # .T
+    )
+mapping_boundaries_stats_df
+
+# %%
+gene = genes[1]
+
+mapping_boundaries_stats_df = (
+        concat_bams_df.loc[
+            (concat_bams_df["Gene"].eq(gene))
+            & (concat_bams_df["Gene"].eq(concat_bams_df["MappedGene"]))
+            & (concat_bams_df["Mapped"]),
+            ["GeneStart", "GeneEnd"],
+        ]
+        .describe()
+        # .T
+    )
+mapping_boundaries_stats_df
+
+# %%
 main_mapping_boundaries_per_gene = []
 
 
@@ -1947,7 +1993,7 @@ for gene in genes:
         .T
     )
 
-    main_mapping_boundary_start = mapping_boundaries_stats_df.at["GeneStart", "25%"]
+    main_mapping_boundary_start = mapping_boundaries_stats_df.at["GeneStart", "25%"] # TODO fix to 75%
     main_mapping_boundary_end = mapping_boundaries_stats_df.at["GeneEnd", "75%"]
     main_mapping_boundaries = (main_mapping_boundary_start, main_mapping_boundary_end)
     main_mapping_boundaries_per_gene.append(main_mapping_boundaries)
@@ -2703,6 +2749,9 @@ best_gene_specific_concat_alignments_df
 best_gene_specific_concat_alignments_df.groupby("Gene").size()
 
 # %%
+best_gene_specific_concat_alignments_df.groupby(["Gene", "Repeat"]).size().reset_index()
+
+# %%
 principle_exact_umi_seq_length = 12
 
 best_gene_specific_concat_alignments_df["ExactUMISeq"] = (
@@ -2916,6 +2965,9 @@ best_gene_specific_pcr_amplified_concat_alignments_df["UMIUniqueSubSeqs"] = (
 best_gene_specific_pcr_amplified_concat_alignments_df
 
 # %%
+best_gene_specific_pcr_amplified_concat_alignments_df.shape
+
+# %%
 # best_gene_specific_pcr_amplified_concat_alignments_df["Read"].nunique()
 
 best_gene_specific_pcr_amplified_concat_alignments_df.drop_duplicates(["Gene", "Read"]).shape[0]
@@ -3013,12 +3065,6 @@ def choose_best_pcr_btr_barcode_alignment_for_read(
 
 
 # %%
-best_gene_specific_pcr_amplified_concat_alignments_df
-
-# %%
-best_gene_specific_pcr_amplified_concat_alignments_df["Gene"] + "-" + best_gene_specific_pcr_amplified_concat_alignments_df["Read"]
-
-# %%
 # best_gene_specific_pcr_amplified_concat_alignments_df["Read2"] = (
 #     best_gene_specific_pcr_amplified_concat_alignments_df["Read"]
 # )
@@ -3042,11 +3088,78 @@ best_gene_specific_pcr_amplified_concat_alignments_df
 best_gene_specific_pcr_amplified_concat_alignments_df
 
 # %%
+best_gene_specific_pcr_amplified_concat_alignments_df.groupby("Gene").size().reset_index()
+
+# %%
+best_gene_specific_pcr_amplified_concat_alignments_df.groupby(["Gene", "Repeat"]).size().reset_index()
+
+# %%
 best_gene_specific_pcr_amplified_concat_alignments_df.groupby("Gene")["SpanningUMISeqLength"].value_counts()
 
 # %%
+best_gene_specific_pcr_amplified_concat_alignments_df.groupby(["Gene", "Repeat"])["SpanningUMISeqLength"].value_counts().reset_index()
+
+# %%
+fig = px.bar(
+    best_gene_specific_pcr_amplified_concat_alignments_df.groupby(["Gene", "Repeat"])["SpanningUMISeqLength"].value_counts().reset_index(),
+    x="SpanningUMISeqLength",
+    y="count",
+    facet_row="Gene",
+    facet_col="Repeat",
+    labels={"count": "Number of reads", "SpanningUMISeqLength": "UMI length [bp]"},
+)
+fig.update_layout(
+    width=800,
+    height=500,
+)
+fig.show()
+
+# %%
+fig = px.bar(
+    best_gene_specific_pcr_amplified_concat_alignments_df.groupby(["Gene", "Repeat"])["SpanningUMISeqLength"].value_counts(normalize=True).mul(100).reset_index(),
+    x="SpanningUMISeqLength",
+    y="proportion",
+    facet_row="Gene",
+    facet_col="Repeat",
+    labels={"proportion": "% of reads", "SpanningUMISeqLength": "UMI length [bp]"},
+)
+fig.update_layout(
+    width=800,
+    height=500,
+)
+fig.show()
+
+# %%
 best_gene_specific_pcr_amplified_concat_alignments_df.groupby("Gene")["SpanningUMISeqLength"].apply(
-    lambda x: 100 * x.ne(12).sum() / x.size
+    lambda x: 100 * x.eq(12).sum() / x.size
+)
+
+# %%
+best_gene_specific_pcr_amplified_concat_alignments_df.groupby(["Gene", "Repeat"])["SpanningUMISeqLength"].apply(
+    lambda x: 100 * x.eq(12).sum() / x.size
+)
+
+# %%
+best_gene_specific_pcr_amplified_concat_alignments_df.groupby(["Gene", ])["SpanningUMISeqLength"].apply(
+    lambda x: x.eq(12).sum()
+)
+
+# %%
+best_gene_specific_pcr_amplified_concat_alignments_df.groupby(["Gene", "Repeat"])["SpanningUMISeqLength"].apply(
+    lambda x: x.eq(12).sum()
+)
+
+# %%
+best_gene_specific_pcr_amplified_concat_alignments_df.groupby(["Gene"])["SpanningUMISeq"].apply(
+    lambda x: len(set(x))
+)
+
+# %%
+best_gene_specific_pcr_amplified_concat_alignments_df.groupby(["Gene", "Repeat"]).size()
+
+# %%
+best_gene_specific_pcr_amplified_concat_alignments_df.groupby(["Gene", "Repeat"])["SpanningUMISeq"].apply(
+    lambda x: len(set(x))
 )
 
 # %%
@@ -3118,7 +3231,7 @@ best_gene_specific_pcr_amplified_concat_alignments_df.loc[
 # # !samtools index -M {reads_with_recognizable_barcodes_dir}/*.bam
 
 # %% [markdown]
-# ### Plot 12-nt UMI sequences from recognized barcodes
+# ### Plot UMI sequences from recognized barcodes
 
 # %%
 # unique umi seqs
@@ -3239,1369 +3352,33 @@ for x_nt in [10, 11, 12, 13, 14]:
         height = 2.5,
     );
 
-
-# %%
-
 # %% [markdown]
-# ## Find unique reads by UMI sub-seqs
+# ### Save 12-nt UMI sequences from recognized barcodes
 
-# %% [markdown]
-# ### Graph preleminaries
-
-# %%
-def compute_reads_with_indistinguishable_umi_subseqs(df):
-    """
-    For each read, find all other reads that share at least one UMI sub-sequence.
-    Returns a DataFrame with new columns:
-      - OtherReadswithIndistinguishableUMISubSeqs
-      - NumOfOtherReadswithIndistinguishableUMISubSeqs
-    """
-    # Build a mapping from each sub-sequence to the set of reads containing it
-    subseq_to_reads = {}
-    for _, (read, subseqs) in df[
-        ["Read", "UMIUniqueSubSeqs"]
-    ].iterrows():  # _ is the row index
-        for subseq in subseqs:
-            subseq_to_reads.setdefault(subseq, set()).add(read)
-
-    # For each read, collect all reads sharing any sub-sequence
-    reads_with_overlap = []
-    for _, (read, subseqs) in df[
-        ["Read", "UMIUniqueSubSeqs"]
-    ].iterrows():  # _ is the row index
-        overlapping_reads = set()
-        for subseq in subseqs:
-            overlapping_reads.update(subseq_to_reads.get(subseq, set()))
-        # reads_with_overlap.append(list(overlapping_reads))
-        reads_with_overlap.append(list(overlapping_reads - {read}))
-
-    df = df.copy()
-    # df["ReadswithIndistinguishableUMISubSeqs"] = reads_with_overlap
-    # df["OtherReadswithIndistinguishableUMISubSeqs"] = [
-    #     [r for r in reads if r != read]
-    #     for read, reads in zip(df["Read"], df["ReadswithIndistinguishableUMISubSeqs"])
-    # ]
-    df["OtherReadswithIndistinguishableUMISubSeqs"] = reads_with_overlap
-    df["NumOfOtherReadswithIndistinguishableUMISubSeqs"] = df[
-        "OtherReadswithIndistinguishableUMISubSeqs"
-    ].apply(len)
-    return df
-
-
-# %%
-umi_sub_seq_len
-
-# %%
-gene_specific_pcr_amplified_dfs = []
-
-for gene, repeat in product(genes, list("123")):
-
-    ic(gene, repeat)
-
-    gene_and_repeat_df = best_gene_specific_pcr_amplified_concat_alignments_df.loc[
-        (best_gene_specific_pcr_amplified_concat_alignments_df["Gene"] == gene)
-        & (best_gene_specific_pcr_amplified_concat_alignments_df["Repeat"] == repeat)
-    ].copy()
-    
-    gene_and_repeat_df["UMIUniqueSubSeqs"] = (
-        gene_and_repeat_df["SpanningUMISeq"].apply(
-            lambda x: split_umi_seq_to_unique_sub_seqs(x, umi_sub_seq_len)
-        )
-    )
-
-    gene_specific_pcr_amplified_dfs.append(gene_and_repeat_df)
-
-with Pool(processes=6) as pool:
-    processed_gene_specific_pcr_amplified_dfs = pool.map(
-        # func=process_gene_and_repeat_df,
-        func=compute_reads_with_indistinguishable_umi_subseqs,
-        iterable=gene_specific_pcr_amplified_dfs,
-    )
-
-best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df = pd.concat(
-    processed_gene_specific_pcr_amplified_dfs, ignore_index=True
-)
-best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df
-
-# %%
-best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.groupby(
-    "Sample"
-).size()
-
-# %%
-best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
-    best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df[
-        "NumOfOtherReadswithIndistinguishableUMISubSeqs"
-    ].eq(0),
-].groupby("Sample").size()
-
-# %%
-best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
-    best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df[
-        "NumOfOtherReadswithIndistinguishableUMISubSeqs"
-    ].eq(0),
-].groupby("Sample").size().mul(100).div(
-    best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.groupby(
-        "Sample"
-    ).size()
-).round(2)
-
-# %%
-best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df[
-    "NumOfOtherReadswithIndistinguishableUMISubSeqs"
-].eq(0).sum()
-
-# %%
-best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
-    best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df[
-        "NumOfOtherReadswithIndistinguishableUMISubSeqs"
-    ].eq(0),
-].shape[0] * 100 / best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.shape[0]
-
-
-# %% [markdown]
-# ### Analyze graph structure
-
-# %%
-def create_indistinguishable_graph(gene_and_repeat_df):
-    # create g by explicitly deepcopying the needed cols
-    reads = gene_and_repeat_df["Read"].tolist()
-    other_indistinguishable_reads = (
-        gene_and_repeat_df["OtherReadswithIndistinguishableUMISubSeqs"]
-        .apply(lambda x: copy.deepcopy(x))
-        .tolist()
-    )
-
-    G = nx.Graph()
-
-    G.add_nodes_from(reads)
-    # ic(G.number_of_nodes())
-
-    for read, neighbours in zip(reads, other_indistinguishable_reads):
-        for neighbour in neighbours:
-            G.add_edge(read, neighbour)
-            
-    # ic(G.number_of_edges());
-    return G
-
-
-# %%
-# Clear any previous outputs and run the loop cleanly
-clear_output()
-
-print("Starting loop execution...")
-print("Expected iterations:", len(list(product(genes, list("123")))))
-print("-" * 40)
-
-Gs = []
-ccs_dfs = []
-for i, (gene, repeat) in enumerate(product(genes, list("123"))):
-    # i_s.append(i)
-    print(f"Iteration {i}: gene={gene}, repeat={repeat}")
-
-    gene_and_repeat_df = best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
-        (best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df["Gene"] == gene)
-        & (best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df["Repeat"] == repeat),
-        ["Read", "OtherReadswithIndistinguishableUMISubSeqs"]
-    ]
-
-    G = create_indistinguishable_graph(gene_and_repeat_df)
-    Gs.append(G)
-    
-    ccs_df = pd.DataFrame(
-        {
-                "Gene": gene,
-                "Repeat": int(repeat),
-                "CC":  list(nx.connected_components(G)),
-        }
-    )
-    ccs_df["Size"] = ccs_df["CC"].apply(len)
-    ccs_df["Degrees"] = ccs_df["CC"].apply(lambda x: [len(G.adj[read]) for read in x])
-    ccs_df["MeanDegree"] = ccs_df.apply(lambda x: sum(x["Degrees"]) / x["Size"], axis=1)
-    ccs_dfs.append(ccs_df)
-
-print("-" * 40)
-print(f"Loop completed. Processed {i} iterations, created {len(Gs)} graphs.")
-
-concat_ccs_df = pd.concat(ccs_dfs, ignore_index=True)
-
-assert concat_ccs_df.loc[
-    concat_ccs_df["Degrees"].apply(max).ge(concat_ccs_df["Size"])
-].empty, "Max degree in connected components should not exceed the size of the component."
-
-concat_ccs_df["Edges"] = concat_ccs_df["Degrees"].apply(
-    lambda x: sum(x) / 2
-)
-concat_ccs_df["Cliquishness"] = concat_ccs_df.apply(
-    # lambda x: x["Edges"] / ((x["Size"] * (x["Size"] - 1)) / 2) if x["Size"] > 1 else np.nan,
-    lambda x: x["Edges"] / ((x["Size"] * (x["Size"] - 1)) / 2) if x["Size"] > 1 else 1,
-    axis=1
-)
-
-concat_ccs_df
-
-# %%
-# 
-
-# %%
-# how many reads are in connected components of size >= 2 that are not cliquish in
-concat_ccs_df.loc[
-    (concat_ccs_df["Size"] >= 2)
-    & (concat_ccs_df["Cliquishness"] < 1),    
-].groupby(["Gene", "Repeat"])["Size"].sum()
-
-# %%
-# num of nodes per graph
-concat_ccs_df.groupby(["Gene", "Repeat"])["Size"].apply(np.sum).astype(int).reset_index()
-
-# %%
-# num of edges per graph
-concat_ccs_df.groupby(["Gene", "Repeat"])["Edges"].apply(np.sum).astype(int).reset_index()
-
-# %%
-# num of connected components per graph
-concat_ccs_df[["Gene", "Repeat"]].value_counts().reset_index().sort_values(["Gene", "Repeat"]).reset_index(drop=True)
-
-# %%
-# connected components sizes stats
-concat_ccs_df.groupby(["Gene", "Repeat"])["Size"].describe().round(2).reset_index()
-
-# %%
-# % of connected components with size 1
-concat_ccs_df.groupby(["Gene", "Repeat"])["Size"].apply(lambda x: x.eq(1).sum() * 100 / x.size).round(2)
-
-# %%
-# % of nodes in connected components with size 1
-concat_ccs_df.groupby(["Gene", "Repeat"]).apply(
-    lambda x: x.loc[x["Size"].eq(1), "Size"].sum() * 100 / x["Size"].sum(),
-    include_groups=False
-).round(2)
-
-# %%
-fig = px.histogram(
-    concat_ccs_df,
-    x="Size",
-    # y="MeanDegree",
-    # facet_col="Gene",
-    # facet_row="Repeat",
-    facet_col="Repeat",
-    facet_row="Gene",
-    # color="Repeat",
-    # opacity=0.6,
-    # log_x=True,
-    log_y=True,
-    histnorm="percent",
-    # cumulative=True,
-    labels={"Size": "Connected component size"},
-)
-fig.update_layout(
-    width=1200,
-    height=600,
-    # barmode='overlay'
-    title="Connected components size distribution"
-)
-fig.show()
-
-# %%
-fig = px.histogram(
-    concat_ccs_df.loc[concat_ccs_df["Size"].ge(2)],
-    x="MeanDegree",
-    # y="MeanDegree",
-    # facet_col="Gene",
-    # facet_row="Repeat",
-    facet_col="Repeat",
-    facet_row="Gene",
-    # color="Repeat",
-    # opacity=0.6,
-    # log_x=True,
-    log_y=True,
-    # histnorm="percent",
-    # cumulative=True,
-    labels={"MeanDegree": "Connected component mean degree"},
-)
-fig.update_layout(
-    width=1200,
-    height=600,
-    # barmode='overlay',
-    title="Mean degree distribution per connected components with size >= 2"
-)
-fig.show()
-
-# %%
-fig = px.scatter(
-    concat_ccs_df.groupby(["Gene", "Repeat", "Size"])["MeanDegree"].agg(["mean", "std"]).reset_index(),
-    x="Size",
-    y="mean",
-    error_y="std",
-    facet_col="Repeat",
-    facet_row="Gene",
-    # color="Repeat",
-    # opacity=0.6,
-    # log_x=True,
-    # log_y=True,
-    # histnorm="percent",
-    # cumulative=True,
-    labels={
-        "Size": "Connected component size", 
-        # "mean": "Connected component mean degree"
-        "mean": "Mean degree"
-        },
-)
-fig.update_xaxes(tick0=0, dtick=5)
-fig.update_yaxes(tick0=0, dtick=5)
-fig.update_layout(
-    width=1200,
-    height=400,
-    # barmode='overlay',
-    # title="Mean degree distribution per connected components with size >= 2"
-)
-fig.show()
-
-# %%
-fig = px.scatter(
-    concat_ccs_df.loc[
-        concat_ccs_df["Size"].ge(2)
-    ].groupby(["Gene", "Repeat", "Size"])["Cliquishness"].agg(["mean", "std"]).reset_index(),
-    x="Size",
-    y="mean",
-    error_y="std",
-    facet_col="Repeat",
-    facet_row="Gene",
-    # color="Repeat",
-    # opacity=0.6,
-    # log_x=True,
-    # log_y=True,
-    # histnorm="percent",
-    # cumulative=True,
-    labels={
-        "Size": "Connected component size", 
-        # "mean": "Connected component mean degree"
-        "mean": "Mean cliquishness<br>(|E| / |E|_clique)"
-        # "mean": "Mean cliquishness<br>(|E| / |V|*(|V|-1)/2)"
-        },
-)
-fig.update_layout(
-    width=1200,
-    height=600,
-    # barmode='overlay',
-    title="How close is a connected component of size >= 2 to be a clique?"
-)
-fig.show()
-
-# %%
-concat_ccs_df
-
-# %%
-ccs_df = concat_ccs_df.loc[
-    (concat_ccs_df["Gene"] == "ADAR1")
-    & (concat_ccs_df["Repeat"] == 1)
-]
-ccs_df
-
-# %%
-G = Gs[0]
-
-# %%
-max_cliques = list(nx.find_cliques(G))
-len(max_cliques)
-
-# %%
-for i, (gene, repeat) in enumerate(product(genes, list("123"))):
-    G = Gs[i]
-    max_cliques = list(nx.find_cliques(G))
-    print(f"Gene: {gene}, Repeat: {repeat}, Max cliques: {len(max_cliques)}")
-    # if len(max_cliques) > 0:
-    #     print("Example max clique:", max_cliques[0])
-    # else:
-    #     print("No max cliques found.")
-    # print("-" * 40)
-
-# %%
-for i, (gene, repeat) in enumerate(product(genes, list("123"))):
-    
-    print(f"Iteration {i}: gene={gene}, repeat={repeat}")
-    
-    G = Gs[i]
-    
-    ccs_df = concat_ccs_df.loc[
-        (concat_ccs_df["Gene"] == gene)
-        & (concat_ccs_df["Repeat"] == int(repeat))
-    ]
-    # ccs_df
-
-    gene_and_repeat_df = best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
-        (best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df["Gene"] == gene)
-        & (best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df["Repeat"] == repeat),
-        # ["Read", "OtherReadswithIndistinguishableUMISubSeqs"]
-    ]
-    
-    break
-
-gene_and_repeat_df
-
-
-# %%
-# ccs_df
-
-# %%
-# how can we make more stringent definition of an edge between two reads?
-# for each edge (u, v), report:
-# 1 - u's spanning barcode length
-# 2 - v's spanning barcode length
-# 3 - length of the longest common subsequence of u's and v's spanning barcodes
-
-# %%
-def make_edges_umi_df(gene, repeat, G, gene_and_repeat_df, max_alignments):
-    edges_umi_data = []
-
-    for u, v in G.edges():
-        
-        u_v_gene_and_repeat_df = gene_and_repeat_df.loc[
-            gene_and_repeat_df["Read"].isin([u, v]),
-            ["Read", "SpanningUMISeq", "SpanningUMISeqLength",]
-        ].set_index("Read")
-        
-        # u_spanning_umi_seq = u_v_gene_and_repeat_df.loc[u, "SpanningUMISeq"]
-        # v_spanning_umi_seq = u_v_gene_and_repeat_df.loc[v, "SpanningUMISeq"]
-        u_spanning_umi_seq_len = u_v_gene_and_repeat_df.loc[u, "SpanningUMISeqLength"]
-        v_spanning_umi_seq_len = u_v_gene_and_repeat_df.loc[v, "SpanningUMISeqLength"]
-        
-        if v_spanning_umi_seq_len < u_spanning_umi_seq_len:
-            # swap u and v to ensure u has the shorter spanning UMI seq
-            u, v = v, u
-            u_spanning_umi_seq_len, v_spanning_umi_seq_len = (
-                v_spanning_umi_seq_len,
-                u_spanning_umi_seq_len,
-            )
-            
-        
-        for x, y in [(u, v), (v, u)]:
-            x_spanning_umi_seq = u_v_gene_and_repeat_df.loc[x, "SpanningUMISeq"]
-            y_spanning_umi_seq = u_v_gene_and_repeat_df.loc[y, "SpanningUMISeq"]
-            # x_spanning_umi_seq_len = u_v_gene_and_repeat_df.loc[x, "SpanningUMISeqLength"]
-            # y_spanning_umi_seq_len = u_v_gene_and_repeat_df.loc[y, "SpanningUMISeqLength"]
-            # ic(x, y)
-            
-            aligner = Align.PairwiseAligner(
-                # match_score=1.0, mismatch_score=-2.0, gap_score = -2.5,
-                mode="local",  # otherwise we'd get scattered matches of the primer across the read
-                scoring="blastn",
-                # scoring="megablast"
-            )
-            
-            alignments = aligner.align(x_spanning_umi_seq, y_spanning_umi_seq, strand="+")
-
-            for alignment_i, alignment in enumerate(alignments, start=1):
-
-                score = alignment.score
-                gaps, identities, mismatches = alignment.counts()
-                alignment_length = alignment.length
-
-                order = "U, V" if (x, y) == (u, v) else "V, U"
-                u_v_umi_data = [
-                    u, v,
-                    u_spanning_umi_seq_len, v_spanning_umi_seq_len,
-                    order,
-                    alignment_i, score, gaps, identities, mismatches, alignment_length, alignment
-                ]
-                
-                edges_umi_data.append(u_v_umi_data)
-                
-                if (
-                    max_alignments is not None
-                    and i == max_alignments
-                ):
-                    break
-
-    edges_umi_df = pd.DataFrame(
-        {
-            "Gene": gene,
-            "Repeat": repeat,
-            "U": [data[0] for data in edges_umi_data],
-            "V": [data[1] for data in edges_umi_data],
-            "USpanningUMILength": [data[2] for data in edges_umi_data],
-            "VSpanningUMILength": [data[3] for data in edges_umi_data],
-            "Order": [data[4] for data in edges_umi_data],
-            "AlignmentIndex": [data[5] for data in edges_umi_data],
-            "Score": [data[6] for data in edges_umi_data],
-            "Gaps": [data[7] for data in edges_umi_data],
-            "Identities": [data[8] for data in edges_umi_data],
-            "Mismatches": [data[9] for data in edges_umi_data],
-            "AlignmentLength": [data[10] for data in edges_umi_data],
-            "Alignment": [data[11] for data in edges_umi_data],
-        }
-    )
-
-    assert edges_umi_df.groupby(["U", "V"])["AlignmentLength"].nunique().describe()["max"] == 1, "There should be only one alignment length per edge (U, V), regardless of the order (U, V) or (V, U)."
-
-    # following the last assertment, we can safely drop the duplicate edges,
-    # as they will have the same alignment length and other properties,
-    # and also the columns representing the order of the alignment
-    # (as we only keep one (u, v) alignment)
-    edges_umi_df = edges_umi_df.drop_duplicates(["U", "V"]).drop(columns=["Order", "AlignmentIndex", "Score"])
-    
-    edges_umi_df.insert(
-        edges_umi_df.columns.get_loc("VSpanningUMILength") + 1,
-        "SpanningUMISeqAbsDiff",
-        edges_umi_df["USpanningUMILength"].sub(edges_umi_df["VSpanningUMILength"]).abs()
-    )
-
-    edges_umi_df["%AlignmentLength/USpanningUMILength"] = (
-        edges_umi_df["AlignmentLength"].mul(100).div(edges_umi_df["USpanningUMILength"])
-    )
-    edges_umi_df["%AlignmentLength/VSpanningUMILength"] = (
-        edges_umi_df["AlignmentLength"].mul(100).div(edges_umi_df["VSpanningUMILength"])
-    )
-        
-    return edges_umi_df
-
-# %%
-max_alignments = 100
-
-with Pool() as pool:
-    edges_umi_dfs = pool.starmap(
-        func=make_edges_umi_df,
-        iterable=[
-            (
-                gene,
-                repeat,
-                Gs[i], 
-                best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
-                    (best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df["Gene"] == gene)
-                    & (best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df["Repeat"] == repeat),
-                    ["Read", "SpanningUMISeq", "SpanningUMISeqLength",]
-                ],
-                max_alignments
-            )
-            for i, (gene, repeat) in enumerate(product(genes, list("123")))
-        ]
-    )
-
-concat_edges_umi_df = pd.concat(edges_umi_dfs, ignore_index=True)
-
-assert concat_edges_umi_df["Gaps"].describe()["max"] == 0
-del concat_edges_umi_df["Gaps"]
-
-concat_edges_umi_df
-
-# %%
-# concat_edges_umi_df.loc[
-#     (concat_edges_umi_df["USpanningUMILength"].eq(concat_edges_umi_df["VSpanningUMILength"]))
-#     & (concat_edges_umi_df["USpanningUMILength"].eq(concat_edges_umi_df["AlignmentLength"]))
-# ]
-
-# %%
-concat_edges_umi_df.loc[
-    (concat_edges_umi_df["AlignmentLength"].sub(concat_edges_umi_df["USpanningUMILength"]).abs().le(1))
-    & (concat_edges_umi_df["AlignmentLength"].sub(concat_edges_umi_df["VSpanningUMILength"]).abs().le(1))
-]
-
-# %%
-concat_edges_umi_df.loc[
-    (concat_edges_umi_df["AlignmentLength"].sub(concat_edges_umi_df["USpanningUMILength"]).abs().le(1))
-    & (concat_edges_umi_df["AlignmentLength"].sub(concat_edges_umi_df["VSpanningUMILength"]).abs().le(1)),
-    
-].groupby(["Gene", "Repeat"])[["AlignmentLength", "Mismatches"]].describe()
-
-# %%
-concat_edges_umi_df["Mismatches"].describe()
-
-# %%
-concat_edges_umi_df["SpanningUMISeqAbsDiff"].describe()
-
-# %%
-# concat_edges_umi_df.loc[:, ["Gene", "Repeat", "USpanningUMILength", "VSpanningUMILength"]].value_counts()
-
-# %%
-fig = px.box(
-    concat_edges_umi_df.transform(
-        lambda x: x.astype({"USpanningUMILength": "str"})
-    ),
-    x="USpanningUMILength",
-    y="VSpanningUMILength",
-    facet_row_spacing=0.15,
-    color="Repeat",
-    # size="Edges",
-    # facet_col="Repeat",
-    facet_row="Gene",
-    category_orders={
-        "USpanningUMILength": [str(x) for x in range(10, 15)],
-    },
-    labels={
-        "USpanningUMILength": "U's length",
-        "VSpanningUMILength": "V's length",
-        },
-)
-# fig.update_xaxes(tick0=0, dtick=2)
-fig.update_layout(
-    width=800,
-    height=600,
-    # Reduce spacing between groups and boxes
-    # boxmode='group',   # group by "x" 
-    # boxgap=0.1,        # space between boxes in one group (default ~0.3)
-    # boxgroupgap=0.01   # space between groups (different x values)
-)
-fig.show()
-
-# %%
-# fig = px.box(
-#     concat_edges_umi_df.transform(
-#         lambda x: x.astype({"USpanningUMILength": "str"})
-#     ),
-#     x="USpanningUMILength",
-#     y="VSpanningUMILength",
-#     facet_row_spacing=0.15,
-#     color="AlignmentLength",
-#     # size="Edges",
-#     facet_col="Repeat",
-#     facet_row="Gene",
-#     category_orders={
-#         "USpanningUMILength": [str(x) for x in range(10, 15)],
-#     },
-#     # labels={
-#     #     "%AlignmentLength/USpanningUMILength": "% alignment length /<br>U's length",
-#     #     "%AlignmentLength/VSpanningUMILength": "% alignment length /<br>V's length",
-#     #     "Edges": "% edges in sample"
-#     #     },
-# )
-# # fig.update_xaxes(tick0=0, dtick=2)
-# fig.update_layout(
-#     width=1400,
-#     height=600,
-#     # Reduce spacing between groups and boxes
-#     # boxmode='group',   # group by "x" 
-#     # boxgap=0.1,        # space between boxes in one group (default ~0.3)
-#     # boxgroupgap=0.01   # space between groups (different x values)
-# )
-# fig.show()
-
-# %%
-fig = px.box(
-    concat_edges_umi_df.transform(
-        lambda x: x.astype({"USpanningUMILength": "str"})
-    ),
-    x="USpanningUMILength",
-    y="VSpanningUMILength",
-    facet_row_spacing=0.15,
-    # color="AlignmentLength",
-    # facet_col="Repeat",
-    facet_col="AlignmentLength",
-    color="Repeat",
-    facet_row="Gene",
-    category_orders={
-        "USpanningUMILength": [str(x) for x in range(10, 15)],
-    },
-    labels={
-        "USpanningUMILength": "U's length",
-        "VSpanningUMILength": "V's length",
-        "AlignmentLength": "Alignment length"
-        },
-)
-# fig.update_xaxes(tick0=0, dtick=2)
-fig.update_layout(
-    width=1400,
-    height=600,
-    # Reduce spacing between groups and boxes
-    # boxmode='group',   # group by "x" 
-    # boxgap=0.1,        # space between boxes in one group (default ~0.3)
-    # boxgroupgap=0.01   # space between groups (different x values)
-)
-fig.show()
-
-# %%
-fig = px.box(
-    concat_edges_umi_df.transform(
-        lambda x: x.astype({"USpanningUMILength": "str"})
-    ),
-    x="USpanningUMILength",
-    # y="%AlignmentLength/USpanningUMILength",
-    y="AlignmentLength",
-    # y="VSpanningUMILength",
-    facet_row_spacing=0.15,
-    # color="AlignmentLength",
-    # facet_col="Repeat",
-    # facet_col="AlignmentLength",
-    # facet_col="VSpanningUMILength",
-    color="Repeat",
-    facet_row="Gene",
-    category_orders={
-        "USpanningUMILength": [str(x) for x in range(10, 15)],
-    },
-    labels={
-        "USpanningUMILength": "U's length",
-        # "%AlignmentLength/USpanningUMILength": "% alignment length /<br>U's length",
-        "AlignmentLength": "Alignment length",
-        # "%AlignmentLength/VSpanningUMILength": "% alignment length /<br>V's length",
-        # "Edges": "% edges in sample"
-        },
-)
-# fig.update_xaxes(tick0=0, dtick=2)
-fig.update_traces(
-    line=dict(width=4)  # bolder median line
-)
-fig.update_layout(
-    width=800,
-    height=600,
-    # Reduce spacing between groups and boxes
-    # boxmode='group',   # group by "x" 
-    # boxgap=0.1,        # space between boxes in one group (default ~0.3)
-    # boxgroupgap=0.01   # space between groups (different x values)
-)
-fig.show()
-
-# %%
-# fig = px.histogram(
-#     concat_edges_umi_df,
-#     x="USpanningUMILength",
-#     y="VSpanningUMILength",
-#     facet_col="Repeat",
-#     facet_row="Gene",
-#     facet_row_spacing=0.1,
-#     # color="Repeat",
-#     # opacity=0.6,
-#     # log_x=True,
-#     # log_y=True,
-#     # histnorm="percent",
-#     histfunc="avg",
-#     # cumulative=True,
-#     # labels={"MeanDegree": "Connected component mean degree"},
-# )
-# fig.update_xaxes(dtick=1)
-# fig.update_yaxes(dtick=1, range=[10, None])
-# fig.update_layout(
-#     width=1200,
-#     height=600,
-#     # barmode='overlay',
-#     # title="Mean degree distribution per connected components with size >= 2"
-# )
-# fig.show()
-
-# %%
-fig = px.histogram(
-    concat_edges_umi_df,
-    x="SpanningUMISeqAbsDiff",
-    # y="MeanDegree",
-    facet_col="Repeat",
-    facet_row="Gene",
-    # color="Repeat",
-    # opacity=0.6,
-    # log_x=True,
-    # log_y=True,
-    # histnorm="percent",
-    # cumulative=True,
-    # labels={"MeanDegree": "Connected component mean degree"},
-)
-fig.update_xaxes(dtick=1)
-fig.update_layout(
-    width=800,
-    height=400,
-    # barmode='overlay',
-    # title="Mean degree distribution per connected components with size >= 2"
-)
-fig.show()
-
-# %%
-fig = px.histogram(
-    concat_edges_umi_df,
-    x="SpanningUMISeqAbsDiff",
-    # y="MeanDegree",
-    facet_col="Repeat",
-    facet_row="Gene",
-    # color="Repeat",
-    # opacity=0.6,
-    # log_x=True,
-    # log_y=True,
-    histnorm="percent",
-    # cumulative=True,
-    # labels={"MeanDegree": "Connected component mean degree"},
-)
-fig.update_xaxes(dtick=1)
-fig.update_layout(
-    width=800,
-    height=400,
-    # barmode='overlay',
-    # title="Mean degree distribution per connected components with size >= 2"
-)
-fig.show()
-
-# %%
-fig = px.histogram(
-    concat_edges_umi_df,
-    x="AlignmentLength",
-    # y="MeanDegree",
-    facet_col="Repeat",
-    facet_row="Gene",
-    facet_row_spacing=0.1,
-    # color="Repeat",
-    # opacity=0.6,
-    # log_x=True,
-    # log_y=True,
-    # histnorm="percent",
-    # cumulative=True,
-    # labels={"MeanDegree": "Connected component mean degree"},
-)
-fig.update_xaxes(dtick=1)
-fig.update_layout(
-    width=800,
-    height=400,
-    # barmode='overlay',
-    # title="Mean degree distribution per connected components with size >= 2"
-)
-fig.show()
-
-# %%
-fig = px.histogram(
-    concat_edges_umi_df,
-    x="AlignmentLength",
-    # y="MeanDegree",
-    facet_col="Repeat",
-    facet_row="Gene",
-    facet_row_spacing=0.1,
-    # color="Repeat",
-    # opacity=0.6,
-    # log_x=True,
-    # log_y=True,
-    histnorm="percent",
-    # cumulative=True,
-    # labels={"MeanDegree": "Connected component mean degree"},
-)
-fig.update_xaxes(dtick=1)
-fig.update_layout(
-    width=800,
-    height=400,
-    # barmode='overlay',
-    # title="Mean degree distribution per connected components with size >= 2"
-)
-fig.show()
-
-# %%
-# fig = px.histogram(
-#     concat_edges_umi_df,
-#     x="USpanningUMILength",
-#     y="AlignmentLength",
-#     facet_col="Repeat",
-#     facet_row="Gene",
-#     facet_row_spacing=0.1,
-#     # color="Repeat",
-#     # opacity=0.6,
-#     # log_x=True,
-#     # log_y=True,
-#     # histnorm="percent",
-#     histfunc="avg",
-#     # cumulative=True,
-#     # labels={"MeanDegree": "Connected component mean degree"},
-# )
-# fig.update_xaxes(dtick=1)
-# fig.update_yaxes(
-#     # dtick=1, 
-#                  range=[concat_edges_umi_df["AlignmentLength"].min(), None]
-#                  )
-# fig.update_layout(
-#     width=1200,
-#     height=600,
-#     # barmode='overlay',
-#     # title="Mean degree distribution per connected components with size >= 2"
-# )
-# fig.show()
-
-# %%
-# # APPROACH 5: Build plot trace by trace in correct order
-
-
-# df = concat_edges_umi_df.assign(
-#     Sample = concat_edges_umi_df["Gene"] + "-" + concat_edges_umi_df["Repeat"]
-# ).loc[
-#     :, ["Sample", "%AlignmentLength/USpanningUMILength", "%AlignmentLength/VSpanningUMILength", "SpanningUMISeqAbsDiff"]
-# ].groupby("Sample").value_counts(normalize=True).mul(100).div(10).astype(int).apply(lambda x: f"{x*10}-{x*10+10}").reset_index(name="Edges")
-
-# # Get unique samples and spanning diff values for subplot layout
-# samples = [f"{gene}-{repeat}" for gene, repeat in product(genes, list("123"))]
-# spanning_diffs = sorted(df["SpanningUMISeqAbsDiff"].unique())
-
-# # Create subplots
-# fig = make_subplots(
-#     rows=len(spanning_diffs), 
-#     cols=len(samples),
-#     subplot_titles=samples,
-#     vertical_spacing=0.02,
-#     horizontal_spacing=0.02,
-#     row_titles=[f"UMI abs diff = {diff}" for diff in spanning_diffs],
-#     shared_xaxes="all",
-#     shared_yaxes="all",
-#     x_title="% alignment length / U's length",      
-#     y_title="% alignment length / V's length",
-    
-# )
-
-# # Define color mapping for consistent colors
-# desired_order = ["0-10", "10-20", "20-30", "30-40", "40-50", "50-60", "60-70", "70-80", "80-90", "90-100"]
-# colors = px.colors.qualitative.Set1
-# # colors = px.colors.sequential.Plasma_r
-# # colors = px.colors.sequential.Rainbow
-# # colors = px.colors.qualitative.G10
-# colors = px.colors.qualitative.Vivid
-# color_map = {edge: colors[i % len(colors)] for i, edge in enumerate(desired_order)}
-
-# # print("Color mapping:", color_map)
-
-# # Track which edges we've added to legend
-# legend_added = set()
-
-# # Add traces in the correct order
-# for edge in desired_order:
-#     if edge in df["Edges"].values:
-#         edge_data = df[df["Edges"] == edge]
-        
-#         for _, row in edge_data.iterrows():
-#             sample_idx = samples.index(row["Sample"]) + 1
-#             diff_idx = spanning_diffs.index(row["SpanningUMISeqAbsDiff"]) + 1
-            
-#             fig.add_trace(
-#                 go.Scatter(
-#                     x=[row["%AlignmentLength/USpanningUMILength"]],
-#                     y=[row["%AlignmentLength/VSpanningUMILength"]],
-#                     mode='markers',
-#                     marker=dict(color=color_map[edge], size=8),
-#                     name=edge,
-#                     legendgroup=edge,
-#                     showlegend=edge not in legend_added,
-#                     # opacity=0.6
-#                 ),
-#                 row=diff_idx,
-#                 col=sample_idx
-#             )
-            
-#             legend_added.add(edge)
-
-# fig.update_layout(
-#     width=1200,
-#     height=1200*11/14,
-#     # title="Edges by Sample with Correctly Ordered Legend",
-#     legend_title_text="% of edges in sample"
-    
-# )
-
-# # print("Legend order should be:", [edge for edge in desired_order if edge in legend_added])
-# fig.show()
-
-# %%
-# for gene, repeat in product(genes, list("123")):
-
-#     fig = px.scatter(
-#         concat_edges_umi_df.loc[
-#             (concat_edges_umi_df["Gene"] == gene) 
-#             & (concat_edges_umi_df["Repeat"] == repeat),
-#              ["%AlignmentLength/USpanningUMILength", "%AlignmentLength/VSpanningUMILength", "SpanningUMISeqAbsDiff"]
-#             ].value_counts().reset_index().rename(columns={"count": "Edges"}),
-#         x="%AlignmentLength/USpanningUMILength",
-#         y="%AlignmentLength/VSpanningUMILength",
-#         # y="MeanDegree",
-#         # facet_col="Repeat",
-#         # facet_col="Repeat",
-#         # facet_row="Gene",
-#         # facet_row_spacing=0.1,
-#         color="Edges",
-#         facet_col="SpanningUMISeqAbsDiff",
-#         # opacity=0.6,
-#         # log_x=True,
-#         # log_y=True,
-#         # histnorm="percent",
-#         # cumulative=True,
-#         labels={
-#             "%AlignmentLength/USpanningUMILength": "% alignment length /<br>U's length",
-#             "%AlignmentLength/VSpanningUMILength": "% alignment length /<br>V's length",
-#             },
-#     )
-#     # fig.update_xaxes(tick0=0, dtick=2)
-#     fig.update_layout(
-#         width=1600,
-#         height=1600/5,
-#         # barmode='overlay',
-#         title=f"{gene} - {repeat}",
-#     )
-#     fig.show()
-
-# %%
-# 
-
-# %%
-# 
-
-# %%
-concat_ccs_df.loc[
-    concat_ccs_df["Size"].ge(8),
-    ["Gene", "Repeat"]
-].value_counts()
-
-# %%
-sample_ccs_df = concat_ccs_df.loc[
-    concat_ccs_df["Size"].ge(8),
-].groupby(["Gene", "Repeat"]).sample(
-    n=1, random_state=seed, replace=False
-).set_index(["Gene", "Repeat"])
-sample_ccs_df
-
-# %%
-nodes_primers_dfs = []
-
-for i, (gene, repeat) in enumerate(product(genes, list("123"))):
-
-    nodes = sample_ccs_df.loc[(gene, int(repeat)), "CC"]
-    
-    print(f"Iteration {i}: gene={gene}, repeat={repeat}, {len(nodes)} nodes")
-    
-    nodes_primers_df = best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
-        (best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df["Gene"] == gene)
-        & (best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df["Repeat"] == repeat)
-        & (best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df["Read"].isin(nodes))
-    ]
-    
-    nodes_primers_dfs.append(nodes_primers_df)
-
-# %%
-primers_dict
-
-# %%
-nodes_primers_df = nodes_primers_dfs[0]
-nodes_primers_df
-
-# %%
-for _, (read, read_seq, btr_read_start) in nodes_primers_df.loc[:, ["Read", "ReadSeq", "BTRReadStart"]].iterrows():
-    print(f">{read}\n{read_seq[btr_read_start-10:]}")
-
-# %%
-for _, (read, spanning_umi_seq) in nodes_primers_df.loc[:, ["Read", "SpanningUMISeq"]].iterrows():
-    print(f">{read}\n{spanning_umi_seq}")
-
-# %%
-primers_dict["ADAR1"].reverse_complement()
-
-# %%
-primers_dict["PCR"].reverse_complement()
-
-# %% [markdown]
-# ![image-2.png](attachment:image-2.png)
-
-# %% [markdown]
-# ![image.png](attachment:image.png)
-
-# %%
-nodes_primers_df = nodes_primers_dfs[1]
-nodes_primers_df
-
-# %%
-for _, (read, read_seq, btr_read_start) in nodes_primers_df.loc[:, ["Read", "ReadSeq", "BTRReadStart"]].iterrows():
-    print(f">{read}\n{read_seq[btr_read_start-10:]}")
-
-# %%
-for _, (read, spanning_umi_seq) in nodes_primers_df.loc[:, ["Read", "SpanningUMISeq"]].iterrows():
-    print(f">{read}\n{spanning_umi_seq}")
-
-# %%
-primers_dict["ADAR1"].reverse_complement()
-
-# %%
-primers_dict["PCR"].reverse_complement()
-
-# %% [markdown]
-# ![image.png](attachment:image.png)
-
-# %% [markdown]
-# ![image.png](attachment:image.png)
-
-# %%
-nodes_primers_df = nodes_primers_dfs[2]
-nodes_primers_df
-
-# %%
-for _, (read, read_seq, btr_read_start) in nodes_primers_df.loc[:, ["Read", "ReadSeq", "BTRReadStart"]].iterrows():
-    print(f">{read}\n{read_seq[btr_read_start-10:]}")
-
-# %%
-for _, (read, spanning_umi_seq) in nodes_primers_df.loc[:, ["Read", "SpanningUMISeq"]].iterrows():
-    print(f">{read}\n{spanning_umi_seq}")
-
-# %%
-primers_dict["ADAR1"].reverse_complement()
-
-# %%
-primers_dict["PCR"].reverse_complement()
-
-# %% [markdown]
-# <!--  -->
-
-# %% [markdown]
-# <!--  -->
-
-# %%
-nodes_primers_df = nodes_primers_dfs[3]
-nodes_primers_df
-
-# %%
-for _, (read, read_seq, btr_read_start) in nodes_primers_df.loc[:, ["Read", "ReadSeq", "BTRReadStart"]].iterrows():
-    print(f">{read}\n{read_seq[btr_read_start-10:]}")
-
-# %%
-for _, (read, spanning_umi_seq) in nodes_primers_df.loc[:, ["Read", "SpanningUMISeq"]].iterrows():
-    print(f">{read}\n{spanning_umi_seq}")
-
-# %%
-primers_dict["IQEC"].reverse_complement()
-
-# %%
-primers_dict["PCR"].reverse_complement()
-
-# %% [markdown]
-# ![image.png](attachment:image.png)
-
-# %% [markdown]
-# ![image.png](attachment:image.png)
-
-# %%
-nodes_primers_df = nodes_primers_dfs[4]
-nodes_primers_df
-
-# %%
-for _, (read, read_seq, btr_read_start) in nodes_primers_df.loc[:, ["Read", "ReadSeq", "BTRReadStart"]].iterrows():
-    print(f">{read}\n{read_seq[btr_read_start-10:]}")
-
-# %%
-for _, (read, spanning_umi_seq) in nodes_primers_df.loc[:, ["Read", "SpanningUMISeq"]].iterrows():
-    print(f">{read}\n{spanning_umi_seq}")
-
-# %%
-primers_dict["IQEC"].reverse_complement()
-
-# %%
-primers_dict["PCR"].reverse_complement()
-
-# %% [markdown]
-# ![image.png](attachment:image.png)
-
-# %% [markdown]
-# ![image.png](attachment:image.png)
-
-# %%
-nodes_primers_df = nodes_primers_dfs[5]
-nodes_primers_df
-
-# %%
-for _, (read, read_seq, btr_read_start) in nodes_primers_df.loc[:, ["Read", "ReadSeq", "BTRReadStart"]].iterrows():
-    print(f">{read}\n{read_seq[btr_read_start-10:]}")
-
-# %%
-for _, (read, spanning_umi_seq) in nodes_primers_df.loc[:, ["Read", "SpanningUMISeq"]].iterrows():
-    print(f">{read}\n{spanning_umi_seq}")
-
-# %%
-primers_dict["IQEC"].reverse_complement()
-
-# %%
-primers_dict["PCR"].reverse_complement()
-
-
-# %%
-# 
-
-# %%
-# 
-
-# %%
-# 
-
-# %% [markdown]
-# ### Obtain MIS
-
-# %%
-def choose_mis_of_reads_with_distinct_umi_sub_seqs(df, seed):
-    # intialize a random number generator with the given seed
-    # to select a random high-degree read at each step
-    rng = np.random.default_rng(seed)
-
-    # create g by explicitly deepcopying the needed cols
-    reads = df["Read"].tolist()
-    other_indistinguishable_reads = (
-        df["OtherReadswithIndistinguishableUMISubSeqs"]
-        .apply(lambda x: copy.deepcopy(x))
-        .tolist()
-    )
-    g = pd.DataFrame(
-        {
-            "Read": reads,
-            "OtherReadswithIndistinguishableUMISubSeqs": other_indistinguishable_reads,
-        }
-    ).set_index("Read")
-    g["Degree"] = g["OtherReadswithIndistinguishableUMISubSeqs"].apply(len)
-
-    # at each step, we choose a read with the maximum degree,
-    # remove it from the graph, and update the degrees of its neighbors
-    # we continue until there are no reads left with a degree greater than 0
-    # this will ensure that we retain only a subset of reads that are distinct from each other
-    while (max_degree := g["Degree"].max()) > 0:
-        reads_with_max_degree = g.loc[g["Degree"].eq(max_degree)].index
-        read = rng.choice(reads_with_max_degree)
-        indistinguishable_reads_for_read = g.loc[
-            read, "OtherReadswithIndistinguishableUMISubSeqs"
-        ]
-
-        # Remove the read from the indistinguishable reads' neighbors
-        try:
-            g.loc[
-                indistinguishable_reads_for_read,
-                "OtherReadswithIndistinguishableUMISubSeqs",
-            ].apply(lambda x: x.remove(read))
-        except KeyError as e:
-            ic(reads_with_max_degree, read, indistinguishable_reads_for_read)
-            break
-
-        # Following that, decrease the degree of the indistinguishable reads
-        g.loc[indistinguishable_reads_for_read, "Degree"] -= 1
-
-        # Remove the read from the graph
-        g.drop(read, inplace=True)
-
-    return g.index
-
-
-# copy.deepcopy()
-
-# %%
-distinct_umi_sub_seq_gene_specific_pcr_amplified_alignments_dfs = []
-
-for gene, repeat in product(genes, list("123")):
-
-    ic(gene, repeat)
-
-    gene_and_repeat_df = (
-        best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
-            (
-                best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df[
-                    "Gene"
-                ]
-                == gene
-            )
-            & (
-                best_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df[
-                    "Repeat"
-                ]
-                == repeat
-            )
-        ]
-    )
-    mis_reads = choose_mis_of_reads_with_distinct_umi_sub_seqs(gene_and_repeat_df, seed)
-    gene_and_repeat_df = gene_and_repeat_df.loc[
-        gene_and_repeat_df["Read"].isin(mis_reads)
-    ]
-
-    distinct_umi_sub_seq_gene_specific_pcr_amplified_alignments_dfs.append(
-        gene_and_repeat_df
-    )
-
-
-distinct_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df = pd.concat(
-    distinct_umi_sub_seq_gene_specific_pcr_amplified_alignments_dfs, ignore_index=True
-)
-distinct_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df
-
-# %%
-distinct_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.groupby(
-    "Sample"
-).size()
-
-# %%
-distinct_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.groupby(
-    "Sample"
-).size()
-
-# %%
-ccs_vs_distinct_reads_df = concat_ccs_df[["Gene", "Repeat"]].value_counts().reset_index().sort_values(
-        ["Gene", "Repeat"]
-    ).reset_index(drop=True).rename(columns={"count": "ConnectedComponents"}).transform(
-    lambda x: x.astype({"Repeat": "str"})
-    ).merge(
-    distinct_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.groupby(
-        ["Gene", "Repeat"]
-    ).size().reset_index().rename(columns={0: "DistinctReads"}),
-    on=["Gene", "Repeat"],
-    how="left",
-)
-    
-ccs_vs_distinct_reads_df["DistinctReads/ConnectedComponent"] = ccs_vs_distinct_reads_df["DistinctReads"].div(
-    ccs_vs_distinct_reads_df["ConnectedComponents"]
-).round(2)
-
-# assert ccs_vs_distinct_reads_df["DistinctReads"].ge(
-#     ccs_vs_distinct_reads_df["ConnectedComponents"]
-# ).all(), "Each connected component should have at least one distinct read in it."
-
-assert ccs_vs_distinct_reads_df["DistinctReads/ConnectedComponent"].ge(1).all(), "Each connected component should have at least one distinct read in it."
-
-ccs_vs_distinct_reads_df
-
-# %%
-ccs_vs_distinct_reads_df["DistinctReads"].div(
-    ccs_vs_distinct_reads_df["ConnectedComponents"]
-).round(2)
-
-# %%
-# num of connected components per graph
-concat_ccs_df[["Gene", "Repeat"]].value_counts().reset_index().sort_values(
-        ["Gene", "Repeat"]
-    ).reset_index(drop=True).rename(columns={"count": "ConnectedComponents"}).transform(
-    lambda x: x.astype({"Gene": "str", "Repeat": "str"})
-    )
-
-# %%
-distinct_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.groupby(
-    "Gene"
-).size()
-
-# %% [markdown]
-# #### Save reads after de-duplication
-
 # %%
-unique_reads_out_file = Path(
+tweleve_nt_umi_seqs_out_file = Path(
     merged_bams_dir,
-    "UniqueReadsByUMISubSeq.tsv",
+    "12nt_UMI_Sequences.tsv",
 )
 
-distinct_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
-    :, ["Sample", "Gene", "Repeat", "Read"]
+tweleve_nt_umi_seqs_out_file
+
+# %%
+best_gene_specific_pcr_amplified_concat_alignments_df.loc[
+    best_gene_specific_pcr_amplified_concat_alignments_df["SpanningUMISeqLength"].eq(12),
+    ["Gene", "Repeat", "Read", "SpanningUMISeq"]
+]
+
+# %%
+best_gene_specific_pcr_amplified_concat_alignments_df.loc[
+    best_gene_specific_pcr_amplified_concat_alignments_df["SpanningUMISeqLength"].eq(12),
+    ["Gene", "Repeat", "Read", "SpanningUMISeq"]
 ].to_csv(
-    unique_reads_out_file,
+    tweleve_nt_umi_seqs_out_file,
     sep="\t",
     index=False,
-    # na_rep="NA",
-    # float_format="%.2f",
 )
 
-# %%
-unique_reads_dir = Path(
-    "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads.UniqueReadsByUMISubSeq.MergedSamples"
-)
-unique_reads_dir.mkdir(parents=True, exist_ok=True)
-
-# %%
-# Get the set of unique read names to keep
-reads_to_keep = set(
-    distinct_umi_sub_seq_gene_specific_pcr_amplified_concat_alignments_df["Read"]
-)
-
-for bam_path in mapped_merged_bam_files:
-    out_bam_path = Path(unique_reads_dir, Path(bam_path).name)
-
-    with pysam.AlignmentFile(bam_path, "rb") as in_bam, pysam.AlignmentFile(
-        out_bam_path, "wb", template=in_bam
-    ) as out_bam:
-        for read in in_bam:
-            if read.query_name in reads_to_keep:
-                out_bam.write(read)
-
-    print(f"Filtered BAM written to: {out_bam_path}")
-
-
-# %%
-# !samtools index -M {unique_reads_dir}/*.bam
 
 # %% [markdown]
 # ## Find unique reads by overlapping UMI seq
@@ -5005,9 +3782,15 @@ best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df = pd.conca
 best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df
 
 # %%
+best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df
+
+# %%
+best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df["NumOfOtherReadswithIndistinguishableUMIs"].value_counts(dropna=False)
+
+# %%
 best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df.groupby(
-    "Sample"
-).size()
+    ["Gene", "Repeat"]
+).size().reset_index()
 
 # %%
 best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df[
@@ -5021,15 +3804,62 @@ best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df[
 
 # %%
 best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df.groupby(
-    "Sample"
+    ["Gene", "Repeat"]
 )["NumOfOtherReadswithIndistinguishableUMIs"].describe().round(2)
+
+# %%
+# total reads w/o UMI duplicates
+best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
+    best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df[
+        "NumOfOtherReadswithIndistinguishableUMIs"
+    ].eq(0),
+].shape[0]
+
+# %%
+# per gene reads w/o UMI duplicates
+best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
+    best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df[
+        "NumOfOtherReadswithIndistinguishableUMIs"
+    ].eq(0),
+].groupby(["Gene"]).size()
+
+# %%
+# per gene reads w/o UMI duplicates - %
+best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df.groupby(
+    ["Gene"]
+)["NumOfOtherReadswithIndistinguishableUMIs"].apply(
+    lambda x: 100 * x.eq(0).sum() / x.size
+).round(2)
+
+# %%
+# per sample reads w/o UMI duplicates
+best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
+    best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df[
+        "NumOfOtherReadswithIndistinguishableUMIs"
+    ].eq(0),
+].groupby(["Gene", "Repeat"]).size()
+
+# %%
+# per sample reads w/o UMI duplicates - %
+best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df.groupby(
+    ["Gene", "Repeat"]
+)["NumOfOtherReadswithIndistinguishableUMIs"].apply(
+    lambda x: 100 * x.eq(0).sum() / x.size
+).round(2).reset_index()
+
+# %%
+best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
+    best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df[
+        "NumOfOtherReadswithIndistinguishableUMIs"
+    ].ne(0),
+].groupby(["Gene"]).size()
 
 # %%
 best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
     best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df[
         "NumOfOtherReadswithIndistinguishableUMIs"
     ].eq(0),
-].groupby("Sample").size()
+].groupby(["Gene", "Repeat"]).size()
 
 # %%
 best_umi_overlap_seq_gene_specific_pcr_amplified_concat_alignments_df.loc[
@@ -5162,6 +3992,10 @@ concat_ccs_df.groupby(["Gene", "Repeat"])["Size"].describe().round(2).reset_inde
 
 # %%
 # % of connected components with size 1
+concat_ccs_df.groupby(["Gene"])["Size"].apply(lambda x: x.eq(1).sum() * 100 / x.size).round(2)
+
+# %%
+# % of connected components with size 1
 concat_ccs_df.groupby(["Gene", "Repeat"])["Size"].apply(lambda x: x.eq(1).sum() * 100 / x.size).round(2)
 
 # %%
@@ -5170,6 +4004,13 @@ concat_ccs_df.groupby(["Gene", "Repeat"]).apply(
     lambda x: x.loc[x["Size"].eq(1), "Size"].sum() * 100 / x["Size"].sum(),
     include_groups=False
 ).round(2)
+
+# %%
+# how many reads are in connected components of size >= 2 that are not cliquish
+concat_ccs_df.loc[
+    (concat_ccs_df["Size"] >= 2)
+    & (concat_ccs_df["Cliquishness"] < 1),    
+].groupby(["Gene",])["Size"].sum()
 
 # %%
 # how many reads are in connected components of size >= 2 that are not cliquish
@@ -5970,6 +4811,9 @@ fig.show()
 # %% [markdown]
 # ##### Control
 
+# %% [markdown]
+# ###### Control functions
+
 # %%
 per_gene_expected_disagreements_per_position_series = []
 
@@ -6123,6 +4967,9 @@ def make_reads_noise_df(
     
     return reads_noise_df
 
+
+# %% [markdown]
+# ###### Control tests
 
 # %%
 merged_positions_files
@@ -6998,6 +5845,9 @@ fig.show(config=config)
     
 #     return editing_statuses_df
 
+# %% [markdown]
+# ###### Full control df
+
 # %%
 def make_control_editing_statuses_df(
     reads_file,
@@ -7425,6 +6275,9 @@ concat_control_editing_statuses_df.groupby(["Gene", "MinimalErrors"]).size().res
 concat_control_editing_statuses_df.groupby(["Gene", "Repeat", "0/1/2+"]).size().reset_index(name="Edges")
 
 # %%
+concat_control_editing_statuses_df.groupby(["Gene","0/1/2+"]).size().reset_index(name="Edges")
+
+# %%
 # concat_full_control_up_to_5_errors_editing_statuses_df.groupby(["Gene", "MinimalErrors"]).size().reset_index()
 
 # %%
@@ -7814,6 +6667,27 @@ crude_control_df["%TotalSharedAmbiguousPositions"] = (
 crude_control_df
 
 # %%
+crude_control_df.groupby(["Gene", "Group"]).size().reset_index()
+
+# %%
+adar_crude_control_df = crude_control_df.lod[
+    crude_control_df["Gene"] == genes[0]
+]
+adar_crude_control_df
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+
+# %%
 fig = px.box(
     crude_control_df,
     x="Group",
@@ -7974,6 +6848,7 @@ fig = px.box(
     }
 )
 fig.update_layout(
+    
     width=800,
     height=600,
     showlegend=False,
@@ -7981,6 +6856,438 @@ fig.update_layout(
 # fig.show()
 config = {'staticPlot': True}
 fig.show(config=config)
+
+
+# %%
+
+# %%
+
+# %%
+
+# %% [markdown]
+# ###### Increasred diversity at reads' ends
+
+# %%
+def get_u_v_shared_unambiguous_and_strongly_disagreeing_positions(
+    used_reads_df,
+    u,
+    v
+):
+    u_v_reads_df = used_reads_df.loc[
+        [u, v]
+    ]
+    u_v_reads_df.columns = u_v_reads_df.columns.astype(int)
+    u_v_reads_df = u_v_reads_df.loc[
+        :,
+        u_v_reads_df.apply(
+            lambda x: x.ne(-1).all()
+        )    
+    ]
+    
+    shared_unambiguous_positions = u_v_reads_df.columns.tolist()
+    
+    strongly_disagreeing_positions = u_v_reads_df.loc[
+        :,
+        u_v_reads_df.apply(lambda x: x.nunique() == 2)
+    ].columns.tolist()
+    
+    return shared_unambiguous_positions, strongly_disagreeing_positions
+
+
+# %%
+def get_u_v_shared_unambiguous_and_strongly_disagreeing_positions_counters_per_gene_and_group(
+    used_reads_df,
+    u_v_pairs,
+    processes=5
+):
+    with Pool(processes=processes) as pool:
+        u_v_shared_unambiguous_and_strongly_disagreeing_positions = pool.starmap(
+            func=get_u_v_shared_unambiguous_and_strongly_disagreeing_positions,
+            iterable=[
+                (used_reads_df, u, v)
+                for u, v in u_v_pairs
+            ]
+        )
+        
+    shared_unambiguous_positions = [
+        x[0]
+        for x in u_v_shared_unambiguous_and_strongly_disagreeing_positions
+    ]
+    strongly_disagreeing_positions = [
+        x[1]
+        for x in u_v_shared_unambiguous_and_strongly_disagreeing_positions
+    ]
+
+    shared_unambiguous_positions_counter = Counter(
+        chain.from_iterable(shared_unambiguous_positions)
+    )
+    strongly_disagreeing_positions_counter = Counter(
+        chain.from_iterable(strongly_disagreeing_positions)
+    )
+
+    return shared_unambiguous_positions_counter, strongly_disagreeing_positions_counter
+
+
+# %%
+def make_one_gene_reads_ends_diversity_df(
+    gene,
+    reads_file,
+    used_reads_first_col_pos,
+    mapping_boundaries,
+    gene_edges_and_groups_df, # a df with cols ["U", "V", "Group"]
+    processes=5
+):
+    
+    used_reads_df = pd.read_csv(reads_file, sep="\t")
+    # used_reads_df["Gene"] = gene
+    used_reads_df = used_reads_df.set_index("Read").iloc[:, used_reads_first_col_pos-1:]
+    
+    reads_ends_diversity_df = pd.DataFrame(
+        used_reads_df.apply(
+            lambda x: x.eq(1).sum() / x.ne(-1).sum()
+        ).T.rename("EditingFrequency")
+    ).reset_index(names="Position")
+    reads_ends_diversity_df["Position"] = reads_ends_diversity_df["Position"].astype(int)
+    
+    # add gene info
+    reads_ends_diversity_df.insert(0, "Gene", gene)
+
+    # add distance from beggining/end of amlification
+    mapping_start, mapping_end = mapping_boundaries
+    ic(mapping_start, mapping_end)
+    reads_ends_diversity_df.insert(
+        2,
+        "AmplificationStartDistance",
+        reads_ends_diversity_df["Position"] - mapping_start
+    )
+    reads_ends_diversity_df.insert(
+        3,
+        "AmplificationEndDistance",
+        mapping_end - reads_ends_diversity_df["Position"]
+    )
+
+    # finally, for each group (identical umis/control), count for each position:
+    # 1 - num of u,v pairs fully jointly covering the position (no NA)
+    # 2 - num of u,v pairs strongly disagreeing at the position (one edited, one unedited)
+
+
+    treatment_u_v_pairs = gene_edges_and_groups_df.loc[
+        gene_edges_and_groups_df["Group"].eq("IdenticalUMIs"), 
+        ["U", "V"]
+    ].values.tolist()
+    control_u_v_pairs = gene_edges_and_groups_df.loc[
+        gene_edges_and_groups_df["Group"].eq("Control"),
+        ["U", "V"]
+    ].values.tolist()
+
+    treatment_shared_unambiguous_positions_counter, treatment_strongly_disagreeing_positions_counter = get_u_v_shared_unambiguous_and_strongly_disagreeing_positions_counters_per_gene_and_group(
+        used_reads_df,
+        treatment_u_v_pairs,
+        processes=processes
+    )
+    control_shared_unambiguous_positions_counter, control_strongly_disagreeing_positions_counter = get_u_v_shared_unambiguous_and_strongly_disagreeing_positions_counters_per_gene_and_group(
+        used_reads_df,
+        control_u_v_pairs,
+        processes=processes
+    )
+
+    reads_ends_diversity_df["StronglyDisagreeingIdenticalEdges"] = reads_ends_diversity_df["Position"].apply(
+        lambda x: treatment_strongly_disagreeing_positions_counter[x]
+    )
+    reads_ends_diversity_df["UnambiguouslyCoveringIdenticalEdges"] = reads_ends_diversity_df["Position"].apply(
+        lambda x: treatment_shared_unambiguous_positions_counter[x]
+    )
+    reads_ends_diversity_df["%StronglyDisagreeingIdenticalEdges"] = reads_ends_diversity_df["StronglyDisagreeingIdenticalEdges"].mul(
+        100
+    ).div(reads_ends_diversity_df["UnambiguouslyCoveringIdenticalEdges"]).fillna(0)
+
+    reads_ends_diversity_df["StronglyDisagreeingControlEdges"] = reads_ends_diversity_df["Position"].apply(
+        lambda x: control_strongly_disagreeing_positions_counter[x]
+    )
+    reads_ends_diversity_df["UnambiguouslyCoveringControlEdges"] = reads_ends_diversity_df["Position"].apply(
+        lambda x: control_shared_unambiguous_positions_counter[x]
+    )
+    reads_ends_diversity_df["%StronglyDisagreeingControlEdges"] = reads_ends_diversity_df["StronglyDisagreeingControlEdges"].mul(
+        100
+    ).div(reads_ends_diversity_df["UnambiguouslyCoveringControlEdges"]).fillna(0)
+        
+
+
+    return reads_ends_diversity_df
+
+# %%
+# test with ADAR first
+
+# %%
+gene = genes[0]
+reads_file = merged_annotated_reads_files[0]
+mapping_boundaries = main_mapping_boundaries_per_gene[0]
+
+gene_edges_and_groups_df = crude_control_df.loc[
+    crude_control_df["Gene"] == gene,
+    ["U", "V", "Group"]
+]
+
+# %%
+adar_reads_ends_diversity_df = make_one_gene_reads_ends_diversity_df(
+    gene,
+    reads_file,
+    used_reads_first_col_pos,
+    mapping_boundaries,
+    gene_edges_and_groups_df, # a df with cols ["U", "V", "Group"]
+    processes=10
+)
+adar_reads_ends_diversity_df
+
+# %%
+
+# %%
+gene = genes[1]
+reads_file = merged_annotated_reads_files[1]
+mapping_boundaries = main_mapping_boundaries_per_gene[1]
+
+gene_edges_and_groups_df = crude_control_df.loc[
+    crude_control_df["Gene"] == gene,
+    ["U", "V", "Group"]
+]
+
+iqec_reads_ends_diversity_df = make_one_gene_reads_ends_diversity_df(
+    gene,
+    reads_file,
+    used_reads_first_col_pos,
+    mapping_boundaries,
+    gene_edges_and_groups_df, # a df with cols ["U", "V", "Group"]
+    processes=10
+)
+iqec_reads_ends_diversity_df
+
+# %%
+iqec_reads_ends_diversity_df.loc[
+    :, ["Position", "%StronglyDisagreeingIdenticalEdges"]
+].set_index(
+    "Position"
+)
+
+# %%
+iqec_reads_ends_diversity_df.loc[
+    :, ["Position", "%StronglyDisagreeingIdenticalEdges"]
+].set_index(
+    "Position"
+).rolling(2).mean()
+
+# %%
+concat_reads_ends_diversity = pd.concat(
+    [adar_reads_ends_diversity_df, iqec_reads_ends_diversity_df],
+    ignore_index=True
+)
+concat_reads_ends_diversity
+
+# %%
+df = pd.DataFrame(
+    {
+        "A": [1, 2, 3, 5, 1],
+        "B": [11, 3, 2, 1, 0]
+    }
+)
+df
+
+# %%
+sum([1, 3, 2]) / 3
+
+# %%
+df.rolling(
+    3, 
+    center=True, 
+    # closed="both"
+).mean()
+
+# %%
+df.rolling(
+    3, 
+    center=True, 
+    # closed="both"
+).sum() / 3
+
+# %%
+df.rolling(
+    3, 
+    center=True, 
+    # closed="both"
+).sum()
+
+# %%
+df.rolling(
+    3, 
+    # center=True, 
+    # closed="both"
+).sum()
+
+# %%
+df.rolling(
+    3, 
+    # center=True, 
+    # closed="both"
+).sum()
+
+# %%
+df.rolling(
+    3, 
+    # center=True, 
+    # closed="both"
+).mean()
+
+# %%
+df.rolling(
+    3, 
+    center=True, 
+    closed="both"
+).mean()
+
+# %%
+concat_reads_ends_diversity.
+
+# %%
+concat_reads_ends_diversity.to_csv(
+    Path(mapped_merged_filtered_bams_dir, "ReadsEndsDiversity.tsv"),
+    sep="\t",
+    index=False
+)
+
+# %%
+adar_reads_ends_diversity_df["%StronglyDisagreeingIdenticalEdges"].describe()
+
+# %%
+adar_reads_ends_diversity_df["%StronglyDisagreeingControlEdges"].describe()
+
+# %%
+fig = px.scatter(
+    concat_reads_ends_diversity,
+    x="EditingFrequency",
+    y="%StronglyDisagreeingIdenticalEdges",
+    color="Gene"
+)
+fig.update_layout(
+    width=400,
+    height=400
+)
+fig.show()
+
+# %%
+fig = px.scatter(
+    concat_reads_ends_diversity,
+    x="EditingFrequency",
+    y="%StronglyDisagreeingControlEdges",
+    color="Gene"
+)
+fig.update_layout(
+    width=400,
+    height=400
+)
+fig.show()
+
+# %%
+# fig = px.area(
+#     concat_reads_ends_diversity,
+#     x="AmplificationStartDistance",
+#     y="%StronglyDisagreeingIdenticalEdges",
+#     color="Gene",
+# )
+# fig.update_layout(
+#     width=800,
+#     height=400
+# )
+# fig.show()
+
+# %%
+fig = px.area(
+    concat_reads_ends_diversity,
+    x="AmplificationStartDistance",
+    y="%StronglyDisagreeingIdenticalEdges",
+    color="Gene",
+    facet_row="Gene",
+    labels={
+        "AmplificationStartDistance": "Distance from amplification start [bp]",
+        "%StronglyDisagreeingIdenticalEdges": "Strongly disagreeing<br>identical UMI edges [%]",
+    }
+)
+fig.update_layout(
+    width=800,
+    height=600,
+    showlegend=False
+)
+fig.show()
+
+# %%
+fig = px.area(
+    concat_reads_ends_diversity,
+    x="AmplificationStartDistance",
+    y="%StronglyDisagreeingControlEdges",
+    color="Gene",
+    facet_row="Gene",
+    labels={
+        "AmplificationStartDistance": "Distance from amplification start [bp]",
+        "%StronglyDisagreeingControlEdges": "Strongly disagreeing<br>control UMI edges [%]",
+    }
+)
+fig.update_layout(
+    width=800,
+    height=600,
+    showlegend=False
+)
+fig.show()
+
+# %%
+fig = px.area(
+    concat_reads_ends_diversity,
+    x="AmplificationStartDistance",
+    y="%StronglyDisagreeingControlEdges",
+    color="Gene",
+)
+fig.update_layout(
+    width=800,
+    height=400
+)
+fig.show()
+
+# %%
+fig = px.area(
+    adar_reads_ends_diversity_df,
+    x="AmplificationStartDistance",
+    y="%StronglyDisagreeingControlEdges"
+)
+fig.update_layout(
+    width=800,
+    height=400
+)
+fig.show()
+
+# %%
+fig = px.area(
+    adar_reads_ends_diversity_df,
+    x="AmplificationEndDistance",
+    y="%StronglyDisagreeingIdenticalEdges"
+)
+fig.update_layout(
+    width=800,
+    height=400
+)
+fig.show()
+
+# %%
+fig = px.area(
+    adar_reads_ends_diversity_df,
+    x="AmplificationEndDistance",
+    y="%StronglyDisagreeingControlEdges"
+)
+fig.update_layout(
+    width=800,
+    height=400
+)
+fig.show()
+
+# %%
+
+# %%
 
 # %% [markdown]
 # ###### Crude control - ADAR
@@ -11044,6 +10351,1318 @@ filtered_pileup_file = Path(test_dir, f"filtered.{u}_{v}.pileup")
 # 
 
 # %% [markdown]
+# ##### Fresh unique crude control
+
+# %% [markdown]
+# ###### Control functions
+
+# %%
+per_gene_expected_disagreements_per_position_series = []
+
+for positions_file in merged_positions_files:
+
+
+    positions_df = pd.read_csv(
+        positions_file, 
+        sep="\t",
+        usecols=["Position", "EditingFrequency", "CDS", "Edited", "InProbRegion"]
+    )
+    # retain only edited & reliable positions within coding regions
+    positions_df = positions_df.loc[
+        positions_df["CDS"] & positions_df["Edited"] & ~positions_df["InProbRegion"],
+        ["Position", "EditingFrequency"]
+    ].set_index("Position")
+
+    expected_disagreements_per_position_series = positions_df.apply(
+        lambda x: 2 * x["EditingFrequency"] * (1 - x["EditingFrequency"]),
+        axis=1
+    )
+    
+    per_gene_expected_disagreements_per_position_series.append(
+        expected_disagreements_per_position_series
+    )
+    
+per_gene_expected_disagreements_per_position_series[0]
+
+
+# %%
+def find_alt_base(ref_base, a_count, t_count, c_count, g_count, seed):
+    
+    bases = list("ATCG")
+    base_counts = [a_count, t_count, c_count, g_count]
+    
+    alt_base_counts = {
+        base: count
+        for base, count in zip(bases, base_counts)
+        if base != ref_base
+    }
+    
+    max_alt_base_count = max(alt_base_counts.values())
+    
+    max_alt_bases = [
+        base
+        for base, count in alt_base_counts.items()
+        if count == max_alt_base_count
+    ]
+
+    # randomly choose one of the equally most frequent alt bases
+    return np.random.default_rng(seed).choice(max_alt_bases)
+
+
+# %%
+def calc_noise(ref_base_count, alt_base_count):
+    try:
+        noise = alt_base_count / (alt_base_count + ref_base_count)
+    except ZeroDivisionError:
+        noise = 0  # if there are no mapped alt bases
+    return noise
+
+
+# %%
+def make_noise_positions_df(positions_file, seed):
+    noise_positions_df = pd.read_csv(positions_file, sep="\t")
+    noise_positions_df = noise_positions_df.loc[
+        (noise_positions_df["CDS"])
+        # & (noise_positions_df["Noise"].notna())
+        & (~noise_positions_df["Edited"])
+        & (noise_positions_df["TotalCoverage"].gt(0))
+    ].drop(columns=["CDS", "Edited", "InProbRegion", "EditingFrequency", "Phred", "KnownEditing"])
+    noise_positions_df["AltBase"] = noise_positions_df.apply(
+        lambda x: find_alt_base(
+            x["RefBase"],
+            x["A"],
+            x["T"],
+            x["C"],
+            x["G"],
+            seed,
+        ), 
+        axis=1
+    )
+    noise_positions_df = noise_positions_df.loc[
+        ~(
+            (noise_positions_df["RefBase"].eq("A"))
+            & (noise_positions_df["AltBase"].eq("G"))
+        )
+    ]
+    noise_positions_df["Noise"] = noise_positions_df.apply(
+        lambda x: calc_noise(x[x["RefBase"]], x[x["AltBase"]]),
+        axis=1
+    )
+    
+    return noise_positions_df
+
+
+# %%
+def add_noise_reads_in_positions(noise_positions_df):
+    unique_reads = set(chain.from_iterable(noise_positions_df["Reads"].str.split(",")))
+    positions_per_read = {read: [] for read in unique_reads}
+
+    # alt_base = "G" if strand == "+" else "C"
+    for x, position_row in enumerate(noise_positions_df.itertuples()):
+        mapped_bases = position_row.MappedBases
+        mapped_reads = position_row.Reads.split(",")
+        alt_base = position_row.AltBase
+        # deal with reads that were mapped to this pos
+        for mapped_base, mapped_read in zip(mapped_bases, mapped_reads):
+            if mapped_base == alt_base:
+                pos_edited_in_read = 1 # mismatch
+            elif mapped_base == ".":
+                pos_edited_in_read = 0  # match
+            else:
+                pos_edited_in_read = (
+                    -1
+                )  # we ignore mismatches that aren't RefBase2AltBase by marking them as NaN
+            positions_per_read[mapped_read].append(pos_edited_in_read)
+        # deal with reads that weren't mapped to this pos
+        unmapped_reads_in_pos = unique_reads - set(mapped_reads)
+        for mapped_read in unmapped_reads_in_pos:
+            pos_edited_in_read = -1
+            positions_per_read[mapped_read].append(pos_edited_in_read)
+        # check all reads got values for pos
+        mapped_pos_dist = {len(bases) for bases in positions_per_read.values()}
+        if len(mapped_pos_dist) != 1:
+            raise Exception(
+                f"Problem at line {x}: not all reads are mapped."
+            )
+            
+    return positions_per_read
+
+
+# %%
+def make_reads_noise_df(
+    positions_file, seed
+):
+    noise_positions_df = make_noise_positions_df(positions_file, seed)
+
+    positions_per_read = add_noise_reads_in_positions(noise_positions_df)
+    
+    reads_noise_df = pd.DataFrame(positions_per_read)
+    reads_noise_df = reads_noise_df.T.reset_index().rename({"index": "Read"}, axis="columns")
+    reads_noise_df = reads_noise_df.rename(
+        columns={
+            old_col: pos
+            for old_col, pos in zip(
+                reads_noise_df.columns[1:], noise_positions_df["Position"]
+            )
+        }
+    )
+    
+    return reads_noise_df
+
+
+# %%
+def set_u_v_counts(df):
+    
+    df = df.copy()
+    
+    us_and_vs_counts = Counter(
+        chain.from_iterable(
+            df.loc[:, ["U", "V"]].values.tolist()
+        )
+    )
+    
+    df["UCount"] = df["U"].apply(lambda x: us_and_vs_counts[x])
+    df["VCount"] = df["V"].apply(lambda x: us_and_vs_counts[x])
+    df["UVMinCount"] = df[["UCount", "VCount"]].min(axis=1)
+    df["UVMaxCount"] = df[["UCount", "VCount"]].max(axis=1)
+    
+    return df
+
+
+def retain_unique_us_and_vs(df, seed):
+    df = df.copy()
+    
+    df = set_u_v_counts(df)
+
+    # # highest max count for either u or v in an edge
+    max_u_v_max_count = df["UVMaxCount"].max()
+    ic(max_u_v_max_count)
+
+    rng = np.random.default_rng(seed)
+
+    while max_u_v_max_count > 1:
+        
+        # try to find pairs of reads where both u and v have the highest count
+        bad_pairs_df = df.loc[
+            df["UVMinCount"] == max_u_v_max_count
+        ]
+        if bad_pairs_df.empty:
+            # find instead pairs of reads where only u or v have the highest count
+            bad_pairs_df = df.loc[
+                df["UVMaxCount"] == max_u_v_max_count
+            ]
+        
+        # randomly select one bad pair to remove
+        index_of_edge_to_discard = rng.choice(
+            bad_pairs_df.loc[
+                bad_pairs_df["UVMaxCount"] == max_u_v_max_count
+            ].index
+        )
+
+        df = df.drop(
+            index_of_edge_to_discard
+        )   
+        
+        # recompute counts
+        df = set_u_v_counts(df)
+        new_max_u_v_max_count  = df["UVMaxCount"].max()
+        if new_max_u_v_max_count < max_u_v_max_count:
+            max_u_v_max_count = new_max_u_v_max_count
+            ic(max_u_v_max_count)
+            
+        # remove helper columns
+        df = df.drop(
+            columns=["UCount", "VCount", "UVMinCount", "UVMaxCount"]
+        )
+
+        return df
+
+
+# %% [markdown]
+# ###### Control tests
+
+# %%
+merged_positions_files
+
+# %%
+reads_noise_dfs = [
+    make_reads_noise_df(positions_file, seed)
+    for positions_file in merged_positions_files
+]
+
+reads_noise_dfs[0]
+
+# %%
+reads_noise_dfs[1]
+
+# %%
+noise_per_position = reads_noise_dfs[1].iloc[:, 1:].apply(
+    lambda x: x.eq(1).sum() / x.ne(-1).sum()
+).sort_values(ascending=False)
+noise_per_position.describe()
+
+# %%
+noise_per_position.loc[
+    noise_per_position.ge(0.1)
+]
+
+# %%
+# noise_per_position = reads_noise_dfs[0].iloc[:, 1:].apply(
+#     lambda x: x.eq(1).sum() / x.ne(-1).sum()
+# ).sort_values(ascending=False)
+# noise_per_position.describe()
+
+# %%
+# noise_per_position.loc[
+#     noise_per_position.ge(0.1)
+# ]
+
+# %%
+
+# %%
+min_shared_umi_sub_seq_len = 5
+# sample_fraction = 0.005 # todo crude control change
+# max_error_to_take_all = 1
+max_error_to_take_all = 0 # todo crude control change
+max_error_to_check = None
+# sample_control_edges_with_no_shared_sub_seq = True
+main_mapping_boundary_diff = 300
+# max_dist_between_two_reads_start_or_end = 100
+max_dist_between_two_reads_start_or_end = 50
+min_control_error = 5 # todo crude control change
+control_to_treatment_groups_initial_ratio = 10 # todo crude control change # this is the ratio before checking the num of errors between the umis of each pair
+
+# %%
+gene = genes[1]
+reads_file = merged_annotated_reads_files[1]
+main_mapping_boundaries = main_mapping_boundaries_per_gene[1]
+positions_file = merged_positions_files[1]
+expected_disagreements_per_position_series = per_gene_expected_disagreements_per_position_series[1]
+reads_noise_df = reads_noise_dfs[1]
+# repeat = "1"
+repeat = "3"
+
+
+one_sample_df = best_gene_specific_pcr_amplified_concat_alignments_df.loc[
+    (best_gene_specific_pcr_amplified_concat_alignments_df["Gene"] == gene)
+    & (best_gene_specific_pcr_amplified_concat_alignments_df["Repeat"] == repeat)
+].copy()
+
+if main_mapping_boundaries is not None:
+    main_mapping_start, main_mapping_end = main_mapping_boundaries
+    one_sample_df = one_sample_df.loc[
+        (one_sample_df["RTGGeneStart"].le(main_mapping_start + main_mapping_boundary_diff))
+        & (one_sample_df["RTGGeneEnd"].ge(main_mapping_end - main_mapping_boundary_diff))
+    ]
+            
+one_sample_df["UMIUniqueSubSeqs"] = (
+    one_sample_df["SpanningUMISeq"].apply(
+        lambda x: split_umi_seq_to_unique_sub_seqs(x, min_shared_umi_sub_seq_len)
+    )
+)
+one_sample_df = compute_reads_with_indistinguishable_umi_subseqs(one_sample_df)
+
+one_sample_df
+
+# %%
+potential_edges = set(
+    tuple(sorted((u, v)))
+    for u, vs in one_sample_df.loc[:, ["Read", "OtherReadswithIndistinguishableUMISubSeqs"]].values.tolist()
+    for v in vs
+)
+ic(len(potential_edges))
+assert len(potential_edges) <= one_sample_df["OtherReadswithIndistinguishableUMISubSeqs"].apply(len).sum()
+
+# %%
+# todo crude control change
+# read_umi_rtg_boundaries_df = one_sample_df.loc[:, ["Read", "SpanningUMISeq", "RTGGeneStart", "RTGGeneEnd"]].set_index("Read")
+read_umi_rtg_boundaries_df = one_sample_df.loc[:, ["Read", "SpanningUMISeq", "UMIUniqueSubSeqs", "RTGGeneStart", "RTGGeneEnd"]].set_index("Read")
+assert read_umi_rtg_boundaries_df.isna().sum().sum() == 0
+read_umi_rtg_boundaries_df
+
+# %%
+umi_seqs_overlap_inputs = [
+    (
+        u, 
+        v, 
+        read_umi_rtg_boundaries_df.loc[u, "SpanningUMISeq"], 
+        read_umi_rtg_boundaries_df.loc[v, "SpanningUMISeq"],
+        max_errors,
+    )
+    for u, v in potential_edges
+    if (
+        np.abs(read_umi_rtg_boundaries_df.loc[u, "RTGGeneStart"] - read_umi_rtg_boundaries_df.loc[v, "RTGGeneStart"]) <= max_dist_between_two_reads_start_or_end
+        and np.abs(read_umi_rtg_boundaries_df.loc[u, "RTGGeneEnd"] - read_umi_rtg_boundaries_df.loc[v, "RTGGeneEnd"]) <= max_dist_between_two_reads_start_or_end
+    )
+]
+
+ic(len(umi_seqs_overlap_inputs));
+
+# %%
+with mp.get_context("spawn").Pool(processes=processes) as pool:
+    umi_seqs_overlap_batched_results = pool.map(
+        func=umi_processing.one_batch_umi_seqs_overlap,
+        iterable=more_itertools.divide(processes * batches_per_process, umi_seqs_overlap_inputs)
+    )
+    
+# create a symmetric df with all pairs (U, V) and (V, U)
+umi_seqs_overlap_results = (
+    (u, v, o, e, True)
+    for u, v, o, e in chain.from_iterable(umi_seqs_overlap_batched_results)
+)
+umi_seqs_overlap_results_df = pd.DataFrame(
+    umi_seqs_overlap_results,
+    columns=["U", "V", "Overlap", "MinimalErrors", "SharedSubSeq"]
+)
+
+umi_seqs_overlap_results_df.insert(
+    0, "Gene", gene
+)
+umi_seqs_overlap_results_df.insert(
+    1, "Repeat", repeat
+)
+umi_seqs_overlap_results_df = umi_seqs_overlap_results_df.drop(columns=["Overlap"])
+
+umi_seqs_overlap_results_df = umi_seqs_overlap_results_df.loc[
+    umi_seqs_overlap_results_df["MinimalErrors"] <= max_error_to_take_all
+]
+
+# each read is allowed to show up in one edge only
+umi_seqs_overlap_results_df = retain_unique_us_and_vs(umi_seqs_overlap_results_df, seed)
+
+umi_seqs_overlap_results_df
+
+# %%
+
+# sample_control_edges_with_no_shared_sub_seq == True
+
+# for start, don't search control edges in edges checked for treatment edges
+# (some of these have more alignment errors than accepted,
+# but still, each pair have at least a 5nt shared UMI subseq)
+edges_to_skip_when_searching_for_control_edges = copy.copy(potential_edges)
+
+negative_umi_seqs_overlap_results_df = pd.DataFrame(
+    columns=['Gene', 'Repeat', 'U', 'V', 'MinimalErrors', 'SharedSubSeq']
+)
+# negative_edges = []
+
+U = one_sample_df["Read"].tolist()
+U.sort()
+
+while negative_umi_seqs_overlap_results_df.shape[0] / umi_seqs_overlap_results_df.shape[0] < control_to_treatment_groups_initial_ratio:
+    
+    # ic(len(negative_edges))
+    # ic(len(edges_to_skip_when_searching_for_control_edges))
+    
+    new_negative_edges_generator = (
+        (u, v) # (u, v) are sorted because u < v in distinct_combinations
+        for u, v in more_itertools.distinct_combinations(U, r=2)
+        if (
+            # (u, v) not in verified_non_negative_edges
+            # and (u, v) not in negative_edges
+            (u, v) not in edges_to_skip_when_searching_for_control_edges
+        )
+    )
+    new_negative_edges = more_itertools.sample(
+        new_negative_edges_generator,
+        # k=control_to_treatment_groups_initial_ratio * len(potential_edges)
+        k=control_to_treatment_groups_initial_ratio * umi_seqs_overlap_results_df.shape[0]
+    )
+    new_negative_edges = [
+        (u, v)
+        for u, v in new_negative_edges
+        if (
+            np.abs(read_umi_rtg_boundaries_df.loc[u, "RTGGeneStart"] - read_umi_rtg_boundaries_df.loc[v, "RTGGeneStart"]) <= max_dist_between_two_reads_start_or_end
+            and np.abs(read_umi_rtg_boundaries_df.loc[u, "RTGGeneEnd"] - read_umi_rtg_boundaries_df.loc[v, "RTGGeneEnd"]) <= max_dist_between_two_reads_start_or_end
+        )
+    ]
+    # ic(len(new_negative_edges))
+    
+    new_negative_umi_seqs_overlap_inputs = [
+        (
+            u, 
+            v, 
+            read_umi_rtg_boundaries_df.loc[u, "SpanningUMISeq"], 
+            read_umi_rtg_boundaries_df.loc[v, "SpanningUMISeq"],
+            max_errors,
+        )
+        for u, v in new_negative_edges
+    ]
+
+    with mp.get_context("spawn").Pool(processes=processes) as pool:
+        new_negative_umi_seqs_overlap_batched_results = pool.map(
+            func=umi_processing.one_batch_umi_seqs_overlap,
+            iterable=more_itertools.divide(processes * batches_per_process, new_negative_umi_seqs_overlap_inputs)
+        )
+    new_negative_umi_seqs_overlap_results = (
+        (u, v, o, e, False)
+        for u, v, o, e in chain.from_iterable(new_negative_umi_seqs_overlap_batched_results)
+    )
+    new_negative_umi_seqs_overlap_results_df = pd.DataFrame(
+        new_negative_umi_seqs_overlap_results,
+        columns=["U", "V", "Overlap", "MinimalErrors", "SharedSubSeq"]
+    )
+
+    new_negative_umi_seqs_overlap_results_df.insert(
+        0, "Gene", gene
+    )
+    new_negative_umi_seqs_overlap_results_df.insert(
+        1, "Repeat", repeat
+    )
+    new_negative_umi_seqs_overlap_results_df = new_negative_umi_seqs_overlap_results_df.drop(columns=["Overlap"])
+    
+    negative_umi_seqs_overlap_results_df = pd.concat(
+        [
+            negative_umi_seqs_overlap_results_df,
+            new_negative_umi_seqs_overlap_results_df.loc[
+                new_negative_umi_seqs_overlap_results_df["MinimalErrors"] >= min_control_error
+            ],
+        ],
+        ignore_index=True
+    )
+    
+    # each read is allowed to show up in one edge only
+    negative_umi_seqs_overlap_results_df = retain_unique_us_and_vs(negative_umi_seqs_overlap_results_df, seed)
+    
+    if ic(negative_umi_seqs_overlap_results_df.shape[0] / umi_seqs_overlap_results_df.shape[0] >= control_to_treatment_groups_initial_ratio):
+        # there are enough (or more than enough) control edges - take what we need and break
+        negative_umi_seqs_overlap_results_df = negative_umi_seqs_overlap_results_df.sample(
+            n=umi_seqs_overlap_results_df.shape[0]*control_to_treatment_groups_initial_ratio, 
+            random_state=seed
+        )
+        break
+    else:
+        # add the edges we just tested so we don't try them again
+        new_edges_to_skip_when_searching_for_control_edges = set(
+            tuple(sorted((u, v)))
+            for u, v in new_negative_umi_seqs_overlap_results_df.loc[:, ["U", "V"]].values.tolist()
+        )
+        edges_to_skip_when_searching_for_control_edges = edges_to_skip_when_searching_for_control_edges | new_edges_to_skip_when_searching_for_control_edges
+    
+
+negative_umi_seqs_overlap_results_df
+
+# %%
+umi_seqs_overlap_results_df = pd.concat(
+    [
+        umi_seqs_overlap_results_df,
+        negative_umi_seqs_overlap_results_df,
+    ],
+    ignore_index=True
+)
+
+# each read is allowed to show up in one edge only
+# (there were no duplicates in umi_seqs_overlap_results_df and negative_umi_seqs_overlap_results_df individually,
+# # but combining them may have created some)
+umi_seqs_overlap_results_df = retain_unique_us_and_vs(umi_seqs_overlap_results_df, seed)
+
+umi_seqs_overlap_results_df
+
+# %%
+umi_seqs_overlap_results_df
+
+# %%
+umi_seqs_overlap_results_df["SharedSubSeq"].value_counts()
+
+# %%
+used_reads_df = pd.read_csv(reads_file, sep="\t")
+used_reads_df["Gene"] = gene
+
+num_of_editing_sites_in_gene = used_reads_df.loc[:, ["EditedPositions", "UneditedPositions", "AmbigousPositions", ]].sum(axis=1).unique()
+assert len(num_of_editing_sites_in_gene) == 1, "Each read should have the same number of editing sites, whether edited, unedited or ambiguous."
+num_of_editing_sites_in_gene = num_of_editing_sites_in_gene[0]
+ic(num_of_editing_sites_in_gene);
+
+# %%
+# this can be further improved by creating a df with the editing status
+# of each read, thus saving time and memory on filtering the used_reads_df each time
+
+# expected_disagreements_per_position_series = per_gene_expected_disagreements_per_position_series[1]
+
+edges_to_compare_editing_statuses = [
+    (gene, repeat, num_of_editing_sites_in_gene, u, v, errors, used_reads_df, expected_disagreements_per_position_series, used_reads_first_col_pos)
+    for u, v, errors in umi_seqs_overlap_results_df.loc[:, ["U", "V", "MinimalErrors"]].values.tolist()
+]
+with mp.get_context("spawn").Pool(processes=processes) as pool:
+    editing_statuses_series = pool.starmap(
+        func=umi_processing.compare_u_v_editing_statuses_light,
+        # iterable=more_itertools.divide(processes * batches_per_process, edges_to_compare_editing_statuses)
+        iterable=edges_to_compare_editing_statuses
+    )
+editing_statuses_df = pd.DataFrame(editing_statuses_series)
+
+editing_statuses_df = editing_statuses_df.merge(
+    umi_seqs_overlap_results_df.loc[:, ["U", "V", "SharedSubSeq"]],
+    on=["U", "V"],
+    how="inner",
+)
+# editing_statuses_df["0/1+"] = editing_statuses_df["MinimalErrors"].apply(
+#     lambda x: 
+#         "0" if x == 0 
+#         else "1+"
+# )
+# editing_statuses_df["0/1/2+"] = editing_statuses_df["MinimalErrors"].apply(
+#     lambda x: 
+#         "0" if x == 0 
+#         else "1" if x == 1 
+#         else "2+"
+# )
+
+editing_statuses_df
+
+# %%
+# todo retain only reads in editing_statuses_df to create reads_noise_df -> used_reads_noise_df, 
+# and send that df to compare_u_v_noise_statuses_light
+# (check if it saves time)
+
+edges_to_compare_noise_statuses = [
+    (gene, u, v, reads_noise_df)
+    for u, v in editing_statuses_df.loc[:, ["U", "V", ]].values.tolist()
+]
+with mp.get_context("spawn").Pool(processes=processes) as pool:
+    noise_statuses_series = pool.starmap(
+        func=umi_processing.compare_u_v_noise_statuses_light,
+        iterable=edges_to_compare_noise_statuses
+    )
+noise_statuses_df = pd.DataFrame(noise_statuses_series)
+noise_statuses_df
+
+# %%
+editing_statuses_df = editing_statuses_df.merge(
+    noise_statuses_df
+)
+
+editing_statuses_df["Group"] = editing_statuses_df.apply(
+    # lambda row: "Treatment" if row["SharedSubSeq"] else "Control",
+    lambda row: "IdenticalUMIs" if row["SharedSubSeq"] else "Control",
+    axis=1
+)
+
+editing_statuses_df["%RelativeSharedAmbiguousPositions"] = (
+    editing_statuses_df["SharedAmbiguousPositions"]
+    * 100
+    / editing_statuses_df["AllAmbiguousPositions"]
+)
+editing_statuses_df["%TotalSharedAmbiguousPositions"] = (
+    editing_statuses_df["SharedAmbiguousPositions"]
+    * 100
+    / editing_statuses_df["EditingSitesInGene"]
+)
+
+editing_statuses_df
+
+# %%
+
+# %%
+editing_statuses_df
+
+# %%
+editing_statuses_df["%TotalMinUniqueAmbiguousPositions"] = editing_statuses_df.loc[:, ["%TotalUUniqueAmbiguousPositions", "%TotalVUniqueAmbiguousPositions"]].min(axis=1)
+editing_statuses_df["%TotalMaxUniqueAmbiguousPositions"] = editing_statuses_df.loc[:, ["%TotalUUniqueAmbiguousPositions", "%TotalVUniqueAmbiguousPositions"]].max(axis=1)
+editing_statuses_df.loc[:, ["%TotalMinUniqueAmbiguousPositions", "%TotalMaxUniqueAmbiguousPositions"]].describe()
+
+# %%
+editing_statuses_df["%RelativeMinUniqueAmbiguousPositions"] = editing_statuses_df.loc[:, ["%RelativeUUniqueAmbiguousPositions", "%RelativeVUniqueAmbiguousPositions"]].min(axis=1)
+editing_statuses_df["%RelativeMaxUniqueAmbiguousPositions"] = editing_statuses_df.loc[:, ["%RelativeUUniqueAmbiguousPositions", "%RelativeVUniqueAmbiguousPositions"]].max(axis=1)
+editing_statuses_df.loc[:, ["%RelativeMinUniqueAmbiguousPositions", "%RelativeMaxUniqueAmbiguousPositions"]].describe()
+
+# %%
+editing_statuses_df["%TotalMaxUniqueAmbiguousPositions"].sub(
+    editing_statuses_df["%TotalMinUniqueAmbiguousPositions"]
+).describe()
+
+# %%
+editing_statuses_df["%RelativeMaxUniqueAmbiguousPositions"].sub(
+    editing_statuses_df["%RelativeMinUniqueAmbiguousPositions"]
+).describe()
+
+# %%
+editing_statuses_df.groupby(["SharedSubSeq", "MinimalErrors"]).apply(
+    lambda x: x["%RelativeMaxUniqueAmbiguousPositions"].sub(
+        x["%RelativeMinUniqueAmbiguousPositions"]
+    ).describe()
+).reset_index()
+
+# %%
+fig = px.scatter(
+    editing_statuses_df.groupby(["SharedSubSeq", "MinimalErrors"]).apply(
+        lambda x: x["%RelativeMaxUniqueAmbiguousPositions"].sub(
+            x["%RelativeMinUniqueAmbiguousPositions"]
+        ).describe()
+    ).reset_index(),
+    x="MinimalErrors",
+    y="mean",
+    error_y="std",
+    # facet_row="SharedSubSeq",
+    color="SharedSubSeq",
+    # facet_col="Repeat",
+    # x="Repeat",
+    category_orders={
+        "MinimalErrors": sorted(editing_statuses_df["MinimalErrors"].unique())
+    },
+    labels={
+        "MinimalErrors": "Alignment errors",
+        "mean": "%RelativeUniqueAmbiguousPositionsDiff"
+    },
+    opacity=0.5
+)
+fig.update_xaxes(dtick=1)
+fig.update_layout(
+    width=900,
+    height=450,
+)
+# fig.show()
+config = {'staticPlot': True}
+fig.show(config=config)
+
+# %%
+fig = px.box(
+    editing_statuses_df,
+    x="MinimalErrors",
+    y="StronglyDisagreeingPositions",
+    # facet_row="SharedSubSeq",
+    color="SharedSubSeq",
+    # facet_col="Repeat",
+    # x="Repeat",
+    category_orders={
+        "MinimalErrors": sorted(editing_statuses_df["MinimalErrors"].unique())
+    },
+    labels={
+        "MinimalErrors": "Alignment errors",
+    }
+)
+fig.update_xaxes(dtick=1)
+fig.update_layout(
+    width=900,
+    height=450,
+)
+# fig.show()
+config = {'staticPlot': True}
+fig.show(config=config)
+
+# %%
+fig = px.box(
+    editing_statuses_df,
+    x="MinimalErrors",
+    y="ExpectedStronglyDisagreeingPositions",
+    # facet_row="SharedSubSeq",
+    color="SharedSubSeq",
+    # facet_col="Repeat",
+    # x="Repeat",
+    category_orders={
+        "MinimalErrors": sorted(editing_statuses_df["MinimalErrors"].unique())
+    },
+    labels={
+        "MinimalErrors": "Alignment errors",
+    }
+)
+fig.update_xaxes(dtick=1)
+fig.update_layout(
+    width=900,
+    height=450,
+)
+# fig.show()
+config = {'staticPlot': True}
+fig.show(config=config)
+
+# %%
+fig = px.box(
+    editing_statuses_df.loc[
+        editing_statuses_df["%TotalMaxUniqueAmbiguousPositions"].sub(
+                editing_statuses_df["%TotalMinUniqueAmbiguousPositions"]
+            ).le(10)
+        ],
+    x="MinimalErrors",
+    y="StronglyDisagreeingPositions",
+    # facet_row="SharedSubSeq",
+    color="SharedSubSeq",
+    # facet_col="Repeat",
+    # x="Repeat",
+    category_orders={
+        "MinimalErrors": sorted(editing_statuses_df["MinimalErrors"].unique())
+    },
+    labels={
+        "MinimalErrors": "Alignment errors",
+    }
+)
+fig.update_xaxes(dtick=1)
+fig.update_layout(
+    width=900,
+    height=450,
+)
+# fig.show()
+config = {'staticPlot': True}
+fig.show(config=config)
+
+# %%
+fig = px.box(
+    editing_statuses_df.loc[
+        editing_statuses_df["%RelativeMaxUniqueAmbiguousPositions"].sub(
+                editing_statuses_df["%RelativeMinUniqueAmbiguousPositions"]
+            ).le(10)
+        ],
+    x="MinimalErrors",
+    y="StronglyDisagreeingPositions",
+    # facet_row="SharedSubSeq",
+    color="SharedSubSeq",
+    # facet_col="Repeat",
+    # x="Repeat",
+    category_orders={
+        "MinimalErrors": sorted(editing_statuses_df["MinimalErrors"].unique())
+    },
+    labels={
+        "MinimalErrors": "Alignment errors",
+    }
+)
+fig.update_xaxes(dtick=1)
+fig.update_layout(
+    width=900,
+    height=450,
+)
+# fig.show()
+config = {'staticPlot': True}
+fig.show(config=config)
+
+# %%
+fig = px.histogram(
+    editing_statuses_df,
+    x="ExpectedStronglyDisagreeingPositions",
+    y="StronglyDisagreeingPositions",
+    histfunc='avg',
+    facet_col="0/1/2+",
+    facet_row="SharedSubSeq",
+    # color="SharedSubSeq",
+    # facet_col="Repeat",
+    # x="Repeat",
+    category_orders={
+        "0/1/2+": ["0", "1", "2+"]
+    },
+    labels={
+        "0/1/2+": "Alignment errors",
+    }
+)
+fig.update_xaxes(dtick=1)
+# fig.update_layout(
+#     width=1400,
+#     height=600,
+# )
+# fig.show()
+config = {'staticPlot': True}
+fig.show(config=config)
+
+# %%
+(
+    editing_statuses_df
+    .groupby(["MinimalErrors", "SharedSubSeq", "ExpectedStronglyDisagreeingPositions"])
+    ["StronglyDisagreeingPositions"].agg(["mean", "std"])
+    .reset_index()
+)
+
+# %%
+fig = px.histogram(
+    editing_statuses_df,
+    x="ExpectedStronglyDisagreeingPositions",
+    y="StronglyDisagreeingPositions",
+    histfunc='avg',
+    # facet_col="0/1/2+",
+    facet_col="MinimalErrors",
+    facet_col_wrap=6,
+    facet_row_spacing=0.02,
+    color="SharedSubSeq",
+    # facet_col="Repeat",
+    # x="Repeat",
+    category_orders={
+        # "0/1/2+": ["0", "1", "2+"],
+        "MinimalErrors": sorted(editing_statuses_df["MinimalErrors"].unique())
+    },
+    labels={
+        # "0/1/2+": "Alignment errors",
+        "MinimalErrors": "Alignment errors",
+        "ExpectedStronglyDisagreeingPositions": "Expected strongly<br>disagreeing positions",
+        "StronglyDisagreeingPositions": "Observed strongly<br>disagreeing positions",
+    },
+    # title=f"MinimalErrors = {minimal_error}"
+     opacity=0.8,
+)
+fig.update_xaxes(dtick=1, showgrid=True, gridcolor='lightgray', range=[0, None])
+fig.update_yaxes(dtick=1, showgrid=True, gridcolor='lightgray', range=[0, None])
+fig.update_layout(
+    width=1600,
+    height=1600*2/3,
+    barmode='overlay'
+)
+# fig.show()
+config = {'staticPlot': True}
+fig.show(config=config)
+
+# %%
+fig = px.box(
+    editing_statuses_df,
+    x="MinimalErrors",
+    y="WeaklyDisagreeingPositions",
+    # facet_row="SharedSubSeq",
+    color="SharedSubSeq",
+    # facet_col="Repeat",
+    # x="Repeat",
+    category_orders={
+        "MinimalErrors": sorted(editing_statuses_df["MinimalErrors"].unique())
+    },
+    labels={
+        "MinimalErrors": "Alignment errors",
+    }
+)
+fig.update_xaxes(dtick=1)
+fig.update_layout(
+    width=900,
+    height=450,
+)
+# fig.show()
+config = {'staticPlot': True}
+fig.show(config=config)
+
+# %%
+fig = px.box(
+    editing_statuses_df.loc[
+        editing_statuses_df["%TotalMaxUniqueAmbiguousPositions"].sub(
+                editing_statuses_df["%TotalMinUniqueAmbiguousPositions"]
+            ).le(10)
+        ],
+    x="MinimalErrors",
+    y="WeaklyDisagreeingPositions",
+    # facet_row="SharedSubSeq",
+    color="SharedSubSeq",
+    # facet_col="Repeat",
+    # x="Repeat",
+    category_orders={
+        "MinimalErrors": sorted(editing_statuses_df["MinimalErrors"].unique())
+    },
+    labels={
+        "MinimalErrors": "Alignment errors",
+    }
+)
+fig.update_xaxes(dtick=1)
+fig.update_layout(
+    width=900,
+    height=450,
+)
+# fig.show()
+config = {'staticPlot': True}
+fig.show(config=config)
+
+# %%
+fig = px.box(
+    editing_statuses_df.loc[
+        editing_statuses_df["%RelativeMaxUniqueAmbiguousPositions"].sub(
+                editing_statuses_df["%RelativeMinUniqueAmbiguousPositions"]
+            ).le(10)
+        ],
+    x="MinimalErrors",
+    y="WeaklyDisagreeingPositions",
+    # facet_row="SharedSubSeq",
+    color="SharedSubSeq",
+    # facet_col="Repeat",
+    # x="Repeat",
+    category_orders={
+        "MinimalErrors": sorted(editing_statuses_df["MinimalErrors"].unique())
+    },
+    labels={
+        "MinimalErrors": "Alignment errors",
+    }
+)
+fig.update_xaxes(dtick=1)
+fig.update_layout(
+    width=900,
+    height=450,
+)
+# fig.show()
+config = {'staticPlot': True}
+fig.show(config=config)
+
+# %%
+fig = px.box(
+    editing_statuses_df,
+    x="0/1/2+",
+    y="StronglyDisagreeingPositions",
+    # facet_row="SharedSubSeq",
+    color="SharedSubSeq",
+    # facet_col="Repeat",
+    # x="Repeat",
+    category_orders={"0/1/2+": ["0", "1", "2+"]},
+    labels={
+        "0/1/2+": "Alignment errors",
+    }
+)
+fig.update_xaxes(dtick=1)
+# fig.update_layout(
+#     width=1400,
+#     height=600,
+# )
+# fig.show()
+config = {'staticPlot': True}
+fig.show(config=config)
+
+
+# %% [markdown]
+# ###### Full control df
+
+# %%
+def make_new_crude_control_editing_statuses_df(
+    reads_file,
+    gene,
+    repeat,
+    one_sample_df, # defined by a gene-repeat combination
+    expected_disagreements_per_position_series,
+    reads_noise_df,
+    used_reads_first_col_pos = 6,
+    min_shared_umi_sub_seq_len = 5,
+    max_errors = 1,
+    processes = 30,
+    batches_per_process = 100,
+    # sample_fraction: float = 0.01, # fraction of edges to sample
+    max_error_to_take_all: int | None = 0, # take all edges with this many or fewer errors (apply sampling only to edges with more errors)
+    # max_error_to_check: int | None = None, # consider only edges with this many or fewer errors
+    # sample_control_edges_with_no_shared_sub_seq: bool = False, # whether to sample control edges that do not share any UMI subseq
+    main_mapping_boundaries: list[tuple] | None = None, # only consider reads that cover the main mapping boundaries +/- main_mapping_boundary_diff
+    main_mapping_boundary_diff: int = 300,
+    max_dist_between_two_reads_start_or_end: int | None = 50, # two reads are connected by an edge only if their mapping starts/ends are within this distance
+    min_control_error = 5, # minimum number of errors for control edges
+    control_to_treatment_groups_initial_ratio = 10  # ratio of control to treatment groups edges to aim for
+):
+    ic(gene, repeat)
+    
+    # filter reads based on main mapping boundaries
+    if main_mapping_boundaries is not None:
+        main_mapping_start, main_mapping_end = main_mapping_boundaries
+        one_sample_df = one_sample_df.loc[
+            (one_sample_df["RTGGeneStart"].le(main_mapping_start + main_mapping_boundary_diff))
+            & (one_sample_df["RTGGeneEnd"].ge(main_mapping_end - main_mapping_boundary_diff))
+        ]
+    
+    one_sample_df["UMIUniqueSubSeqs"] = (
+        one_sample_df["SpanningUMISeq"].apply(
+            lambda x: split_umi_seq_to_unique_sub_seqs(x, min_shared_umi_sub_seq_len)
+        )
+    )
+    one_sample_df = compute_reads_with_indistinguishable_umi_subseqs(one_sample_df)
+    
+    # edges with shared UMI subseqs
+    
+
+    potential_edges = set(
+        tuple(sorted((u, v)))
+        for u, vs in one_sample_df.loc[:, ["Read", "OtherReadswithIndistinguishableUMISubSeqs"]].values.tolist()
+        for v in vs
+    )
+    ic(len(potential_edges))
+    assert len(potential_edges) <= one_sample_df["OtherReadswithIndistinguishableUMISubSeqs"].apply(len).sum()
+    
+    read_umi_rtg_boundaries_df = one_sample_df.loc[:, ["Read", "SpanningUMISeq", "RTGGeneStart", "RTGGeneEnd"]].set_index("Read")
+    assert read_umi_rtg_boundaries_df.isna().sum().sum() == 0
+    
+    umi_seqs_overlap_inputs = [
+        (
+            u, 
+            v, 
+            read_umi_rtg_boundaries_df.loc[u, "SpanningUMISeq"], 
+            read_umi_rtg_boundaries_df.loc[v, "SpanningUMISeq"],
+            max_errors,
+        )
+        for u, v in potential_edges
+        if (
+            np.abs(read_umi_rtg_boundaries_df.loc[u, "RTGGeneStart"] - read_umi_rtg_boundaries_df.loc[v, "RTGGeneStart"]) <= max_dist_between_two_reads_start_or_end
+            and np.abs(read_umi_rtg_boundaries_df.loc[u, "RTGGeneEnd"] - read_umi_rtg_boundaries_df.loc[v, "RTGGeneEnd"]) <= max_dist_between_two_reads_start_or_end
+        )
+    ]
+    ic(len(umi_seqs_overlap_inputs));
+    
+    with mp.get_context("spawn").Pool(processes=processes) as pool:
+        umi_seqs_overlap_batched_results = pool.map(
+            func=umi_processing.one_batch_umi_seqs_overlap,
+            iterable=more_itertools.divide(processes * batches_per_process, umi_seqs_overlap_inputs)
+        )
+    
+    # create a symmetric df with all pairs (U, V) and (V, U)
+    umi_seqs_overlap_results = (
+        (u, v, o, e, True)
+        for u, v, o, e in chain.from_iterable(umi_seqs_overlap_batched_results)
+    )
+    umi_seqs_overlap_results_df = pd.DataFrame(
+        umi_seqs_overlap_results,
+        columns=["U", "V", "Overlap", "MinimalErrors", "SharedSubSeq"]
+    )
+    
+    # assert len(umi_seqs_overlap_inputs) * 2 == umi_seqs_overlap_results_df.shape[0]
+    
+    umi_seqs_overlap_results_df.insert(
+        0, "Gene", gene
+    )
+    umi_seqs_overlap_results_df.insert(
+        1, "Repeat", repeat
+    )
+    umi_seqs_overlap_results_df = umi_seqs_overlap_results_df.drop(columns=["Overlap"])
+
+    umi_seqs_overlap_results_df = umi_seqs_overlap_results_df.loc[
+        umi_seqs_overlap_results_df["MinimalErrors"] <= max_error_to_take_all
+    ]
+
+    # each read is allowed to show up in one edge only
+    umi_seqs_overlap_results_df = retain_unique_us_and_vs(umi_seqs_overlap_results_df, seed)
+
+    # sample control edges without shared UMI subseqs and min_control_error between them
+
+    # for start, don't search control edges in edges checked for treatment edges
+    # (some of these have more alignment errors than accepted,
+    # but still, each pair have at least a 5nt shared UMI subseq)
+    edges_to_skip_when_searching_for_control_edges = copy.copy(potential_edges)
+
+    negative_umi_seqs_overlap_results_df = pd.DataFrame(
+        columns=['Gene', 'Repeat', 'U', 'V', 'MinimalErrors', 'SharedSubSeq']
+    )
+    # negative_edges = []
+
+    U = one_sample_df["Read"].tolist()
+    U.sort()
+
+    while negative_umi_seqs_overlap_results_df.shape[0] / umi_seqs_overlap_results_df.shape[0] < control_to_treatment_groups_initial_ratio:
+        
+        # ic(len(negative_edges))
+        # ic(len(edges_to_skip_when_searching_for_control_edges))
+        
+        new_negative_edges_generator = (
+            (u, v) # (u, v) are sorted because u < v in distinct_combinations
+            for u, v in more_itertools.distinct_combinations(U, r=2)
+            if (
+                # (u, v) not in verified_non_negative_edges
+                # and (u, v) not in negative_edges
+                (u, v) not in edges_to_skip_when_searching_for_control_edges
+            )
+        )
+        new_negative_edges = more_itertools.sample(
+            new_negative_edges_generator,
+            # k=control_to_treatment_groups_initial_ratio * len(potential_edges)
+            k=control_to_treatment_groups_initial_ratio * umi_seqs_overlap_results_df.shape[0]
+        )
+        new_negative_edges = [
+            (u, v)
+            for u, v in new_negative_edges
+            if (
+                np.abs(read_umi_rtg_boundaries_df.loc[u, "RTGGeneStart"] - read_umi_rtg_boundaries_df.loc[v, "RTGGeneStart"]) <= max_dist_between_two_reads_start_or_end
+                and np.abs(read_umi_rtg_boundaries_df.loc[u, "RTGGeneEnd"] - read_umi_rtg_boundaries_df.loc[v, "RTGGeneEnd"]) <= max_dist_between_two_reads_start_or_end
+            )
+        ]
+        # ic(len(new_negative_edges))
+        
+        new_negative_umi_seqs_overlap_inputs = [
+            (
+                u, 
+                v, 
+                read_umi_rtg_boundaries_df.loc[u, "SpanningUMISeq"], 
+                read_umi_rtg_boundaries_df.loc[v, "SpanningUMISeq"],
+                max_errors,
+            )
+            for u, v in new_negative_edges
+        ]
+
+        with mp.get_context("spawn").Pool(processes=processes) as pool:
+            new_negative_umi_seqs_overlap_batched_results = pool.map(
+                func=umi_processing.one_batch_umi_seqs_overlap,
+                iterable=more_itertools.divide(processes * batches_per_process, new_negative_umi_seqs_overlap_inputs)
+            )
+        new_negative_umi_seqs_overlap_results = (
+            (u, v, o, e, False)
+            for u, v, o, e in chain.from_iterable(new_negative_umi_seqs_overlap_batched_results)
+        )
+        new_negative_umi_seqs_overlap_results_df = pd.DataFrame(
+            new_negative_umi_seqs_overlap_results,
+            columns=["U", "V", "Overlap", "MinimalErrors", "SharedSubSeq"]
+        )
+
+        new_negative_umi_seqs_overlap_results_df.insert(
+            0, "Gene", gene
+        )
+        new_negative_umi_seqs_overlap_results_df.insert(
+            1, "Repeat", repeat
+        )
+        new_negative_umi_seqs_overlap_results_df = new_negative_umi_seqs_overlap_results_df.drop(columns=["Overlap"])
+        
+        negative_umi_seqs_overlap_results_df = pd.concat(
+            [
+                negative_umi_seqs_overlap_results_df,
+                new_negative_umi_seqs_overlap_results_df.loc[
+                    new_negative_umi_seqs_overlap_results_df["MinimalErrors"] >= min_control_error
+                ],
+            ],
+            ignore_index=True
+        )
+        
+        # each read is allowed to show up in one edge only
+        negative_umi_seqs_overlap_results_df = retain_unique_us_and_vs(negative_umi_seqs_overlap_results_df, seed)
+        
+        if ic(negative_umi_seqs_overlap_results_df.shape[0] / umi_seqs_overlap_results_df.shape[0] >= control_to_treatment_groups_initial_ratio):
+            # there are enough (or more than enough) control edges - take what we need and break
+            negative_umi_seqs_overlap_results_df = negative_umi_seqs_overlap_results_df.sample(
+                n=umi_seqs_overlap_results_df.shape[0]*control_to_treatment_groups_initial_ratio, 
+                random_state=seed
+            )
+            break
+        else:
+            # add the edges we just tested so we don't try them again
+            new_edges_to_skip_when_searching_for_control_edges = set(
+                tuple(sorted((u, v)))
+                for u, v in new_negative_umi_seqs_overlap_results_df.loc[:, ["U", "V"]].values.tolist()
+            )
+            edges_to_skip_when_searching_for_control_edges = edges_to_skip_when_searching_for_control_edges | new_edges_to_skip_when_searching_for_control_edges
+    
+    
+    umi_seqs_overlap_results_df = pd.concat(
+        [umi_seqs_overlap_results_df, 
+            negative_umi_seqs_overlap_results_df],
+        ignore_index=True
+    )
+    
+    # each read is allowed to show up in one edge only
+    # (there were no duplicates in umi_seqs_overlap_results_df and negative_umi_seqs_overlap_results_df individually,
+    # # but combining them may have created some)
+    umi_seqs_overlap_results_df = retain_unique_us_and_vs(umi_seqs_overlap_results_df, seed)
+    
+        
+    used_reads_df = pd.read_csv(reads_file, sep="\t")
+    used_reads_df["Gene"] = gene
+    
+    num_of_editing_sites_in_gene = used_reads_df.loc[:, ["EditedPositions", "UneditedPositions", "AmbigousPositions", ]].sum(axis=1).unique()
+    assert len(num_of_editing_sites_in_gene) == 1, "Each read should have the same number of editing sites, whether edited, unedited or ambiguous."
+    num_of_editing_sites_in_gene = num_of_editing_sites_in_gene[0]
+    ic(num_of_editing_sites_in_gene)
+
+    
+    # this can be further improved by creating a df with the editing status
+    # of each read, thus saving time and memory on filtering the used_reads_df each time
+    # edges_to_compare_editing_statuses = [
+    #     (gene, repeat, num_of_editing_sites_in_gene, u, v, errors, used_reads_df, used_reads_first_col_pos)
+    #     for u, v, errors in umi_seqs_overlap_results_df.loc[:, ["U", "V", "MinimalErrors"]].values.tolist()
+    # ]
+    edges_to_compare_editing_statuses = [
+        (gene, repeat, num_of_editing_sites_in_gene, u, v, errors, used_reads_df, expected_disagreements_per_position_series, used_reads_first_col_pos)
+        for u, v, errors in umi_seqs_overlap_results_df.loc[:, ["U", "V", "MinimalErrors"]].values.tolist()
+    ]
+    with mp.get_context("spawn").Pool(processes=processes) as pool:
+        editing_statuses_series = pool.starmap(
+            func=umi_processing.compare_u_v_editing_statuses_light,
+            # iterable=more_itertools.divide(processes * batches_per_process, edges_to_compare_editing_statuses)
+            iterable=edges_to_compare_editing_statuses
+        )
+    editing_statuses_df = pd.DataFrame(editing_statuses_series)
+    
+    editing_statuses_df = editing_statuses_df.merge(
+        umi_seqs_overlap_results_df.loc[:, ["U", "V", "SharedSubSeq"]],
+        on=["U", "V"],
+        how="inner",
+    )
+    # editing_statuses_df["0/1+"] = editing_statuses_df["MinimalErrors"].apply(
+    #     lambda x: 
+    #         "0" if x == 0 
+    #         else "1+"
+    # )
+    # editing_statuses_df["0/1/2+"] = editing_statuses_df["MinimalErrors"].apply(
+    #     lambda x: 
+    #         "0" if x == 0 
+    #         else "1" if x == 1 
+    #         else "2+"
+    # )
+    
+    edges_to_compare_noise_statuses = [
+        (gene, u, v, reads_noise_df)
+        for u, v in editing_statuses_df.loc[:, ["U", "V", ]].values.tolist()
+    ]
+    with mp.get_context("spawn").Pool(processes=processes) as pool:
+        noise_statuses_series = pool.starmap(
+            func=umi_processing.compare_u_v_noise_statuses_light,
+            iterable=edges_to_compare_noise_statuses
+        )
+    noise_statuses_df = pd.DataFrame(noise_statuses_series)
+    
+    editing_statuses_df = editing_statuses_df.merge(
+        noise_statuses_df
+    )
+    
+    editing_statuses_df["Group"] = editing_statuses_df.apply(
+        # lambda row: "Treatment" if row["SharedSubSeq"] else "Control",
+        lambda row: "IdenticalUMIs" if row["SharedSubSeq"] else "Control",
+        axis=1
+    )
+
+    editing_statuses_df["%RelativeSharedAmbiguousPositions"] = (
+        editing_statuses_df["SharedAmbiguousPositions"]
+        * 100
+        / editing_statuses_df["AllAmbiguousPositions"]
+    )
+    editing_statuses_df["%TotalSharedAmbiguousPositions"] = (
+        editing_statuses_df["SharedAmbiguousPositions"]
+        * 100
+        / editing_statuses_df["EditingSitesInGene"]
+    )
+    
+    return editing_statuses_df
+
+# %%
+min_shared_umi_sub_seq_len = 5
+# max_errors = 1
+# processes = 30
+# sample_fraction = 0.01
+# sample_fraction = 0.005
+# max_error_to_take_all = 1
+# max_error_to_check = None
+# sample_control_edges_with_no_shared_sub_seq = True
+# main_mapping_boundary_diff = 300
+# max_dist_between_two_reads_start_or_end = 100
+# max_dist_between_two_reads_start_or_end = 50
+
+concat_new_crude_control_editing_statuses_df = pd.concat(
+    (
+        make_new_crude_control_editing_statuses_df(
+            reads_file,
+            gene,
+            repeat,
+            best_gene_specific_pcr_amplified_concat_alignments_df.loc[
+                (best_gene_specific_pcr_amplified_concat_alignments_df["Gene"] == gene)
+                & (best_gene_specific_pcr_amplified_concat_alignments_df["Repeat"] == repeat)
+            ].copy(),
+            expected_disagreements_per_position_series,
+            reads_noise_df,
+            # sample_fraction=sample_fraction,
+            # max_error_to_take_all=max_error_to_take_all,
+            # max_error_to_check=max_error_to_check,
+            # sample_control_edges_with_no_shared_sub_seq=sample_control_edges_with_no_shared_sub_seq,
+            main_mapping_boundaries=main_mapping_boundaries,
+            # main_mapping_boundary_diff=main_mapping_boundary_diff,
+            # max_dist_between_two_reads_start_or_end=max_dist_between_two_reads_start_or_end,
+        )
+        for (
+            reads_file, 
+            gene, 
+            main_mapping_boundaries, 
+            expected_disagreements_per_position_series,
+            reads_noise_df
+        ) in zip(
+            merged_annotated_reads_files, 
+            genes, 
+            main_mapping_boundaries_per_gene, 
+            per_gene_expected_disagreements_per_position_series,
+            reads_noise_dfs,
+        )
+        for repeat in list("123")
+        # for reads_file, gene, main_mapping_boundaries in zip(
+        #     merged_annotated_reads_files[1:], genes[1:], main_mapping_boundaries_per_gene[1:]
+        # )
+        # for repeat in list("123")[2:] # only repeat 3
+    ),
+    ignore_index=True
+)
+
+
+concat_control_editing_statuses_df
+
+# %% [markdown]
 # ### Obtain MIS
 
 # %%
@@ -11106,7 +11725,7 @@ def calc_reads_entropy(
     
     used_reads_id_cols_df = used_reads_df.loc[:, ["Gene", "Read"]]
     
-    # keep only the columns with -1 in them (indicating an unkown editing status)
+    # keep only the columns with -1 in them (indicating an unkown editing status in some reads)
     used_reads_editing_status_df = used_reads_df.iloc[:, used_reads_first_col_pos:]
     used_reads_editing_status_df = used_reads_editing_status_df.loc[:, used_reads_editing_status_df.eq(-1).any()]
     
@@ -11228,8 +11847,13 @@ distinct_umis_gene_specific_pcr_amplified_concat_alignments_df
 
 # %%
 distinct_umis_gene_specific_pcr_amplified_concat_alignments_df.groupby(
-    "Sample"
-).size()
+    ["Gene"]
+).size().reset_index()
+
+# %%
+distinct_umis_gene_specific_pcr_amplified_concat_alignments_df.groupby(
+    ["Gene", "Repeat"]
+).size().reset_index()
 
 # %%
 ccs_vs_distinct_reads_df = concat_ccs_df[["Gene", "Repeat"]].value_counts().reset_index().sort_values(
@@ -11285,6 +11909,8 @@ deduped_reads_out_file = Path(
     merged_bams_dir,
     "DedupedReadsByUMISeq.tsv",
 )
+
+ic(deduped_reads_out_file)
 
 distinct_umis_gene_specific_pcr_amplified_concat_alignments_df.loc[
     :, ["Sample", "Gene", "Repeat", "Read", "OldRead"]
