@@ -15,7 +15,12 @@ def sample_bam(
     num_reads: float,
     seed: int,
     threads: int,
-    override_existing_out_file: bool = True
+    override_existing_out_file: bool = True,
+    region: Union[str, None] = None,
+    include_flags: Union[int, str, None] = None,
+    exclude_flags: Union[int, str, None] = None,
+    # parity: str | None = None,
+    # consider_parity_when_sampling: bool = False,
 ):
     """Sample a BAM file.
 
@@ -28,12 +33,58 @@ def sample_bam(
         threads (int): Number of threads to use.
         override_existing_out_file (bool, optional): If True, override the existing output file. Defaults to True.
     """
+    # ic(
+    #     in_bam,
+    #     out_bam,
+    #     num_reads,
+    #     seed,
+    #     threads,
+    #     override_existing_out_file,
+    #     region,
+    #     include_flags,
+    #     exclude_flags,
+    #     # parity,
+    #     # consider_parity_when_sampling,
+    # )
+
     # check if the output file already exists
     if out_bam.exists() and not override_existing_out_file:
         return
-    # calculate fraction of reads to sample by dividing the number of total number in the number of reads to sample
+
+    # # samtools view will give that many pairs of unique PE reads, as expected
+    # if consider_parity_when_sampling and parity == "PE":
+    #     num_reads *= 2
+    # ic(in_bam, num_reads)
+
+    # first filter out "bad" reads and then calc fraction to sample from all remaining reads
+    if region is not None or include_flags is not None or exclude_flags is not None:
+        tmp_filtered_out_bam = Path(out_bam.parent, f"{out_bam.stem}.tmp_filtered.bam")
+        filter_cmd = (
+            f"{samtools_path} view "
+            f"-@ {threads} "
+            "--with-header "
+            f"-o {tmp_filtered_out_bam} "
+        )
+        if include_flags is not None:
+            filter_cmd += f"-f {include_flags} "
+        if exclude_flags is not None:
+            filter_cmd += f"-F {exclude_flags} "
+        filter_cmd += f"{in_bam} "
+        if region is not None:
+            filter_cmd += f"{region} "
+        # ic(filter_cmd)
+        subprocess.run(filter_cmd, shell=True)
+        index_cmd = f"{samtools_path} index {tmp_filtered_out_bam}"
+        # subprocess.run(index_cmd, shell=True, cwd=out_dir)
+        subprocess.run(index_cmd, shell=True)
+        # treat filtered bam as in bam for the rest of the function
+        in_bam = tmp_filtered_out_bam
+
+    # calculate fraction of reads to sample by dividing the number of total reads in the number of reads to sample
     total_reads = count_reads(samtools_path, in_bam, None, None, None, threads)
+    # ic(in_bam, total_reads, num_reads)
     fraction = num_reads / total_reads
+
     # run samtools view with the fraction of reads to sample
     cmd = (
         f"{samtools_path} "
@@ -49,12 +100,23 @@ def sample_bam(
     subprocess.run(cmd, shell=True)
     # index the new bam file
     index_cmd = f"{samtools_path} index -@ {threads} {out_bam} "
-    print(index_cmd)
+    # print(index_cmd)
     subprocess.run(index_cmd, shell=True)
+
+    if region is not None or include_flags is not None or exclude_flags is not None:
+        # although we used tmp_filtered_out_bam as in_bam, in reality we want to delete it here
+        tmp_index = Path(in_bam.parent, f"{in_bam.name}.bai")
+        in_bam.unlink()
+        tmp_index.unlink()
 
 
 def filter_bam_by_read_quality(
-    samtools_path: Path, in_bam: Path, min_rq: float, threads: int, out_dir: Path, override_existing_out_file: bool = True
+    samtools_path: Path,
+    in_bam: Path,
+    min_rq: float,
+    threads: int,
+    out_dir: Path,
+    override_existing_out_file: bool = True,
 ) -> Path:
     """Filter a BAM file by read quality.
 

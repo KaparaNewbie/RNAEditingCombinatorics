@@ -93,6 +93,7 @@ def add_pacbio_se_reads_in_positions(edited_positions_df, strand, group):
 
 def add_illumina_pe_reads_in_positions(edited_positions_df, strand, group):
     unique_reads = set(chain.from_iterable(edited_positions_df["Reads"].str.split(",")))
+    # ic(group, len(unique_reads))
     positions_per_read = {read: [] for read in unique_reads}
 
     overlapping_bases = 0
@@ -143,7 +144,11 @@ def add_illumina_pe_reads_in_positions(edited_positions_df, strand, group):
                 f"Problem at line {x} in {group}'s positions_df: not all reads are mapped."
             )
 
-    ic(group, overlapping_bases)
+    ic(
+        group,
+        overlapping_bases,
+        len(unique_reads),
+    )
 
     return positions_per_read
 

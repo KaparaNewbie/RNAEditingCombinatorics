@@ -648,6 +648,10 @@ def directed_sequencing_main(
     path_col: str,
     prob_regions_bed_col: str,
     known_editing_sites: Path,
+    per_sample_sampled_reads_col: str,
+    consider_parity_when_sampling: bool,
+    filter_col: str | None,
+    filter_col_value: str | None,
     cds_regions: Path,
     min_percent_of_max_coverage: float,
     snp_noise_level: float,
@@ -708,6 +712,8 @@ def directed_sequencing_main(
     # 1 - get data
 
     data_table = pd.read_csv(data_table, sep=data_table_sep)
+    if filter_col is not None:
+        data_table = data_table.loc[data_table[filter_col].eq(filter_col_value)]
     samples = data_table[
         sample_col
     ].tolist()  # needed if there are number of samples in each group
@@ -723,6 +729,7 @@ def directed_sequencing_main(
             data_table[prob_regions_bed_col].replace({np.nan: ""}),
         )
     )
+
     # prob_regions_beds = [BedTool(path) for path in data_table[prob_regions_bed_col]]
 
     # 2 - filter reads by mapping quality
@@ -742,20 +749,85 @@ def directed_sequencing_main(
     # 3 - sample reads to desired number of reads
 
     if sample_reads:
-        sampled_filtered_bam_files = [
-            Path(out_dir, f"{bam_file.stem}.Sampled{num_sampled_reads}.bam")
-            for bam_file in filtered_bam_files
+        override_existing_out_file = True
+        # pileup_formatted_regions is the same as below
+        pileup_formatted_regions = [
+            f"{region}:{start+1}-{end}"
+            for region, start, end in zip(regions, starts, ends)
         ]
-        with Pool(processes=processes) as pool:
-            pool.starmap(
-                func=sample_bam,
-                iterable=[
-                    (samtools_path, in_bam, out_bam, num_sampled_reads, seed, threads)
-                    for in_bam, out_bam in zip(
-                        filtered_bam_files, sampled_filtered_bam_files
-                    )
-                ],
-            )
+
+        # use a predefined, individual num of sampled reads per each BAM
+        if data_table[per_sample_sampled_reads_col].notna().all():
+            per_sample_sampled_reads = data_table[per_sample_sampled_reads_col].tolist()
+            # samtools view will give that many pairs of unique PE reads, as expected
+            if consider_parity_when_sampling and parity == "PE":
+                per_sample_sampled_reads = [x * 2 for x in per_sample_sampled_reads]
+            sampled_filtered_bam_files = [
+                Path(out_dir, f"{bam_file.stem}.Sampled{num_of_sampled_reads}.bam")
+                for bam_file, num_of_sampled_reads in zip(
+                    filtered_bam_files, per_sample_sampled_reads
+                )
+            ]
+            with Pool(processes=processes) as pool:
+                pool.starmap(
+                    func=sample_bam,
+                    iterable=[
+                        (
+                            samtools_path,
+                            in_bam,
+                            out_bam,
+                            num_of_sampled_reads,
+                            seed,
+                            threads,
+                            override_existing_out_file,
+                            region,
+                            include_flags,
+                            exclude_flags,
+                            # parity,
+                            # consider_parity_when_sampling,
+                        )
+                        for in_bam, out_bam, num_of_sampled_reads, region in zip(
+                            filtered_bam_files,
+                            sampled_filtered_bam_files,
+                            per_sample_sampled_reads,
+                            pileup_formatted_regions,
+                        )
+                    ],
+                )
+        else:
+            # samtools view will give that many pairs of unique PE reads, as expected
+            if consider_parity_when_sampling and parity == "PE":
+                num_sampled_reads *= 2
+            # use a flat number of sampled reads for each BAM
+            sampled_filtered_bam_files = [
+                Path(out_dir, f"{bam_file.stem}.Sampled{num_sampled_reads}.bam")
+                for bam_file in filtered_bam_files
+            ]
+            with Pool(processes=processes) as pool:
+                pool.starmap(
+                    func=sample_bam,
+                    iterable=[
+                        (
+                            samtools_path,
+                            in_bam,
+                            out_bam,
+                            num_sampled_reads,
+                            seed,
+                            threads,
+                            override_existing_out_file,
+                            region,
+                            include_flags,
+                            exclude_flags,
+                            # parity,
+                            # consider_parity_when_sampling,
+                        )
+                        for in_bam, out_bam, region in zip(
+                            filtered_bam_files,
+                            sampled_filtered_bam_files,
+                            pileup_formatted_regions,
+                        )
+                    ],
+                )
     else:
         sampled_filtered_bam_files = filtered_bam_files
 
@@ -1000,7 +1072,7 @@ def define_args() -> argparse.Namespace:
     parser.add_argument(
         "--samtools_path",
         type=expanded_path_from_str,
-        default=Path("~/anaconda3/envs/combinatorics/bin/samtools").expanduser(),
+        default=Path("~/anaconda3/envs/combinatorics2/bin/samtools").expanduser(),
         help="Samtools executable.",
     )
     parser.add_argument(
@@ -1086,6 +1158,14 @@ def define_args() -> argparse.Namespace:
         help="Sample `num_sampled_reads` from the (filtered) reads in the BAM file.",
     )
     parser.add_argument(
+        "--consider_parity_when_sampling",
+        action="store_true",
+        help=(
+            "When sampling reads from the BAM file, consider the parity of the reads. "
+            "I.e., for PE reads, sample 2 * num_sampled_reads pairs of PE reads."
+        ),
+    )
+    parser.add_argument(
         "--seed",
         default=1892,
         type=int,
@@ -1146,6 +1226,27 @@ def define_args() -> argparse.Namespace:
     )
     directed_sequencing_subparser.add_argument(
         "--path_col", default="Path", help="Path col label in `data_table`."
+    )
+    directed_sequencing_subparser.add_argument(
+        "--per_sample_sampled_reads_col",
+        default="PerSampleSampledReads",
+        help=(
+            "Per sample sampled reads col label in `data_table`. "
+            "Ignore this column if `--sample_reads` is not used. "
+            "Unless all samples have a value in this column, the program will use the general `num_sampled_reads` value."
+        ),
+    )
+    directed_sequencing_subparser.add_argument(
+        "--filter_col",
+        help="Column name in `data_table` to filter samples by.",
+        type=str,
+        default=None,
+    )
+    directed_sequencing_subparser.add_argument(
+        "--filter_col_value",
+        help="Keep only samples whose `filter_col` value equals this.",
+        type=str,
+        default=None,
     )
     directed_sequencing_subparser.add_argument(
         "--cds_regions",

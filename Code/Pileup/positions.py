@@ -65,7 +65,7 @@ def replace_reads_names(
             old_reads_str, old_to_new_mapping, reads_sep
         )
     )
-    
+
     # verify correct replacement of substrings of old to new reads, `both` seperated by `reads_sep`
     # tests 1 - proof that `reads_sep` is used in `reads_col` only to sepearate reads, i.e., reads don't have `reads_sep` in their names
     # if positions_df[total_coverage_col].ne(positions_df[reads_col].str.count(reads_sep) + 1).any():
@@ -895,6 +895,9 @@ def pileup_to_positions(
     ]
     positions_df = pd.read_csv(pileup_file, sep="\t", names=cols)
 
+    # unique_reads = set(chain.from_iterable(positions_df["Reads"].str.split(",")))
+    # ic(pileup_file.name, len(unique_reads))
+
     # filter out zero-coverage positions (probably due to deletions) - they are irrelevent, and also disturb `replace_reads_names` later
     positions_df = positions_df.loc[positions_df["TotalCoverage"] > 0]
 
@@ -1032,7 +1035,7 @@ def pileup_to_positions(
 # for pos in test_positions:
 
 #     print(f"{pos = }")
-    
+
 #     reads_at_pos = positions_df.loc[
 #         positions_df["Position"].eq(pos),
 #         "Reads"
@@ -1054,9 +1057,8 @@ def pileup_to_positions(
 #             print(f"{current_test_read = }, {prev_test_read = }, {index = }, {base = }, {phred = }")
 #         else:
 #             print(f"{current_test_read = }, {prev_test_read = } not found")
-            
-#     print()
 
+#     print()
 
 
 # cat /private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/Test/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.pileup | \
@@ -1066,11 +1068,6 @@ def pileup_to_positions(
 # cat /private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/Test/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.pileup | \
 # grep "m64296e_241222_071206/175966200/cc" | \
 # lesss
-
-
-
-
-
 
 
 # pileup_to_positions(*pileup_to_positions_inputs)

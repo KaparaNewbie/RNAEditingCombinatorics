@@ -2684,6 +2684,147 @@ Code/Simulations/expressionlevels.jl \
 - alu18
 - 12:45
 
+## Squid homologs subsampled to their octopus' counterparts depths
+
+### Set input BAMs
+
+```bash
+COMB
+
+mkdir -p D.pealeii/OctopusHomologs/Alignments
+
+cp D.pealeii/Alignment/Illumina/reads.ByChrom/reads.sorted.aligned.filtered.comp141840_c0_seq2.bam D.pealeii/OctopusHomologs/Alignments/K0513.ShortReads.bam
+cp D.pealeii/Alignment/Illumina/reads.ByChrom/reads.sorted.aligned.filtered.comp141640_c0_seq1.bam D.pealeii/OctopusHomologs/Alignments/KCNAS.ShortReads.bam
+cp D.pealeii/Alignment/Illumina/reads.ByChrom/reads.sorted.aligned.filtered.comp141882_c0_seq14.bam D.pealeii/OctopusHomologs/Alignments/PCLO.ShortReads.bam
+cp D.pealeii/Alignment/Illumina/reads.ByChrom/reads.sorted.aligned.filtered.comp141378_c0_seq7.bam D.pealeii/OctopusHomologs/Alignments/SCN1.ShortReads.bam
+
+cp D.pealeii/Alignment/BestN1/GRIA-CNS-RESUB.C0x1291.aligned.sorted.bam D.pealeii/OctopusHomologs/Alignments/GRIA2.LongReads.bam
+cp D.pealeii/Alignment/BestN1/PCLO-CNS-RESUB.C0x1291.aligned.sorted.bam D.pealeii/OctopusHomologs/Alignments/PCLO.LongReads.bam
+cp D.pealeii/Alignment/UMILongReads.UniqueReadsByUMI.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.bam D.pealeii/OctopusHomologs/Alignments/ADAR1.LongReads.bam
+
+samtools index -M D.pealeii/OctopusHomologs/Alignments/*.bam
+```
+
+
+### Pileup
+
+```bash
+mkdir -p D.pealeii/OctopusHomologs/MpileupAndTranscripts
+
+# debugging short reads sampling with KCNAS
+
+python Code/pileup_with_subparsers.py \
+--transcriptome D.pealeii/Annotations/Jan2025/orfs_squ.fa \
+--known_editing_sites D.pealeii/Annotations/Jan2025/D.pea.EditingSites.bed \
+--include_flags 3 \
+--exclude_flags 2304 \
+--top_x_noisy_positions 3 \
+--assurance_factor 1.5 \
+--min_percent_of_max_coverage 0.1 \
+--snp_noise_level 0.1 \
+--min_bq 30 \
+--parity PE \
+--out_dir D.pealeii/OctopusHomologs/MpileupAndTranscripts \
+--processes 3 \
+--threads 10 \
+--keep_pileup_files \
+--gz_compression \
+--sample_reads \
+--consider_parity_when_sampling \
+--seed 1892 \
+directed_sequencing_data \
+--data_table D.pealeii/OctopusHomologs/Alignments/data_table_kcnas.csv \
+--filter_col PerSampleParity \
+--filter_col_val PE \
+--cds_regions D.pealeii/Annotations/Jan2025/orfs_squ.bed
+
+
+
+
+
+
+# short reads
+nohup python Code/pileup_with_subparsers.py \
+--transcriptome D.pealeii/Annotations/Jan2025/orfs_squ.fa \
+--known_editing_sites D.pealeii/Annotations/Jan2025/D.pea.EditingSites.bed \
+--include_flags 3 \
+--exclude_flags 2304 \
+--top_x_noisy_positions 3 \
+--assurance_factor 1.5 \
+--min_percent_of_max_coverage 0.1 \
+--snp_noise_level 0.1 \
+--min_bq 30 \
+--parity PE \
+--out_dir D.pealeii/OctopusHomologs/MpileupAndTranscripts \
+--processes 3 \
+--threads 10 \
+--keep_pileup_files \
+--gz_compression \
+--sample_reads \
+--consider_parity_when_sampling \
+--seed 1892 \
+directed_sequencing_data \
+--data_table D.pealeii/OctopusHomologs/Alignments/data_table.csv \
+--filter_col PerSampleParity \
+--filter_col_val PE \
+--cds_regions D.pealeii/Annotations/Jan2025/orfs_squ.bed \
+> D.pealeii/OctopusHomologs/MpileupAndTranscripts/pileup.ShortReads.8.12.2025.out &
+
+# long reads
+nohup python Code/pileup_with_subparsers.py \
+--transcriptome D.pealeii/Annotations/Jan2025/orfs_squ.fa \
+--known_editing_sites D.pealeii/Annotations/Jan2025/D.pea.EditingSites.bed \
+--exclude_flags 2304 \
+--top_x_noisy_positions 3 \
+--assurance_factor 1.5 \
+--min_percent_of_max_coverage 0.1 \
+--snp_noise_level 0.1 \
+--min_rq 0.998 \
+--min_bq 30 \
+--parity SE \
+--out_dir D.pealeii/OctopusHomologs/MpileupAndTranscripts \
+--processes 3 \
+--threads 10 \
+--keep_pileup_files \
+--gz_compression \
+--sample_reads \
+--seed 1892 \
+directed_sequencing_data \
+--data_table D.pealeii/OctopusHomologs/Alignments/data_table.csv \
+--filter_col PerSampleParity \
+--filter_col_val SE \
+--cds_regions D.pealeii/Annotations/Jan2025/orfs_squ.bed \
+> D.pealeii/OctopusHomologs/MpileupAndTranscripts/pileup.LongReads.8.12.2025.out &
+```
+* alu 17
+
+
+### Distinct proteins
+
+#### Finding isoforms
+
+```bash
+# short & long reads together - they have the same firstcolpos
+INFILES=$(echo D.pealeii/OctopusHomologs/MpileupAndTranscripts/*.unique_proteins.csv.gz)
+
+julia \
+--project=. \
+--threads 10 --proc 6 \
+Code/Simulations/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .unique_proteins.csv.gz \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--outdir D.pealeii/OctopusHomologs/MpileupAndTranscripts \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee D.pealeii/OctopusHomologs/MpileupAndTranscripts/DistinctProteins.regular.ShortLongReads.8.12.2025.log
+```
+
 # Simulations
 
 ## Unfinished editing isoforms
