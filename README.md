@@ -1123,9 +1123,85 @@ Code/Simulations/expressionlevels.jl \
 
 #### Fixed expression levels on cloud
 
-```bash
-gcloud init
+##### Connect to your Google Cloud account and copy the files to a bucket.
 
+```bash
+COMB
+
+gcloud init
+```
+
+##### 1st toy example with a PacBio sample
+```bash
+gsutil cp \
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz \
+gs://kobi-rna-comb-bucket/main/PacBioExample/GRIA2/
+
+gsutil cp \
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+gs://kobi-rna-comb-bucket/main/PacBioExample/GRIA2/
+
+gsutil cp \
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.06.02.2024-09:29:20.csv \
+gs://kobi-rna-comb-bucket/main/PacBioExample/GRIA2/
+```
+
+##### 2nd test - two Illumina samples
+One sample previously processed on our servers, the second one processed on the cloud.
+
+Sample processed on cloud - RUSC2:
+```bash
+gsutil cp \
+D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.comp141881_c0_seq3.reads.csv \
+gs://kobi-rna-comb-bucket/main/TwoIlluminaTestSamples/RUSC2/
+
+gsutil cp \
+D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.comp141881_c0_seq3.unique_proteins.csv \
+gs://kobi-rna-comb-bucket/main/TwoIlluminaTestSamples/RUSC2/
+
+gsutil cp \
+D.pealeii/MpileupAndTranscripts/Illumina/comp141881_c0_seq3.DistinctUniqueProteins.12.07.2022-20:54:38.csv \
+gs://kobi-rna-comb-bucket/main/TwoIlluminaTestSamples/RUSC2/
+```
+
+Command error:
+  ERROR: LoadError: ArgumentError: invalid column name provided in `types` keyword argument: AvailableReads. Valid column names detected in the data are: [:Fraction, :FractionRepetition, :Algorithm, :AlgorithmRepetition, :NumUniqueSamples, :UniqueSamples]. To ignore invalid columns names in `types`, pass `validate=false`
+  Stacktrace:
+   [1] checkinvalidcolumns(dict::Dict{String, DataType}, argname::String, ncols::Int64, names::Vector{Symbol})
+     @ CSV ~/.julia/packages/CSV/cwX2w/src/context.jl:88
+   [2] initialize_columns(::Int64, ::Dict{String, DataType}, ::Vector{Symbol}, ::Type, ::Vararg{Any}; validate::Bool)
+     @ CSV ~/.julia/packages/CSV/cwX2w/src/context.jl:112
+   [3] CSV.Context(source::CSV.Arg, header::CSV.Arg, normalizenames::CSV.Arg, datarow::CSV.Arg, skipto::CSV.Arg, footerskip::CSV.Arg, transpose::CSV.Arg, comment::CSV.Arg, ignoreemptyrows::CSV.Arg, ignoreemptylines::CSV.Arg, select::CSV.Arg, drop::CSV.Arg, limit::CSV.Arg, buffer_in_memory::CSV.Arg, threaded::CSV.Arg, ntasks::CSV.Arg, tasks::CSV.Arg, rows_to_check::CSV.Arg, lines_to_check::CSV.Arg, missingstrings::CSV.Arg, missingstring::CSV.Arg, delim::CSV.Arg, ignorerepeated::CSV.Arg, quoted::CSV.Arg, quotechar::CSV.Arg, openquotechar::CSV.Arg, closequotechar::CSV.Arg, escapechar::CSV.Arg, dateformat::CSV.Arg, dateformats::CSV.Arg, decimal::CSV.Arg, groupmark::CSV.Arg, truestrings::CSV.Arg, falsestrings::CSV.Arg, stripwhitespace::CSV.Arg, type::CSV.Arg, types::CSV.Arg, typemap::CSV.Arg, pool::CSV.Arg, downcast::CSV.Arg, lazystrings::CSV.Arg, stringtype::CSV.Arg, strict::CSV.Arg, silencewarnings::CSV.Arg, maxwarnings::CSV.Arg, debug::CSV.Arg, parsingdebug::CSV.Arg, validate::CSV.Arg, streaming::CSV.Arg)
+     @ CSV ~/.julia/packages/CSV/cwX2w/src/context.jl:482
+   [4] #File#32
+     @ ~/.julia/packages/CSV/cwX2w/src/file.jl:222 [inlined]
+   [5] prepare_distinctdf(distinctfile::String, delim::String, innerdelim::String, truestrings::Vector{String}, falsestrings::Vector{String}, readsdf::DataFrame, allprotsdf::DataFrame)
+     @ Main /opt/myproject/Code/Simulations/expressionlevels.jl:136
+   [6] run_sample(distinctfile::String, allprotsfile::String, samplename::String, postfix_to_add::String, firstcolpos::Int64, delim::String, innerdelim::String, truestrings::Vector{String}, falsestrings::Vector{String}, fractions::Vector{Float64}, maxthreads::Int64, innerthreadedassignment::Bool, outdir::String, algs::Vector{Any}, onlymaxdistinct::Bool, readsfile::String, substitutionmatrix::Nothing, similarityscorecutoff::Int64, similarityvalidator::typeof(>=), aagroups::Nothing, considerentropy::Bool, readssubsetfile::Nothing)
+     @ Main /opt/myproject/Code/Simulations/expressionlevels.jl:1237
+   [7] main(distinctfiles::Vector{Any}, allprotsfiles::Vector{Any}, samplenames::Vector{Any}, postfix_to_add::String, firstcolpos::Int64, delim::String, innerdelim::String, truestrings::Vector{String}, falsestrings::Vector{String}, fractions::Vector{Float64}, maxthreads::Int64, innerthreadedassignment::Bool, outdir::String, algs::Vector{Any}, onlymaxdistinct::Bool, gcp::Bool, shutdowngcp::Bool, readsfiles::Vector{Any}, substitutionmatrix::Nothing, similarityscorecutoff::Int64, similarityvalidator::typeof(>=), aagroups::Nothing, considerentropy::Bool, readssubsetfile::Nothing, logtostdout::Bool, minloglevel::Base.CoreLogging.LogLevel)
+     @ Main /opt/myproject/Code/Simulations/expressionlevels.jl:1380
+   [8] CLI_main()
+     @ Main /opt/myproject/Code/Simulations/expressionlevels.jl:1628
+   [9] top-level scope
+     @ /opt/myproject/Code/Simulations/expressionlevels.jl:1644
+  in expression starting at /opt/myproject/Code/Simulations/expressionlevels.jl:1643
+
+
+
+Sample processed on cloud - RIMS2:
+```bash
+gsutil cp \
+D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.comp140712_c0_seq3.reads.csv \
+gs://kobi-rna-comb-bucket/main/TwoIlluminaTestSamples/RIMS2/
+
+gsutil cp \
+D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.comp140712_c0_seq3.unique_proteins.csv \
+gs://kobi-rna-comb-bucket/main/TwoIlluminaTestSamples/RIMS2/
+
+gsutil cp \
+D.pealeii/MpileupAndTranscripts/Illumina/comp140712_c0_seq3.DistinctUniqueProteins.05.11.2022-02_11_33.csv \
+gs://kobi-rna-comb-bucket/main/TwoIlluminaTestSamples/RIMS2/
 ```
 
 

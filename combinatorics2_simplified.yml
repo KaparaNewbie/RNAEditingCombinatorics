@@ -7,15 +7,24 @@ channels:
 
 dependencies:
   - black
-  - multiqc >= 1.11
-  - scikit-learn >= 1.3
-  - scipy >= 1.6.2
-  - statsmodels >= 0.12.2
-  - python >= 3.9.6 # removed ", < 3.10"
-  - pandas >= 1.2.5
-  - biopython >= 1.77
-  - bedtools >= 2.30.0
-  - pybedtools >= 0.8.2
+  # - multiqc >= 1.11
+  - multiqc
+  # - scikit-learn >= 1.3
+  - scikit-learn
+  # - scipy >= 1.6.2
+  - scipy
+  # - statsmodels >= 0.12.2
+  - statsmodels
+  # - python >= 3.9.6 # removed ", < 3.10"
+  - python
+  # - pandas >= 1.2.5
+  - pandas
+  # - biopython >= 1.77
+  - biopython
+  # - bedtools >= 2.30.0
+  - bedtools
+  # - pybedtools >= 0.8.2
+  - pybedtools
 
   # - jupyterlab >= 3.1.4
   - jupyterlab
@@ -33,21 +42,27 @@ dependencies:
   - jupyter_server
   - jupytext
 
-  - more-itertools >= 8.5.0
+  # - more-itertools >= 8.5.0
+  - more-itertools
   # - plotly < 6 # sadly, I encountered this annoying bug: https://github.com/plotly/plotly.py/issues/4997, also need at least 5.1.0
   - plotly
-  - matplotlib >= 3.3.4
-  - seaborn >= 0.11.0
-  - logomaker >= 0.8
+  # - matplotlib >= 3.3.4
+  - matplotlib
+  # - seaborn >= 0.11.0
+  - seaborn
+  # - logomaker >= 0.8
+  - logomaker
 
   - nodejs
   - htslib
   - python-kaleido
   - salmon # >= 1.10.0
-  - samtools >= 1.9
+  # - samtools >= 1.9
+  - samtools
   # - bcftools = 1.14
   - openpyxl
-  - pysam >= 0.17.0
+  # - pysam >= 0.17.0
+  - pysam
   - fastqc
   # - firefox
   # - jupyterlab_code_formatter # todo delete
@@ -67,7 +82,7 @@ dependencies:
   - orthofinder
   - umap-learn
   - igv-reports
-  # - gsutil
+  - gsutil
   - google-cloud-sdk # also includes gsutil?
   - pip
   - pip:

@@ -83,22 +83,51 @@ function prepare_allprotsdf!(
 	available_reads = readsdf[!, "Read"]
 
 	# calculate the mean na positions per each protein's reads - the current stats are inaccurate
-	# readsdf = prepare_readsdf(readsfile, delim)
-	mean_na_positions_per_prot = []
-	for row in eachrow(allprotsdf)
-		rows_reads = row["Reads"]
-		# keep only currently available reads (for whatever reason)
-		rows_reads = rows_reads[in.(rows_reads, Ref(available_reads))]
-		# update the reads column to only contain the available reads
-		row["Reads"] = rows_reads
-		# also update num of reads accordingly 
-		row["NumOfReads"] = length(rows_reads)
-		# now calculate the mean na positions of the used reads
-		na_positions_of_reads = readsdf[readsdf[!, "Read"].∈Ref(rows_reads), "NAPositions"]
-		mean_na_positions_of_reads = mean(na_positions_of_reads)
-		push!(mean_na_positions_per_prot, mean_na_positions_of_reads)
-	end
-	allprotsdf[!, "AmbigousPositions"] .= mean_na_positions_per_prot
+	
+	# # readsdf = prepare_readsdf(readsfile, delim)
+	# mean_na_positions_per_prot = []
+	# for row in eachrow(allprotsdf)
+	# 	rows_reads = row["Reads"]
+	# 	# keep only currently available reads (for whatever reason)
+	# 	rows_reads = rows_reads[in.(rows_reads, Ref(available_reads))]
+	# 	# update the reads column to only contain the available reads
+	# 	row["Reads"] = rows_reads
+	# 	# also update num of reads accordingly 
+	# 	row["NumOfReads"] = length(rows_reads)
+	# 	# now calculate the mean na positions of the used reads
+	# 	na_positions_of_reads = readsdf[readsdf[!, "Read"].∈Ref(rows_reads), "NAPositions"]
+	# 	mean_na_positions_of_reads = mean(na_positions_of_reads)
+	# 	push!(mean_na_positions_per_prot, mean_na_positions_of_reads)
+	# end
+	# allprotsdf[!, "AmbigousPositions"] .= mean_na_positions_per_prot
+	# rename!(allprotsdf, "AmbigousPositions" => "MeanNAPositions")
+
+	# 1. Build the availability set (O(1) membership)
+	available_reads = readsdf[!, "Read"]
+	available_reads_set = Set(available_reads)
+	# 2. Filter each protein's Reads to only available reads (vector-of-vectors transform)
+	reads_col = allprotsdf[!, "Reads"]  # vector of vectors
+	filtered_reads = [
+		[r for r in rs if r in available_reads_set]
+		for rs in reads_col
+	]
+	# Update columns in one shot
+	allprotsdf[!, "Reads"] .= filtered_reads
+	allprotsdf[!, "NumOfReads"] .= length.(filtered_reads)
+	# 3. Build a fast lookup: read -> NAPositions
+	read_vals      = readsdf[!, "Read"]
+	na_pos_vals    = readsdf[!, "NAPositions"]
+	read_to_na_pos = Dict(read_vals[i] => na_pos_vals[i] for i in eachindex(read_vals))
+	# 4. Compute mean NAPositions per protein
+	#    (here I use `missing` if a protein has 0 reads; adjust if you prefer e.g. 0.0)
+	mean_na_positions_per_prot = [
+		isempty(rs) ?
+			0.0 :
+			mean(getindex.(Ref(read_to_na_pos), rs))
+		for rs in filtered_reads
+	]
+	# 5. Assign/rename column
+	allprotsdf[!, "AmbigousPositions"] = mean_na_positions_per_prot
 	rename!(allprotsdf, "AmbigousPositions" => "MeanNAPositions")
 
 	# filter out proteins not supported by any currently available reads
@@ -123,8 +152,87 @@ function prepare_allprotsdf!(
 	)
 	firstcolpos += 6
 
+	@info "$(loggingtime())\tprepare_allprotsdf! - finished" allprotsfile
+
 	return allprotsdf, firstcolpos
 end
+
+
+function prepare_allprotsdf_2!(
+	allprotsfile, delim, innerdelim,
+	truestrings, falsestrings, firstcolpos,
+	readsdf,
+)
+	@info "$(loggingtime())\tprepare_allprotsdf!" allprotsfile
+
+	df1 = DataFrame(CSV.File(allprotsfile, delim = delim, select = collect(1:firstcolpos-1), types = Dict("Protein" => String, "Reads" => String)))
+	df1[!, "Protein"] = InlineString.(df1[!, :Protein])
+	# make sure columns of AAs containing only Ts aren't parsed as boolean columns
+	df2 = DataFrame(CSV.File(allprotsfile, delim = delim, drop = collect(1:firstcolpos-1), types = String))
+	df2 = toAAset.(df2, innerdelim)
+
+	allprotsdf = hcat(df1, df2)
+
+	transform!(allprotsdf, :Reads => (x -> split.(x, innerdelim)) => :Reads)
+
+	# calculate the mean na positions per each protein's reads - the current stats are inaccurate
+	
+	# 1. Build the availability set (O(1) membership)
+	available_reads = readsdf[!, "Read"]
+	available_reads_set = Set(available_reads)
+	# 2. Filter each protein's Reads to only available reads (vector-of-vectors transform)
+	reads_col = allprotsdf[!, "Reads"]  # vector of vectors
+	filtered_reads = [
+		[r for r in rs if r in available_reads_set]
+		for rs in reads_col
+	]
+	# Update columns in one shot
+	allprotsdf[!, "Reads"] .= filtered_reads
+	allprotsdf[!, "NumOfReads"] .= length.(filtered_reads)
+	# 3. Build a fast lookup: read -> NAPositions
+	read_vals      = readsdf[!, "Read"]
+	na_pos_vals    = readsdf[!, "NAPositions"]
+	read_to_na_pos = Dict(read_vals[i] => na_pos_vals[i] for i in eachindex(read_vals))
+	# 4. Compute mean NAPositions per protein
+	#    (here I use `missing` if a protein has 0 reads; adjust if you prefer e.g. 0.0)
+	mean_na_positions_per_prot = [
+		isempty(rs) ?
+			0.0 :
+			mean(getindex.(Ref(read_to_na_pos), rs))
+		for rs in filtered_reads
+	]
+	# 5. Assign/rename column
+	allprotsdf[!, "AmbigousPositions"] = mean_na_positions_per_prot
+	rename!(allprotsdf, "AmbigousPositions" => "MeanNAPositions")
+
+	# filter out proteins not supported by any currently available reads
+	allprotsdf = allprotsdf[allprotsdf[!, "NumOfReads"].>0, :]
+
+	insertcols!(allprotsdf, firstcolpos, :Index => 1:size(allprotsdf, 1))
+	firstcolpos += 1
+	insertcols!(allprotsdf, firstcolpos, :AdditionalEqualSupportingReads => 0.0)
+	firstcolpos += 1
+	insertcols!(allprotsdf, firstcolpos, :AdditionalWeightedSupportingReads => 0.0)
+	firstcolpos += 1
+
+	insertcols!(
+		allprotsdf,
+		firstcolpos,
+		:AdditionalEqualSupportingReadsContributionPerProtein => [[] for _ ∈ 1:size(allprotsdf, 1)],
+		:AdditionalWeightedSupportingReadsContributionPerProtein => [[] for _ ∈ 1:size(allprotsdf, 1)],
+		:AdditionalSupportingReadsIDs => [[] for _ ∈ 1:size(allprotsdf, 1)],
+		:AdditionalSupportingProteinsIDs => [[] for _ ∈ 1:size(allprotsdf, 1)],
+		:AdditionalSupportingProteinsDistances => [[] for _ ∈ 1:size(allprotsdf, 1)],
+		:AdditionalSupportingProteinsMeanNAPositions => [[] for _ ∈ 1:size(allprotsdf, 1)],
+	)
+	firstcolpos += 6
+
+	@info "$(loggingtime())\tprepare_allprotsdf! - finished" allprotsfile
+
+	return allprotsdf, firstcolpos
+end
+
+
 
 
 function prepare_distinctdf(
@@ -133,32 +241,73 @@ function prepare_distinctdf(
 )
 	@info "$(loggingtime())\tprepare_distinctdf" distinctfile
 	# distinctdf = DataFrame(CSV.File(distinctfile; delim, truestrings, falsestrings))
-	distinctdf = DataFrame(CSV.File(distinctfile; delim, truestrings, falsestrings, types = Dict("UniqueSamples" => String, "AvailableReads" => String)))
+	# distinctdf = DataFrame(CSV.File(distinctfile; delim, truestrings, falsestrings, types = Dict("UniqueSamples" => String, "AvailableReads" => String)))
 	# distinctdf[!, "UniqueSamples"] = InlineString.(distinctdf[!, "UniqueSamples"])
+
+	# First read only the header (no rows)
+	preview = CSV.File(distinctfile; delim=delim, truestrings, falsestrings, limit=0)
+	hdr = propertynames(preview)
+	# parse the "AvailableReads" column only if it exists
+	types = Dict("UniqueSamples" => String)
+	if :AvailableReads in hdr
+		types["AvailableReads"] = String
+	end
+
+	# now read the complete df
+	distinctdf = DataFrame(
+		CSV.File(
+			distinctfile;
+			delim,
+			truestrings,
+			falsestrings,
+			types = types,
+		)
+	)
 
 	transform!(distinctdf, :UniqueSamples => (x -> split.(x, innerdelim)) => :UniqueSamples)
 	if "AvailableReads" ∈ names(distinctdf)
 		transform!(distinctdf, :AvailableReads => (x -> split.(x, innerdelim)) => :AvailableReads)
 	end
 
-	available_reads = readsdf[!, "Read"]
-	available_proteins = allprotsdf[!, "Protein"]
+	
+	# available_reads = readsdf[!, "Read"]
+	# available_proteins = allprotsdf[!, "Protein"]
 
-	# row = eachrow(distinctdf)[1]
+	# # row = eachrow(distinctdf)[1]
 
-	for row in eachrow(distinctdf)
-		# keep only currently available reads (for whatever reason)
-		if "AvailableReads" ∈ names(distinctdf)
-			rows_available_reads = row["AvailableReads"]
-			rows_available_reads = rows_available_reads[in.(rows_available_reads, Ref(available_reads))]
-			row["AvailableReads"] = rows_available_reads
-		end
+	# for row in eachrow(distinctdf)
+	# 	# keep only currently available reads (for whatever reason)
+	# 	if "AvailableReads" ∈ names(distinctdf)
+	# 		rows_available_reads = row["AvailableReads"]
+	# 		rows_available_reads = rows_available_reads[in.(rows_available_reads, Ref(available_reads))]
+	# 		row["AvailableReads"] = rows_available_reads
+	# 	end
 
-		# keep only proteins supported by currently available reads (for whatever reason)
-		rows_proteins = row["UniqueSamples"]
-		rows_proteins = rows_proteins[in.(rows_proteins, Ref(available_proteins))]
-		row["UniqueSamples"] = rows_proteins
+	# 	# keep only proteins supported by currently available reads (for whatever reason)
+	# 	rows_proteins = row["UniqueSamples"]
+	# 	rows_proteins = rows_proteins[in.(rows_proteins, Ref(available_proteins))]
+	# 	row["UniqueSamples"] = rows_proteins
+	# end
+
+
+
+	# keep only currently available reads (for whatever reason)
+	if "AvailableReads" ∈ names(distinctdf)
+		# assume `available_reads` is a Vector with all allowed reads
+		available_reads_set = Set(readsdf[!, "Read"])
+		distinctdf[!, "AvailableReads"] .= [
+			[r for r in reads if r in available_reads_set]
+			for reads in distinctdf[!, "AvailableReads"]
+		]
 	end
+
+	# keep only proteins supported by currently available reads (for whatever reason)
+	available_proteins = Set(allprotsdf[!, "Protein"])  # O(1) membership
+	distinctdf[!, "UniqueSamples"] .= [
+		[p for p in proteins if p in available_proteins]
+		for proteins in distinctdf[!, "UniqueSamples"]
+	]
+
 
 	# filter out solutions w/o any  proteins supported by any currently available reads
 	distinctdf = distinctdf[length.(distinctdf[!, "UniqueSamples"]).>0, :]
@@ -1645,6 +1794,8 @@ if abspath(PROGRAM_FILE) == @__FILE__
 end
 
 
+
+
 # outdir = "D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMISubSeq.MergedSamples"
 # distinctfiles = [
 # 	"$outdir/ADAR1.Merged.DistinctUniqueProteins.04.07.2025-15:59:37.csv",
@@ -1686,12 +1837,24 @@ end
 # samplename = "ADAR1"
 # firstcolpos = 15
 
-# # firstcolpos = 15
+
+# outdir =  "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/TestFixedExpression/"
+# distinctfile = "D.pealeii/MpileupAndTranscripts/Illumina/comp141881_c0_seq3.DistinctUniqueProteins.12.07.2022-20:54:38.csv"
+# allprotsfile = "D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.comp141881_c0_seq3.unique_proteins.csv"
+# readsfile = "D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.comp141881_c0_seq3.reads.csv"
+# samplename = "RUSC2"
+
+# outdir =  "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/TestFixedExpression/"
+# distinctfile = "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.06.02.2024-09:29:20.csv"
+# allprotsfile = "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
+# readsfile = "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz"
+# samplename = "GRIA2"
+
+# firstcolpos = 15
 # onlymaxdistinct = true
 # considerentropy = true
 # postfix_to_add = ".EntropyConsidered"
 # innerthreadedassignment = true
-
 
 # delim = "\t"
 # innerdelim = ","
@@ -1706,6 +1869,23 @@ end
 # similarityscorecutoff = 0
 # similarityvalidator = :(>=)
 
+# readssubsetfile = nothing
+
+
+
+
+# readsdf = prepare_readsdf(readsfile, delim, samplename, readssubsetfile)
+
+
+# allprotsdf, firstcolpos = prepare_allprotsdf!(
+# 	allprotsfile, delim, innerdelim, truestrings, falsestrings, firstcolpos,
+# 	readsdf,
+# )
+
+# distinctdf = prepare_distinctdf(
+# 	distinctfile, delim, innerdelim, truestrings, falsestrings,
+# 	readsdf, allprotsdf,
+# )
 
 # readssubsetfile = "/private6/projects/Combinatorics/D.pealeii/Alignment/UMILongReads.MergedSamples/DedupedReadsByUMISeq.tsv"
 
