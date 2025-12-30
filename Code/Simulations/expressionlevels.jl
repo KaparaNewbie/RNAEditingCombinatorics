@@ -1763,38 +1763,40 @@ end
 # firstcolpos = 15
 
 
-outdir =  "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/TestFixedExpression/"
-distinctfile = "D.pealeii/MpileupAndTranscripts/Illumina/comp141881_c0_seq3.DistinctUniqueProteins.12.07.2022-20:54:38.csv"
-allprotsfile = "D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.comp141881_c0_seq3.unique_proteins.csv"
-readsfile = "D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.comp141881_c0_seq3.reads.csv"
-samplename = "RUSC2"
-
 # outdir =  "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/TestFixedExpression/"
 # distinctfile = "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.06.02.2024-09:29:20.csv"
 # allprotsfile = "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
 # readsfile = "D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz"
 # samplename = "GRIA2"
 
-firstcolpos = 15
-onlymaxdistinct = true
-considerentropy = true
-postfix_to_add = ".EntropyConsidered"
-innerthreadedassignment = true
+# outdir =  "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/TestFixedExpression/"
+# distinctfile = "D.pealeii/MpileupAndTranscripts/Illumina/comp141881_c0_seq3.DistinctUniqueProteins.12.07.2022-20:54:38.csv"
+# allprotsfile = "D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.comp141881_c0_seq3.unique_proteins.csv"
+# readsfile = "D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.comp141881_c0_seq3.reads.csv"
+# samplename = "RUSC2"
 
-delim = "\t"
-innerdelim = ","
-truestrings = ["TRUE", "True", "true"]
-falsestrings = ["FALSE", "False", "false"]
-algs = ["Ascending", "Descending"]
-maxthreads = Threads.nthreads()
-fractions = [1.0]
 
-substitutionmatrix = nothing
-aagroups = nothing
-similarityscorecutoff = 0
-similarityvalidator = :(>=)
 
-readssubsetfile = nothing
+# firstcolpos = 15
+# onlymaxdistinct = true
+# considerentropy = true
+# postfix_to_add = ".EntropyConsidered"
+# innerthreadedassignment = true
+
+# delim = "\t"
+# innerdelim = ","
+# truestrings = ["TRUE", "True", "true"]
+# falsestrings = ["FALSE", "False", "false"]
+# algs = ["Ascending", "Descending"]
+# maxthreads = Threads.nthreads()
+# fractions = [1.0]
+
+# substitutionmatrix = nothing
+# aagroups = nothing
+# similarityscorecutoff = 0
+# similarityvalidator = :(>=)
+
+# readssubsetfile = nothing
 
 
 
