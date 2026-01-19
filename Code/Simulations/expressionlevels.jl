@@ -911,35 +911,95 @@ function threaded_one_solution_additional_assignment_considering_available_reads
 	)
 
 
-	# Partition unchosen proteins among threads
-	n_threads = min(n_threads, nrow(unchosendf))
-	# unchosen_partitions = collect(Iterators.partition(eachrow(unchosendf), max(1, div(nrow(unchosendf), n_threads))))
-	unchosen_partitions = collect(Iterators.partition(eachrow(unchosendf), max(1, div(nrow(unchosendf), n_threads - 1))))
-	@assert sum(length.(unchosen_partitions)) == nrow(unchosendf) "Unchosen partitions do not match the number of unchosen proteins"
+	# # Partition unchosen proteins among threads
+	# n_threads = min(n_threads, nrow(unchosendf))
+	# unchosen_partitions = collect(Iterators.partition(eachrow(unchosendf), max(1, div(nrow(unchosendf), n_threads - 1))))
+	# @assert sum(length.(unchosen_partitions)) == nrow(unchosendf) "Unchosen partitions do not match the number of unchosen proteins"
 
-	# for (unchosen_partition, i) in zip(unchosen_partitions, 1:length(unchosen_partitions))
-	# 	if any(occursin.("nVw", DataFrame(unchosen_partition)[!, "Protein"]))
-	# 		println(i)
-	# 		break
+	# # Run multithreaded processing
+	# thread_results = Vector{DataFrame}(undef, length(unchosen_partitions))
+	# @threads for i in 1:length(unchosen_partitions)
+	# 	thread_results[i] = inner_loop_one_solution_additional_assignment_considering_available_reads(
+	# 		collect(unchosen_partitions[i]), chosendf, chosenindices, Δ,
+	# 	)
+	# end
+
+
+
+	# # Partition unchosen proteins among "logical workers"
+	# n_unchosen = nrow(unchosendf)
+
+	# # Keep n_threads within sane bounds
+	# n_threads = clamp(n_threads, 1, n_unchosen)
+
+	# # Create partitions. (Use cld to avoid the n_threads-1 hazard and keep sizes stable.)
+	# chunk_len = max(1, cld(n_unchosen, n_threads))
+	# unchosen_partitions = collect(Iterators.partition(eachrow(unchosendf), chunk_len))
+	# @assert sum(length.(unchosen_partitions)) == n_unchosen "Unchosen partitions do not match the number of unchosen proteins"
+
+	# # Results container (one per partition)
+	# thread_results = Vector{DataFrame}(undef, length(unchosen_partitions))
+
+	# # Bounded worker pool: spawn exactly n_workers tasks
+	# n_workers = min(n_threads, length(unchosen_partitions))
+
+	# # Feed partition indices to workers
+	# jobs = Channel{Int}(length(unchosen_partitions))
+	# for i in 1:length(unchosen_partitions)
+	# 	put!(jobs, i)
+	# end
+	# close(jobs)
+
+	# # Spawn bounded number of worker tasks
+	# tasks = Vector{Task}(undef, n_workers)
+	# for w in 1:n_workers
+	# 	tasks[w] = Threads.@spawn begin
+	# 		for i in jobs
+	# 			# Each i is unique, so thread_results[i] writes are race-free
+	# 			thread_results[i] = inner_loop_one_solution_additional_assignment_considering_available_reads(
+	# 				collect(unchosen_partitions[i]), chosendf, chosenindices, Δ
+	# 			)
+	# 		end
+	# 		nothing
 	# 	end
 	# end
 
-	# unchosenprot_rows = DataFrame(unchosen_partitions[29])
-	# thread_result = inner_loop_one_solution_additional_assignment_considering_available_reads(
-	# 		unchosenprot_rows, chosendf, chosenindices, Δ,
-	# 	)
+	# # Wait for all workers
+	# foreach(wait, tasks)
 
-	# Run multithreaded processing
-	thread_results = Vector{DataFrame}(undef, length(unchosen_partitions))
-	@threads for i in 1:length(unchosen_partitions)
-		thread_results[i] = inner_loop_one_solution_additional_assignment_considering_available_reads(
-			collect(unchosen_partitions[i]), chosendf, chosenindices, Δ,
-		)
-	end
+
+
+
+
+	# Partition unchosen proteins among "logical workers"
+	n_unchosen = nrow(unchosendf)
+
+	# Keep n_threads within sane bounds
+	n_threads = clamp(n_threads, 1, n_unchosen)
+
+	# Create partitions. (Use cld to avoid the n_threads-1 hazard and keep sizes stable.)
+	# chunk_len = max(1, cld(n_unchosen, n_threads))
+	chunk_len = cld(n_unchosen, n_threads)
+	unchosen_partitions = collect(Iterators.partition(eachrow(unchosendf), chunk_len))
+	@assert sum(length.(unchosen_partitions)) == n_unchosen "Unchosen partitions do not match the number of unchosen proteins"
+	@assert length(unchosen_partitions) ≤ n_threads "Number of unchosen partitions exceeds number of threads"
+
+
+	# Results container (one per partition)
+	thread_results = fetch.(
+		[
+			Threads.@spawn inner_loop_one_solution_additional_assignment_considering_available_reads(
+					collect(unchosen_partitions[i]), chosendf, chosenindices, Δ
+				) 
+			for i in eachindex(unchosen_partitions)
+		]
+	)
+
+
+
 
 	# Merge results back into chosendf
 	merge_chosendf_results!(chosendf, thread_results)
-
 
 	chosendf = finalize_solution_data(chosendf, allprotsdf, solution)
 
@@ -1288,6 +1348,7 @@ function run_sample(
 	aagroups::Union{Dict{AminoAcid, String}, Nothing},
 	considerentropy::Bool,
 	readssubsetfile::Union{String, Nothing},
+	outerthreadstarget::Union{Int, Nothing},
 )
 	@info "$(loggingtime())\trun_sample" distinctfile allprotsfile readsfile samplename
 
@@ -1330,26 +1391,92 @@ function run_sample(
 		end
 	end
 
+
+
+
+
 	# considering only desired solutions (rows' indices)
 	solutions = choosesolutions(distinctdf, fractions, algs, onlymaxdistinct)
 
-	minmainthreads = max(
-		1,
-		min(
-			Int(round(maxthreads / 5)),
-			Int(round(length(solutions) / 4)),
-		),
-	)
-	allsubsolutions = collect(Iterators.partition(solutions, minmainthreads))
 
-	if innerthreadedassignment
-		# if innerthreadedassignment is true, we will use multiple threads to process each subsolution
-		# the number of threads to use for each subsolution
-		assignment_inner_threads = Int(round(maxthreads / minmainthreads))
+	### prev - start ###
+
+	# minmainthreads = max(
+	# 	1,
+	# 	min(
+	# 		Int(round(maxthreads / 5)),
+	# 		Int(round(length(solutions) / 4)),
+	# 	),
+	# )
+	# allsubsolutions = collect(Iterators.partition(solutions, minmainthreads))
+
+	# if innerthreadedassignment
+	# 	# if innerthreadedassignment is true, we will use multiple threads to process each subsolution
+	# 	# the number of threads to use for each subsolution
+	# 	# assignment_inner_threads = Int(round(maxthreads / minmainthreads))
+	# 	assignment_inner_threads = Int(round(maxthreads / length(allsubsolutions)))
+	# else
+	# 	# assignment_inner_threads = 1 will signify that we will not use multiple threads for each subsolution
+	# 	assignment_inner_threads = 1
+	# end
+
+
+	### prev - end ###
+
+
+
+	### current - start ###
+
+	# innerthreadedassignment = true
+	# maxthreads = 80
+	# solutions = [65, 69, 77, 78]
+	# solutions = [65]
+
+
+
+	n_solutions = length(solutions)
+
+	# --- Outer concurrency: how many additional_assignments calls we want to run concurrently (i.e. how many partitions) ---
+    # Keep your heuristic spirit, but ensure it's <= n_solutions and <= maxthreads
+    
+	if isnothing(outerthreadstarget)
+		n_outer_target = clamp(
+			Int(floor(maxthreads / 5)),  # your "maxthreads/5" idea (outer parallelism)
+			1,
+			min(n_solutions, maxthreads),
+		)
 	else
-		# assignment_inner_threads = 1 will signify that we will not use multiple threads for each subsolution
-		assignment_inner_threads = 1
+		n_outer_target = clamp(
+			outerthreadstarget, 
+			1, 
+			n_solutions
+		)
 	end
+
+	# --- Chunk size: how many solutions per outer task ---
+	# Your original intent: don't make chunks too big; keep at most ~n_solutions/4 per chunk.
+	chunk_cap = clamp(
+		Int(round(n_solutions / 4)), 
+		1, 
+		n_solutions
+	)
+	# If n_outer_target is large, cld(n_solutions, n_outer_target) is small; if n_outer_target is small, it is large.
+	# Use the cap to prevent chunks from getting too large.
+	chunk_size = min(
+		cld(n_solutions, n_outer_target), 
+		chunk_cap
+	)
+
+	allsubsolutions = collect(Iterators.partition(solutions, chunk_size))
+
+	# --- Inner threads per outer task ---
+	n_outer_actual = length(allsubsolutions)
+	assignment_inner_threads = innerthreadedassignment ? max(1, fld(maxthreads, n_outer_actual)) : 1
+
+	
+
+	### current - end ###
+
 
 
 	results = tcollect(
@@ -1357,8 +1484,19 @@ function run_sample(
 			distinctdf, allprotsdf, firstcolpos, Δ, subsolutions, readsdf, samplename,
 			assignment_inner_threads, considerentropy,
 		)
-		for subsolutions ∈ allsubsolutions
+		for subsolutions in allsubsolutions
 	)
+
+
+
+
+
+
+
+
+	
+
+
 	# finalresults = vcat(Iterators.flatten(results)...)
 	# finalresults = vcat(skipmissing(Iterators.flatten(results)...))
 	# Filter out missing values and ensure all results are valid 2-element tuples
@@ -1416,7 +1554,8 @@ function main(
 	distinctfiles, allprotsfiles, samplenames,
 	postfix_to_add,
 	firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
-	maxthreads, innerthreadedassignment, outdir, algs, onlymaxdistinct,
+	maxthreads, innerthreadedassignment, outerthreadstarget::Union{Int, Nothing}, 
+	outdir, algs, onlymaxdistinct,
 	gcp, shutdowngcp,
 	readsfiles,
 	substitutionmatrix::Union{SubstitutionMatrix, Nothing},
@@ -1459,6 +1598,7 @@ function main(
 			substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups,
 			considerentropy,
 			readssubsetfile,
+			outerthreadstarget
 		)
 		if result === nothing
 			@warn "Skipping sample $samplename due to processing errors"
@@ -1576,6 +1716,12 @@ function parsecmd()
 		"--innerthreadedassignment"
 		action = :store_true
 		help = "Use multithreading for the inner assignment of additional reads to chosen proteins. Else, use the original single-threaded assignment. This is especially recomended when only reassigning one solution (`onlymaxdistinct`)."
+		"--outerthreadstarget"
+		default = nothing
+		arg_type = Int
+		help = """Target number of outer threads to use. 
+		The program will try to partition the solutions into this many concurrent tasks. 
+		If not provided, a heuristic based on `maxthreads` will be used."""
 
 		"--outdir"
 		help = "Write output files to this directory."
@@ -1662,6 +1808,7 @@ function CLI_main()
 
 	maxthreads = parsedargs["maxthreads"]
 	innerthreadedassignment = parsedargs["innerthreadedassignment"]
+	outerthreadstarget = parsedargs["outerthreadstarget"]
 	outdir = parsedargs["outdir"]
 
 	gcp = parsedargs["gcp"]
@@ -1703,7 +1850,7 @@ function CLI_main()
 		distinctfiles, allprotsfiles, samplenames,
 		postfix_to_add,
 		firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
-		maxthreads, innerthreadedassignment, outdir, algs, onlymaxdistinct,
+		maxthreads, innerthreadedassignment, outerthreadstarget, outdir, algs, onlymaxdistinct,
 		gcp, shutdowngcp,
 		allreadsfiles,
 		substitutionmatrix, similarityscorecutoff, similarityvalidator, aagroups,
