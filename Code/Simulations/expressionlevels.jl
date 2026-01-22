@@ -755,8 +755,11 @@ end
 Reassign a few unchosen proteins `unchosenprot_rows` to the chosen proteins `chosendf` based on their distances `Δ`.
 """
 function inner_loop_one_solution_additional_assignment_considering_available_reads(
-	unchosenprot_rows, chosendf, chosenindices, Δ,
+	unchosenprot_rows, chosendf, chosenindices, Δ, 
+	samplename=missing, solution=missing, chunk_id=missing
 )
+	@info "$(loggingtime())\tthreaded_one_solution_additional_assignment_considering_available_reads - start" samplename solution chunk_id shape(unchosenprot_rows)
+
 	# Create a working copy of chosendf with only the columns we need to modify
 	working_chosendf = select(chosendf,
 		:Index,
@@ -841,6 +844,8 @@ function inner_loop_one_solution_additional_assignment_considering_available_rea
 			push!(existingsupportingreadscontrib, weighted_addition)
 		end
 	end
+
+	@info "$(loggingtime())\tthreaded_one_solution_additional_assignment_considering_available_reads - end" samplename solution chunk_id
 
 	return working_chosendf
 end
@@ -984,12 +989,14 @@ function threaded_one_solution_additional_assignment_considering_available_reads
 	@assert sum(length.(unchosen_partitions)) == n_unchosen "Unchosen partitions do not match the number of unchosen proteins"
 	@assert length(unchosen_partitions) ≤ n_threads "Number of unchosen partitions exceeds number of threads"
 
+	@info "$(loggingtime())\tthreaded_one_solution_additional_assignment_considering_available_reads - assignment plan" samplename solution n_unchosen n_threads chunk_len length(unchosen_partitions)
 
 	# Results container (one per partition)
 	thread_results = fetch.(
 		[
 			Threads.@spawn inner_loop_one_solution_additional_assignment_considering_available_reads(
-					collect(unchosen_partitions[i]), chosendf, chosenindices, Δ
+					collect(unchosen_partitions[i]), chosendf, chosenindices, Δ, 
+					samplename, soulution, i 
 				) 
 			for i in eachindex(unchosen_partitions)
 		]
@@ -1192,6 +1199,7 @@ function additional_assignments(
 	@info "$(loggingtime())\tadditional_assignments" samplename solutions assignment_inner_threads considerentropy
 	results = map(solutions) do solution
 		try
+			@info "$(loggingtime())\tadditional_assignments - solution start" samplename solution assignment_inner_threads
 			if assignment_inner_threads > 1
 				# if we have more than one thread, use the threaded version
 				threaded_one_solution_additional_assignment_considering_available_reads(
@@ -1205,6 +1213,7 @@ function additional_assignments(
 					considerentropy,
 				)
 			end
+			@info "$(loggingtime())\tadditional_assignments - solution end" samplename solution assignment_inner_threads
 		catch e
 			@warn "Error in additional_assignments:" e solution
 			missing
