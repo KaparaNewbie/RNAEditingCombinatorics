@@ -633,17 +633,86 @@ end
 possibly_empty_array_sum(arr) = isempty(arr) ? 0 : sum(arr)
 
 
-function prepare_solution_data_for_reassignment(distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename, considerentropy::Bool = false)
+struct ReadLookup
+    read_to_idx::Dict
+    edited::Vector
+    unedited::Vector
+    na::Vector
+end
+
+
+function build_read_lookup(readsdf)::ReadLookup
+    reads = readsdf[!, "Read"]
+    edited   = readsdf[!, "EditedPositions"]
+    unedited = readsdf[!, "UneditedPositions"]
+    na       = readsdf[!, "NAPositions"]
+    read_to_idx = Dict(reads[i] => i for i in eachindex(reads))
+    return ReadLookup(read_to_idx, edited, unedited, na)
+end
+
+
+@inline function means_from_reads(reads, reads_lookup::ReadLookup)
+			
+	# edited_vals = reads_lookup.edited
+	# unedited_vals = reads_lookup.unedited
+	# na_vals = reads_lookup.na
+
+	s_edited = 0
+	s_unedited = 0
+	s_na = 0
+	c = 0
+			
+	@inbounds for r in reads
+		idx = get(reads_lookup.read_to_idx, r, 0)
+		if idx != 0
+			# s_edited += edited_vals[idx]
+			# s_unedited += unedited_vals[idx]
+			# s_na += na_vals[idx]
+			s_edited += reads_lookup.edited[idx]
+			s_unedited += reads_lookup.unedited[idx]
+			s_na += reads_lookup.na[idx]
+			c += 1
+		end
+	end
+
+	result = [s_edited, s_unedited, s_na]
+	if c > 0
+		result = result ./ c
+	end
+
+	return result
+end
+
+
+function prepare_solution_data_for_reassignment(
+	distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename, 
+	reads_lookup::ReadLookup, considerentropy::Bool = false
+)
 	"""
 	Common pre-processing for both original and threaded versions.
 	Returns (chosendf, unchosendf, chosenindices, newsolutionrow) ready for processing.
 	"""
 	@info "$(loggingtime())\tprepare_solution_data_for_reassignment" samplename solution considerentropy
 
+	# --- timing helpers ---
+    t0 = time_ns()
+    t_prev = Ref(t0)
+    logstage(stage; extra...) = begin
+        t_now = time_ns()
+        @info "$(loggingtime())\tprepare_solution_data_for_reassignment - timing" samplename solution stage elapsed_s = (t_now - t_prev[]) / 1e9 total_s = (t_now - t0) / 1e9 extra...
+        t_prev[] = t_now
+        nothing
+    end
+
+	# --- stage 1: fetch solution row ---
 	solutionrow = distinctdf[solution, :]
+	logstage("fetch solutionrow"; distinct_nrows = nrow(distinctdf), distinct_ncols = ncol(distinctdf))
 
+	# --- stage 2: copy base protein df slice ---
 	baseallprotsdf = deepcopy(allprotsdf[:, begin:firstcolpos-1])
+	logstage("copy baseallprotsdf"; base_nrows = nrow(baseallprotsdf), base_ncols = ncol(baseallprotsdf), firstcolpos)
 
+	# --- stage 3: apply AvailableReads filter (if present) ---
 	# if "AvailableReads" ∈ names(solutionrow) && solutionrow["Fraction"] < 1.0
 	if "AvailableReads" ∈ names(solutionrow)
 		availablereads = solutionrow["AvailableReads"]
@@ -656,61 +725,133 @@ function prepare_solution_data_for_reassignment(distinctdf, allprotsdf, firstcol
 		baseallprotsdf[:, "NumOfReads"] .= length.(availablereadsperprotein)
 		# filter out proteins not supported by currently-available reads
 		baseallprotsdf = filter("NumOfReads" => x -> x > 0, baseallprotsdf)
+
+		logstage("filter by AvailableReads"; avail_reads_len = length(availablereads), remaining_prots = nrow(baseallprotsdf))
+    else
+        logstage("skip AvailableReads filter")
 	end
 
+	# # --- stage 4: compute per-protein means from readsdf ---
+	# # calculate the mean na/edited/unedited positions per each protein's reads - considering the available reads
+	# cols_to_avg_in_reads_df = ["EditedPositions", "UneditedPositions", "NAPositions"]
+	# cols_to_avg_in_prots_df = ["EditedPositions", "UneditedPositions"]
+	# "NAPositions" in names(baseallprotsdf) ? push!(cols_to_avg_in_prots_df, "NAPositions") : push!(cols_to_avg_in_prots_df, "MeanNAPositions")
+	# logstage("setup mean-columns"; reads_nrows = nrow(readsdf), reads_ncols = ncol(readsdf))
+
+	# for (col_to_avg_in_reads_df, col_to_avg_in_prots_df) in zip(cols_to_avg_in_reads_df, cols_to_avg_in_prots_df)
+
+	# 	col_to_avg_in_reads_df = cols_to_avg_in_reads_df[1]
+	# 	col_to_avg_in_prots_df = cols_to_avg_in_prots_df[1]
+
+	# 	t_col = time_ns()
+
+	# 	mean_col_measured_per_proteins_reads = Vector{Float64}(undef, nrow(baseallprotsdf))
+	# 	@threads for idx in 1:nrow(baseallprotsdf)
+
+	# 		idx = 1
+
+	# 		protein_row = baseallprotsdf[idx, :]
+	# 		protein_reads = protein_row["Reads"]
+	# 		col_measured_per_protein_reads = readsdf[readsdf[!, "Read"].∈Ref(protein_reads), col_to_avg_in_reads_df]
+	# 		mean_col_measured_per_protein_reads = mean(col_measured_per_protein_reads)
+	# 		mean_col_measured_per_proteins_reads[idx] = mean_col_measured_per_protein_reads
+	# 	end
+	# 	baseallprotsdf[!, col_to_avg_in_prots_df] .= mean_col_measured_per_proteins_reads
+	# 	mean_col_to_avg_in_prots_df = occursin("Mean", col_to_avg_in_prots_df) ? col_to_avg_in_prots_df : "Mean$col_to_avg_in_prots_df"
+	# 	mean_col_to_avg_in_prots_df in names(baseallprotsdf) || rename!(baseallprotsdf, col_to_avg_in_prots_df => mean_col_to_avg_in_prots_df)
+
+	# 	@info "$(loggingtime())\tprepare_solution_data_for_reassignment - timing (per column)" samplename solution col = col_to_avg_in_reads_df elapsed_s = (time_ns() - t_col) / 1e9
+	# end
+	# logstage("done computing means"; base_nrows = nrow(baseallprotsdf))
+
+
+	# --- stage 4 - version 2: compute per-protein means from readsdf ---
 	# calculate the mean na/edited/unedited positions per each protein's reads - considering the available reads
 
-	cols_to_avg_in_reads_df = ["EditedPositions", "UneditedPositions", "NAPositions"]
-
+	# cols_to_avg_in_reads_df = ["EditedPositions", "UneditedPositions", "NAPositions"]
 	cols_to_avg_in_prots_df = ["EditedPositions", "UneditedPositions"]
 	"NAPositions" in names(baseallprotsdf) ? push!(cols_to_avg_in_prots_df, "NAPositions") : push!(cols_to_avg_in_prots_df, "MeanNAPositions")
+	logstage("setup mean-columns"; reads_nrows = nrow(readsdf), reads_ncols = ncol(readsdf))
+	# logstage("setup mean-columns"; reads_nrows = size(readsdf, 1), reads_ncols = size(readsdf, 2))
 
-	for (col_to_avg_in_reads_df, col_to_avg_in_prots_df) in zip(cols_to_avg_in_reads_df, cols_to_avg_in_prots_df)
-		mean_col_measured_per_proteins_reads = Vector{Float64}(undef, nrow(baseallprotsdf))
-		@threads for idx in 1:nrow(baseallprotsdf)
-			protein_row = baseallprotsdf[idx, :]
-			protein_reads = protein_row["Reads"]
-			col_measured_per_protein_reads = readsdf[readsdf[!, "Read"].∈Ref(protein_reads), col_to_avg_in_reads_df]
-			mean_col_measured_per_protein_reads = mean(col_measured_per_protein_reads)
-			mean_col_measured_per_proteins_reads[idx] = mean_col_measured_per_protein_reads
-		end
-		baseallprotsdf[!, col_to_avg_in_prots_df] .= mean_col_measured_per_proteins_reads
-		mean_col_to_avg_in_prots_df = occursin("Mean", col_to_avg_in_prots_df) ? col_to_avg_in_prots_df : "Mean$col_to_avg_in_prots_df"
-		mean_col_to_avg_in_prots_df in names(baseallprotsdf) || rename!(baseallprotsdf, col_to_avg_in_prots_df => mean_col_to_avg_in_prots_df)
+
+	mean_cols_measured_per_proteins_reads = Array{Float64}(undef, (nrow(baseallprotsdf), 3))
+
+	for protein_idx in 1:nrow(baseallprotsdf)
+		
+		# protein_idx = 1
+		
+		# protein_row = baseallprotsdf[idx, :]
+		# protein_reads = protein_row["Reads"]
+		protein_reads = baseallprotsdf[protein_idx, "Reads"]
+		averaged_cols = means_from_reads(protein_reads, reads_lookup)
+		
+		mean_cols_measured_per_proteins_reads[protein_idx, :] .= averaged_cols
+
 	end
 
-	prots_in_solution = solutionrow["UniqueSamples"]
+	
+	for (j, col_to_avg_in_prots_df) in enumerate(cols_to_avg_in_prots_df)
 
+		# j, col_to_avg_in_prots_df = 1, cols_to_avg_in_prots_df[1]
+
+		baseallprotsdf[!, col_to_avg_in_prots_df] .= mean_cols_measured_per_proteins_reads[:, j]
+		mean_col_to_avg_in_prots_df = occursin("Mean", col_to_avg_in_prots_df) ? col_to_avg_in_prots_df : "Mean$col_to_avg_in_prots_df"
+		mean_col_to_avg_in_prots_df in names(baseallprotsdf) || rename!(baseallprotsdf, col_to_avg_in_prots_df => mean_col_to_avg_in_prots_df)
+
+		
+	end
+	logstage("done computing means"; base_nrows = nrow(baseallprotsdf))
+
+
+	# --- stage 5: split chosen/unchosen ---
+	prots_in_solution = solutionrow["UniqueSamples"]
 	chosendf = filter("Protein" => x -> x ∈ prots_in_solution, baseallprotsdf)
 	unchosendf = filter("Protein" => x -> x ∉ prots_in_solution, baseallprotsdf)
+	logstage("split chosen/unchosen"; chosen = nrow(chosendf), unchosen = nrow(unchosendf), prots_in_solution = length(prots_in_solution))
 
+	# --- stage 6: entropy filter (optional) ---
 	if considerentropy
 		# filter out unchosen proteins with insufficient entropy
 		unchosendf = filter("SufficientEntropy" => x -> x, unchosendf)
-	end
+		logstage("filter unchosen by entropy"; unchosen_after = nrow(unchosendf))
+    else
+        logstage("skip entropy filter")
+    end
 
+	# --- stage 7: index extraction ---
 	chosenindices = chosendf[:, "Index"] # indices of chosen proteins in the complete Δ matrix
 	unchosenindices = unchosendf[:, "Index"] # indices of unchosen proteins in the complete Δ matrix
+	logstage("extract indices"; n_chosen = length(chosenindices), n_unchosen = length(unchosenindices))
 
+	# --- stage 8: chosen<->chosen validation on Δ ---
 	# before continuing any further,
 	# validate that the distance between any two chosen proeins (two distinct proteins)
 	# is at least 1 
 	# (assuming there are at least 2 chosen ones)
 	if length(chosenindices) >= 2
+		t_chk = time_ns()
 		chosenprot_chosenprot_distances = Δ[chosenindices, chosenindices] # the distances between the chosen proteins to themselves
 		chosenprot_minimum_distances = minimum.(
 			vcat(row[begin:i-1], row[i+1:end])
 			for (i, row) in enumerate(eachrow(chosenprot_chosenprot_distances))
 		) # the smallest distance between each chosen prot to all others
 		@assert all(chosenprot_minimum_distances .>= 1)
-	end
+		@info "$(loggingtime())\tprepare_solution_data_for_reassignment - timing" samplename solution stage = "Δ chosen-chosen check" elapsed_s = (time_ns() - t_chk) / 1e9
+    else
+        logstage("skip Δ chosen-chosen check"; n_chosen = length(chosenindices))
+    end
 
+	# --- stage 9: compute missing_chosen_prots (Δ unchosen-chosen + filtering) ---
 	# also report unchosen prots which could have been included in the MIS as well
+	t_miss = time_ns()
 	unchosenprot_chosenprot_distances = Δ[unchosenindices, chosenindices] # the distances between the unchosen proteins to chosen proteins
 	unchosenprot_chosenprot_minimum_distances = minimum.(eachrow(unchosenprot_chosenprot_distances))
 	# these are the candidates - unchosen prots with distance > 0 to each chosen prot
 	# unchosen_prots_with_min_d_1_rel_indices = findall(unchosenprot_chosenprot_minimum_distances .!== 0x00)
 	unchosen_prots_with_min_d_1_rel_indices = findall(unchosenprot_chosenprot_minimum_distances .!= convert(eltype(unchosenprot_chosenprot_distances), 0))
+
+	local missing_chosen_prots # TODO retain local decleration?
 
 	if isempty(unchosen_prots_with_min_d_1_rel_indices)
 		missing_chosen_prots = []
@@ -733,9 +874,13 @@ function prepare_solution_data_for_reassignment(distinctdf, allprotsdf, firstcol
 		missing_chosen_prots = subset(baseallprotsdf, "Index" => ByRow(x -> x ∈ final_unchosen_prots_with_min_d_1_abs_indices))[!, "Protein"]
 
 	end
+	@info "$(loggingtime())\tprepare_solution_data_for_reassignment - timing" samplename solution stage = "compute missing_chosen_prots" elapsed_s = (time_ns() - t_miss) / 1e9 n_candidates = length(unchosen_prots_with_min_d_1_rel_indices) n_missing = length(missing_chosen_prots)
+
+	# --- stage 10: build newsolutionrow + annotate chosendf ---
 	newsolutionrow = DataFrame(solutionrow)
 	newsolutionrow[:, "MissingUniqueSamples"] = [missing_chosen_prots]
 	newsolutionrow[:, "NumMissingUniqueSamples"] = length.(newsolutionrow[:, "MissingUniqueSamples"])
+	logstage("build newsolutionrow")
 
 	insertcols!(
 		chosendf,
@@ -746,6 +891,7 @@ function prepare_solution_data_for_reassignment(distinctdf, allprotsdf, firstcol
 		"Algorithm" => solutionrow["Algorithm"],
 		"AlgorithmRepetition" => solutionrow["AlgorithmRepetition"],
 	)
+	logstage("insertcols chosendf"; chosen_ncols = ncol(chosendf))
 
 	return chosendf, unchosendf, chosenindices, newsolutionrow
 end
@@ -755,10 +901,10 @@ end
 Reassign a few unchosen proteins `unchosenprot_rows` to the chosen proteins `chosendf` based on their distances `Δ`.
 """
 function inner_loop_one_solution_additional_assignment_considering_available_reads(
-	unchosenprot_rows, chosendf, chosenindices, Δ, 
-	samplename=missing, solution=missing, chunk_id=missing
+	unchosenprot_rows, chosendf, chosenindices, Δ,
+	samplename, solution, chunk_id
 )
-	@info "$(loggingtime())\tthreaded_one_solution_additional_assignment_considering_available_reads - start" samplename solution chunk_id shape(unchosenprot_rows)
+	@info "$(loggingtime())\tthreaded_one_solution_additional_assignment_considering_available_reads - start" samplename solution chunk_id size(unchosenprot_rows)
 
 	# Create a working copy of chosendf with only the columns we need to modify
 	working_chosendf = select(chosendf,
@@ -905,14 +1051,15 @@ function finalize_solution_data(chosendf, allprotsdf, solution)
 end
 
 
+
 function threaded_one_solution_additional_assignment_considering_available_reads(
-	distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename, n_threads::Int,
+	distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename, n_threads::Int, reads_lookup::ReadLookup,
 	considerentropy::Bool = false,
 )
 	@info "$(loggingtime())\tthreaded_one_solution_additional_assignment_considering_available_reads" samplename solution n_threads considerentropy
 
 	chosendf, unchosendf, chosenindices, newsolutionrow = prepare_solution_data_for_reassignment(
-		distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename, considerentropy,
+		distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename, reads_lookup, considerentropy,
 	)
 
 
@@ -991,16 +1138,50 @@ function threaded_one_solution_additional_assignment_considering_available_reads
 
 	@info "$(loggingtime())\tthreaded_one_solution_additional_assignment_considering_available_reads - assignment plan" samplename solution n_unchosen n_threads chunk_len length(unchosen_partitions)
 
+	# # Results container (one per partition)
+	# thread_results = fetch.(
+	# 	[
+	# 		Threads.@spawn inner_loop_one_solution_additional_assignment_considering_available_reads(
+	# 				collect(unchosen_partitions[i]), chosendf, chosenindices, Δ, 
+	# 				samplename, solution, i 
+	# 			) 
+	# 		for i in eachindex(unchosen_partitions)
+	# 	]
+	# )
+
 	# Results container (one per partition)
-	thread_results = fetch.(
-		[
-			Threads.@spawn inner_loop_one_solution_additional_assignment_considering_available_reads(
-					collect(unchosen_partitions[i]), chosendf, chosenindices, Δ, 
-					samplename, soulution, i 
-				) 
-			for i in eachindex(unchosen_partitions)
-		]
-	)
+    thread_results = let
+        tasks = [
+            Threads.@spawn inner_loop_one_solution_additional_assignment_considering_available_reads(
+                collect(unchosen_partitions[i]), chosendf, chosenindices, Δ,
+                samplename, solution, i
+            )
+            for i in eachindex(unchosen_partitions)
+        ]
+        
+		# try
+        #     fetch.(tasks)
+        # catch e
+        #     @error "$(loggingtime())\tinner assignment task failed" samplename solution exception = (e, catch_backtrace())
+        #     rethrow()
+        # end
+
+		results = Vector{Any}(undef, length(tasks))
+        for (k, t) in pairs(tasks)
+            try
+                results[k] = fetch(t)
+            catch
+                # Unwrap and print the *real* failure(s) from inside the task
+                for (ex, bt) in current_exceptions(t)
+                    @error "$(loggingtime())\tinner assignment task failed (root cause)" samplename solution task_index = k exception = (ex, bt)
+                end
+                rethrow()
+            end
+        end
+
+        results
+
+    end
 
 
 
@@ -1018,12 +1199,13 @@ end
 
 function one_solution_additional_assignment_considering_available_reads(
 	distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename,
+	reads_lookup::ReadLookup,
 	considerentropy::Bool = false,
 )
 	@info "$(loggingtime())\tone_solution_additional_assignment_considering_available_reads" samplename solution considerentropy
 
 	chosendf, unchosendf, chosenindices, newsolutionrow = prepare_solution_data_for_reassignment(
-		distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename, considerentropy,
+		distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename, reads_lookup, considerentropy,
 	)
 
 	for unchosenprot ∈ eachrow(unchosendf)  # a row of unchosen protein relative to the chosen proteins in the solution
@@ -1194,7 +1376,7 @@ end
 
 
 function additional_assignments(
-	distinctdf, allprotsdf, firstcolpos, Δ, solutions, readsdf, samplename, assignment_inner_threads, considerentropy,
+	distinctdf, allprotsdf, firstcolpos, Δ, solutions, readsdf, samplename, assignment_inner_threads, considerentropy, reads_lookup::ReadLookup
 )
 	@info "$(loggingtime())\tadditional_assignments" samplename solutions assignment_inner_threads considerentropy
 	results = map(solutions) do solution
@@ -1202,21 +1384,23 @@ function additional_assignments(
 			@info "$(loggingtime())\tadditional_assignments - solution start" samplename solution assignment_inner_threads
 			if assignment_inner_threads > 1
 				# if we have more than one thread, use the threaded version
-				threaded_one_solution_additional_assignment_considering_available_reads(
-					distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename,
-					assignment_inner_threads, considerentropy,
+				res = threaded_one_solution_additional_assignment_considering_available_reads(
+					distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename, assignment_inner_threads, reads_lookup, considerentropy, 
 				)
 			else
 				# if we have only one thread, use the original version
-				one_solution_additional_assignment_considering_available_reads(
-					distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename,
-					considerentropy,
+				res = one_solution_additional_assignment_considering_available_reads(
+					distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename, reads_lookup, considerentropy
 				)
 			end
 			@info "$(loggingtime())\tadditional_assignments - solution end" samplename solution assignment_inner_threads
+			res
 		catch e
-			@warn "Error in additional_assignments:" e solution
-			missing
+			# @warn "Error in additional_assignments:" e solution
+			@warn "Error in additional_assignments:" samplename solution exception = (e, catch_backtrace())
+			# @error "Error in additional_assignments" samplename solution exception = (e, catch_backtrace())
+			# missing # TODO uncomment this when debugging is done
+			rethrow()  # TODO TEMP: stop here so we see the real failing line
 		end
 	end
 	return results
@@ -1346,6 +1530,9 @@ end
 # end
 
 
+
+
+
 function run_sample(
 	distinctfile, allprotsfile, samplename, postfix_to_add,
 	firstcolpos, delim, innerdelim, truestrings, falsestrings, fractions,
@@ -1360,14 +1547,6 @@ function run_sample(
 	outerthreadstarget::Union{Int, Nothing},
 )
 	@info "$(loggingtime())\trun_sample" distinctfile allprotsfile readsfile samplename
-
-
-
-	# distinctdf = prepare_distinctdf(
-	# 	distinctfile, delim, innerdelim, truestrings, falsestrings,
-	# )
-
-	# readsdf = prepare_readsdf(readsfile, delim)
 
 	readsdf = prepare_readsdf(readsfile, delim, samplename, readssubsetfile)
 
@@ -1402,46 +1581,8 @@ function run_sample(
 
 
 
-
-
 	# considering only desired solutions (rows' indices)
 	solutions = choosesolutions(distinctdf, fractions, algs, onlymaxdistinct)
-
-
-	### prev - start ###
-
-	# minmainthreads = max(
-	# 	1,
-	# 	min(
-	# 		Int(round(maxthreads / 5)),
-	# 		Int(round(length(solutions) / 4)),
-	# 	),
-	# )
-	# allsubsolutions = collect(Iterators.partition(solutions, minmainthreads))
-
-	# if innerthreadedassignment
-	# 	# if innerthreadedassignment is true, we will use multiple threads to process each subsolution
-	# 	# the number of threads to use for each subsolution
-	# 	# assignment_inner_threads = Int(round(maxthreads / minmainthreads))
-	# 	assignment_inner_threads = Int(round(maxthreads / length(allsubsolutions)))
-	# else
-	# 	# assignment_inner_threads = 1 will signify that we will not use multiple threads for each subsolution
-	# 	assignment_inner_threads = 1
-	# end
-
-
-	### prev - end ###
-
-
-
-	### current - start ###
-
-	# innerthreadedassignment = true
-	# maxthreads = 80
-	# solutions = [65, 69, 77, 78]
-	# solutions = [65]
-
-
 
 	n_solutions = length(solutions)
 
@@ -1483,29 +1624,18 @@ function run_sample(
 	assignment_inner_threads = innerthreadedassignment ? max(1, fld(maxthreads, n_outer_actual)) : 1
 
 	
-
-	### current - end ###
-
+	reads_lookup = build_read_lookup(readsdf)  # Pre-build read lookup for efficient access in inner function prepare_solution_data_for_reassignment
 
 
 	results = tcollect(
 		additional_assignments(
 			distinctdf, allprotsdf, firstcolpos, Δ, subsolutions, readsdf, samplename,
-			assignment_inner_threads, considerentropy,
+			assignment_inner_threads, considerentropy, reads_lookup
 		)
 		for subsolutions in allsubsolutions
 	)
 
-
-
-
-
-
-
-
 	
-
-
 	# finalresults = vcat(Iterators.flatten(results)...)
 	# finalresults = vcat(skipmissing(Iterators.flatten(results)...))
 	# Filter out missing values and ensure all results are valid 2-element tuples
@@ -1877,28 +2007,6 @@ end
 
 
 
-# outdir = "D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMISubSeq.MergedSamples"
-# distinctfiles = [
-# 	"$outdir/ADAR1.Merged.DistinctUniqueProteins.04.07.2025-15:59:37.csv",
-# 	"$outdir/IQEC.Merged.DistinctUniqueProteins.04.07.2025-15:34:47.csv",
-# ]
-# allprotsfiles = [
-# 	"$outdir/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz",
-# 	"$outdir/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz",
-# ]
-# allreadsfiles = [
-# 	"$outdir/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz",
-# 	"$outdir/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz",
-# ]
-# samplenames = ["ADAR1", "IQEC1"]
-
-# distinctfile = distinctfiles[1]
-# allprotsfile = allprotsfiles[1]
-# readsfile = allreadsfiles[1]
-# samplename = samplenames[1]
-
-
-
 # distinctfile =  "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/DistinctProteins/comp183648_c0_seq1.DistinctUniqueProteins.21.03.2024-22:37:27.csv"
 # allprotsfile = "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/ProteinsFiles/comp183648_c0_seq1.unique_proteins.csv.gz"
 # readsfile = "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/ReadsFiles/comp183648_c0_seq1.reads.csv.gz"
@@ -1932,6 +2040,15 @@ end
 # samplename = "RUSC2"
 
 
+# indir = "D.pealeii/MpileupAndTranscripts/Illumina"
+# outdir = "$indir/TestFixedExpression"
+# distinctfile = "$indir/comp141881_c0_seq3.DistinctUniqueProteins.12.07.2022-20:54:38.csv"
+# allprotsfile = "$indir/reads.sorted.aligned.filtered.comp141881_c0_seq3.unique_proteins.csv"
+# readsfile = "$indir/reads.sorted.aligned.filtered.comp141881_c0_seq3.reads.csv"
+# samplename = "RUSC2"
+
+
+
 
 # firstcolpos = 15
 # onlymaxdistinct = true
@@ -1945,6 +2062,7 @@ end
 # falsestrings = ["FALSE", "False", "false"]
 # algs = ["Ascending", "Descending"]
 # maxthreads = Threads.nthreads()
+# outerthreadstarget = nothing
 # fractions = [1.0]
 
 # substitutionmatrix = nothing
