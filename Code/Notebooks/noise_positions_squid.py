@@ -16,18 +16,22 @@
 # # Settings
 
 # %%
-code_dir = "/private7/projects/Combinatorics/Code"
+# code_dir = "/private7/projects/Combinatorics/Code"
 
 # %%
-from itertools import chain, product
-from pathlib import Path
-import sys
+# from itertools import chain, product
+from itertools import chain
+# from pathlib import Path
+# import sys
 from multiprocessing import Pool
 
-import pandas as pd
-import numpy as np
 from icecream import ic
 import plotly.express as px
+# import plotly.graph_objects as go
+import pandas as pd
+import numpy as np
+from scipy.stats import fisher_exact, chi2_contingency
+from statsmodels.stats.multitest import fdrcorrection
 
 # sys.path.append(str(Path(code_dir).absolute()))
 # import 
@@ -242,7 +246,6 @@ def make_reads_noise_df(
     )
     
     if old_to_new_reads_file is not None:
-        old_to_new_reads_file = old_to_new_reads_files[0]
         old_to_new_reads_df = pd.read_table(old_to_new_reads_file)
         reads_noise_df = old_to_new_reads_df.merge(
             reads_noise_df,
@@ -270,6 +273,10 @@ edited_col = "Edited"
 old_reads_first_pos_loc = 6
 
 # %%
+# if noise positions were re-created where non ref base positions with noise >= 0.1 weren't discarded.
+# in that case - the new reads files may have different new reads names,
+# so to connect between the reads with editing statuses and reads with new noise statuses,
+# we need to use to old reads col which is another col in the new reads df.
 new_noise_positions_in_use = True
 
 # %%
@@ -402,34 +409,44 @@ len(samples)
 # ?make_reads_noise_df
 
 # %%
-# reads_noise_dfs = [
-#     make_reads_noise_df(positions_file, seed, edited_col=edited_col, sample=sample, parity=parity)
-#     for positions_file, sample, parity in zip(positions_files, samples, parities)
-# ]
-
 with Pool(processes=len(samples)) as pool:
     reads_noise_dfs = pool.starmap(
         func=make_reads_noise_df,
         iterable=[
-            (positions_file, seed, edited_col, platform, sample, parity, old_to_new_reads_file)
-            for positions_file, platform, sample, parity, old_to_new_reads_file in zip(
-                positions_files, platforms, samples, parities, old_to_new_reads_files
+            (
+                positions_file,
+                seed,
+                edited_col,
+                platform,
+                sample,
+                parity,
+                old_to_new_reads_file,
             )
-        ]
+            for positions_file, platform, sample, parity, old_to_new_reads_file in zip(
+                new_positions_files,
+                platforms,
+                samples,
+                parities,
+                new_old_to_new_reads_files,
+            )
+        ],
     )
-    
-# ic(len(reads_noise_dfs))
-print(f"{len(reads_noise_dfs) = }")
+
+ic(len(reads_noise_dfs))
 
 reads_noise_dfs[0]
 
 # %%
-
-# %%
 reads_noise_dfs[0]
 
 # %%
-reads_noise_first_pos_loc = 1
+reads_noise_dfs[2]
+
+# %%
+# reads_noise_dfs[2][957].value_counts(dropna=False, normalize=True).mul(100).round(2)
+
+# %%
+reads_noise_first_pos_loc = 3
 if new_noise_positions_in_use:
     reads_noise_first_pos_loc += 1
     
@@ -440,18 +457,22 @@ noise_per_position_dfs = []
 for reads_noise_df, sample, platform in zip(reads_noise_dfs, samples, platforms):
     noise_per_position_df = (
         reads_noise_df.iloc[:, reads_noise_first_pos_loc:]
-        .apply(lambda x: x.eq(1).sum() / x.ne(-1).sum())
+        # .apply(lambda x: x.eq(1).sum() / x.ne(-1).sum())
+        # .sort_values(ascending=False)
+        # .reset_index()
+        # .rename(columns={"index": "Position", 0: "Noise"})
+        .apply(lambda x: 100 * x.eq(1).sum() / x.ne(-1).sum())
         .sort_values(ascending=False)
         .reset_index()
-        .rename(columns={"index": "Position", 0: "Noise"})
+        .rename(columns={"index": "Position", 0: "%Noise"})
     )
     noise_per_position_df.insert(0, "Platform", platform)
     noise_per_position_df.insert(1, "Sample", sample)
     noise_per_position_dfs.append(noise_per_position_df)
 concat_noise_per_position_df = pd.concat(noise_per_position_dfs, ignore_index=True).sort_values(
-    by=["Platform", "Sample", "Noise"], ascending=[True, True, False], ignore_index=True
+    by=["Platform", "Sample", "%Noise"], ascending=[True, True, False], ignore_index=True
 )
-concat_noise_per_position_df["%Noise"] = concat_noise_per_position_df["Noise"] * 100
+# concat_noise_per_position_df["%Noise"] = concat_noise_per_position_df["Noise"] * 100
 concat_noise_per_position_df
 
 # %%
@@ -573,32 +594,14 @@ min_noise_prct_threshold = 10
 snps_df = concat_noise_per_position_df.loc[
     (concat_noise_per_position_df["%Noise"].ge(min_noise_prct_threshold)) 
     # & (concat_noise_per_position_df["%Noise"].le(max_noise_prct_threshold))
-].drop(columns="Noise").round(2)
+# ].drop(columns="Noise").round(2)
+].round(2)
 
 snps_df
 
 # %%
 snps_platform_and_sample = {(sample, platform) for sample, platform in snps_df.loc[:, ["Platform", "Sample"]].values}
 snps_platform_and_sample
-
-# %%
-platform = "PacBio"
-sample = "ADAR1"
-
-snps_df.loc[
-    (snps_df["Platform"].eq(platform))
-    & (snps_df["Sample"].eq(sample)),
-    "Position"
-].values
-
-# %%
-len(old_old_to_new_reads_files)
-
-# %%
-len(reads_noise_dfs)
-
-# %%
-len(snps_reads_noise_dfs)
 
 # %%
 snps_platforms = []
@@ -631,7 +634,24 @@ for platform, pairity, sample, old_reads_file, old_unique_reads_file, old_old_to
     snps_positions_lists.append(snps_positions)
 
 # snps_platforms, snps_samples
-snps_platforms, snps_parities, snps_samples, snps_old_reads_files, snps_old_unique_reads_files, snps_old_old_to_new_reads_files
+ic(
+    snps_platforms, snps_parities, snps_samples, snps_old_reads_files, 
+    snps_old_unique_reads_files, snps_old_old_to_new_reads_files,
+    snps_positions_lists
+)
+
+# %%
+# snps_df
+
+# %%
+# for chrom, sample in zip(illumina_chroms, illumina_samples):
+#     print(f"{chrom} - {sample}")
+
+# %%
+snps_reads_noise_dfs[0]
+
+# %%
+# snps_reads_noise_dfs[1]
 
 # %%
 snps_old_reads_dfs = [
@@ -642,6 +662,7 @@ snps_old_reads_dfs = [
 snps_old_reads_dfs[0]
 
 # %%
+# snps_old_reads_dfs[1]
 
 # %%
 
@@ -658,45 +679,20 @@ snps_old_old_to_new_reads_file = snps_old_old_to_new_reads_files[0]
 snps_positions
 
 # %%
-snps_reads_noise_df
+# snps_old_old_to_new_reads_file
 
 # %%
-snps_reads_noise_dfs[1]
-
-# %%
-snps_reads_noise_dfs[2]
-
-# %%
-snps_old_reads_df
-
-# %%
-snps_old_old_to_new_reads_file
-
-# %%
-# keep only SNPs from snps_reads_noise_df
-
-snps_reads_noise_df = pd.concat(
-    [
-        # reads_noise_df.iloc[:, :reads_noise_first_pos_loc],
-        snps_reads_noise_df.loc[:, "OldRead"],
-        snps_reads_noise_df.loc[:, snps_positions]
-    ],
-    axis=1
-)
-
-snps_reads_noise_df
-
-# %%
-snps_reads_noise_df.loc[:, snps_positions]
-
-# %%
-snps_old_old_to_new_reads_df = pd.read_table(snps_old_old_to_new_reads_file)
-# snps_old_old_to_new_reads_df
+# snps_old_reads_df
 
 # %%
 # old_reads_first_pos_loc = 6
 
 # %%
+# incorporate OldRead column into snps_old_reads_df
+
+snps_old_old_to_new_reads_df = pd.read_table(snps_old_old_to_new_reads_file)
+# snps_old_old_to_new_reads_df
+
 snps_old_reads_df = snps_old_reads_df.merge(
     snps_old_old_to_new_reads_df,
     left_on="Read",
@@ -706,74 +702,840 @@ snps_old_reads_df = snps_old_reads_df.merge(
     # retain "OldRead" and "Read" (which is the same as "NewRead")
     columns="NewRead"
 )
-
 snps_old_reads_df.insert(
     snps_old_reads_df.columns.get_loc("Read") + 1,
     "OldRead2",
     snps_old_reads_df["OldRead"]
 )
-
 snps_old_reads_df = snps_old_reads_df.drop(
     columns="OldRead"
 ).rename(
     columns={"OldRead2": "OldRead"}
 )
 
+snps_old_reads_df = snps_old_reads_df.sort_values(
+    "OldRead",
+    ignore_index=True
+)
+
 current_old_reads_first_pos_loc = old_reads_first_pos_loc + 1
+ic(current_old_reads_first_pos_loc)
 
 snps_old_reads_df
 
 # %%
-current_old_reads_first_pos_loc
+# snps_reads_noise_df
 
 # %%
-snp_position = snps_positions[0]
-snp_position
-
-# %%
-current_snp_reads_noise_df = pd.concat(
+# keep only SNPs from snps_reads_noise_df
+snps_reads_noise_df = pd.concat(
     [
+        # reads_noise_df.iloc[:, :reads_noise_first_pos_loc],
         snps_reads_noise_df.loc[:, "OldRead"],
-        snps_reads_noise_df.loc[:, snp_position]
+        snps_reads_noise_df.loc[:, snps_positions]
     ],
     axis=1
 )
-current_snp_reads_noise_df
 
-# %%
-snps_old_reads_df.merge(
-    current_snp_reads_noise_df,
-    how="left",
-    on="OldRead"
+# keep SNPs info only for reads for which we have editing info in snps_old_reads_df
+snps_reads_noise_df = snps_reads_noise_df.merge(
+    snps_old_reads_df.loc[:, ["OldRead"]],
+    on="OldRead",
+    how="right"
 )
 
-# %%
-Out[208][snp_position].value_counts(dropna=False)
+snps_reads_noise_df = snps_reads_noise_df.sort_values(
+    "OldRead",
+    ignore_index=True
+)
+
+snps_reads_noise_df
 
 # %%
+assert snps_old_reads_df.shape[0] == snps_reads_noise_df.shape[0], "Number of reads mismatch between old reads df and reads noise df"
+
 for snp_position in snps_positions:
     print(snp_position)
+    # we can directly insert this col from snps_reads_noise_df into snps_old_reads_df 
+    # because both dataframes are sorted by OldRead
     snps_old_reads_df.insert(
         current_old_reads_first_pos_loc,
         f"SNP_{snp_position}",
-        
+        snps_reads_noise_df[snp_position]
     )
-
-# %%
-snps_old_reads_df.iloc[:, current_old_reads_first_pos_loc:]
-
-# %%
-
-# %%
+    current_old_reads_first_pos_loc += 1
+    ic(current_old_reads_first_pos_loc);
+    
+snps_old_reads_df
 
 # %%
 
 # %%
+# Identify the editing site columns (starting from the current offset onwards)
+editing_cols = snps_old_reads_df.columns[current_old_reads_first_pos_loc:]
+editing_cols
+
+# %%
+snp_cols = [f"SNP_{pos}" for pos in snps_positions]
+snp_cols
+
+# %%
+# Filter to keep only reads where the SNP positions have a valid base (0 or 1, not -1)
+# Using .all(axis=1) ensures we have a complete haplotype for the selected SNPs
+valid_reads_mask = snps_old_reads_df[snp_cols].ne(-1).all(axis=1)
+temp_df = snps_old_reads_df.loc[valid_reads_mask].copy()
+
+# Replace -1 (unmapped/ignored) with NaN in the editing columns
+# so means are computed on covered reads only
+temp_df[editing_cols] = temp_df[editing_cols].replace(-1, np.nan)
+
+# # 3) define a single haplotype label (useful for counting / plotting / downstream merges)
+# # e.g. "SNP_123=0|SNP_456=1|SNP_789=0"
+# # haplotype_col = "|".join(snp_cols)
+# # temp_df[haplotype_col] = temp_df[snp_cols].astype(str).agg("|".join, axis=1)
+# temp_df["Haplotype"] = temp_df[snp_cols].astype(str).agg("|".join, axis=1)
+temp_df.insert(
+    current_old_reads_first_pos_loc,
+    "Haplotype",
+    temp_df[snp_cols].astype(str).agg("|".join, axis=1)
+)
+current_old_reads_first_pos_loc += 1
+ic(current_old_reads_first_pos_loc)
+
+temp_df
+
+# %%
+temp_df.groupby("Haplotype")["287"].value_counts().reset_index()
+
+# %% [markdown]
+# ## Basic plots
+
+# %%
+# temp_df.groupby("Haplotype")[editing_cols].agg(["mean", "std"])
+editing_long_df = (
+    temp_df.groupby("Haplotype")[editing_cols]
+    .agg(["mean", "std"])
+    .stack(level=0, future_stack=True)  # silence FutureWarning (pandas>=2.1)
+    .reset_index()
+    .rename(columns={"level_1": "EditingSite"})
+)
+
+# # optional: nicer dtypes / sorting
+editing_long_df["EditingSite"] = editing_long_df["EditingSite"].astype(int)
+editing_long_df = editing_long_df.sort_values(["EditingSite", "Haplotype"], ignore_index=True)
+editing_long_df["EditingSite"] = editing_long_df["EditingSite"].astype(str)
+
+editing_long_df
+
+# %%
+fig = px.scatter(
+    editing_long_df,
+    x="EditingSite",
+    y="mean",
+    color="Haplotype",
+    # error_y="std",
+    # facet_row="Haplotype",
+    opacity=0.8,
+)
+fig.update_layout(
+    height=500,
+    width=1000,
+    template="simple_white",
+    # title=f"Editing Status Distribution per Editing Site<br>for Reads with Complete SNP Haplotypes"
+)
+fig.show()
+
+# %%
+# Group by the SNP alleles (haplotypes) and calculate the editing frequency for each site
+# (rows=editing sites, cols=haplotypes)
+# editing_profiles = temp_df.groupby("Haplotype")[editing_cols].mean().T
+editing_profiles = temp_df.groupby("Haplotype")[editing_cols].mean().mul(100).T
+editing_profiles.dropna(how="all", inplace=True)
+# editing_profiles["MeanOfMeans"] = editing_profiles.mean(axis=1)
+editing_profiles = editing_profiles.merge(
+    temp_df.loc[:, editing_cols].mean().mul(100).T.rename("GlobalMeanEditing"),
+    left_index=True,
+    right_index=True
+)
+editing_profiles["MeanEditingDiff(1-0)"] = editing_profiles.apply(
+    lambda x: x.iloc[1] - x.iloc[0], axis=1
+)
+
+editing_profiles
+
+# %%
+editing_profiles["MeanEditingDiff(1-0)"].sort_values(ascending=False).round(2)
+
+# %%
+fig = px.histogram(
+    editing_profiles,
+    x="MeanEditingDiff(1-0)",
+    labels={
+        "MeanEditingDiff(1-0)": "Mean % editing difference per site (Haplotype 1 - Haplotype 0)"
+    }
+)
+fig.update_xaxes(dtick=1)
+fig.update_layout(
+    height=500,
+    width=1000,
+    template="simple_white",
+)
+fig.show()
+
+# %%
+# fig = px.histogram(
+#     editing_profiles,
+#     x="MeanOfMeans",
+#     y="MeanEditingDiff(1-0)",
+#     labels={
+#         "MeanEditingDiff(1-0)": "Mean % editing difference per site (Haplotype 1 - Haplotype 0)",
+#         "MeanOfMeans": "Mean of means % editing per site"
+#     },
+#     histfunc="avg",
+# )
+# # fig.update_xaxes(dtick=1)
+# fig.update_layout(
+#     height=500,
+#     width=1000,
+#     template="simple_white",
+# )
+# fig.show()
+
+# %%
+# fig = px.density_heatmap(
+#     editing_profiles,
+#     y="GlobalMeanEditing",
+#     x="MeanEditingDiff(1-0)",
+#     labels={
+#         "MeanEditingDiff(1-0)": "Mean % editing difference per site (Haplotype 1 - Haplotype 0)",
+#         "GlobalMeanEditing": "Global mean % editing per site"
+#     },
+#     # histfunc="avg",
+# )
+# # fig.update_xaxes(dtick=1)
+# fig.update_layout(
+#     height=500,
+#     width=500,
+#     template="simple_white",
+# )
+# fig.show()
+
+# %%
+fig = px.scatter(
+    editing_profiles,
+    x="GlobalMeanEditing",
+    y="MeanEditingDiff(1-0)",
+    labels={
+        "MeanEditingDiff(1-0)": "Mean % editing difference per site<br>(Haplotype 1 - Haplotype 0)",
+        "GlobalMeanEditing": "Global mean % editing per site"
+    },
+    marginal_x="histogram", marginal_y="histogram",
+    trendline="ols", trendline_color_override="black"
+)
+
+
+results = px.get_trendline_results(fig)
+print(results.iloc[0].px_fit_results.summary())
+
+# fig.update_xaxes(dtick=1)
+fig.update_layout(
+    height=700,
+    width=700,
+    template="simple_white",
+)
+fig.show()
 
 # %%
 
 # %%
-snps_old_reads_dfs[1]
+temp_df.groupby("Haplotype")["287"].value_counts().reset_index()
+
+
+# %% [markdown]
+# ## Global enrichment with chi-square permutations
+
+# %%
+def _per_site_counts(df, site_col, haplotype_col, haplotypes):
+    """
+    Returns a 2x2 (or rxc where r=len(haplotypes) and c=2 (unedited/edited)) counts:
+      [[h1_edited0, h1_edited1],
+       [h2_edited0, h2_edited1]]
+    using df rows with non-NaN at site_col and haplotype_col in haplotypes (e.g. {h1,h2}).
+    """
+    sub = df.loc[df[haplotype_col].isin(haplotypes), [haplotype_col, site_col]].dropna()
+    # keep only 0/1
+    sub = sub.loc[sub[site_col].isin([0, 1])]
+    if sub.empty:
+        return None
+
+    cros = pd.crosstab(sub[haplotype_col], sub[site_col])
+    # ensure full shape
+    cros = cros.reindex(index=haplotypes, columns=[0, 1], fill_value=0)
+    return cros.values
+
+
+# %%
+def _fisher_two_sided(contingency_table):
+    _, p = fisher_exact(contingency_table, alternative="two-sided")
+    return p
+
+
+# %%
+def _chi_square_two_sided(contingency_table):
+    res = chi2_contingency(contingency_table)
+    return res.pvalue
+
+
+# %%
+def count_diff_sites(
+    df, haplotype_col, haplotypes, editing_sites_cols, 
+    alpha=0.05, min_reads_per_cell=5, 
+    test=_chi_square_two_sided
+):
+    pvals = []
+    tested_cols = []
+    for site_col in editing_sites_cols:
+        contingency_table = _per_site_counts(df, site_col, haplotype_col, haplotypes)
+        if contingency_table is None:
+            continue
+        if any(contingency_table.flatten() < min_reads_per_cell):
+            print(f"Skipping site {site_col} due to low total reads ({contingency_table.sum()})")
+            continue
+        # p = _fisher_two_sided(contingency_table)
+        p = test(contingency_table)
+        pvals.append(p)
+        tested_cols.append(site_col)
+
+    pvals = np.asarray(pvals)
+    rejected, pvalue_corrected = fdrcorrection(
+        pvals,
+        alpha=alpha,
+        # general correlated tests, see:
+        # https://www.statsmodels.org/stable/generated/statsmodels.stats.multitest.fdrcorrection.html#statsmodels.stats.multitest.fdrcorrection.method
+        method="n"
+    )
+    tests_df = pd.DataFrame(
+        {
+            "Site": tested_cols,
+            "P": pvals,
+            "P_FDR": pvalue_corrected,
+            "Rejected_H0": rejected,
+        }
+    ).sort_values("Site")
+    # num of significant sites after FDR correction
+    n_sig = sum(rejected)
+    return n_sig, len(tested_cols), tests_df
+
+# n_sig, n_tested_cols, tests_df = count_diff_sites(temp_df, "Haplotype", editing_cols, "0", "1", alpha=0.05, min_reads_per_cell=5)
+
+
+# %%
+haplotype_col = "Haplotype"
+site_col = "287"
+haplotypes = ["0", "1"]
+df = temp_df
+
+# %%
+_per_site_counts(temp_df, site_col, haplotype_col, haplotypes)
+
+# %%
+n_sig, n_tested_cols, tests_df = count_diff_sites(df, haplotype_col, haplotypes, editing_cols)
+
+# %%
+n_sig, n_tested_cols
+
+# %%
+tests_df
+
+# %%
+
+# %%
+df = temp_df
+haplotype_col = "Haplotype"
+haplotypes = ["0", "1"]
+n_perm = 200
+alpha = 0.05
+min_reads_per_cell = 5
+seed = 1892
+test = _chi_square_two_sided
+
+# %%
+rng = np.random.default_rng(seed)
+# # copy relevant subset to allow shuffling haplotype labels w/o modifying original df
+sub = df.loc[df[haplotype_col].isin(haplotypes)].copy()
+# calculate observed number of significant sites in the original data
+observed, m_tested, per_site = count_diff_sites(
+    sub, haplotype_col, haplotypes, editing_cols, alpha=alpha, min_reads_per_cell=min_reads_per_cell, test=test
+)
+observed, m_tested
+
+# %%
+null_counts = []
+hap_values = sub[haplotype_col].to_numpy()
+for _ in range(n_perm):
+    # Randomly shuffle (“permute”) the haplotype labels across reads
+    perm = hap_values.copy()
+    rng.shuffle(perm)
+    sub[haplotype_col] = perm
+    # Recalculate the number of significant sites for this permutation
+    c, _, _ = count_diff_sites(
+        sub, haplotype_col, haplotypes, editing_cols, alpha=alpha, min_reads_per_cell=min_reads_per_cell, test=test
+    )
+    null_counts.append(c)
+
+# %%
+null_counts
+
+# %%
+pd.Series(null_counts).value_counts()
+
+# %%
+pd.Series(null_counts).describe()
+
+# %%
+pd.Series(null_counts).ge(observed).sum()
+
+# %%
+# empirical p-value
+p_emp = (1 + pd.Series(null_counts).ge(observed).sum()) / (1 + n_perm)
+p_emp
+
+# %%
+np.round(p_emp, 5)
+
+
+# %%
+
+# %%
+
+# %%
+def permutation_null(df, hap_col, editing_cols, h1, h2, n_perm=200, alpha=0.05, min_total_reads=20, seed=1892):
+    rng = np.random.default_rng(seed)
+    # copy relevant subset to allow shuffling haplotype labels w/o modifying original df
+    sub = df.loc[df[hap_col].isin([h1, h2])].copy()
+    # calculate observed number of significant sites in the original data
+    observed, m_tested, per_site = count_diff_sites(sub, hap_col, editing_cols, h1, h2, alpha=alpha, min_total_reads=min_total_reads)
+
+    null_counts = []
+    hap_values = sub[hap_col].to_numpy()
+    for _ in range(n_perm):
+        # Randomly shuffle (“permute”) the haplotype labels across reads
+        perm = hap_values.copy()
+        rng.shuffle(perm)
+        sub[hap_col] = perm
+        # Recalculate the number of significant sites for this permutation
+        c, _, _ = count_diff_sites(sub, hap_col, editing_cols, h1, h2, alpha=alpha, min_total_reads=min_total_reads)
+        null_counts.append(c)
+
+    null_counts = np.asarray(null_counts)
+    # empirical p-value
+    p_emp = (1 + (null_counts >= observed).sum()) / (1 + n_perm)
+    return observed, null_counts, p_emp, m_tested, per_site
+
+# ---- run for your temp_df ----
+hap_counts = temp_df["Haplotype"].value_counts()
+top2 = hap_counts.index[:2].tolist()
+h1, h2 = top2[0], top2[1]
+print("Comparing:", h1, "vs", h2)
+print("Reads per haplotype:\n", hap_counts.loc[[h1, h2]])
+
+obs, null_counts, p_emp, m_tested, per_site = permutation_null(
+    temp_df, "Haplotype", editing_cols, h1, h2,
+    n_perm=200, alpha=0.05, min_total_reads=20, seed=1
+)
+print(f"Tested sites: {m_tested}")
+print(f"Observed #diff sites (p<0.05): {obs}")
+print(f"Null mean: {null_counts.mean():.2f}, null 95%: [{np.quantile(null_counts, 0.025)}, {np.quantile(null_counts, 0.975)}]")
+print(f"Empirical p-value: {p_emp:.4g}")
+
+per_site.head(10)
+
+# %%
+
+# %%
+
+# %% [markdown]
+# ## Logistic regression: EditingStatus ~ C(EditingSite) * C(Haplotype)
+
+# %%
+temp_df
+
+# %%
+reg_df = temp_df.loc[
+    :,
+    ["Read", "Haplotype"] + editing_cols.tolist()
+].melt(
+    id_vars=["Read", "Haplotype"],
+    var_name="EditingSite",
+    value_name="EditingStatus"
+)
+
+reg_df = reg_df.loc[
+    reg_df["EditingStatus"].notna()
+].reset_index(drop=True)
+
+reg_df["EditingStatus"] = reg_df["EditingStatus"].astype(int)
+
+reg_df
+
+# %%
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+from scipy import stats
+
+# %%
+# Null model — site effect only
+# logitP(edited=1)=αEditingSite​
+# Under this model, two reads at the same site are expected to have the
+# same editing probability, regardless of haplotype.
+
+m0 = smf.glm(
+    formula="EditingStatus ~ C(EditingSite)",
+    data=reg_df,
+    family=sm.families.Binomial()
+).fit()
+
+print(m0.summary())
+
+# %%
+8.80e+06 / 8799382
+
+# %%
+# Alternative model — add a global haplotype shift
+# logitP(edited=1)=αEditingSite​+βHaplotype​
+# Interpretation:
+# we still allow each site to have its own baseline rate
+# but now haplotypes can differ by a constant multiplicative (log-odds) shift
+
+m1 = smf.glm(
+    formula="EditingStatus ~ C(EditingSite) + C(Haplotype)",
+    data=reg_df,
+    family=sm.families.Binomial()
+).fit()
+
+print(m1.summary())
+
+# %%
+m1.llf > m0.llf
+
+# %%
+np.abs(m1.llf - m0.llf)
+
+# %%
+#m0 vs m1 likelihood ratio test: Does haplotype affect editing globally?
+
+LLR = 2 * (m1.llf - m0.llf)
+df_diff = m1.df_model - m0.df_model
+p_global_haplotype = stats.chi2.sf(LLR, df_diff)
+
+print("Global haplotype effect LRT:")
+print(f"  LLR = {LLR:.3f}, df = {df_diff}, p = {p_global_haplotype:.3e}")
+
+# %%
+# Model 2
+# EditingStatus ~ C(EditingSite) * C(Haplotype)
+# The * expands to
+# EditingStatus ~ C(EditingSite) + C(Haplotype) + C(EditingSite):C(Haplotype)
+# The interaction term γ allows:
+# haplotype effects to differ per site
+# direction & magnitude to vary
+# This model asks: “Do haplotypes show distinct editing profiles, not just a uniform shift?”
+
+m2 = smf.glm(
+    formula="EditingStatus ~ C(EditingSite) * C(Haplotype)",
+    data=reg_df,
+    family=sm.families.Binomial()
+).fit()
+
+print(m2.summary())
+
+# %%
+m2.llf > m1.llf
+
+# %%
+np.abs(m2.llf - m1.llf)
+
+# %%
+LLR_int = 2 * (m2.llf - m1.llf)
+df_int = m2.df_model - m1.df_model
+p_int = stats.chi2.sf(LLR_int, df_int)
+
+print("Haplotype × Site interaction LRT:")
+print(f"  LLR = {LLR_int:.3f}, df = {df_int}, p = {p_int:.3e}")
+
+
+# %%
+m1.llf
+
+# %%
+m2.llf
+
+# %%
+m1.df_model
+
+# %%
+m2.df_model
+
+# %%
+
+# %% [markdown]
+# ## Multinomial logistic regression: Haplotype  ~  EditingProfile
+
+# %%
+temp_df
+
+# %%
+# X_wide shape is (n_reads, n_sites)
+X_wide = temp_df.set_index("Read").loc[:, editing_cols]
+X_wide
+
+# %%
+# % missing data stats per site
+X_wide.isna().sum().div(X_wide.shape[0]).mul(100).describe().round(2)
+
+# %%
+# Haplotype label per read
+y = temp_df["Haplotype"]
+y
+
+# %% [markdown]
+# ### Toy example
+
+# %%
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import classification_report, confusion_matrix
+
+# %%
+# Train–test split
+X_train, X_test, y_train, y_test = train_test_split(
+    X_wide,
+    y,
+    test_size=0.2,
+    stratify=y,        # keep haplotype proportions
+    random_state=1892
+)
+
+# %%
+# Pipeline: imputer + multinomial logistic regression
+clf = Pipeline(
+    [
+        (
+            "imputer", 
+            SimpleImputer(
+                # strategy="most_frequent",
+                strategy="mean"  # default
+            )
+        ),
+        (
+            "logreg", 
+            LogisticRegression(
+                max_iter=1000,
+                # multi_class="auto",   # supports >2 haplotypes
+                # n_jobs=20             # use all cores
+            )
+        )
+    ]
+)
+
+clf.fit(X_train, y_train)
+
+# %%
+# Classification performance
+y_pred = clf.predict(X_test)
+
+# %%
+print(classification_report(y_test, y_pred))
+
+# %%
+conf_mat = confusion_matrix(y_test, y_pred)
+conf_df = pd.DataFrame(
+    conf_mat,
+    index=[f"True_{hap}" for hap in clf.classes_],
+    columns=[f"Pred_{hap}" for hap in clf.classes_]
+)
+print(conf_df)
+
+# %%
+y_proba = clf.predict_proba(X_test)  # shape: (n_test_reads, n_haplotypes)
+haplotypes = clf.named_steps["logreg"].classes_
+
+# Example: probabilities for first test read
+print("Haplotypes:", haplotypes)
+print("Probabilities:", y_proba[0])
+
+
+# %%
+y_proba
+
+# %%
+y_proba.mean(axis=0)
+
+# %%
+pd.Series(y_proba.mean(axis=1)).describe().r
+
+# %% [markdown]
+# ### Unified benchmarking pipeline w/ different classifiers
+
+# %%
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+from sklearn.metrics import (
+    classification_report,
+    accuracy_score,
+    f1_score
+)
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X_wide,
+    y,
+    test_size=0.2,
+    stratify=y,
+    random_state=42
+)
+
+# %%
+# Define a model zoo
+
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import LinearSVC
+from sklearn.naive_bayes import BernoulliNB
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.ensemble import HistGradientBoostingClassifier
+
+# %%
+# Pipelines (some need imputation, some don't)
+
+models = {}
+
+# strategy = "most_frequent"
+strategy = "mean"
+
+# 1) Logistic Regression (L2, class-balanced)
+models["logreg_L2_balanced"] = Pipeline([
+    ("imputer", SimpleImputer(strategy=strategy)),
+    ("clf", LogisticRegression(
+        max_iter=2000,
+        class_weight="balanced"
+    ))
+])
+
+# 2) Logistic Regression (L1 sparse model)
+models["logreg_L1_sparse"] = Pipeline([
+    ("imputer", SimpleImputer(strategy=strategy)),
+    ("clf", LogisticRegression(
+        penalty="elasticnet",
+        l1_ratio=1.0,          # pure L1
+        solver="saga",
+        max_iter=4000,
+        class_weight="balanced"
+    ))
+])
+
+# 3) Linear SVM
+models["linear_svm"] = Pipeline([
+    ("imputer", SimpleImputer(strategy=strategy)),
+    ("clf", LinearSVC(class_weight="balanced"))
+])
+
+# 4) Bernoulli Naive Bayes (natural fit for 0/1 features)
+models["bernoulli_nb"] = Pipeline([
+    ("imputer", SimpleImputer(strategy=strategy)),
+    ("clf", BernoulliNB())
+])
+
+# 5) Random Forest
+models["random_forest"] = Pipeline([
+    ("imputer", SimpleImputer(strategy=strategy)),
+    ("clf", RandomForestClassifier(
+        n_estimators=300,
+        max_depth=None,
+        n_jobs=-1,
+        class_weight="balanced_subsample"
+    ))
+])
+
+# 6) Gradient Boosting
+models["gradient_boosting"] = Pipeline([
+    ("imputer", SimpleImputer(strategy=strategy)),
+    ("clf", GradientBoostingClassifier())
+])
+
+# 7) HistGradientBoosting (handles NaN -> NO imputer)
+models["hist_gb_nan_aware"] = HistGradientBoostingClassifier()
+
+
+# %%
+# Train + evaluate automatically
+
+results = []
+
+for name, model in models.items():
+    print(f"\n🔹 Training {name} ...")
+    model.fit(X_train, y_train)
+
+    y_pred = model.predict(X_test)
+
+    acc = accuracy_score(y_test, y_pred)
+    f1m = f1_score(y_test, y_pred, average="macro")
+
+    print(f"  accuracy = {acc:.3f}, macro-F1 = {f1m:.3f}")
+    print(classification_report(y_test, y_pred))
+
+    results.append((name, acc, f1m))
+
+results_df = pd.DataFrame(results, columns=["model", "accuracy", "macro_f1"])
+print(results_df.sort_values("macro_f1", ascending=False))
+
+# %%
+# Rank sites by permutation importance (HistGradientBoosting)
+
+from sklearn.inspection import permutation_importance
+
+# Use your trained model
+hgb = models["hist_gb_nan_aware"]
+
+r = permutation_importance(
+    hgb,
+    X_test,
+    y_test,
+    n_repeats=5,
+    random_state=42,
+    scoring="f1_macro",
+    n_jobs=20
+)
+
+importance = pd.Series(r.importances_mean, index=X_wide.columns)\
+              .sort_values(ascending=False)
+
+# top_sites = importance.head(40).reset_index()
+top_sites = importance.head(40).reset_index().rename(columns={"index": "EditingSite", 0: "Importance"})
+top_sites
+
+# %%
+top_sites = importance.head(40).reset_index().rename(columns={"index": "EditingSite", 0: "Importance"})
+top_sites
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+
+# %% [markdown]
+# ## Reads --> unique reads --> distinct proteins ?
 
 # %%
 snps_old_unique_reads_dfs = [

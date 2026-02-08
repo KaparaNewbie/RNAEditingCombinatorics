@@ -1,8 +1,17 @@
 from itertools import chain
 
+# from pathlib import Path
+# import sys
+from multiprocessing import Pool
+
+from icecream import ic
+import plotly.express as px
+
+# import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
-from icecream import ic
+from scipy.stats import fisher_exact, chi2_contingency
+from statsmodels.stats.multitest import fdrcorrection
 
 
 def find_alt_base(ref_base, a_count, t_count, c_count, g_count, seed):
@@ -168,14 +177,20 @@ def add_noise_pe_reads_in_positions(noise_positions_df, sample=None):
             else:
                 raise Exception(f"Problem at line {x}: not all reads are mapped.")
 
-    if sample is not None:
-        ic(sample, overlapping_bases)
+    # if sample is not None:
+    #     ic(sample, overlapping_bases)
 
     return positions_per_read
 
 
 def make_reads_noise_df(
-    positions_file, seed, edited_col="Edited", sample=None, parity="SE"
+    positions_file,
+    seed,
+    edited_col,
+    platform,
+    sample,
+    parity,
+    old_to_new_reads_file=None,
 ):
     noise_positions_df = make_noise_positions_df(
         positions_file, seed, edited_col=edited_col
@@ -204,18 +219,65 @@ def make_reads_noise_df(
         }
     )
 
+    if old_to_new_reads_file is not None:
+        old_to_new_reads_df = pd.read_table(old_to_new_reads_file)
+        reads_noise_df = old_to_new_reads_df.merge(
+            reads_noise_df, left_on="NewRead", right_on="Read"
+        ).drop(
+            # retain "OldRead" and "Read" (which is the same as "NewRead")
+            columns="NewRead"
+        )
+
+    reads_noise_df.insert(0, "Platform", platform)
+    reads_noise_df.insert(1, "Sample", sample)
+
     return reads_noise_df
 
 
 seed = 1892
 edited_col = "Edited"
 
+old_reads_first_pos_loc = 6
+
+# if noise positions were re-created where non ref base positions with noise >= 0.1 weren't discarded.
+# in that case - the new reads files may have different new reads names,
+# so to connect between the reads with editing statuses and reads with new noise statuses,
+# we need to use to old reads col which is another col in the new reads df.
+new_noise_positions_in_use = True
+
+
 pacbio_samples = ["GRIA2", "PCLO", "ADAR1", "IQEC1"]
-pacbio_positions_files = [
-    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
-    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
-    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz",
-    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz",
+
+pacbio_new_positions_files = [
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz",
+]
+pacbio_new_old_to_new_reads_files = [
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
+]
+
+pacbio_old_reads_files = [
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz",
+]
+pacbio_old_unique_reads_files = [
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_reads.csv.gz",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_reads.csv.gz",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_reads.csv.gz",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_reads.csv.gz",
+]
+pacbio_old_old_to_new_reads_files = [
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
 ]
 
 illumina_samples = [
@@ -260,77 +322,68 @@ illumina_chroms = [
     "comp141532_c3_seq11",
     "comp141574_c0_seq3",
 ]
-illumina_positions_files = [
-    f"/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.{chrom}.positions.csv"
+
+illumina_new_positions_files = [
+    f"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/reads.sorted.aligned.filtered.{chrom}.positions.csv.gz"
+    for chrom in illumina_chroms
+]
+illumina_new_old_to_new_reads_files = [
+    f"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/reads.sorted.aligned.filtered.{chrom}.OldToNewReads.csv.gz"
     for chrom in illumina_chroms
 ]
 
-# platforms = ["PacBio"] * len(pacbio_samples) + ["Illumina"] * len(illumina_samples)
-# samples = pacbio_samples + illumina_samples
-
-# positions_files = pacbio_positions_files + illumina_positions_files
-
-# reads_noise_dfs = [
-#     make_reads_noise_df(positions_file, seed) for positions_file in positions_files
-# ]
-
-
-pacbio_reads_noise_dfs = [
-    make_reads_noise_df(positions_file, seed)
-    for positions_file in pacbio_positions_files
+illumina_old_reads_files = [
+    f"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.{chrom}.reads.csv"
+    for chrom in illumina_chroms
 ]
-pacbio_noise_per_position_dfs = [
-    reads_noise_df.iloc[:, 1:]
-    .apply(lambda x: x.eq(1).sum() / x.ne(-1).sum())
-    .sort_values(ascending=False)
-    for reads_noise_df in pacbio_reads_noise_dfs
+illumina_old_unique_reads_files = [
+    f"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.{chrom}.unique_reads.csv"
+    for chrom in illumina_chroms
+]
+illumina_old_old_to_new_reads_files = [
+    f"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.{chrom}.OldToNewReads.csv"
+    for chrom in illumina_chroms
 ]
 
-for sample, noise_per_position in zip(pacbio_samples, pacbio_noise_per_position_dfs):
-    print(f"Noise per position for PacBio {sample}:")
-    print(noise_per_position.describe())
-    print(noise_per_position.loc[noise_per_position.ge(0.1)])
-    print("\n")
+platforms = ["PacBio"] * len(pacbio_samples) + ["Illumina"] * len(illumina_samples)
+parities = ["SE"] * len(pacbio_samples) + ["PE"] * len(illumina_samples)
+samples = pacbio_samples + illumina_samples
+# new positions files made for complete noise estimates,
+# and their corresponding old_to_new_reads_files
+new_positions_files = pacbio_new_positions_files + illumina_new_positions_files
+new_old_to_new_reads_files = (
+    pacbio_new_old_to_new_reads_files + illumina_new_old_to_new_reads_files
+)
+# original reads - used for estimating editing
+old_reads_files = pacbio_old_reads_files + illumina_old_reads_files
+old_unique_reads_files = pacbio_old_unique_reads_files + illumina_old_unique_reads_files
+old_old_to_new_reads_files = (
+    pacbio_old_old_to_new_reads_files + illumina_old_old_to_new_reads_files
+)
 
+with Pool(processes=len(samples)) as pool:
+    reads_noise_dfs = pool.starmap(
+        func=make_reads_noise_df,
+        iterable=[
+            (
+                positions_file,
+                seed,
+                edited_col,
+                platform,
+                sample,
+                parity,
+                old_to_new_reads_file,
+            )
+            for positions_file, platform, sample, parity, old_to_new_reads_file in zip(
+                new_positions_files,
+                platforms,
+                samples,
+                parities,
+                new_old_to_new_reads_files,
+            )
+        ],
+    )
 
-# i = 2
-# # platform = platforms[i]
-# sample = illumina_samples[i]
-# positions_file = illumina_positions_files[i]
-# ca2d3_reads_noise_df = make_reads_noise_df(positions_file, seed, sample=sample, parity="PE")
-
-
-illumina_reads_noise_dfs = [
-    make_reads_noise_df(positions_file, seed, sample=sample, parity="PE")
-    for positions_file, sample in zip(illumina_positions_files, illumina_samples)
-]
-illumina_noise_per_position_dfs = [
-    reads_noise_df.iloc[:, 1:]
-    .apply(lambda x: x.eq(1).sum() / x.ne(-1).sum())
-    .sort_values(ascending=False)
-    for reads_noise_df in illumina_reads_noise_dfs
-]
-
-for sample, noise_per_position in zip(
-    illumina_samples, illumina_noise_per_position_dfs
-):
-    print(f"Noise per position for Illumina {sample}:")
-    print(noise_per_position.describe())
-    print(noise_per_position.loc[noise_per_position.ge(0.1)])
-    print("\n")
-
-
-# noise_per_position_dfs = [
-#     reads_noise_df.iloc[:, 1:]
-#     .apply(lambda x: x.eq(1).sum() / x.ne(-1).sum())
-#     .sort_values(ascending=False)
-#     for reads_noise_df in reads_noise_dfs
-# ]
-
-# for platform, sample, noise_per_position in zip(
-#     platforms, samples, noise_per_position_dfs
-# ):
-#     print(f"Noise per position for {platform} {sample}:")
-#     print(noise_per_position.describe())
-#     print(noise_per_position.loc[noise_per_position.ge(0.1)])
-#     print("\n")
+reads_noise_first_pos_loc = 3
+if new_noise_positions_in_use:
+    reads_noise_first_pos_loc += 1

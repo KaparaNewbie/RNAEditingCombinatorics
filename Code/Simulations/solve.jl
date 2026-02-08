@@ -334,18 +334,19 @@ function solve(
     fraction::Float64,
     fracrepetition::Int64,
     algrepetitions::Int64,
-    threaded::Bool=false,
+    run_solve_threaded::Bool=false,
     sortresults::Bool=false,
     algs::Vector{String}=["Ascending", "Descending", "Unordered"],
 )
-    @info "$(loggingtime())\tsolve" fraction fracrepetition algrepetitions threaded algs algfuncs sortresults myid()
+    @info "$(loggingtime())\tsolve" fraction fracrepetition algrepetitions run_solve_threaded algs algfuncs sortresults myid()
     # run the different algorithms
     mapinputs = [
         (alg, algrepetition)
         for alg ∈ algs
         for algrepetition ∈ 1:algrepetitions
     ]
-    mapfunc = threaded ? ThreadsX.map : map
+    mapfunc = run_solve_threaded ? ThreadsX.map : map
+
     # @timeit to "algfunc (obtaining distinct isoforoms using ascending / aescending function)" begin
     #     distinctsamples_alg_algrepetition_sets = mapfunc(mapinputs) do (alg, algrepetition)
     #         algfunc = algfuncs[alg] # the function implementing `alg`
@@ -354,6 +355,7 @@ function solve(
     #     end    
     # end
     distinctsamples_alg_algrepetition_sets = mapfunc(mapinputs) do (alg, algrepetition)
+        
         algfunc = algfuncs[alg] # the function implementing `alg`
         distinctsamples = algfunc(sampleG, sortresults)  # distinct unique samples obtained by `algfunc`
         (distinctsamples, alg, algrepetition)

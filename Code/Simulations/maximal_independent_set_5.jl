@@ -282,6 +282,8 @@ function main()
 	# # Print the timings in the default way
 	# show(to)
 
+	@info "$(loggingtime())\tmain - program ended"
+
 	# shutdown gcp vm
 	gcp && shutdowngcp && run(`sudo shutdown`) # https://cloud.google.com/compute/docs/shutdownscript
 end
@@ -458,11 +460,13 @@ function run_sample(
 			retry_delays = ExponentialBackOff(n = 3, first_delay = 5, max_delay = 1000),
 		) do (fraction, nsamplerows, fracrepetition)
 			try
-
+				
 				# these exact samplerows will in fact only be used if consistentfracsampling is true,
 				# otherwise nsamplerows will be used to sample other rows
 				samplerows = samplerowsdict[(fraction, nsamplerows)]
 
+
+		
 				run_fracrepetition(
 					df,
 					idcol,
@@ -525,6 +529,8 @@ function run_sample(
 	# outfile = abspath(outdir) * "/" * samplename * ".DistinctUnique$datatype.$(writingtime()).csv"
 	outfile = joinpath(abspath(outdir), "$samplename.DistinctUnique$datatype$postfix_to_add.$(writingtime()).csv")
 	CSV.write(outfile, results; delim)
+
+	@info "$(loggingtime())\trun_sample - ended" infile samplename
 end
 
 
@@ -536,6 +542,34 @@ main();
 # show(to)
 # TimerOutputs.complement!(to);
 # show(to)
+
+
+# infile = "D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
+# delim = "\t"
+# samplename = "IQEC.Merged"
+# idcol = "Protein"
+# firstcolpos = 15
+# datatype = "Proteins"
+# outdir = "D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples"
+# postfix_to_add = ".GRANTHAM1974-100"
+# fracstep = 0.2
+# maxfrac = 1.0
+# fracrepetitions = 4
+# consistentfracsampling = false
+# algrepetitions = 2
+# testfraction = 1.0
+# randseed = 1892
+# run_solve_threaded = true
+# sortresults = false
+# algs = ["Ascending", "Descending"]
+# substitutionmatrix = GRANTHAM1974
+# similarityscorecutoff = 100
+# similarityvalidator = <
+# aagroups = nothing
+# prefix_to_remove = ""
+# postfix_to_remove = ".r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
+# gcp = false
+# shutdowngcp = false
 
 
 

@@ -15,8 +15,8 @@ from collections import defaultdict
 import subprocess
 import sys
 
-# code_dir = "/private7/projects/Combinatorics/Code"
-# sys.path.append(str(Path(code_dir).absolute()))
+code_dir = "/private7/projects/Combinatorics/Code"
+sys.path.append(str(Path(code_dir).absolute()))
 
 import pandas as pd
 import numpy as np
@@ -45,6 +45,59 @@ ic.configureOutput(includeContext=True, prefix=ic_prefix)
 
 
 DataFrameOrSeries = Union[pd.DataFrame, pd.Series]
+
+
+# transcriptome = Path("O.vulgaris/Annotations/orfs_oct.fa")
+# # samples_table = "O.vulgaris/Data/PRJNA791920/IsoSeqPolished/samples.csv"
+# sample_col = ...
+# group_col = ...
+# known_editing_sites = Path("O.vulgaris/Annotations/O.vul.EditingSites.bed")
+# cds_regions = Path("O.vulgaris/Annotations/orfs_oct.bed")
+# min_percent_of_max_coverage = 0.1
+# min_mapped_reads_per_position = 0
+# include_flags = None
+# exclude_flags = "2304"
+# parity = "SE"
+# snp_noise_level = 0.05 # TODO or even 0.04 for pooled samples? 0.1 is for unpooled samples
+# top_x_noisy_positions = 3
+# assurance_factor = 1.5
+# pooled_transcript_noise_threshold = 0.06 # TODO probably lower in accordance with the lowered snp_noise_level?
+# # out_dir = "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3"
+# out_dir = Path("O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.PooledSamples")
+# samtools_path = "samtools"
+# processes = 20
+# threads = 5
+# min_rq = 0.998
+# min_bq = 30
+# out_files_sep = "\t"
+# keep_pileup_files = True
+# keep_bam_files = True
+# override_existing_pileup_files = False
+# override_existing_bam_files = False
+# gz_compression = True
+# alignments_stats_table = Path("O.vulgaris/Alignment/PRJNA791920/IsoSeq.Polished.Unclustered/AggregatedByChromBySampleSummary.tsv")
+# alignments_stats_table_sep = "\t"
+# min_samples = 0
+# min_mapped_reads_per_sample = 0
+# total_mapped_reads = 50
+# min_known_sites = 0
+# main_by_chrom_dir = Path("O.vulgaris/Alignment/PRJNA791920/IsoSeq.Polished.Unclustered/ByChrom")
+# postfix = ".bam"
+# interfix_start = ".aligned.sorted"
+# remove_non_refbase_noisy_positions = False
+# known_sites_only = False
+# pileup_dir_name: str = "PileupFiles"
+# positions_dir_name: str = "PositionsFiles"
+# reads_dir_name: str = "ReadsFiles"
+# proteins_dir_name: str = "ProteinsFiles"
+# sample_reads: bool = False
+# num_sampled_reads: int = 80_000
+# seed: int = 1892
+# final_editing_scheme = "BH after noise thresholding"
+# disregard_alt_base_freq_1: True
+# alternative_hypothesis = "larger"
+# stop_after_making_noise_positions: bool = True # TODO just for the sake of testing the detection scheme
+# samples_are_pooled = True
 
 
 def undirected_sequencing_main(
@@ -98,6 +151,8 @@ def undirected_sequencing_main(
     final_editing_scheme: str,
     disregard_alt_base_freq_1: bool,
     alternative_hypothesis: str,
+    stop_after_making_noise_positions: bool,
+    max_snps_per_gene_to_allow_editing_detection: int,
     # binom_noise_pval_col: str,
     # bh_noise_pval_col: str,
     # bh_noisy_col: str,
@@ -168,6 +223,21 @@ def undirected_sequencing_main(
     #     "comp183713_c0_seq9",
     #     "comp181924_c0_seq4",
     # ]
+    # tests_chrom_with_more_than_3_snps = [
+    #     "comp176758_c0_seq1",
+    #     "comp73217_c0_seq1",
+    #     "comp148544_c0_seq1",
+    #     "comp72138_c0_seq1",
+    #     "comp183760_c0_seq7",
+    # ]
+    # test_chroms_with_3_or_less_snps = [
+    #     "comp182826_c6_seq4",
+    #     "comp72421_c0_seq1",
+    #     "comp179489_c1_seq1",
+    #     "comp181820_c2_seq1",
+    #     "comp73741_c0_seq1",
+    # ]
+    # test_chroms = tests_chrom_with_more_than_3_snps + test_chroms_with_3_or_less_snps
     # alignments_stats_df = alignments_stats_df.loc[
     #     alignments_stats_df["Chrom"].isin(test_chroms)
     # ]
@@ -325,6 +395,10 @@ def undirected_sequencing_main(
         Path(positions_dir, f"{chrom}.OldToNewReads.csv{compression_postfix}")
         for chrom in unique_chroms
     ]
+    mismatches_files = [
+        Path(positions_dir, f"{chrom}.Mismatches.csv{compression_postfix}")
+        for chrom in unique_chroms
+    ]
     positions_files = [
         Path(positions_dir, f"{chrom}.positions.csv{compression_postfix}")
         for chrom in unique_chroms
@@ -358,6 +432,7 @@ def undirected_sequencing_main(
         pileup_files_per_chroms,
         samples_per_chroms,
         reads_mapping_files,
+        mismatches_files,
         positions_files,
         corrected_noise_files,
         corrected_editing_files,
@@ -383,12 +458,17 @@ def undirected_sequencing_main(
         bh_editing_pval_col,
         bh_editing_col,
         disregard_alt_base_freq_1,
+        pooled_transcript_noise_threshold,
+        max_snps_per_gene_to_allow_editing_detection,
     )
 
     # the pileup files themsevles were deleted by each processes turning pileup into positions,
     # so pileup_dir is empty now
     if not keep_pileup_files:
         subprocess.run(f"rm -rf {pileup_dir}", shell=True)
+
+    if stop_after_making_noise_positions:
+        return
 
     # 5 - positions dfs -> reads & unique reads dfs
 
@@ -674,6 +754,8 @@ def directed_sequencing_main(
     num_sampled_reads: int,
     seed: int,
     disable_baq: bool,
+    keep_non_refbase_noisy_positions: bool,
+    stop_after_making_noise_positions: bool,
     **kwargs,
 ):
     """
@@ -756,8 +838,25 @@ def directed_sequencing_main(
             for region, start, end in zip(regions, starts, ends)
         ]
 
+        # check if all values in the per_sample_sampled_reads_col are not null in order to decide
+        # whether to use individual number of sampled reads per sample or a flat number for all samples
+        try:
+            # Check if all values in the column are not null (or if this col even exists)
+            different_num_of_sampled_reads_per_sample = (
+                data_table[per_sample_sampled_reads_col].notna().all()
+            )
+        except KeyError as e:
+            missing_key = e.args[0]
+            # if the per_sample_sampled_reads_col doensn't exist, we assume all samples will use the flat num_sampled_reads
+            if missing_key == per_sample_sampled_reads_col:
+                different_num_of_sampled_reads_per_sample = False
+            else:
+                # Re-raise the exception if it's not the specific one we handle
+                raise e
+
         # use a predefined, individual num of sampled reads per each BAM
-        if data_table[per_sample_sampled_reads_col].notna().all():
+        # if data_table[per_sample_sampled_reads_col].notna().all():
+        if different_num_of_sampled_reads_per_sample:
             per_sample_sampled_reads = data_table[per_sample_sampled_reads_col].tolist()
             # samtools view will give that many pairs of unique PE reads, as expected
             if consider_parity_when_sampling and parity == "PE":
@@ -828,6 +927,7 @@ def directed_sequencing_main(
                         )
                     ],
                 )
+
     else:
         sampled_filtered_bam_files = filtered_bam_files
 
@@ -882,7 +982,8 @@ def directed_sequencing_main(
         for pileup_file in pileup_files
     ]
 
-    remove_non_refbase_noisy_positions = True
+    # remove_non_refbase_noisy_positions = True
+    remove_non_refbase_noisy_positions = not keep_non_refbase_noisy_positions
 
     # pileup_to_positions_inputs = [
     #     (
@@ -951,6 +1052,9 @@ def directed_sequencing_main(
                 )
             ],
         )
+
+    if stop_after_making_noise_positions:
+        return
 
     # 6 - positions dfs -> reads & unique reads dfs
 
@@ -1262,6 +1366,16 @@ def define_args() -> argparse.Namespace:
         default="ProbRegionsBED",
         help="Problematic regions to exclude col label in `data_table`. Its values should be paths to BED files.",
     )
+    directed_sequencing_subparser.add_argument(
+        "--keep_non_refbase_noisy_positions",
+        action="store_true",
+        help="Do not remove non ref-base positions whose noise are high, which are removed by default for trageted sequencing data.",
+    )
+    directed_sequencing_subparser.add_argument(
+        "--stop_after_making_noise_positions",
+        action="store_true",
+        help="Stop the program after making the $sample.positions.csv files.",
+    )
 
     undirected_sequencing_subparser = subparsers.add_parser(
         "undirected_sequencing_data",
@@ -1324,9 +1438,16 @@ def define_args() -> argparse.Namespace:
         help=(
             "Use only transcripts whose pooled_transcript_noise "
             "(same as noise level before the multiplication by assurance factor) "
-            "is below `pooled_transcript_noise_threshold`."
+            "is below `pooled_transcript_noise_threshold`. "
+            "(Set it to 1 to effectively disable this filter.)"
         ),
         type=float,
+    )
+    undirected_sequencing_subparser.add_argument(
+        "--max_snps_per_gene_to_allow_editing_detection",
+        default=0,
+        help=("Max number of SNPs allowed in gene to allow editing detection in it."),
+        type=int,
     )
     undirected_sequencing_subparser.add_argument(
         "--main_by_chrom_dir",
@@ -1421,6 +1542,11 @@ def define_args() -> argparse.Namespace:
         "--override_existing_bam_files",
         action="store_true",
         help="Recreate existing filtered and/or sampled bam files from previous runs.",
+    )
+    undirected_sequencing_subparser.add_argument(
+        "--stop_after_making_noise_positions",
+        action="store_true",
+        help="Stop the program after making the $sample.positions.csv files.",
     )
 
     # subparsers.default = "default"

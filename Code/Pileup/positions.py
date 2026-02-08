@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import defaultdict, Counter
 import subprocess
 from pathlib import Path
 from typing import Union
@@ -314,6 +314,80 @@ def annotate_noise(positions_df, strand):
 #     return freq
 
 
+def count_mismatches_per_position(ref_base, a_count, t_count, c_count, g_count):
+    """
+    Count mismatches in one position.
+    """
+    bases = ["A", "T", "C", "G"]
+    base_counts = [a_count, t_count, c_count, g_count]
+
+    mismatches_counts = {}
+    for alt_base, count in zip(bases, base_counts):
+        # if alt_base != ref_base:
+        #     mismatches_counts[f"{ref_base}{alt_base}"] = count
+        mismatches_counts[f"{ref_base}{alt_base}"] = count
+
+    mismatches_counts = Counter(mismatches_counts)
+    return mismatches_counts
+
+
+def count_mismatches(
+    positions_df: pd.DataFrame,
+    chrom: str,
+    mismatches_file: Path | str,
+    mismatches_file_sep: str,
+):
+    """
+    Count mismatches in all positions and save them to a csv file.
+    """
+    per_position_mismatches_counters = positions_df.apply(
+        lambda row: count_mismatches_per_position(
+            row["RefBase"],
+            row["A"],
+            row["T"],
+            row["C"],
+            row["G"],
+        ),
+        axis=1,
+    ).tolist()
+
+    mismatches_counter = per_position_mismatches_counters[0]
+    for counter in per_position_mismatches_counters[1:]:
+        mismatches_counter += counter
+
+    true_mismatches_counter = Counter(
+        {
+            mismatch: mismatches_counter[mismatch]
+            for mismatch in mismatches_counter
+            if mismatch[0] != mismatch[1]
+        }
+    )
+
+    all_possible_mismatches = {
+        f"{ref_base}{alt_base}"
+        for ref_base in "ATCG"
+        for alt_base in "ATCG"
+        if ref_base != alt_base
+    }
+    for mismatch in all_possible_mismatches:
+        if mismatch not in true_mismatches_counter:
+            true_mismatches_counter[mismatch] = 0
+
+    mismatches_df = pd.DataFrame.from_dict(
+        true_mismatches_counter, orient="index", columns=["Count"]
+    ).reset_index()
+    mismatches_df = mismatches_df.rename(columns={"index": "Mismatch"})
+    mismatches_df = mismatches_df.sort_values(
+        ["Count", "Mismatch"], ascending=[False, True]
+    )
+
+    mismatches_df.insert(0, "Chrom", chrom)
+
+    mismatches_df.to_csv(mismatches_file, sep=mismatches_file_sep, index=False)
+
+    # return mismatches_df
+
+
 def editing_frequency_per_position(
     principal_ref_base: str, ref_base: str, ref_base_count: int, alt_base_count: int
 ) -> float:
@@ -351,6 +425,7 @@ def annotate_edited_sites(
     strand: str,
     noise_threshold: float,
     denovo_detection: bool = True,
+    editing_detection_possible: bool = True
 ):
     """Determine which sites are currently edited.
 
@@ -361,21 +436,25 @@ def annotate_edited_sites(
         strand (str): The ORF's strand.
         noise_threshold (float): A site is considered edited if its editing frequency is above the noise threshold.
         denovo_detection (bool): Whether to determine both new ("denovo") and known sites as edited, or only known ones. Defaults to True.
+        editing_detection_possible (bool): If false (determined by noise filters earlier), no position will be considered edited. Defaults to True to allow compatibility with previous version.
     """
     ref_base = "A" if strand == "+" else "T"
 
-    if denovo_detection:
-        edited_positions = positions_df.loc[positions_df["RefBase"] == ref_base].apply(
-            lambda x: x["EditingFrequency"] > noise_threshold, axis=1
-        )
+    if editing_detection_possible:
+        if denovo_detection:
+            edited_positions = positions_df.loc[positions_df["RefBase"] == ref_base].apply(
+                lambda x: x["EditingFrequency"] > noise_threshold, axis=1
+            )
+        else:
+            edited_positions = positions_df.loc[positions_df["RefBase"] == ref_base].apply(
+                lambda x: (x["EditingFrequency"] > noise_threshold) and (x["KnownEditing"]),
+                axis=1,
+            )
+        edited = [
+            i in edited_positions.loc[edited_positions].index for i in positions_df.index
+        ]
     else:
-        edited_positions = positions_df.loc[positions_df["RefBase"] == ref_base].apply(
-            lambda x: (x["EditingFrequency"] > noise_threshold) and (x["KnownEditing"]),
-            axis=1,
-        )
-    edited = [
-        i in edited_positions.loc[edited_positions].index for i in positions_df.index
-    ]
+        edited = [False] * len(positions_df)
     positions_df.insert(positions_df.columns.get_loc("Position") + 1, "Edited", edited)
 
 
@@ -1310,6 +1389,7 @@ def multisample_pileups_to_positions_all_transcripts(
     pileup_files_per_chroms: defaultdict[str, list[Path]],
     samples_per_chroms: defaultdict[str, list[str]],
     reads_mapping_files: list[Path],
+    mismatches_files: list[Path],
     positions_files: list[Path],
     corrected_noise_files: list[Path],
     corrected_editing_files: list[Path],
@@ -1335,6 +1415,8 @@ def multisample_pileups_to_positions_all_transcripts(
     bh_editing_pval_col: str = "EditingCorrectedPVal",
     bh_editing_col: str = "EditedCorrected",
     disregard_alt_base_freq_1: bool = True,
+    pooled_transcript_noise_threshold: float = 0,
+    max_snps_per_gene_to_allow_editing_detection: int = 3
 ):
     """
     Read pileup files of reads mapped to a certain transcript from one or more samples into a DataFrame.
@@ -1382,6 +1464,8 @@ def multisample_pileups_to_positions_all_transcripts(
         `bh_editing_pval_col` (str, optional): The name of the column in the returned DataFrame that will contain the corrected p-value for editing after applying the Benjamini-Hochberg procedure. Defaults to "EditingCorrectedPVal".
         `bh_editing_col` (str, optional): The name of the column in the returned DataFrame that will contain the information on whether the corrected editing p-value after applying the Benjamini-Hochberg procedure is significant (i.e., "rejected"). Defaults to "EditedCorrected".
         `disregard_alt_base_freq_1` (bool, optional): If True, disregard positions with alternative base frequency of 1 from being considered finally noisy or edited. Defaults to True.
+        `pooled_transcript_noise_threshold` (float, optional): Max mean of top 3 noise positions that aren't SNPs to allow editing detection in gene. Defaults to 0.
+        `max_snps_per_gene_to_allow_editing_detection` (int, optional): Max number of SNPs allowed in gene to allow editing detection. Defaults to 3.
     """
 
     cds_regions_df = pd.read_csv(
@@ -1406,10 +1490,11 @@ def multisample_pileups_to_positions_all_transcripts(
                     known_sites_file,
                     cds_regions_file,
                     reads_mapping_file,
+                    mismatches_file,
                     out_files_sep,
                 )
-                for reads_mapping_file, chrom, strand, positions_file in zip(
-                    reads_mapping_files, chroms, strands, positions_files
+                for reads_mapping_file, mismatches_file, chrom, strand, positions_file in zip(
+                    reads_mapping_files, mismatches_files, chroms, strands, positions_files
                 )
             ],
         )
@@ -1448,6 +1533,8 @@ def multisample_pileups_to_positions_all_transcripts(
                     bh_noise_pval_col,
                     bh_noisy_col,
                     disregard_alt_base_freq_1,
+                    pooled_transcript_noise_threshold,
+                    max_snps_per_gene_to_allow_editing_detection
                 )
                 for positions_file, corrected_noise_file, strand in zip(
                     positions_files,
@@ -1775,6 +1862,7 @@ def multisample_pileups_to_positions_part_1(
     known_sites_file: Union[Path, str, None] = None,
     cds_regions_file: Union[Path, str, None] = None,
     reads_mapping_file: Union[Path, str, None] = None,
+    mismatches_file: Union[Path, str, None] = None,
     out_files_sep: str = "\t",
 ) -> None:
     """
@@ -1902,7 +1990,7 @@ def multisample_pileups_to_positions_part_1(
             .agg(
                 {
                     "Samples": ",".join,
-                    "TotalCoverage": sum,
+                    "TotalCoverage": "sum",
                     "MappedBases": "".join,
                     "Phred": "".join,
                     "Reads": ",".join,
@@ -1929,6 +2017,23 @@ def multisample_pileups_to_positions_part_1(
     # only then calculate noise
     annotate_noise(positions_df, strand)
 
+    # count mismatches per position and save to file
+    try:
+        if not positions_df.empty:
+            count_mismatches(
+                positions_df.loc[:, ["RefBase", "A", "T", "C", "G"]],
+                # positions_df["Chrom"][0],
+                positions_df["Chrom"].iloc[0],
+                mismatches_file,
+                out_files_sep,
+            )
+        # else:
+        #     print(f"{pileup_file} is empty")
+    except Exception as e:
+        print(e)
+        print(positions_df.shape)
+        print(positions_df.head())
+
     positions_df.to_csv(positions_file, sep=out_files_sep, index=False, na_rep=np.nan)
 
     # return positions_df
@@ -1948,6 +2053,8 @@ def multisample_pileups_to_positions_part_2(
     bh_noise_pval_col: str,
     bh_noisy_col: str,
     disregard_alt_base_freq_1: bool,
+    pooled_transcript_noise_threshold: float,
+    max_snps_per_gene_to_allow_editing_detection: int
 ):
     """
     The input positions_file is after noise annotation, and the BH correction is added according to the corrected
@@ -2064,7 +2171,59 @@ def multisample_pileups_to_positions_part_2(
         noise_threshold = noise_levels.mean()
     if pd.isna(noise_threshold):
         noise_threshold = 0
+    
+    editing_detection_possible = True
+    
+    # note 1:
+    # we require `>` rather than `>=`
+    # in order to enforce processing the positions into reads
+    # by setting `top_x_noisy_positions = 1`
+    # (or any value of `snp_noise_level` that will lead to
+    # `pooled_transcript_noise == pooled_transcript_noise_threshold`,
+    # for that matter)
+    # note 2:
+    # this pooled_transcript_noise_threshold was previously defined downstream,
+    # when converting positions to reads, proteins, etc.
+    # but it does belong already here as we are defining the noise threshold here
+    # and if the noise is too high, we don't want to consider this gene as edited
+    # and specifically - none of its positions
+    if noise_threshold > pooled_transcript_noise_threshold:
+        # raise Warning(
+        #     f"Warning: {positions_file = } has {noise_threshold = } > {pooled_transcript_noise_threshold = } "
+        #     "and thus won't be considered for editing detection and further processing downstream."
+        # )
+        print(
+            f"Warning: {positions_file = } has {noise_threshold = } > {pooled_transcript_noise_threshold = } "
+            "and thus won't be considered for editing detection and further processing downstream."
+        )
+        editing_detection_possible = False
+    # also, don't consider a gene as edited if there are too many SNPs in it
+    num_of_snps_in_gene = positions_df.loc[
+        (positions_df["NoisyFinal"])
+        & (positions_df["Noise"].ge(snp_noise_level))
+    ].shape[0]
+    if num_of_snps_in_gene > max_snps_per_gene_to_allow_editing_detection:
+        # raise Warning(
+        #     f"Warning: {positions_file = } has {num_of_snps_in_gene = } > {max_snps_per_gene_to_allow_editing_detection = } "
+        #     "and thus won't be considered for editing detection and further processing downstream."
+        # )
+        print(
+            f"Warning: {positions_file = } has {num_of_snps_in_gene = } > {max_snps_per_gene_to_allow_editing_detection = } "
+            "and thus won't be considered for editing detection and further processing downstream."
+        )
+        editing_detection_possible = False
+    
+    # anyway, we finalize the noise threshold
+    # (although it won't matter if editing_detection_possible == False)
     noise_threshold *= assurance_factor
+
+    # write noise threshold to file
+    chrom = positions_file.name.split('.')[0]
+    with open(
+        positions_file.parent / f"{chrom}.NoiseThreshold.csv",
+        "w",
+    ) as f:
+        f.write(f"{chrom}\t{noise_threshold}\n")
 
     # annotate editing frequency and "naive" editing status according to noise threshold
     annotate_editing_frequency_per_position(positions_df, strand)

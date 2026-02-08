@@ -1963,14 +1963,24 @@ max_expression_df.groupby(condition_col).apply(
 # ## Summary of data loss
 
 # %%
-unaligned_reads_counts = [
-    count_reads_in_unaligned_bam(samtools_path, bam, threads)
-    for bam in unaligned_bam_files
-]
+# unaligned_reads_counts = [
+#     count_reads_in_unaligned_bam(samtools_path, bam, threads)
+#     for bam in unaligned_bam_files
+# ]
 
+# # aligned_reads_counts = [
+# #     count_reads(
+# #         samtools_path,
+# #         bam,
+# #         f"{chrom}:{start+1}-{end}",
+# #         include_flags,
+# #         exclude_flags,
+# #         threads,
+# #     )
+# #     for bam, chrom, start, end in zip(aligned_bam_files, chroms, starts, ends)
+# # ]
 # aligned_reads_counts = [
-#     count_reads(
-#         samtools_path,
+#     count_unique_filtered_aligned_reads(
 #         bam,
 #         f"{chrom}:{start+1}-{end}",
 #         include_flags,
@@ -1979,20 +1989,20 @@ unaligned_reads_counts = [
 #     )
 #     for bam, chrom, start, end in zip(aligned_bam_files, chroms, starts, ends)
 # ]
-aligned_reads_counts = [
-    count_unique_filtered_aligned_reads(
-        bam,
-        f"{chrom}:{start+1}-{end}",
-        include_flags,
-        exclude_flags,
-        threads,
-    )
-    for bam, chrom, start, end in zip(aligned_bam_files, chroms, starts, ends)
-]
 
+# # filtered_aligned_reads_counts = [
+# #     count_reads(
+# #         samtools_path,
+# #         bam,
+# #         f"{chrom}:{start+1}-{end}",
+# #         include_flags,
+# #         exclude_flags,
+# #         threads,
+# #     )
+# #     for bam, chrom, start, end in zip(filtered_aligned_bam_files, chroms, starts, ends)
+# # ]
 # filtered_aligned_reads_counts = [
-#     count_reads(
-#         samtools_path,
+#     count_unique_filtered_aligned_reads(
 #         bam,
 #         f"{chrom}:{start+1}-{end}",
 #         include_flags,
@@ -2001,26 +2011,16 @@ aligned_reads_counts = [
 #     )
 #     for bam, chrom, start, end in zip(filtered_aligned_bam_files, chroms, starts, ends)
 # ]
-filtered_aligned_reads_counts = [
-    count_unique_filtered_aligned_reads(
-        bam,
-        f"{chrom}:{start+1}-{end}",
-        include_flags,
-        exclude_flags,
-        threads,
-    )
-    for bam, chrom, start, end in zip(filtered_aligned_bam_files, chroms, starts, ends)
-]
 
 # %%
-pileup_reads_counts = [
-    len(set(chain.from_iterable(positions_df["Reads"].str.split(","))))
-    for positions_df in positions_dfs
-]
+# pileup_reads_counts = [
+#     len(set(chain.from_iterable(positions_df["Reads"].str.split(","))))
+#     for positions_df in positions_dfs
+# ]
 
 
 # %%
-unique_reads_counts = [len(unique_reads_df) for unique_reads_df in unique_reads_dfs]
+# unique_reads_counts = [len(unique_reads_df) for unique_reads_df in unique_reads_dfs]
 
 # %%
 # max_fraction = distinct_unique_reads_df["Fraction"].max()
@@ -2037,34 +2037,34 @@ unique_reads_counts = [len(unique_reads_df) for unique_reads_df in unique_reads_
 
 
 # %%
-distinct_unique_proteins_counts = (
-    distinct_unique_proteins_df.loc[
-        # distinct_unique_proteins_df["Fraction"] == max_fraction
-        distinct_unique_proteins_df["Fraction"]
-        == 1.0
-    ]
-    .groupby(condition_col)["NumOfProteins"]
-    # .mean()
-    # .round()
-    .max()
-    .astype(int)
-)
+# distinct_unique_proteins_counts = (
+#     distinct_unique_proteins_df.loc[
+#         # distinct_unique_proteins_df["Fraction"] == max_fraction
+#         distinct_unique_proteins_df["Fraction"]
+#         == 1.0
+#     ]
+#     .groupby(condition_col)["NumOfProteins"]
+#     # .mean()
+#     # .round()
+#     .max()
+#     .astype(int)
+# )
 
 
 # %%
-data_loss_df = pd.DataFrame(
-    {
-        f"Unaligned {reads_type} reads": unaligned_reads_counts,
-        "Aligned reads (within ORF)": aligned_reads_counts,
-        "Filtered aligned reads (within ORF)": filtered_aligned_reads_counts,
-        "Pileup reads": pileup_reads_counts,
-        "Unique reads": unique_reads_counts,
-        # "Distinct unique reads (mean)": distinct_unique_reads_counts,
-        "Distinct unique proteins (max)": distinct_unique_proteins_counts,
-    },
-    index=conditions,
-)
-data_loss_df
+# data_loss_df = pd.DataFrame(
+#     {
+#         f"Unaligned {reads_type} reads": unaligned_reads_counts,
+#         "Aligned reads (within ORF)": aligned_reads_counts,
+#         "Filtered aligned reads (within ORF)": filtered_aligned_reads_counts,
+#         "Pileup reads": pileup_reads_counts,
+#         "Unique reads": unique_reads_counts,
+#         # "Distinct unique reads (mean)": distinct_unique_reads_counts,
+#         "Distinct unique proteins (max)": distinct_unique_proteins_counts,
+#     },
+#     index=conditions,
+# )
+# data_loss_df
 
 
 # %% [markdown] papermill={"duration": 0.045853, "end_time": "2022-02-01T09:42:48.953594", "exception": false, "start_time": "2022-02-01T09:42:48.907741", "status": "completed"}
@@ -2319,20 +2319,64 @@ list(
 reads_w_nan_dfs = [reads_df.replace({-1: np.nan}) for reads_df in reads_dfs]
 reads_w_nan_dfs[0]
 
-
 # %%
-def two_sites_pearson(site_1, site_2, two_sites_df):
+# def two_sites_pearson(site_1, site_2, two_sites_df):
+#     two_sites_df = two_sites_df.dropna(axis=0)
+    
+#     # x = two_sites_df.iloc[:, 0].to_numpy()
+#     # y = two_sites_df.iloc[:, 1].to_numpy()
+#     # if np.nanstd(x) == 0 or np.nanstd(y) == 0:
+#     #     print("constant input", site_1, site_2, np.unique(x), np.unique(y), len(x))
+    
+#     r, pv = scipy.stats.pearsonr(two_sites_df.iloc[:, 0], two_sites_df.iloc[:, 1])
+#     # return {"Site1": site_1, "Site2": site_2, "r": r, "pv": pv}
+#     return {"Site1": int(site_1), "Site2": int(site_2), "r": r, "pv": pv}
+
+
+def two_sites_pearson(site_1, site_2, two_sites_df, min_n=3):
     two_sites_df = two_sites_df.dropna(axis=0)
-    r, pv = scipy.stats.pearsonr(two_sites_df.iloc[:, 0], two_sites_df.iloc[:, 1])
-    # return {"Site1": site_1, "Site2": site_2, "r": r, "pv": pv}
-    return {"Site1": int(site_1), "Site2": int(site_2), "r": r, "pv": pv}
+    x = two_sites_df.iloc[:, 0].to_numpy()
+    y = two_sites_df.iloc[:, 1].to_numpy()
 
+    n = len(x)
+    if n < min_n:
+        return {"Site1": int(site_1), "Site2": int(site_2), "n": n, "r": np.nan, "pv": np.nan}
+
+    if np.nanstd(x) == 0 or np.nanstd(y) == 0:
+        # constant -> undefined Pearson
+        return {"Site1": int(site_1), "Site2": int(site_2), "n": n, "r": np.nan, "pv": np.nan}
+
+    r, pv = scipy.stats.pearsonr(x, y)
+    return {"Site1": int(site_1), "Site2": int(site_2), "n": n, "r": r, "pv": pv}
 
 # %%
+# def make_corrected_corrs_df(sites_df):
+#     sites = sites_df.columns.to_list()
+
+#     corrected_corrs_df = pd.DataFrame(
+#         [
+#             two_sites_pearson(site_1, site_2, sites_df.loc[:, [site_1, site_2]])
+#             for i, site_1 in enumerate(sites[:-1])
+#             for site_2 in sites[i + 1 :]
+#         ]
+#     )
+
+#     # df["bonferroni_rejection"], df["bonferroni_corrected_pv"], *_ = multipletests(df["pv"], method="bonferroni")
+#     # df["fdr_by_rejection"], df["fdr_by_corrected_pv"], *_ = multipletests(df["pv"], method="fdr_by")
+
+#     corrected_corrs_df["bonferroni_rejection"], *_ = multipletests(
+#         corrected_corrs_df["pv"], method="bonferroni"
+#     )
+#     corrected_corrs_df["fdr_by_rejection"], *_ = multipletests(
+#         corrected_corrs_df["pv"], method="fdr_by"
+#     )
+
+#     return corrected_corrs_df
+
+
 def make_corrected_corrs_df(sites_df):
     sites = sites_df.columns.to_list()
-
-    corrected_corrs_df = pd.DataFrame(
+    out = pd.DataFrame(
         [
             two_sites_pearson(site_1, site_2, sites_df.loc[:, [site_1, site_2]])
             for i, site_1 in enumerate(sites[:-1])
@@ -2340,17 +2384,14 @@ def make_corrected_corrs_df(sites_df):
         ]
     )
 
-    # df["bonferroni_rejection"], df["bonferroni_corrected_pv"], *_ = multipletests(df["pv"], method="bonferroni")
-    # df["fdr_by_rejection"], df["fdr_by_corrected_pv"], *_ = multipletests(df["pv"], method="fdr_by")
+    out["bonferroni_rejection"] = False
+    out["fdr_by_rejection"] = False
 
-    corrected_corrs_df["bonferroni_rejection"], *_ = multipletests(
-        corrected_corrs_df["pv"], method="bonferroni"
-    )
-    corrected_corrs_df["fdr_by_rejection"], *_ = multipletests(
-        corrected_corrs_df["pv"], method="fdr_by"
-    )
+    valid = out["pv"].notna()
+    out.loc[valid, "bonferroni_rejection"] = multipletests(out.loc[valid, "pv"], method="bonferroni")[0]
+    out.loc[valid, "fdr_by_rejection"] = multipletests(out.loc[valid, "pv"], method="fdr_by")[0]
 
-    return corrected_corrs_df
+    return out
 
 
 # %%
@@ -2495,10 +2536,9 @@ masked_bonferroni_corrs = [
     for corr, mask in zip(corrected_corrs_matrices, bonferroni_masks)
 ]
 
-pclo_masked_bonferroni_corr_df = pd.DataFrame(masked_bonferroni_corrs[1])
-pclo_masked_bonferroni_corr_df.to_csv(
-    "PCLOMaskedBonferroniCorr.PacBio.tsv", index=False, sep="\t"
-)
+for condition, masked_bonferroni_corr in zip(conditions, masked_bonferroni_corrs):
+    # pd.DataFrame(masked_bonferroni_corr).to_csv(f"{condition}MaskedBonferroniCorr.PacBio.tsv", index=False, sep="\t")
+    pd.DataFrame(masked_bonferroni_corr).to_csv(Path(out_dir, f"{condition}MaskedBonferroniCorr.PacBio.tsv"), index=False, sep="\t")
 
 masked_bonferroni_corrs[0]
 
@@ -2823,6 +2863,20 @@ def get_symmetric_mi_df(mi_df, positions):
 # pclo_masked_symmetric_mi_df.to_csv("PCLOMaskedMI.PacBio.tsv", index=False, sep="\t")
 
 # pclo_masked_symmetric_mi_df
+
+# %%
+for condition, mi_df, reads_w_nan_df in zip(conditions, mi_dfs, reads_w_nan_dfs):
+    symmetric_mi_df = get_symmetric_mi_df(
+        mi_df=mi_df, positions=reads_w_nan_df.iloc[:, reads_first_col_pos:].columns
+    )
+    
+    symmetric_mi_matrix = symmetric_mi_df.values
+    mask = np.triu(np.ones_like(symmetric_mi_matrix, dtype=bool))
+    masked_symmetric_mi_matrix = np.ma.masked_array(symmetric_mi_matrix, mask=mask, fill_value=np.nan).filled()
+
+    masked_symmetric_mi_df = pd.DataFrame(masked_symmetric_mi_matrix)
+
+    masked_symmetric_mi_df.to_csv(Path(out_dir, f"{condition}MaskedMI.PacBio.tsv"), index=False, sep="\t")
 
 # %%
 # sns.choose_cubehelix_palette(as_cmap=True)
@@ -9037,7 +9091,10 @@ def drop_uniformative_aa_cols(df):
     # value_counts = df.apply(pd.unique)
     # informative_cols = value_counts.loc[value_counts.apply(lambda x: 0 in x and 1 in x)].index
 
-    cols_editing_frequency = df.applymap(
+    # cols_editing_frequency = df.applymap(
+    #     lambda x: x if x in [0.0, 1.0] else np.nan
+    # ).apply(np.mean)
+    cols_editing_frequency = df.map(
         lambda x: x if x in [0.0, 1.0] else np.nan
     ).apply(np.mean)
     informative_cols = cols_editing_frequency.loc[cols_editing_frequency > 0].index
@@ -9062,8 +9119,8 @@ def prepare_ml_input_df_new(
     cols_to_use_from_assignment_df = [
         condition_col,
         "Protein",
-        "#Solution",
-        "Algorithm",
+        # "#Solution",
+        # "Algorithm",
         relative_expression_sorting_col,
     ]
     cols_to_use_from_unique_proteins_df = [
@@ -9399,6 +9456,18 @@ n_jobs = 40
 # ##### Clustering: kmeans
 
 # %%
+weighted_exp_tsne_input_dfs = [
+    prepare_ml_input_df_new(
+        assignment_df,
+        unique_proteins_df,
+        unique_proteins_first_col_pos,
+    )
+    for assignment_df, unique_proteins_df in zip(max_expression_dfs, unique_proteins_dfs)
+]
+
+weighted_exp_tsne_input_dfs[0]
+
+# %%
 X = weighted_exp_tsne_input_dfs[0].iloc[:, ML_INPUT_FIRST_COL_POS_NEW:].values
 X
 
@@ -9512,11 +9581,74 @@ fig.update_layout(
     height=350,
 )
 
-fig.write_image(
-    "Mean silhouette score of MiniBatchKMeans vs. K size - PacBio.svg",
+# fig.write_image(
+#     "Mean silhouette score of MiniBatchKMeans vs. K size - PacBio.svg",
+#     width=600,
+#     height=350,
+# )
+
+fig.show()
+
+# %%
+# a df with the cluster size and mean silhouette score for each condition
+conditions_kmeans_silhouette_scores_df = pd.concat([
+    pd.DataFrame(
+        {
+            condition_col: condition,
+            "ClusterSize": cluster_sizes,
+            "MeanSilhouetteScore": silhouette_scores,
+        }
+    ) 
+    for condition, silhouette_scores in zip(
+        conditions, conditions_kmeans_silhouette_scores
+    )
+], ignore_index=True)
+conditions_kmeans_silhouette_scores_df
+
+# %%
+conditions_kmeans_silhouette_scores_df.insert(0, "Platform", "Long-reads")
+
+conditions_kmeans_silhouette_scores_df.to_csv(
+    "/private7/projects/Combinatorics/Code/Notebooks/KMeansMeanSilhouetteScores.PacBio.WithUMIs.tsv",
+    sep="\t",
+    index=False,
+)
+
+# %%
+
+# %%
+fig = px.scatter(
+    conditions_kmeans_silhouette_scores_df,
+    x="ClusterSize",
+    y="MeanSilhouetteScore",
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    opacity=0.7,
+    labels={
+        # "ClusterSize": "Number of clusters (k)",
+        # "MeanSilhouetteScore": "Mean silhouette score<br>of MiniBatchKMeans"
+        "ClusterSize": "Number of MiniBatchKMeans clusters (k)",
+        "MeanSilhouetteScore": "Mean silhouette score"
+    }
+)
+
+fig.update_yaxes(rangemode="tozero", tick0=0.0, dtick=0.01)
+
+fig.update_layout(
+    title_text="Long-reads",
+    title_x=0.15,
+    # title_y=0.95,
+    template=template,
+    # showlegend=False,
     width=600,
     height=350,
 )
+
+# fig.write_image(
+#     "Mean silhouette score of MiniBatchKMeans vs. K size - PacBio.svg",
+#     width=600,
+#     height=350,
+# )
 
 fig.show()
 

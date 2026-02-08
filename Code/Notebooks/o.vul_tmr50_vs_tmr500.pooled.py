@@ -42,6 +42,7 @@ import pandas as pd
 import plotly.colors as pc
 import plotly.express as px
 import plotly.graph_objects as go
+import plotly.io as pio
 
 from scipy import interpolate  # todo unimport this later?
 import scipy.stats
@@ -87,7 +88,7 @@ transcriptome_file = (
 )
 
 main_data_dir = Path(
-    "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/"
+    "/private6/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.PooledSamples"
 )
 
 positions_dir = Path(main_data_dir, "PositionsFiles")
@@ -121,6 +122,8 @@ samtools_path = "/home/alu/kobish/anaconda3/envs/combinatorics/bin/samtools"
 threads = 20
 seed = 1892
 sep = "\t"
+
+snp_noise_level = 0.05
 
 # %%
 samples_and_tissues_df = pd.read_csv(samples_and_tissues_file)
@@ -178,6 +181,54 @@ positions_data_df = pd.DataFrame(
 )
 
 positions_data_df
+
+# %%
+positions_files = list(positions_dir.glob("*.positions.csv.gz"))
+
+chroms_in_positions = [
+    positions_file.name.split(".")[0] for positions_file in positions_files
+]
+
+positions_data_df = pd.DataFrame(
+    {
+        "Chrom": chroms_in_positions,
+        "PositionsFile": positions_files,
+    }
+)
+
+positions_data_df
+
+# %%
+mismatches_files = list(positions_dir.glob("*.Mismatches.csv.gz"))
+
+chroms_in_mismatches_files = [
+    mismatches_file.name.split(".")[0] for mismatches_file in mismatches_files
+]
+
+mismatches_data_df = pd.DataFrame(
+    {
+        "Chrom": chroms_in_mismatches_files,
+        "PositionsFile": mismatches_files,
+    }
+)
+
+mismatches_data_df
+
+# %%
+noise_threshold_files = list(positions_dir.glob("*.NoiseThreshold.csv"))
+
+chroms_in_noise_threshold_files = [
+    noise_threshold_file.name.split(".")[0] for noise_threshold_file in noise_threshold_files
+]
+
+noise_threshold_files_df = pd.DataFrame(
+    {
+        "Chrom": chroms_in_noise_threshold_files,
+        "NoiseThresholdFile": noise_threshold_files,
+    }
+)
+
+noise_threshold_files_df
 
 # %%
 tmr50_alignment_stats_df.loc[
@@ -288,11 +339,14 @@ data_df = (
     # orfs_df.merge(alignment_stats_df, on="Chrom", how="left")
     orfs_df.merge(tmr50_alignment_stats_df, on="Chrom", how="right")
     .merge(positions_data_df, on="Chrom", how="left")
-    .merge(reads_data_df, on="Chrom", how="left")
-    .merge(proteins_data_df, on="Chrom", how="left")
+    # .merge(reads_data_df, on="Chrom", how="left") # TODO uncomment later
+    # .merge(proteins_data_df, on="Chrom", how="left") # TODO uncomment later
 )
 # data_df = data_df.loc[data_df["Chrom"].isin(tmr50_alignment_stats_df["Chrom"])].reset_index(drop=True)
 data_df
+
+# %%
+data_df.loc[data_df["PositionsFile"].notna()].reset_index(drop=True)
 
 # %%
 possibly_na_conditions = data_df["Name"].tolist()
@@ -302,11 +356,12 @@ possibly_na_ends = data_df["End"].tolist()
 possibly_na_strands = data_df["Strand"].tolist()
 
 possibly_na_positions_files = data_df["PositionsFile"].tolist()
-possibly_na_reads_files = data_df["ReadsFile"].tolist()
-possibly_na_unique_reads_files = data_df["UniqueReadsFile"].tolist()
-possibly_na_proteins_files = data_df["ProteinsFile"].tolist()
-possibly_na_unique_proteins_files = data_df["UniqueProteinsFile"].tolist()
-possibly_na_distinct_unique_proteins_files = data_df["DistinctProteinsFile"].tolist()
+# possibly_na_reads_files = data_df["ReadsFile"].tolist()  # TODO uncomment later
+# possibly_na_unique_reads_files = data_df["UniqueReadsFile"].tolist()  # TODO uncomment later
+# possibly_na_proteins_files = data_df["ProteinsFile"].tolist()  # TODO uncomment later
+# possibly_na_unique_proteins_files = data_df["UniqueProteinsFile"].tolist()  # TODO uncomment later
+# possibly_na_distinct_unique_proteins_files = data_df["DistinctProteinsFile"].tolist()  # TODO uncomment later
+
 # expression_files = complete_data_df["ExpressionFile"].tolist()
 
 # %%
@@ -316,7 +371,9 @@ possibly_na_distinct_unique_proteins_files = data_df["DistinctProteinsFile"].tol
 # ), "some distinct proteins don't have expression levels"
 
 # %%
-complete_data_df = data_df.loc[data_df["ExpressionFile"].notna()].reset_index(drop=True)
+# TODO choose the most downstream file that is needed to filter by
+# complete_data_df = data_df.loc[data_df["ExpressionFile"].notna()].reset_index(drop=True)
+complete_data_df = data_df.loc[data_df["PositionsFile"].notna()].reset_index(drop=True)
 # complete_data_df = data_df.loc[data_df["DistinctProteinsFile"].notna()].reset_index(
 #     drop=True
 # )
@@ -350,18 +407,18 @@ ends = complete_data_df["End"].tolist()
 strands = complete_data_df["Strand"].tolist()
 
 positions_files = complete_data_df["PositionsFile"].tolist()
-reads_files = complete_data_df["ReadsFile"].tolist()
-unique_reads_files = complete_data_df["UniqueReadsFile"].tolist()
-proteins_files = complete_data_df["ProteinsFile"].tolist()
-unique_proteins_files = complete_data_df["UniqueProteinsFile"].tolist()
-distinct_unique_proteins_files = complete_data_df["DistinctProteinsFile"].tolist()
-expression_files = complete_data_df["ExpressionFile"].tolist()
+# reads_files = complete_data_df["ReadsFile"].tolist()  # TODO uncomment later
+# unique_reads_files = complete_data_df["UniqueReadsFile"].tolist()  # TODO uncomment later
+# proteins_files = complete_data_df["ProteinsFile"].tolist()  # TODO uncomment later
+# unique_proteins_files = complete_data_df["UniqueProteinsFile"].tolist()  # TODO uncomment later
+# distinct_unique_proteins_files = complete_data_df["DistinctProteinsFile"].tolist()  # TODO uncomment later
+# expression_files = complete_data_df["ExpressionFile"].tolist()  # TODO uncomment later
 
 # %%
-len(data_df["UniqueReadsFile"])
+# len(data_df["UniqueReadsFile"])
 
 # %%
-len(complete_data_df["UniqueReadsFile"])
+# len(complete_data_df["UniqueReadsFile"])
 
 # %%
 100 * len(chroms) / len(possibly_na_chroms)
@@ -641,6 +698,7 @@ tissues_subcolors_discrete_map = {
 # # }
 facet_col_spacing = 0.05
 template = "plotly_white"
+pio.templates.default = "plotly_white"
 facet_col_wrap = 6
 facet_row_spacing = facet_col_spacing * 6
 zerolinewidth = 4
@@ -2625,7 +2683,7 @@ raise Exception("Stop notebook execution here")
 # %%
 (
     concat_all_positions_df.loc[
-        (concat_all_positions_df["Noise"] <= 0.1)
+        (concat_all_positions_df["Noise"] <= snp_noise_level)
         & (concat_all_positions_df["NoisyFinal"]),
     ]
     .groupby("Chrom")
@@ -2660,7 +2718,7 @@ all_per_chrom_mean_noise_levels = (
     concat_all_positions_df
     # .groupby(["Transcript", "Chrom"])
     .groupby("Chrom")
-    .apply(mean_noise_levels)
+    .apply(mean_noise_levels, 3, snp_noise_level, include_groups=False)
     .reset_index()
     .rename(columns={0: "Noise"})
     .merge(tmr50_alignment_stats_df.loc[:, ["Chrom"]], on="Chrom", how="right")
@@ -2673,18 +2731,21 @@ all_per_chrom_mean_noise_levels["%Noise"] = (
 all_per_chrom_mean_noise_levels
 
 # %%
-saved_per_chrom_mean_noise_levels_df = all_per_chrom_mean_noise_levels.merge(
-    orfs_df[["Chrom", "Name"]], how="left"
-)
-saved_per_chrom_mean_noise_levels_df.insert(
-    1, "Gene", saved_per_chrom_mean_noise_levels_df["Name"]
-)
-del saved_per_chrom_mean_noise_levels_df["Name"]
-saved_per_chrom_mean_noise_levels_df.insert(
-    0, "Platform", "Whole-transcriptome octopus data"
-)
-saved_per_chrom_mean_noise_levels_df.to_csv("Noise.Octopus.tsv", sep="\t", index=False)
-saved_per_chrom_mean_noise_levels_df
+all_per_chrom_mean_noise_levels["Noise"].describe()
+
+# %%
+# saved_per_chrom_mean_noise_levels_df = all_per_chrom_mean_noise_levels.merge(
+#     orfs_df[["Chrom", "Name"]], how="left"
+# )
+# saved_per_chrom_mean_noise_levels_df.insert(
+#     1, "Gene", saved_per_chrom_mean_noise_levels_df["Name"]
+# )
+# del saved_per_chrom_mean_noise_levels_df["Name"]
+# saved_per_chrom_mean_noise_levels_df.insert(
+#     0, "Platform", "Whole-transcriptome octopus data"
+# )
+# # saved_per_chrom_mean_noise_levels_df.to_csv("Noise.Octopus.tsv", sep="\t", index=False)
+# saved_per_chrom_mean_noise_levels_df
 
 # %%
 # per_chrom_mean_noise_levels["%Noise"].describe()
@@ -2929,12 +2990,32 @@ mismatches_df.insert(
 mismatches_df
 
 # %%
+concat_all_positions_df.shape
+
+# %%
+noise_threshold_df = pd.concat(
+    [
+        pd.read_csv(
+            noise_threshold_file, 
+            sep="\t",
+            names=["Chrom", "NoiseThreshold"]
+        )
+        for noise_threshold_file in noise_threshold_files_df["NoiseThresholdFile"].values
+    ],
+    ignore_index=True
+)
+noise_threshold_df
+
+# %%
 true_a2g_mismatches = mismatches_df.loc[
     (mismatches_df["EditedFinal"])
     & (mismatches_df["Mismatch"] == "A>G")
     & (mismatches_df["Chrom"].isin(chroms))
 ]
 true_a2g_mismatches
+
+# %%
+true_a2g_mismatches.groupby("Chrom").size().describe().round(2)
 
 # %%
 wrong_a2g_mismatches = mismatches_df.loc[
@@ -2969,6 +3050,336 @@ significant_mismatches_df = mismatches_df.loc[
 significant_mismatches_df
 
 # %%
+significant_mismatches_above_editing_threshold_df = significant_mismatches_df.merge(
+    noise_threshold_df,
+    on="Chrom",
+    how="left"
+)
+significant_mismatches_above_editing_threshold_df = significant_mismatches_above_editing_threshold_df.loc[
+    significant_mismatches_above_editing_threshold_df["MismatchFrequency"].ge(
+        significant_mismatches_above_editing_threshold_df["NoiseThreshold"]
+    )
+].reset_index(drop=True)
+
+significant_mismatches_above_editing_threshold_df
+
+# %%
+mismatches_df.loc[
+    (mismatches_df["Chrom"].isin(chroms))
+    & ((mismatches_df["EditedFinal"]))
+].groupby("Chrom").size().describe().round(2)
+
+# %%
+mismatches_df.loc[
+    (mismatches_df["Chrom"].isin(chroms))
+    & ((mismatches_df["NoisyFinal"]))
+].groupby("Chrom").size().describe().round(2)
+
+# %%
+mismatches_df
+
+# %%
+snps_per_gene_df = mismatches_df.loc[
+    (mismatches_df["Chrom"].isin(chroms))
+    & (mismatches_df["NoisyFinal"])
+    & (mismatches_df["MismatchFrequency"] >= snp_noise_level)
+].groupby("Chrom").size().reset_index(name="SNPs")
+snps_per_gene_df
+
+# %%
+editing_sites_per_gene_df = mismatches_df.loc[
+    (mismatches_df["Chrom"].isin(chroms))
+    & (mismatches_df["EditedFinal"])
+].groupby("Chrom").size().reset_index(name="EditingSites")
+editing_sites_per_gene_df
+
+# %%
+alignment_stats_df.loc[
+    alignment_stats_df["MappedReads"].ge(50)
+]
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+editing_sites_and_snps_and_coverage_per_edited_gene_df = (
+    editing_sites_per_gene_df
+    .merge(
+        snps_per_gene_df,
+        # how="outer"
+        how="left"
+    )
+    .fillna(0)
+    .merge(
+        alignment_stats_df.loc[:, ["Chrom", "MappedReads", "MappedReadsPerSample"]],
+        how="left",
+    )
+    .sort_values("SNPs", ignore_index=True)
+)
+editing_sites_and_snps_and_coverage_per_edited_gene_df["SNPs"] = editing_sites_and_snps_and_coverage_per_edited_gene_df["SNPs"].astype(int)
+editing_sites_and_snps_and_coverage_per_edited_gene_df
+
+# %%
+editing_sites_and_snps_and_coverage_per_edited_gene_df.loc[
+    editing_sites_and_snps_and_coverage_per_edited_gene_df["SNPs"] > 3,
+    "Chrom"
+].sample(5).values
+
+# %%
+editing_sites_and_snps_and_coverage_per_edited_gene_df.loc[
+    editing_sites_and_snps_and_coverage_per_edited_gene_df["SNPs"] <= 3,
+    "Chrom"
+].sample(5).values
+
+# %%
+
+# %%
+editing_sites_and_snps_and_coverage_per_edited_gene_df.loc[
+    editing_sites_and_snps_and_coverage_per_edited_gene_df["SNPs"].le(10),
+    "SNPs"
+].value_counts().sort_index().cumsum()
+
+# %%
+fig = px.histogram(
+    editing_sites_and_snps_and_coverage_per_edited_gene_df,
+    x="SNPs",
+    # log_y=True,
+    # histnorm="percent",
+    cumulative=True,
+)
+fig.update_xaxes(dtick=25)
+fig.update_layout(width=600, height=450)
+fig.show()
+
+# %%
+fig = px.histogram(
+    # noise_sites_per_gene,
+    editing_sites_and_snps_and_coverage_per_edited_gene_df.loc[
+        editing_sites_and_snps_and_coverage_per_edited_gene_df["SNPs"].le(10)
+    ],
+    x="SNPs",
+    # log_y=True
+    cumulative=True,
+)
+fig.update_xaxes(dtick=1)
+# fig.update_yaxes(dtick=500, range=[0, 2500])
+fig.update_layout(width=600, height=450)
+fig.show()
+
+# %%
+50 / 271
+
+# %%
+min_mapped = 1000
+editing_sites_and_snps_and_coverage_per_edited_gene_df.loc[
+    (editing_sites_and_snps_and_coverage_per_edited_gene_df["SNPs"].le(3))
+    & (editing_sites_and_snps_and_coverage_per_edited_gene_df["MappedReads"].ge(min_mapped)),
+    ["SNPs"]
+].value_counts().reset_index(name=f"GenesWith{min_mapped}+MappedReads").sort_values("SNPs", ignore_index=True)
+
+# %%
+min_mapped = 800
+editing_sites_and_snps_and_coverage_per_edited_gene_df.loc[
+    (editing_sites_and_snps_and_coverage_per_edited_gene_df["SNPs"].le(3))
+    & (editing_sites_and_snps_and_coverage_per_edited_gene_df["MappedReads"].ge(min_mapped)),
+    ["SNPs"]
+].value_counts().reset_index(name=f"GenesWith{min_mapped}+MappedReads").sort_values("SNPs", ignore_index=True)
+
+# %%
+(14+29+26) / 278
+
+# %%
+fig = px.histogram(
+    # noise_sites_per_gene,
+    editing_sites_and_snps_and_coverage_per_edited_gene_df.loc[
+        editing_sites_and_snps_and_coverage_per_edited_gene_df["SNPs"].le(3)
+    ],
+    x="MappedReads",
+    facet_col="SNPs",
+    facet_col_spacing=0.06,
+    nbins=20,
+    # facet
+    # log_y=True
+    # cumulative=True,
+)
+fig.update_xaxes(tickangle=45, dtick=1000)
+fig.update_layout(width=1200, height=450)
+fig.show()
+
+# %%
+fig = px.histogram(
+    # noise_sites_per_gene,
+    editing_sites_and_snps_and_coverage_per_edited_gene_df.loc[
+        # editing_sites_and_snps_and_coverage_per_edited_gene_df["SNPs"].le(10)
+        editing_sites_and_snps_and_coverage_per_edited_gene_df["SNPs"].le(19)
+    ],
+    x="EditingSites",
+    facet_col="SNPs",
+    facet_col_spacing=0.06,
+    facet_col_wrap=10,
+    facet_row_spacing=0.12,
+    nbins=20,
+    # facet
+    # log_y=True
+    cumulative=True,
+)
+# fig.update_xaxes(tickangle=45, dtick=25)
+fig.update_layout(width=1400, height=600)
+fig.show()
+
+# %%
+editing_sites_and_snps_and_coverage_per_edited_gene_df.loc[
+    editing_sites_and_snps_and_coverage_per_edited_gene_df["SNPs"].le(10)
+].groupby(
+    "SNPs"
+).agg(
+    # MeanMappedReads=("MappedReads", "mean"),
+    # STDMappedReads=("MappedReads", "std"),
+    MeanEditingSites=("EditingSites", "mean"),
+    STDEditingSites=("EditingSites", "std"),
+    SumEditingSites=("EditingSites", "sum"),
+).round(2).reset_index()
+
+# %%
+fig = px.box(
+    editing_sites_and_snps_and_coverage_per_edited_gene_df.loc[
+        editing_sites_and_snps_and_coverage_per_edited_gene_df["SNPs"].le(10)
+    ],
+    x="SNPs",
+    y="EditingSites",
+    # facet_col="SNPs",
+    # facet_col_spacing=0.06,
+    # facet_col_wrap=10,
+    # facet_row_spacing=0.12,
+    # nbins=20,
+    # # facet
+    log_y=True,
+    # cumulative=True,
+)
+# fig.update_xaxes(tickangle=45, dtick=25)
+fig.update_layout(width=800, height=450)
+fig.show()
+
+# %%
+fig = px.scatter(
+    editing_sites_and_snps_and_coverage_per_edited_gene_df.loc[
+        # editing_sites_and_snps_and_coverage_per_edited_gene_df["SNPs"].le(10)
+        :
+    ].groupby(
+        "SNPs"
+    ).agg(
+        # MeanMappedReads=("MappedReads", "mean"),
+        # STDMappedReads=("MappedReads", "std"),
+        MeanEditingSites=("EditingSites", "mean"),
+        STDEditingSites=("EditingSites", "std"),
+        SumEditingSites=("EditingSites", "sum"),
+    ).round(2).reset_index(),
+    x="SNPs",
+    y="MeanEditingSites",
+    error_y="STDEditingSites",
+    # markers=True
+)
+fig.update_xaxes(dtick=50)
+fig.update_yaxes(dtick=50)
+fig.update_layout(width=650, height=400)
+# fig.update_layout(width=1000, height=600)
+fig.show()
+
+# %%
+fig = px.scatter(
+    editing_sites_and_snps_and_coverage_per_edited_gene_df,
+    x="SNPs",
+    y="EditingSites",
+    # error_y="STDEditingSites",
+    trendline="ols",
+    trendline_color_override="black"
+)
+fig.update_xaxes(dtick=50)
+fig.update_yaxes(dtick=50)
+fig.update_layout(width=650, height=400)
+fig.show()
+
+# %%
+fig = px.scatter(
+    editing_sites_and_snps_and_coverage_per_edited_gene_df.loc[
+        editing_sites_and_snps_and_coverage_per_edited_gene_df["SNPs"].le(10)
+        # :
+    ],
+    x="SNPs",
+    y="EditingSites",
+    # error_y="STDEditingSites",
+    trendline="ols",
+    trendline_color_override="black"
+)
+fig.update_xaxes(dtick=1)
+fig.update_yaxes(dtick=50)
+fig.update_layout(width=650, height=400)
+fig.show()
+
+# %%
+fig = px.line(
+    editing_sites_and_snps_and_coverage_per_edited_gene_df.loc[
+        editing_sites_and_snps_and_coverage_per_edited_gene_df["SNPs"].le(10)
+        # :
+    ].groupby(
+        "SNPs"
+    ).agg(
+        # MeanMappedReads=("MappedReads", "mean"),
+        # STDMappedReads=("MappedReads", "std"),
+        MeanEditingSites=("EditingSites", "mean"),
+        STDEditingSites=("EditingSites", "std"),
+        SumEditingSites=("EditingSites", "sum"),
+    ).round(2).reset_index(),
+    x="SNPs",
+    y="MeanEditingSites",
+    error_y="STDEditingSites",
+    markers=True
+    # ols
+)
+fig.update_xaxes(dtick=1)
+fig.update_yaxes(dtick=5)
+fig.update_layout(width=800, height=500)
+fig.show()
+
+# %%
+
+# %%
+
+# %%
+significant_mismatches_above_editing_threshold_df.loc[
+    (significant_mismatches_above_editing_threshold_df["Chrom"].isin(chroms))
+    & ((significant_mismatches_above_editing_threshold_df["EditedFinal"]))
+].groupby("Chrom").size().describe().round(2)
+
+# %%
+significant_mismatches_above_editing_threshold_df.loc[
+    (significant_mismatches_above_editing_threshold_df["Chrom"].isin(chroms))
+    & ((significant_mismatches_above_editing_threshold_df["NoisyFinal"]))
+].groupby("Chrom").size().describe().round(2)
+
+# %%
+51_448 + 49_704
+
+# %%
+mismatches_df.loc[
+    (mismatches_df["Chrom"].isin(chroms))
+    & (mismatches_df["EditedFinal"])
+]
+
+# %%
+mismatches_df.loc[
+    (mismatches_df["Chrom"].isin(chroms))
+    & (mismatches_df["NoisyFinal"])
+]
+
+# %%
+
+# %%
 significant_mismatches_df.loc[
     (significant_mismatches_df["EditingFrequency"] == 1)
     | (significant_mismatches_df["Noise"] == 1)
@@ -2996,9 +3407,128 @@ fig = px.histogram(
     # facet_col_wrap=4,
     # log_y=True,
     template=template,
-    title="Number of significant mismatches in transcripts with pooled noise level < 6%",
+    title="Number of significant sites in transcripts<br>with pooled noise level < 6%",
 )
 
+# Reduce opacity to see both histograms
+# fig.update_traces(opacity=0.75)
+fig.update_layout(
+    width=600,
+    height=500,
+    showlegend=False
+    # barmode='overlay' # Overlay both histograms
+)
+
+fig.show()
+
+# %%
+fig = px.histogram(
+    significant_mismatches_df.loc[
+        significant_mismatches_df["MismatchFrequency"].ge(0.05)
+    ],
+    x="Mismatch",
+    # x="MismatchFrequency",
+    # facet_col="EditedFinal",
+    color="Mismatch",
+    color_discrete_map=mismatch_dolor_map,
+    # facet_col_wrap=4,
+    # log_y=True,
+    template=template,
+    title="Number of significant sites with mismatch frequency ≥ 5%<br>in transcripts with pooled noise level < 6%",
+)
+
+# Reduce opacity to see both histograms
+# fig.update_traces(opacity=0.75)
+fig.update_layout(
+    width=600,
+    height=500,
+    showlegend=False
+    # barmode='overlay' # Overlay both histograms
+)
+
+fig.show()
+
+# %%
+significant_mismatches_df.loc[
+            significant_mismatches_df["MismatchFrequency"].ge(0.05)
+        ].groupby("Chrom").size().reset_index(name="NumSitesInGene")
+
+# %%
+# Per gene: (A>G sites / all sites in gene) divided by (top other mismatch sites / all sites in gene)
+# == A>G_count / top_other_mismatch_count (also returns the underlying fractions)
+
+per_gene_mismatch_ratio_df = (
+    significant_mismatches_above_editing_threshold_df.loc[
+        :, 
+        ["Chrom", "Mismatch"]
+    ]
+    .value_counts()
+    .reset_index(name="NumSites")
+    .merge(
+        significant_mismatches_above_editing_threshold_df.groupby("Chrom").size().reset_index(name="NumSitesInGene"),
+        on="Chrom",
+        how="left",
+    )
+    .assign(FractionInGene=lambda x: x["NumSites"] / x["NumSitesInGene"])
+)
+
+a2g_per_gene_df = (
+    per_gene_mismatch_ratio_df.loc[per_gene_mismatch_ratio_df["Mismatch"] == "A>G", ["Chrom", "NumSites", "FractionInGene"]]
+    .rename(
+        columns={
+            "NumSites": "NumA2GSites",
+            "FractionInGene": "FracA2G",
+        }
+    )
+)
+
+top_other_per_gene_df = (
+    per_gene_mismatch_ratio_df.loc[per_gene_mismatch_ratio_df["Mismatch"] != "A>G", ["Chrom", "Mismatch", "NumSites", "FractionInGene"]]
+    .sort_values(["Chrom", "NumSites"], ascending=[True, False])
+    .drop_duplicates("Chrom", keep="first")
+    .rename(
+        columns={
+            "Mismatch": "TopOtherMismatch",
+            "NumSites": "NumTopOtherSites",
+            "FractionInGene": "FracTopOther",
+        }
+    )
+)
+
+per_gene_a2g_over_top_other_ratio_df = (
+    significant_mismatches_above_editing_threshold_df
+    .groupby("Chrom").size().reset_index(name="NumSitesInGene")
+    .merge(a2g_per_gene_df, on="Chrom", how="left")
+    .merge(top_other_per_gene_df, on="Chrom", how="left")
+    .fillna({"NumA2GSites": 0, "FracA2G": 0.0})
+    .assign(
+        A2G_over_TopOther_FracRatio=lambda x: x["FracA2G"] / x["FracTopOther"],
+        A2G_over_TopOther_CountRatio=lambda x: x["NumA2GSites"] / x["NumTopOtherSites"],
+        SNR=lambda x: x["NumA2GSites"] / (x["NumA2GSites"] + x["NumTopOtherSites"])
+    )
+    # .sort_values("A2G_over_TopOther_FracRatio", ascending=False, ignore_index=True)
+    .rename(columns={"SNR": "AG / (AG + top other)"})
+    .sort_values("AG / (AG + top other)", ascending=False, ignore_index=True)
+)
+
+per_gene_a2g_over_top_other_ratio_df
+
+# %%
+fig = px.histogram(
+    per_gene_a2g_over_top_other_ratio_df,
+    x="AG / (AG + top other)",
+    # x="MismatchFrequency",
+    # facet_col="EditedFinal",
+    # color="Mismatch",
+    # color_discrete_map=mismatch_dolor_map,
+    # facet_col_wrap=4,
+    # log_y=True,
+    # template=template,
+    # title="Number of significant sites with mismatch frequency ≥ 5%<br>in transcripts with pooled noise level < 6%",
+    cumulative=True,
+    nbins=20
+)
+fig.update_xaxes(dtick=0.05)
 # Reduce opacity to see both histograms
 # fig.update_traces(opacity=0.75)
 fig.update_layout(
@@ -3074,6 +3604,584 @@ fig.update_layout(
 
 fig.show()
 
+# %%
+
+# %%
+
+# %% [markdown]
+# ### Genes enriched with SNPs
+
+# %%
+at_least_x_snps_per_gene_options = [6, 8, 10]
+at_least_x_mapped_reads_per_gene_options = [200, 600, 1000]
+
+# take SNPs with frequency between 20% and 80%
+enriched_snps_df = mismatches_df.loc[
+    (mismatches_df["Chrom"].isin(chroms))
+    & (mismatches_df["NoisyFinal"])
+    & (mismatches_df["MismatchFrequency"].ge(0.2))
+    & (mismatches_df["MismatchFrequency"].le(0.8)),
+]
+
+# # annotate at least x SNPs in gene
+# for at_least_x_snps in at_least_x_snps_per_gene_options:
+#     snps_per_gene_flag_df = (
+#         enriched_snps_df
+#         .groupby("Chrom")
+#         .size()
+#         .reset_index(name="NumSNPsInGene")
+#         .assign(**{f"AtLeast{at_least_x_snps}SNPsInGene": lambda x: x["NumSNPsInGene"] >= at_least_x_snps})
+#         .loc[:, ["Chrom", f"AtLeast{at_least_x_snps}SNPsInGene"]]
+#     )
+#     enriched_snps_df = enriched_snps_df.merge(
+#         snps_per_gene_flag_df,
+#         on="Chrom",
+#         how="left",
+    # )
+    
+# # annotate num of SNPs per gene
+# enriched_snps_df = enriched_snps_df.merge(
+#     enriched_snps_df.groupby("Chrom").size().reset_index(name="SNPsPerGene"),
+#     on="Chrom",
+#     how="left",
+# )
+
+# annotate at least x mapped reads in gene
+for at_least_x_mapped_reads in at_least_x_mapped_reads_per_gene_options:
+    mapped_reads_per_gene_flag_df = (
+        alignment_stats_df.loc[:, ["Chrom", "MappedReads"]]
+        .assign(**{f"AtLeast{at_least_x_mapped_reads}MappedReadsPerGene": lambda x: x["MappedReads"] >= at_least_x_mapped_reads})
+        .loc[:, ["Chrom", f"AtLeast{at_least_x_mapped_reads}MappedReadsPerGene"]]
+    )
+    enriched_snps_df = enriched_snps_df.merge(
+        mapped_reads_per_gene_flag_df,
+        on="Chrom",
+        how="left",
+    )
+
+enriched_snps_df
+
+# %%
+enriched_snps_df["Chrom"].value_counts().describe().round(2)
+
+# %%
+enriched_snps_df.drop_duplicates("Chrom")["SNPsPerGene"].describe().round(2)
+
+# %%
+fig = px.histogram(
+    enriched_snps_df.drop_duplicates("Chrom"),
+    x="SNPsPerGene",
+    # facet_col="Mismatch",
+    # nbins=30,
+    # log_y=True,
+    # template=template,
+    # title="Mismatch frequency distribution of enriched SNPs<br>in transcripts with pooled noise level < 6%",
+)
+fig.update_layout(width=600, height=400, showlegend=False)
+fig.show()
+
+# %%
+alignment_stats_df.loc[
+    alignment_stats_df["MappedReads"].ge(200), 
+    ["Chrom", "MappedReads",]
+]
+
+
+# %%
+def find_highest_val_x_is_ge(x, vals):
+    for val in sorted(vals, reverse=True):
+        if x >= val:
+            return val
+    return np.nan
+
+def find_lowest_val_x_is_le(x, vals):
+    for val in sorted(vals):
+        if x <= val:
+            return val
+    return np.nan
+
+
+# %%
+# sorted([16, 18, 20], reverse=True)
+
+# %%
+at_least_x_snps_per_gene_options = [6, 8, 10]
+at_most_x_snps_per_gene_options = [16, 18, 20]
+
+# %%
+find_highest_val_x_is_ge(9, at_least_x_snps_per_gene_options)
+
+# %%
+enriched_snps_per_gene_df = (
+    enriched_snps_df.groupby("Chrom").size().reset_index(name="SNPs")
+    .merge(
+        alignment_stats_df.loc[:, ["Chrom", "MappedReads"]],
+        on="Chrom",
+        how="inner",
+    )
+)
+
+at_least_x_snps_per_gene_options = [6, 8, 10]
+at_most_x_snps_per_gene_options = [16, 18, 20]
+at_least_x_mapped_reads_per_gene_options = [200, 600, 1000]
+
+enriched_snps_per_gene_df["AtLeastXSNPs"] = enriched_snps_per_gene_df["SNPs"].apply(
+    lambda x: find_highest_val_x_is_ge(x, at_least_x_snps_per_gene_options)
+)
+enriched_snps_per_gene_df["AtMostXSNPs"] = enriched_snps_per_gene_df["SNPs"].apply(
+    lambda x: find_lowest_val_x_is_le(x, at_most_x_snps_per_gene_options)
+)
+enriched_snps_per_gene_df["AtLeastXMappedReads"] = enriched_snps_per_gene_df["MappedReads"].apply(
+    lambda x: find_highest_val_x_is_ge(x, at_least_x_mapped_reads_per_gene_options)
+)
+
+enriched_snps_per_gene_df = enriched_snps_per_gene_df.loc[
+    (enriched_snps_per_gene_df["AtLeastXSNPs"].eq(min(at_least_x_snps_per_gene_options)))
+    & (enriched_snps_per_gene_df["AtLeastXMappedReads"].eq(min(at_least_x_mapped_reads_per_gene_options)))
+]
+
+enriched_snps_per_gene_df
+
+# %%
+enriched_snps_per_gene_df["SNPs"].value_counts()
+
+# %%
+enriched_snps_per_gene_df["AtLeastXSNPs"].value_counts()
+
+# %%
+enriched_snps_per_gene_df["AtLeastXMappedReads"].value_counts()
+
+# %%
+enriched_snps_per_gene_df["MappedReads"].describe().round(2)
+
+# %%
+fig = px.histogram(
+    enriched_snps_per_gene_df,
+    x="MappedReads",
+    # y="SNPs",
+    # facet_col="Mismatch",
+    # nbins=30,
+    # log_y=True,
+    # template=template,
+    # title="Mismatch frequency distribution of enriched SNPs<br>in transcripts with pooled noise level < 6%",
+)
+fig.update_layout(width=600, height=400, showlegend=False)
+fig.show()
+
+# %%
+fig = px.histogram(
+    enriched_snps_per_gene_df,
+    # x="MappedReads",
+    x="SNPs",
+    # facet_col="Mismatch",
+    # nbins=30,
+    # log_y=True,
+    # template=template,
+    # title="Mismatch frequency distribution of enriched SNPs<br>in transcripts with pooled noise level < 6%",
+)
+fig.update_layout(width=600, height=400, showlegend=False)
+fig.show()
+
+# %%
+enriched_snps_df
+
+# %%
+enriched_snps_per_gene_df
+
+# %%
+enriched_snps_df.merge(
+    enriched_snps_per_gene_df.loc[:, ["Chrom"]],
+    on="Chrom",
+    how="inner"
+)
+
+# %%
+enriched_snps_df.merge(
+    enriched_snps_per_gene_df.loc[:, ["Chrom"]],
+    on="Chrom",
+    how="inner"
+).groupby("Chrom")["MismatchFrequency"].agg(["mean", "std"])
+
+# %%
+fig = px.histogram(
+    enriched_snps_df.merge(
+        enriched_snps_per_gene_df.loc[:, ["Chrom"]],
+        on="Chrom",
+        how="inner"
+    ),
+    # x="MappedReads",
+    x="MismatchFrequency",
+    facet_col="Chrom",
+    facet_col_wrap=10,
+    # nbins=30,
+    # log_y=True,
+    # template=template,
+    # title="Mismatch frequency distribution of enriched SNPs<br>in transcripts with pooled noise level < 6%",
+)
+fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+fig.update_layout(
+    width=1800, 
+    height=1000, 
+    # showlegend=False
+)
+fig.show()
+
+# %%
+
+# %%
+
+# %% [markdown]
+# ### Total mismatches
+
+# %%
+mismatches_dfs = []
+for mismatches_file in mismatches_files:
+    if Path(mismatches_file).exists():
+        mismatches_df = pd.read_csv(mismatches_file, sep="\t")
+        mismatches_dfs.append(mismatches_df)
+mismatches_df = pd.concat(
+    mismatches_dfs,
+    ignore_index=True
+)
+del mismatches_dfs
+
+mismatches_df
+
+# %%
+concat_edited_positions_df = concat_all_positions_df.loc[
+    concat_all_positions_df["EditedFinal"]
+]
+# concat_edited_positions_df.loc[:, ["Chrom"]]
+
+# %%
+# avg editing positions per transcript, considering transcripts whose pooled noise levels is < 6%
+num_edited_positions_per_chrom_df = (
+    concat_all_positions_df.loc[
+        (concat_all_positions_df["EditedFinal"])
+        # & (concat_all_positions_df["Chrom"].isin(chroms))
+    ]
+    .groupby("Chrom")
+    .size()
+    .reset_index(name="NumOfEditingSites")
+)
+num_edited_positions_per_chrom_df
+
+# %%
+alignment_stats_df
+
+# %%
+# Build two summary dfs from mismatches_df:
+# 1) AG vs all other mismatches combined
+# 2) AG vs the highest-count other mismatch (per Chrom)
+
+# -- if "mismatches_df" not in globals():
+# --     raise NameError("mismatches_df is not defined. Run the cell that creates mismatches_df first.")
+
+req_cols = {"Chrom", "Mismatch", "Count"}
+missing = req_cols - set(mismatches_df.columns)
+if missing:
+    raise ValueError(f"mismatches_df is missing required columns: {sorted(missing)}")
+
+mm = mismatches_df.copy()
+mm["Count"] = pd.to_numeric(mm["Count"], errors="coerce").fillna(0).astype(int)
+
+# --- 1) AG vs all others together ---
+ag_vs_all_others_df = (
+    mm.assign(IsAG=mm["Mismatch"].eq("AG"))
+      .groupby(["Chrom", "IsAG"], as_index=False)["Count"].sum()
+      .pivot(index="Chrom", columns="IsAG", values="Count")
+      .rename(columns={True: "AG", False: "AllOthers"})
+      .fillna(0)
+      .astype(int)
+      .reset_index()
+)
+ag_vs_all_others_df["Total"] = ag_vs_all_others_df["AG"] + ag_vs_all_others_df["AllOthers"]
+ag_vs_all_others_df["AG_Frac"] = np.where(
+    ag_vs_all_others_df["Total"] > 0,
+    ag_vs_all_others_df["AG"] / ag_vs_all_others_df["Total"],
+    np.nan,
+)
+
+ag_vs_all_others_df = ag_vs_all_others_df.merge(
+    per_transcript_editing_index_df,
+    how="outer",
+    on="Chrom",
+)
+
+ag_vs_all_others_df = ag_vs_all_others_df.merge(
+    num_edited_positions_per_chrom_df,
+    how="outer",
+    on="Chrom",
+)
+ag_vs_all_others_df["NumOfEditingSites"] = ag_vs_all_others_df["NumOfEditingSites"].fillna(0).astype(int)
+
+ag_vs_all_others_df = ag_vs_all_others_df.merge(
+    alignment_stats_df.loc[:, ["Chrom", "MappedReads", "MappedReadsPerSample"]],
+    how="left",
+    on="Chrom",
+)
+
+# --- 2) AG vs highest other mismatch ---
+ag_df = mm.loc[mm["Mismatch"].eq("AG"), ["Chrom", "Count"]].rename(columns={"Count": "AG"})
+
+non_ag = mm.loc[~mm["Mismatch"].eq("AG")].copy()
+highest_other = (
+    non_ag.sort_values(["Chrom", "Count", "Mismatch"], ascending=[True, False, True])
+          .groupby("Chrom", as_index=False)
+          .first()
+          .rename(columns={"Mismatch": "TopOtherMismatch", "Count": "TopOtherCount"})
+)
+
+ag_vs_top_other_df = (
+    ag_df.merge(highest_other, on="Chrom", how="outer")
+         .fillna({"AG": 0, "TopOtherCount": 0, "TopOtherMismatch": ""})
+)
+ag_vs_top_other_df["AG"] = ag_vs_top_other_df["AG"].astype(int)
+ag_vs_top_other_df["TopOtherCount"] = ag_vs_top_other_df["TopOtherCount"].astype(int)
+ag_vs_top_other_df["Total_AG_TopOther"] = ag_vs_top_other_df["AG"] + ag_vs_top_other_df["TopOtherCount"]
+ag_vs_top_other_df["AG_Frac_AG_TopOther"] = np.where(
+    ag_vs_top_other_df["Total_AG_TopOther"] > 0,
+    ag_vs_top_other_df["AG"] / ag_vs_top_other_df["Total_AG_TopOther"],
+    np.nan,
+)
+
+ag_vs_top_other_df = ag_vs_top_other_df.merge(
+    per_transcript_editing_index_df,
+    how="outer",
+    on="Chrom",
+)
+
+ag_vs_top_other_df = ag_vs_top_other_df.merge(
+    num_edited_positions_per_chrom_df,
+    how="outer",
+    on="Chrom",
+)
+ag_vs_top_other_df["NumOfEditingSites"] = ag_vs_top_other_df["NumOfEditingSites"].fillna(0).astype(int)
+
+ag_vs_top_other_df = ag_vs_top_other_df.merge(
+    alignment_stats_df.loc[:, ["Chrom", "MappedReads", "MappedReadsPerSample"]],
+    how="left",
+    on="Chrom",
+)
+
+# ag_vs_all_others_df, ag_vs_top_other_df
+
+# %%
+per_transcript_editing_index_df
+
+# %%
+ag_vs_all_others_df
+
+# %%
+ag_vs_top_other_df
+
+# %%
+ag_vs_top_other_df["AG"] / ag_vs_top_other_df["TopOtherCount"]
+
+# %%
+fig = px.histogram(
+    ag_vs_top_other_df,
+    x="AG_Frac_AG_TopOther",
+    labels={"AG_Frac_AG_TopOther": "AG mismatch / (AG mismatch + top other mismatch)"},
+)
+fig.update_layout(
+    width=600,
+    height=400,
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    ag_vs_all_others_df,
+    x="AG_Frac",
+    labels={"AG_Frac": "AG mismatch / all 12 mismatches"},
+)
+fig.update_layout(
+    width=600,
+    height=400,
+)
+fig.show()
+
+# %%
+fig = px.density_heatmap(
+    ag_vs_top_other_df,
+    x="EditingIndex",
+    y="AG_Frac_AG_TopOther",
+    labels={
+        "AG_Frac_AG_TopOther": "AG mismatch / (AG mismatch + top other mismatch)",
+        "EditingIndex": "Editing index",
+    },
+    # color_continuous_scale='YlGnBu',
+    # color_continuous_scale=px.colors.sequential.YlGnBu, 
+    marginal_x="histogram",
+    marginal_y="histogram"
+)
+fig.update_xaxes(dtick=1)
+fig.update_layout(
+    width=600,
+    height=550,
+)
+fig.show()
+
+# %%
+fig = px.density_heatmap(
+    ag_vs_all_others_df,
+    x="EditingIndex",
+    y="AG_Frac",
+    labels={
+        "AG_Frac": "AG mismatch / all 12 mismatches",
+        "EditingIndex": "Editing index",
+    },
+    # color_continuous_scale='YlGnBu',
+    marginal_x="histogram",
+    marginal_y="histogram"
+)
+fig.update_xaxes(dtick=1)
+fig.update_layout(
+    width=600,
+    height=550,
+)
+fig.show()
+
+# %%
+fig = px.scatter(
+    ag_vs_top_other_df,
+    x="EditingIndex",
+    y="AG_Frac_AG_TopOther",
+    labels={
+        "AG_Frac_AG_TopOther": "AG mismatch / (AG mismatch + top other mismatch)",
+        "EditingIndex": "Editing index",
+        "NumOfEditingSites": "Editing sites",
+    },
+    trendline="ols",
+    trendline_color_override="black",
+    marginal_x="histogram", 
+    marginal_y="histogram",
+    color="NumOfEditingSites",
+    # color_continuous_scale=px.colors.sequential.YlGnBu,
+    color_continuous_scale=px.colors.sequential.Turbo,
+    # color_continuous_scale=px.colors.sequential.Blackbody,
+    # color_continuous_scale=px.colors.sequential.Bluered,
+    # color_continuous_scale=px.colors.sequential.RdBu,
+)
+
+tr_line=[]
+for k, trace in enumerate(fig.data):
+    # ic(k, trace)
+    try:
+        if trace.mode is not None and trace.mode == 'lines':
+            tr_line.append(k)
+    except AttributeError:
+        pass # for Histogram which has no attribute 'mode' 
+for id in tr_line:
+    fig.data[id].update(line_width=4)
+
+fig.update_xaxes(dtick=1)
+fig.update_layout(
+    width=600,
+    height=550,
+)
+
+# results = px.get_trendline_results(fig)
+# print(results)
+
+# fig.show()
+
+# %%
+fig = px.scatter(
+    ag_vs_all_others_df,
+    x="EditingIndex",
+    y="AG_Frac",
+    labels={
+        "AG_Frac": "AG mismatch / all 12 mismatches",
+        "EditingIndex": "Editing index",
+        "NumOfEditingSites": "Editing sites",
+    },
+    trendline="ols",
+    trendline_color_override="black",
+    marginal_x="histogram", 
+    marginal_y="histogram",
+    color="NumOfEditingSites",
+    # color_continuous_scale=px.colors.sequential.YlGnBu,
+    color_continuous_scale=px.colors.sequential.Turbo,
+    # color_continuous_scale=px.colors.sequential.Blackbody,
+    # color_continuous_scale=px.colors.sequential.Bluered,
+    # color_continuous_scale=px.colors.sequential.RdBu,
+)
+
+tr_line=[]
+for k, trace in enumerate(fig.data):
+    # ic(k, trace)
+    try:
+        if trace.mode is not None and trace.mode == 'lines':
+            tr_line.append(k)
+    except AttributeError:
+        pass # for Histogram which has no attribute 'mode' 
+for id in tr_line:
+    fig.data[id].update(line_width=4)
+
+fig.update_xaxes(dtick=1)
+fig.update_layout(
+    width=600,
+    height=550,
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    ag_vs_top_other_df,
+    x="EditingIndex",
+    y="AG_Frac_AG_TopOther",
+    labels={
+        "AG_Frac_AG_TopOther": "AG mismatch / (AG mismatch + top other mismatch)",
+        "EditingIndex": "Editing index",
+    },
+    histfunc="avg",
+)
+fig.update_xaxes(dtick=1)
+fig.update_layout(
+    width=600,
+    height=550,
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    ag_vs_all_others_df,
+    x="EditingIndex",
+    y="AG_Frac",
+    labels={
+        "AG_Frac": "AG mismatch / all 12 mismatches",
+        "EditingIndex": "Editing index",
+    },
+    histfunc="avg",
+)
+fig.update_xaxes(dtick=1)
+fig.update_layout(
+    width=600,
+    height=550,
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    ag_vs_top_other_df,
+    x="NumOfEditingSites",
+    y="AG_Frac_AG_TopOther",
+    labels={
+        "AG_Frac_AG_TopOther": "AG mismatch / (AG mismatch + top other mismatch)",
+        # "EditingIndex": "Editing index",
+        "NumOfEditingSites": "Editing sites",
+    },
+    histfunc="avg",
+)
+# fig.update_xaxes(dtick=1)
+fig.update_layout(
+    width=600,
+    height=550,
+)
+fig.show()
+
 # %% [markdown]
 # ### Machine noise
 
@@ -3142,6 +4250,91 @@ fig.update_layout(
 #     height=height,
 # )
 
+fig.show()
+
+# %% [markdown]
+# ### Noise sites above noise threshold
+
+# %%
+noise_threshold_files_df
+
+# %%
+noise_threshold_df = pd.concat(
+    [
+        pd.read_csv(
+            noise_threshold_file, 
+            sep="\t",
+            names=["Chrom", "NoiseThreshold"]
+        )
+        for noise_threshold_file in noise_threshold_files_df["NoiseThresholdFile"].values
+    ],
+    ignore_index=True
+)
+noise_threshold_df
+
+# %%
+concat_all_positions_df
+
+# %%
+noise_positions_df = concat_all_positions_df.loc[
+    concat_all_positions_df["NoisyFinal"]
+]
+
+noise_positions_df = noise_positions_df.merge(
+    noise_threshold_df,
+    on="Chrom",
+    how="left"
+)
+
+noise_positions_df["NoiseAboveNoiseThreshold"] = (
+    noise_positions_df["Noise"].ge(noise_positions_df["NoiseThreshold"])
+)
+
+noise_positions_df
+
+# %%
+noise_positions_df.loc[
+    noise_positions_df["NoiseAboveNoiseThreshold"]
+]
+
+# %%
+noise_positions_df.loc[
+    (noise_positions_df["NoiseAboveNoiseThreshold"])
+    & (noise_positions_df["Noise"] == 1)
+]
+
+# %%
+concat_edited_positions_df = concat_all_positions_df.loc[
+    concat_all_positions_df["EditedFinal"]
+]
+concat_edited_positions_df
+
+# %%
+fig = px.histogram(
+    concat_edited_positions_df,
+    x="EditingFrequency",
+    histnorm="percent",
+)
+fig.update_layout(
+    width=600,
+    height=450,
+    title="Editing freq. of final editing sites"
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    noise_positions_df.loc[
+        noise_positions_df["NoiseAboveNoiseThreshold"]
+    ],
+    x="Noise",
+    histnorm="percent",
+)
+fig.update_layout(
+    width=600,
+    height=450,
+    title="Noise freq. of noise sites >= editing threshold"
+)
 fig.show()
 
 # %% [markdown]

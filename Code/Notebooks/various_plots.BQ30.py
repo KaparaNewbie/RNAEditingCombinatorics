@@ -2066,17 +2066,29 @@ platforms = ["Long-reads", "Short-reads"]
 pacbio_distinct_unique_proteins_files = [
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.06.02.2024-09:29:20.csv",
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.DistinctUniqueProteins.06.02.2024-09:46:24.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples.80K/ADAR1.Merged.r64296e203404D01.aligned.sorted.Sampled80000.unique_proteins.csv.gz.DistinctUniqueProteins.04.02.2026-15:16:16.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples.80K/IQEC.Merged.r64296e203404D01.aligned.sorted.Sampled80000.unique_proteins.csv.gz.DistinctUniqueProteins.04.02.2026-14:00:24.csv"
 ]
 pacbio_unique_reads_files = [
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_reads.csv.gz",
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_reads.csv.gz",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples.80K/ADAR1.Merged.r64296e203404D01.aligned.sorted.Sampled80000.unique_reads.csv.gz",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples.80K/IQEC.Merged.r64296e203404D01.aligned.sorted.Sampled80000.unique_reads.csv.gz"
 ]
 pacbio_unique_proteins_files = [
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz",
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples.80K/ADAR1.Merged.r64296e203404D01.aligned.sorted.Sampled80000.unique_proteins.csv.gz",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples.80K/IQEC.Merged.r64296e203404D01.aligned.sorted.Sampled80000.unique_proteins.csv.gz"
 ]
 
-pacbio_conditions = ["GRIA", "PCLO"]
+# pacbio_conditions = ["GRIA", "PCLO"]
+pacbio_conditions = [
+    "GRIA2", 
+    "PCLO",
+    "ADAR1",
+    "IQEC1"
+]
 
 pacbio_color_sequence = px.colors.qualitative.G10
 pacbio_color_discrete_map = {
@@ -2085,26 +2097,131 @@ pacbio_color_discrete_map = {
 }
 
 # %%
+# old sampling where there are 40K reads pairs instead of 80K
+
+# illumina_distinct_unique_proteins_files = [
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141881_c0_seq3.Sampled80000.DistinctUniqueProteins.11.04.2023-16:36:40.csv",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141044_c0_seq2.Sampled80000.DistinctUniqueProteins.11.04.2023-17:21:47.csv",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp140439_c0_seq1.Sampled80000.DistinctUniqueProteins.11.04.2023-16:34:07.csv",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp126362_c0_seq1.Sampled80000.DistinctUniqueProteins.11.04.2023-17:27:11.csv",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141517_c0_seq1.Sampled80000.DistinctUniqueProteins.11.04.2023-18:09:19.csv",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141840_c0_seq2.Sampled80000.DistinctUniqueProteins.11.04.2023-16:40:11.csv",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141640_c0_seq1.Sampled80000.DistinctUniqueProteins.11.04.2023-16:35:41.csv",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp140987_c3_seq1.Sampled80000.DistinctUniqueProteins.11.04.2023-16:51:06.csv",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp140910_c2_seq1.Sampled80000.DistinctUniqueProteins.11.04.2023-16:46:22.csv",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp136058_c0_seq1.Sampled80000.DistinctUniqueProteins.11.04.2023-17:00:54.csv",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141378_c0_seq7.Sampled80000.DistinctUniqueProteins.11.04.2023-18:02:54.csv",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141158_c1_seq2.Sampled80000.DistinctUniqueProteins.11.04.2023-16:38:37.csv",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp140712_c0_seq3.Sampled80000.DistinctUniqueProteins.11.04.2023-16:55:55.csv",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141882_c0_seq14.Sampled80000.DistinctUniqueProteins.11.04.2023-17:08:14.csv",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141880_c1_seq3.Sampled80000.DistinctUniqueProteins.11.04.2023-17:47:57.csv",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141565_c6_seq3.Sampled80000.DistinctUniqueProteins.11.04.2023-17:55:20.csv",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141684_c0_seq1.Sampled80000.DistinctUniqueProteins.11.04.2023-17:41:03.csv",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141532_c3_seq11.Sampled80000.DistinctUniqueProteins.11.04.2023-17:37:06.csv",
+#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141574_c0_seq3.Sampled80000.DistinctUniqueProteins.11.04.2023-17:13:57.csv",
+# ]
+
+# illumina_chroms = [
+#     "comp141881_c0_seq3",
+#     "comp141044_c0_seq2",
+#     "comp140439_c0_seq1",
+#     "comp126362_c0_seq1",
+#     "comp141517_c0_seq1",
+#     "comp141840_c0_seq2",
+#     "comp141640_c0_seq1",
+#     "comp140987_c3_seq1",
+#     "comp140910_c2_seq1",
+#     "comp136058_c0_seq1",
+#     "comp141378_c0_seq7",
+#     "comp141158_c1_seq2",
+#     "comp140712_c0_seq3",
+#     "comp141882_c0_seq14",
+#     "comp141880_c1_seq3",
+#     "comp141565_c6_seq3",
+#     "comp141684_c0_seq1",
+#     "comp141532_c3_seq11",
+#     "comp141574_c0_seq3",
+# ]
+# illumina_unique_reads_files = [
+#     f"/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/reads.sorted.aligned.filtered.{chrom}.Sampled80000.unique_reads.csv.gz"
+#     for chrom in illumina_chroms
+# ]
+# illumina_unique_proteins_files = [
+#     f"/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/reads.sorted.aligned.filtered.{chrom}.Sampled80000.unique_proteins.csv.gz"
+#     for chrom in illumina_chroms
+# ]
+
+# # illumina_conditions = [
+# #     "RUSC2_MOUSE",
+# #     "TRIM2_BOVIN",
+# #     "CA2D3_MOUSE",
+# #     "ABL_DROME",
+# #     "DGLA_HUMAN",
+# #     "K0513_MOUSE",
+# #     "KCNAS_DROME",
+# #     "ACHA4_MOUSE",
+# #     "ANR17_HUMAN",
+# #     "TWK7_CAEEL",
+# #     "SCN1_HETBL",
+# #     "CACB2_RABIT",
+# #     "RIMS2_RAT",
+# #     "PCLO_CHICK",
+# #     "DOP1_HUMAN",
+# #     "IQEC1_HUMAN",
+# #     "CSKI1_MOUSE",
+# #     "MTUS2_HUMAN",
+# #     "ROBO2_HUMAN"
+# # ]
+
+# illumina_conditions = [
+#     "RUSC2",
+#     "TRIM2",
+#     "CA2D3",
+#     "ABL",
+#     "DGLA",
+#     "K0513",
+#     "KCNAS",
+#     "ACHA4",
+#     "ANR17",
+#     "TWK7",
+#     "SCN1",
+#     "CACB2",
+#     "RIMS2",
+#     "PCLO",
+#     "DOP1",
+#     "IQEC1",
+#     "CSKI1",
+#     "MTUS2",
+#     "ROBO2",
+# ]
+
+# illumina_color_sequence = px.colors.qualitative.Dark24
+# illumina_color_discrete_map = {
+#     condition: color
+#     for condition, color in zip(illumina_conditions, illumina_color_sequence)
+# }
+
+# %%
 illumina_distinct_unique_proteins_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141881_c0_seq3.Sampled80000.DistinctUniqueProteins.11.04.2023-16:36:40.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141044_c0_seq2.Sampled80000.DistinctUniqueProteins.11.04.2023-17:21:47.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp140439_c0_seq1.Sampled80000.DistinctUniqueProteins.11.04.2023-16:34:07.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp126362_c0_seq1.Sampled80000.DistinctUniqueProteins.11.04.2023-17:27:11.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141517_c0_seq1.Sampled80000.DistinctUniqueProteins.11.04.2023-18:09:19.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141840_c0_seq2.Sampled80000.DistinctUniqueProteins.11.04.2023-16:40:11.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141640_c0_seq1.Sampled80000.DistinctUniqueProteins.11.04.2023-16:35:41.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp140987_c3_seq1.Sampled80000.DistinctUniqueProteins.11.04.2023-16:51:06.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp140910_c2_seq1.Sampled80000.DistinctUniqueProteins.11.04.2023-16:46:22.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp136058_c0_seq1.Sampled80000.DistinctUniqueProteins.11.04.2023-17:00:54.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141378_c0_seq7.Sampled80000.DistinctUniqueProteins.11.04.2023-18:02:54.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141158_c1_seq2.Sampled80000.DistinctUniqueProteins.11.04.2023-16:38:37.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp140712_c0_seq3.Sampled80000.DistinctUniqueProteins.11.04.2023-16:55:55.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141882_c0_seq14.Sampled80000.DistinctUniqueProteins.11.04.2023-17:08:14.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141880_c1_seq3.Sampled80000.DistinctUniqueProteins.11.04.2023-17:47:57.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141565_c6_seq3.Sampled80000.DistinctUniqueProteins.11.04.2023-17:55:20.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141684_c0_seq1.Sampled80000.DistinctUniqueProteins.11.04.2023-17:41:03.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141532_c3_seq11.Sampled80000.DistinctUniqueProteins.11.04.2023-17:37:06.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/comp141574_c0_seq3.Sampled80000.DistinctUniqueProteins.11.04.2023-17:13:57.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80KPairs/comp141881_c0_seq3.Sampled160000.DistinctUniqueProteins.04.01.2026-13:20:40.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80KPairs/comp141044_c0_seq2.Sampled160000.DistinctUniqueProteins.04.01.2026-14:51:11.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80KPairs/comp140439_c0_seq1.Sampled160000.DistinctUniqueProteins.04.01.2026-13:15:56.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80KPairs/comp126362_c0_seq1.Sampled160000.DistinctUniqueProteins.04.01.2026-15:01:44.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80KPairs/comp141517_c0_seq1.Sampled160000.DistinctUniqueProteins.04.01.2026-16:23:30.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80KPairs/comp141840_c0_seq2.Sampled160000.DistinctUniqueProteins.04.01.2026-13:26:32.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80KPairs/comp141640_c0_seq1.Sampled160000.DistinctUniqueProteins.04.01.2026-13:19:05.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80KPairs/comp140987_c3_seq1.Sampled160000.DistinctUniqueProteins.04.01.2026-13:46:32.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80KPairs/comp140910_c2_seq1.Sampled160000.DistinctUniqueProteins.04.01.2026-13:38:31.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80KPairs/comp136058_c0_seq1.Sampled160000.DistinctUniqueProteins.04.01.2026-14:05:46.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80KPairs/comp141378_c0_seq7.Sampled160000.DistinctUniqueProteins.04.01.2026-16:10:40.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80KPairs/comp141158_c1_seq2.Sampled160000.DistinctUniqueProteins.04.01.2026-13:23:51.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80KPairs/comp140712_c0_seq3.Sampled160000.DistinctUniqueProteins.04.01.2026-13:55:22.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80KPairs/comp141882_c0_seq14.Sampled160000.DistinctUniqueProteins.04.01.2026-14:21:47.csv",    
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80KPairs/comp141880_c1_seq3.Sampled160000.DistinctUniqueProteins.04.01.2026-15:42:45.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80KPairs/comp141565_c6_seq3.Sampled160000.DistinctUniqueProteins.04.01.2026-15:55:45.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80KPairs/comp141684_c0_seq1.Sampled160000.DistinctUniqueProteins.04.01.2026-15:29:17.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80KPairs/comp141532_c3_seq11.Sampled160000.DistinctUniqueProteins.04.01.2026-15:21:31.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80KPairs/comp141574_c0_seq3.Sampled160000.DistinctUniqueProteins.04.01.2026-14:32:56.csv",
 ]
 
 illumina_chroms = [
@@ -2128,36 +2245,15 @@ illumina_chroms = [
     "comp141532_c3_seq11",
     "comp141574_c0_seq3",
 ]
+
 illumina_unique_reads_files = [
-    f"/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/reads.sorted.aligned.filtered.{chrom}.Sampled80000.unique_reads.csv.gz"
+    f"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80KPairs/reads.sorted.aligned.filtered.{chrom}.Sampled160000.unique_reads.csv.gz"
     for chrom in illumina_chroms
 ]
 illumina_unique_proteins_files = [
-    f"/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80K/reads.sorted.aligned.filtered.{chrom}.Sampled80000.unique_proteins.csv.gz"
+    f"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina80KPairs/reads.sorted.aligned.filtered.{chrom}.Sampled160000.unique_proteins.csv.gz"
     for chrom in illumina_chroms
 ]
-
-# illumina_conditions = [
-#     "RUSC2_MOUSE",
-#     "TRIM2_BOVIN",
-#     "CA2D3_MOUSE",
-#     "ABL_DROME",
-#     "DGLA_HUMAN",
-#     "K0513_MOUSE",
-#     "KCNAS_DROME",
-#     "ACHA4_MOUSE",
-#     "ANR17_HUMAN",
-#     "TWK7_CAEEL",
-#     "SCN1_HETBL",
-#     "CACB2_RABIT",
-#     "RIMS2_RAT",
-#     "PCLO_CHICK",
-#     "DOP1_HUMAN",
-#     "IQEC1_HUMAN",
-#     "CSKI1_MOUSE",
-#     "MTUS2_HUMAN",
-#     "ROBO2_HUMAN"
-# ]
 
 illumina_conditions = [
     "RUSC2",
@@ -2460,7 +2556,9 @@ platforms_color_map = {
 # ["circle", "square-dot", "diamond", "circle", "star", "star-square", "triangle-down"]
 # symbols = ["diamond", "square"]
 # symbols = ["diamond", "circle"]
-symbols = ["star", "triangle-up"]
+# symbols = ["star", "triangle-up"]
+symbols = ["star", "circle"]
+symbols_sizes = {"star": 12, "circle": 10}
 platforms_symbols = {platform: symbol for platform, symbol in zip(platforms, symbols)}
 
 
@@ -2491,7 +2589,9 @@ for platform, condition in editable_aas_per_platform_and_condition:
             marker=dict(
                 color=platforms_color_map[platform][condition],
                 symbol=platforms_symbols[platform],
-                size=8,
+                # size=8,
+                # size=12,
+                size=symbols_sizes[platforms_symbols[platform]],
             ),
             legendgrouptitle_text=platform,
             legendgroup=platform,  # this can be any string
@@ -2512,13 +2612,15 @@ else:
     pearson_text=f"Pearson's r = {r:.2g}<br>p-value < 1E-22"
 
 fig.add_annotation(
-    x=27,
-    y=23_000,
+    # x=27,
+    # y=18_000,
+    x=110,
+    y=2_500,
     xref="x",
     yref="y",
     text=pearson_text,
     bgcolor="white",
-    borderpad=4,
+    borderpad=10,
     font=dict(size=14),
     opacity=0.8,
     showarrow=False,
@@ -2531,8 +2633,10 @@ fig.update_yaxes(
     range=[0, distinct_proteins_per_editable_aas_df["NumOfProteins"].max() * 1.1]
 )
 
-width = 700
-height = width* 650 / 700
+width = 750
+# height = width * 650 / 700
+height = 700
+
 
 fig.update_layout(
     # legend_font=dict(size=8),
@@ -2547,7 +2651,7 @@ fig.update_layout(
 )
 
 fig.write_image(
-    "Distinct proteins vs. editable AAs (80K) - PacBio vs. Illumina.svg",
+    Path(out_dir, "Distinct proteins vs. editable AAs (80K) - PacBio vs. Illumina.svg"),
     width=width,
     height=height,
 )
@@ -2914,6 +3018,242 @@ fig.write_image(
 
 fig.show()
 
+
+# %%
+font_size = 28
+
+fig = make_subplots(
+    rows=1,
+    cols=2,
+    y_title="Cumulative relative<br>expression [%]",
+    x_title="Isoform rank",
+    subplot_titles=platforms,
+    shared_yaxes="all",
+    shared_xaxes="all",
+    vertical_spacing=0.03,
+    # horizontal_spacing=0.015,
+    horizontal_spacing=0.03,
+)
+
+for platform, condition, assignment_df in zip(
+    joined_platforms, joined_conditions, joined_assignments_dfs
+):
+    x = assignment_df["#Protein"]
+    y = assignment_df["%CummulativeRelativeExpression"]
+
+    color = platforms_color_map[platform][condition]
+    col = 1 if platform == "Long-reads" else 2
+
+    fig.add_trace(
+        go.Scattergl(
+            x=x,
+            y=y,
+            mode="markers",
+            marker=dict(
+                color=color,
+                # symbol=platforms_symbols[platform],
+                size=3,
+                opacity=0.3,
+            ),
+            # mode="lines",
+            # line=dict(
+            #     color=platforms_color_map[platform][condition],
+            #     dash=platforms_dashes[platform],
+            #     # size=8,
+            # ),
+            # opacity=0.3,
+            legendgrouptitle_text=platform,
+            legendgroup=platform,  # this can be any string
+            name=condition,
+            showlegend=False,
+        ),
+        row=1,
+        col=col,
+    )
+
+    # Add trace for legend so the legened wont be opaque
+    fig.add_trace(
+        go.Scatter(
+            x=[None],
+            y=[None],
+            mode="markers",
+            marker=dict(
+                color=color,
+                # symbol=platforms_symbols[platform],
+                size=5,
+            ),
+            legendgrouptitle_text=platform,
+            legendgroup=platform,  # this can be any string
+            name=condition,
+            showlegend=True,
+            # visible="legendonly",
+        ),
+        row=1,
+        col=col,
+    )
+
+fig.update_xaxes(
+    type="log",
+    tickfont=dict(size=0.7 * font_size),
+    tickangle=20,
+)
+fig.update_yaxes(
+    # type="log",
+    tickfont=dict(size=0.7 * font_size),
+    # range=[np.log10(y_min), np.log10(y_max)], nticks=6
+)
+
+fig.update_annotations(font_size=font_size)
+
+width = 1200
+height = 650
+
+fig.update_layout(
+    # legend_font=dict(size=0.5 * font_size),
+    legend_font=dict(size=10),
+    legend_grouptitlefont=dict(size=0.5 * font_size),
+    # legend_font=dict(size=6),
+    # legend_grouptitlefont=dict(size=8),
+    # legend_tracegroupgap=4,
+    # title="Squid",
+    # title_x=0.1,
+    template=template,
+    width=width,
+    height=height,
+    margin=dict(l=120, r=40, t=60, b=80),
+)
+
+# fig.write_image(
+#     Path(
+#         out_dir,
+#         "Weighted cumulative expression vs. distinct protein rank - PacBio vs. Illumina.svg",
+#     ),
+#     width=width,
+#     height=height,
+# )
+
+fig.show()
+
+# %%
+font_size = 36
+
+fig = make_subplots(
+    rows=2,
+    cols=1,
+    y_title="Cumulative relative expression [%]",
+    x_title="Isoform rank",
+    subplot_titles=platforms,
+    shared_yaxes="all",
+    shared_xaxes="all",
+    vertical_spacing=0.03,
+    # horizontal_spacing=0.015,
+    horizontal_spacing=0.03,
+)
+
+for platform, condition, assignment_df in zip(
+    joined_platforms, joined_conditions, joined_assignments_dfs
+):
+    x = assignment_df["#Protein"]
+    y = assignment_df["%CummulativeRelativeExpression"]
+
+    color = platforms_color_map[platform][condition]
+    # col = 1 if platform == "Long-reads" else 2
+    row = 1 if platform == "Long-reads" else 2
+
+    fig.add_trace(
+        go.Scattergl(
+            x=x,
+            y=y,
+            mode="markers",
+            marker=dict(
+                color=color,
+                # symbol=platforms_symbols[platform],
+                size=3,
+                opacity=0.3,
+            ),
+            # mode="lines",
+            # line=dict(
+            #     color=platforms_color_map[platform][condition],
+            #     dash=platforms_dashes[platform],
+            #     # size=8,
+            # ),
+            # opacity=0.3,
+            # legendgrouptitle_text=platform,
+            legendgrouptitle_text=platform + "  ",
+            legendgroup=platform,  # this can be any string
+            name=condition,
+            showlegend=False,
+        ),
+        row=row,
+        col=1,
+    )
+
+    # Add trace for legend so the legened wont be opaque
+    fig.add_trace(
+        go.Scatter(
+            x=[None],
+            y=[None],
+            mode="markers",
+            marker=dict(
+                color=color,
+                # symbol=platforms_symbols[platform],
+                size=5,
+            ),
+            # legendgrouptitle_text=platform,
+            legendgrouptitle_text=platform + "  ",
+            legendgroup=platform,  # this can be any string
+            name=condition,
+            showlegend=True,
+            # visible="legendonly",
+        ),
+        row=row,
+        col=1,
+    )
+
+fig.update_xaxes(
+    type="log",
+    tickfont=dict(size=0.7 * font_size),
+    # tickangle=20,
+)
+fig.update_yaxes(
+    # type="log",
+    tickfont=dict(size=0.7 * font_size),
+    # range=[np.log10(y_min), np.log10(y_max)], nticks=6
+)
+
+fig.update_annotations(font_size=font_size)
+
+# width = 650
+width = 1200
+height = 1200
+
+
+fig.update_layout(
+    # legend_font=dict(size=0.5 * font_size),
+    legend_font=dict(size=18),
+    # legend_grouptitlefont=dict(size=0.5 * font_size),
+    legend_grouptitlefont=dict(size=22),
+    # legend_font=dict(size=6),
+    # legend_grouptitlefont=dict(size=8),
+    # legend_tracegroupgap=4,
+    # title="Squid",
+    # title_x=0.1,
+    template=template,
+    width=width,
+    height=height,
+    margin=dict(l=120, r=60, t=60, b=80),
+)
+
+fig.write_image(
+    Path(
+        out_dir,
+        "Weighted cumulative expression vs. distinct protein rank - vertical - PacBio vs. Illumina.svg",
+    ),
+    width=width,
+    height=height,
+)
+
+fig.show()
 
 # %% [markdown]
 # ## Combined expression plots for long-reads squid genes
@@ -4471,17 +4811,77 @@ fig.show()
 
 
 # %% [markdown]
-# # Combined correlation and MI for PCLO
+# # Combined correlation and MI plots
+
+# %%
+corr_colorscales = [
+    "RdBu",
+    [
+        [0.00, "#67001f"],
+        [0.20, "#b2182b"],
+        [0.35, "#ef8a62"],
+        [0.48, "#f7f7f7"],  # narrow neutral zone
+        [0.52, "#f7f7f7"],
+        [0.65, "#67a9cf"],
+        [0.80, "#2166ac"],
+        [1.00, "#053061"],
+    ],
+    [
+        [0.00, "#3b0f70"],
+        [0.20, "#8c2981"],
+        [0.40, "#de4968"],
+        [0.50, "#f7f7f7"],
+        [0.60, "#9bd3c6"],
+        [0.80, "#4aa6c3"],
+        [1.00, "#1f3c88"],
+    ]
+]
+corrs_final_colorscale = corr_colorscales[0]
+
+# %%
+mi_colorscales = [
+    "Blues",
+    # # sns_colorscale
+    # [
+    #     [0.0, '#3f7f93'], #cmap = sns.diverging_palette(220, 10, as_cmap = True)
+    #     [0.071, '#5890a1'],
+    #     [0.143, '#72a1b0'],
+    #     [0.214, '#8cb3bf'],
+    #     [0.286, '#a7c5cf'],
+    #     [0.357, '#c0d6dd'],
+    #     [0.429, '#dae8ec'],
+    #     [0.5, '#f2f2f2'],
+    #     [0.571, '#f7d7d9'],
+    #     [0.643, '#f2bcc0'],
+    #     [0.714, '#eda3a9'],
+    #     [0.786, '#e8888f'],
+    #     [0.857, '#e36e76'],
+    #     [0.929, '#de535e'],
+    #     [1.0, '#d93a46']
+    # ],
+    # upper part of corrs_final_colorscale
+    [
+        [0.00, "#f7f7f7"],  # MI ≈ 0 → neutral / background
+        [0.25, "#d1e5f0"],
+        [0.50, "#67a9cf"],
+        [0.75, "#2166ac"],
+        [1.00, "#053061"],  # max MI
+    ]
+]
+mi_final_colorscale = mi_colorscales[-1]
+
+# %% [markdown]
+# ## PCLO - long- vs short-reads
 
 # %%
 platforms = ["Long-reads", "Short-reads"]
 
 # %%
-pacbio_corr_file = "PCLOMaskedBonferroniCorr.PacBio.tsv"
-illumina_corr_file = "PCLOMaskedBonferroniCorr.Illumina.tsv"
+pacbio_corr_file = Path(out_dir, "PCLOMaskedBonferroniCorr.PacBio.tsv")
+illumina_corr_file = Path(out_dir, "PCLOMaskedBonferroniCorr.Illumina.tsv")
 
-pacbio_mi_file = "PCLOMaskedMI.PacBio.tsv"
-illumina_mi_file = "PCLOMaskedMI.Illumina.tsv"
+pacbio_mi_file = Path(out_dir, "PCLOMaskedMI.PacBio.tsv")
+illumina_mi_file = Path(out_dir, "PCLOMaskedMI.Illumina.tsv")
 
 # %%
 pacbio_corr = pd.read_table(pacbio_corr_file).values
@@ -4491,34 +4891,13 @@ pacbio_mi = pd.read_table(pacbio_mi_file).values
 illumina_mi = pd.read_table(illumina_mi_file).values
 
 # %%
-sns_colorscale = [
-    [0.0, '#3f7f93'], #cmap = sns.diverging_palette(220, 10, as_cmap = True)
- [0.071, '#5890a1'],
- [0.143, '#72a1b0'],
- [0.214, '#8cb3bf'],
- [0.286, '#a7c5cf'],
- [0.357, '#c0d6dd'],
- [0.429, '#dae8ec'],
- [0.5, '#f2f2f2'],
- [0.571, '#f7d7d9'],
- [0.643, '#f2bcc0'],
- [0.714, '#eda3a9'],
- [0.786, '#e8888f'],
- [0.857, '#e36e76'],
- [0.929, '#de535e'],
- [1.0, '#d93a46']
-]
-
-# %%
 pacbio_corr
 
 # %%
-cmin = min(np.nanmin(pacbio_corr), np.nanmin(illumina_corr))
-cmin
-
-# %%
-cmax = max(np.nanmax(pacbio_corr), np.nanmax(illumina_corr))
-cmax
+pclo_corrs_cmin = min(np.nanmin(pacbio_corr), np.nanmin(illumina_corr))
+pclo_corrs_cmax = max(np.nanmax(pacbio_corr), np.nanmax(illumina_corr))
+pclo_corrs_abs_max = np.round(np.max([abs(pclo_corrs_cmin), abs(pclo_corrs_cmax)]), 1)
+ic(pclo_corrs_cmin, pclo_corrs_cmax, pclo_corrs_abs_max);
 
 # %%
 fig = make_subplots(
@@ -4539,7 +4918,6 @@ fig.add_trace(
     row=1,
     col=1
 )
-
 fig.add_trace(
     go.Heatmap(
         z=illumina_corr,
@@ -4556,7 +4934,6 @@ fig.update_xaxes(
     showgrid=False,
     zeroline=False
 )
-
 fig.update_yaxes(
     showgrid=False,
     zeroline=False,
@@ -4572,17 +4949,14 @@ fig.update_layout(
     height=height,
     template=template, 
     coloraxis=dict(
-        # colorscale='deep_r'
-        # colorscale=sns_colorscale,
-        colorscale='RdBu',
+        colorscale=corrs_final_colorscale,
         colorbar_thickness=20,
         colorbar_ticklen=3,
-        # cmid=0,
-        # cmax=cmax,
-        # cmin=cmin,
-        # cauto=True,
-        # cmax=1,
-        # cmin=-.5,
+        cmid=0,
+        # cmax=pclo_corrs_abs_max,
+        # cmin=-pclo_corrs_abs_max,
+        cmax=1,
+        cmin=-1,
         colorbar=dict(
             dtick=0.25,
             len=0.6,
@@ -4595,12 +4969,16 @@ fig.update_layout(
 )
 
 fig.write_image(
-    "Pearson's r between editing sites in squid's PCLO - pacbio vs illumina.svg",
+    Path(out_dir, "Pearson's r between editing sites in squid's PCLO - pacbio vs illumina.svg"),
     width=width,
     height=height,
 )
 
 fig.show()
+
+# %%
+pclo_mis_cmin = min(np.nanmin(pacbio_mi), np.nanmin(illumina_mi))
+pclo_mis_cmax = max(np.nanmax(pacbio_mi), np.nanmax(illumina_mi))
 
 # %%
 fig = make_subplots(
@@ -4651,20 +5029,22 @@ fig.update_yaxes(
 width = 1100
 height = 600
 
+
 fig.update_layout(
     width=width,
     height=height,
     template=template, 
     coloraxis=dict(
-        # colorscale='deep_r', 
-        colorscale='RdBu',
-        # colorbar_x=0.43, 
-        # colorbar_thickness=23,
-        # colorscale=sns_colorscale,
+        colorscale=mi_final_colorscale,
+        # cmin=pclo_mis_cmin,
+        # cmax=pclo_mis_cmax,
+        cmin=0,
+        cmax=1,
         colorbar_thickness=20,
         colorbar_ticklen=3,
         colorbar=dict(
-            dtick=0.25,
+            # dtick=0.25,
+            dtick=0.2,
             len=0.6,
         ),
     ),
@@ -4672,12 +5052,202 @@ fig.update_layout(
         x=0.1,
         text="Mutual information (PCLO)",
         # font=dict(size=18)
-  ),
+    ),
     # font_size=16,
 )
 
 fig.write_image(
-    "Normalized mutual information between editing sites in squid's PCLO - pacbio vs illumina.svg",
+    Path(out_dir, "Normalized mutual information between editing sites in squid's PCLO - pacbio vs illumina.svg"),
+    width=width,
+    height=height,
+)
+
+fig.show()
+
+# %% [markdown]
+# ## Other 3 long-reads genes
+
+# %%
+platforms = ["Long-reads", "Short-reads"]
+
+# %%
+conditions = ["GRIA2","ADAR1", "IQEC1"]
+
+# %%
+corr_files = [
+    Path(out_dir, f"{condition}MaskedBonferroniCorr.PacBio.tsv")
+    for condition in conditions
+]
+corr_files
+
+# %%
+mi_files = [
+    Path(out_dir, f"{condition}MaskedMI.PacBio.tsv")
+    for condition in conditions
+]
+mi_files
+
+# %%
+corrs = [
+    pd.read_table(corr_file).values
+    for corr_file in corr_files
+]
+
+mis = [
+    pd.read_table(mi_file).values
+    for mi_file in mi_files
+]
+
+# %%
+not_na_min_corrs = [
+    np.nanmin(corr)
+    for corr in corrs
+]
+not_na_max_corrs = [
+    np.nanmax(corr)
+    for corr in corrs
+]
+not_na_min_corrs + not_na_max_corrs
+max_abs_cor_val = np.max(np.abs(not_na_min_corrs + not_na_max_corrs))
+max_abs_cor_val = np.round(max_abs_cor_val, 1)
+max_abs_cor_val
+
+# %%
+fig = make_subplots(
+    rows=1,
+    cols=3,
+    subplot_titles=conditions,
+    horizontal_spacing=0.06,
+)
+
+for col, corr in enumerate(corrs, start=1):
+    fig.add_trace(
+        go.Heatmap(
+            z=corr,
+            xgap=1, 
+            ygap=1,
+            coloraxis="coloraxis",
+        ),
+        row=1,
+        col=col
+    )
+
+
+
+fig.update_xaxes(
+    showticklabels=False,
+    showgrid=False,
+    zeroline=False
+)
+
+fig.update_yaxes(
+    showgrid=False,
+    zeroline=False,
+    autorange="reversed",
+    showticklabels=False,
+)
+
+width = 1500
+height = 600
+
+
+fig.update_layout(
+    width=width,
+    height=height,
+    template=template, 
+    coloraxis=dict(
+        colorscale=corrs_final_colorscale,
+        colorbar_thickness=20,
+        colorbar_ticklen=3,
+        cmid=0,
+        cmin=-1,
+        cmax=1,
+        # cmax=max_abs_cor_val,
+        # cmin=-max_abs_cor_val,
+        colorbar=dict(
+            dtick=0.25,
+            len=0.6,
+        ),
+    ),
+    title=dict(
+        x=0.1,
+        # text="Site-Site correlations (PCLO)",
+        text="Site-Site correlations (Long-reads)",
+    ),
+)
+
+fig.write_image(
+    Path(out_dir, "Pearson's r between editing sites in squid except PCLO - pacbio.svg"),
+    width=width,
+    height=height,
+)
+
+fig.show()
+
+# %%
+fig = make_subplots(
+    rows=1,
+    cols=3,
+    subplot_titles=conditions,
+    horizontal_spacing=0.06,
+)
+
+for col, mi in enumerate(mis, start=1):
+    fig.add_trace(
+        go.Heatmap(
+            z=mi,
+            xgap=1, 
+            ygap=1,
+            coloraxis="coloraxis",
+        ),
+        row=1,
+        col=col
+    )
+
+
+
+fig.update_xaxes(
+    showticklabels=False,
+    showgrid=False,
+    zeroline=False
+)
+
+fig.update_yaxes(
+    showgrid=False,
+    zeroline=False,
+    autorange="reversed",
+    showticklabels=False,
+)
+
+width = 1500
+height = 600
+
+
+fig.update_layout(
+    width=width,
+    height=height,
+    template=template, 
+    coloraxis=dict(
+        colorscale=mi_final_colorscale,
+        cmin=0,
+        cmax=1,
+        colorbar_thickness=20,
+        colorbar_ticklen=3,
+        colorbar=dict(
+            # dtick=0.25,
+            dtick=0.2,
+            len=0.6,
+        ),
+    ),
+    title=dict(
+        x=0.1,
+        # text="Site-Site correlations (PCLO)",
+        text="Mutual information (Long-reads)",
+    ),
+)
+
+fig.write_image(
+    Path(out_dir, "Normalized mutual information between editing sites in squid's except PCLO - pacbio .svg"),
     width=width,
     height=height,
 )
@@ -4896,5 +5466,257 @@ fig.write_image(
     width=width,
     height=height,
 )
+
+fig.show()
+
+# %% [markdown]
+# # Combined kmeans silhouette scores for squid long-reads
+
+# %%
+condition_col = "Gene"
+platforms = ["Long-reads", "Short-reads"]
+
+pacbio_conditions = ["GRIA2", "PCLO", "ADAR1", "IQEC1"]
+
+# illumina_conditions = [
+#     "RUSC2_MOUSE",
+#     "TRIM2_BOVIN",
+#     "CA2D3_MOUSE",
+#     "ABL_DROME",
+#     "DGLA_HUMAN",
+#     "K0513_MOUSE",
+#     "KCNAS_DROME",
+#     "ACHA4_MOUSE",
+#     "ANR17_HUMAN",
+#     "TWK7_CAEEL",
+#     "SCN1_HETBL",
+#     "CACB2_RABIT",
+#     "RIMS2_RAT",
+#     "PCLO_CHICK",
+#     "DOP1_HUMAN",
+#     "IQEC1_HUMAN",
+#     "CSKI1_MOUSE",
+#     "MTUS2_HUMAN",
+#     "ROBO2_HUMAN",
+# ]
+# illumina_conditions = [condition.split("_")[0] for condition in illumina_conditions]
+
+pacbio_color_sequence = px.colors.qualitative.G10
+pacbio_color_discrete_map = {
+    condition: color
+    for condition, color in zip(pacbio_conditions, pacbio_color_sequence)
+}
+
+# %%
+in_dir = Path("/private7/projects/Combinatorics/Code/Notebooks")
+
+# illumina_merged_distinct_proteins_file = Path(in_dir, "DistinctProteins.Illumina.tsv")
+pacbio_kmeans_silhouette_scores_file = Path(in_dir, "KMeansMeanSilhouetteScores.PacBio.tsv")
+pacbio_umi_kmeans_silhouette_scores_file = Path(
+    in_dir,
+    "KMeansMeanSilhouetteScores.PacBio.WithUMIs.tsv",
+)
+
+# illumina_merged_max_distinct_proteins_file = Path(
+#     in_dir, "MaxDistinctProteinsF1.Illumina.tsv"
+# )
+
+# %%
+platforms_color_map = {
+    platform: color_map
+    for platform, color_map in zip(
+        platforms,
+        [
+            pacbio_color_discrete_map,
+            # illumina_color_discrete_map
+        ],
+    )
+}
+platforms_color_map
+
+# %%
+platforms_conditions = [
+    pacbio_conditions,
+    # illumina_conditions
+]
+
+# %%
+# pacbio_max_distinct_proteins_df = pd.read_table(pacbio_merged_max_distinct_proteins_file)
+pacbio_concat_kmeans_silhouette_scores_df = pd.concat(
+    [
+        pd.read_table(
+            pacbio_kmeans_silhouette_scores_file,
+            # dtype={"Edited": bool, "PositionInSignature": str},
+            # na_filter=False,
+        ),
+        pd.read_table(
+            pacbio_umi_kmeans_silhouette_scores_file,
+            # dtype={"Edited": bool, "PositionInSignature": str},
+            # na_filter=False,
+        ),
+    ]
+)
+# illumina_max_distinct_proteins_df = pd.read_table(
+#     illumina_merged_max_distinct_proteins_file
+# )
+
+# merged_max_distinct_df = pd.concat(
+#     [pacbio_max_distinct_proteins_df, illumina_max_distinct_proteins_df]
+# )
+# merged_max_distinct_df["Color"] = merged_max_distinct_df.apply(
+#     lambda x: platforms_color_map[x["Platform"]][x[condition_col]], axis=1
+# )
+# merged_max_distinct_df
+
+pacbio_concat_kmeans_silhouette_scores_df[condition_col] = pacbio_concat_kmeans_silhouette_scores_df[condition_col].apply(
+    lambda x: x if x != "GRIA" else "GRIA2"
+)
+
+pacbio_concat_kmeans_silhouette_scores_df["Color"] = (
+    pacbio_concat_kmeans_silhouette_scores_df.apply(
+        lambda x: platforms_color_map[x["Platform"]][x[condition_col]],
+        axis=1,
+    )
+)
+
+pacbio_concat_kmeans_silhouette_scores_df
+
+# %%
+title_font_size = 24
+
+fig = px.scatter(
+    pacbio_concat_kmeans_silhouette_scores_df,
+    x="ClusterSize",
+    y="MeanSilhouetteScore",
+    color=condition_col,
+    color_discrete_map=platforms_color_map[platforms[0]],
+    opacity=0.7,
+    labels={
+        # "ClusterSize": "Number of clusters (k)",
+        # "MeanSilhouetteScore": "Mean silhouette score<br>of MiniBatchKMeans"
+        "ClusterSize": "Number of MiniBatchKMeans clusters (k)",
+        "MeanSilhouetteScore": "Mean silhouette score"
+    }
+)
+
+fig.update_xaxes(dtick=100, title_font=dict(size=title_font_size))
+
+fig.update_yaxes(rangemode="tozero", tick0=0.0, dtick=0.01, title_font=dict(size=title_font_size))
+
+# width = 500
+width = 700
+# height = 350
+# height = 300
+height = 0.6 * width
+
+fig.update_annotations(font_size=title_font_size)
+
+fig.update_layout(
+    title_text="Long-reads",
+    title_x=0.15,
+    # title_y=0.95,
+    template=template,
+    # showlegend=False,
+    width=width,
+    height=height,
+    title_font=dict(size=title_font_size+4)
+    # legend_font=dict(size=18),
+    # legend_grouptitlefont=dict(size=22),
+)
+
+# width = 650
+# width = 1200
+# height = 1200
+    
+# fig.write_image(
+#     "Mean silhouette score of MiniBatchKMeans vs. K size - PacBio combined.svg",
+#     width=600,
+#     height=350,
+# )
+
+fig.write_image(
+    Path(out_dir, "Mean silhouette score of MiniBatchKMeans vs. K size - PacBio - dense.svg",),
+    width=width,
+    height=height,
+)
+
+fig.show()
+
+# %%
+cols = min(facet_col_wrap, len(conditions), 5)
+rows = ceil(len(conditions) / cols)
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
+
+fig = make_subplots(
+    rows=rows,
+    cols=cols,
+    subplot_titles=fixed_conditions,
+    shared_xaxes=True,
+    shared_yaxes=True,
+    # x_title="Number of clusters (k)",
+    # y_title="Mean silhouette score<br>of MiniBatchKMeans",
+    x_title="Number of MiniBatchKMeans clusters (k)",
+    y_title="Mean silhouette score",
+    # column_titles=["Mean silhouette score", "Inertia score"],
+    # row_titles=conditions
+)
+
+# min_x = None
+# max_x = 0
+# max_y = 0
+
+marker_size = 3
+line_width = 0.5
+
+x = cluster_sizes
+
+for (
+    (row, col),
+    condition,
+    kmeans,
+    kmeans_silhouette_scores,
+) in zip(
+    row_col_iter,
+    conditions,
+    conditions_kmeans,
+    conditions_kmeans_silhouette_scores,
+):
+    color = color_discrete_map[condition]
+
+    fig.add_trace(
+        go.Scattergl(
+            # go.Scatter(
+            x=x,
+            y=kmeans_silhouette_scores,
+            mode="markers",
+            marker=dict(
+                color=color,
+                # color=labels[clustered],
+                # colorscale="Blackbody",
+                line_width=line_width,
+                size=marker_size,
+            ),
+        ),
+        row=row,
+        col=col,
+    )
+
+fig.update_yaxes(rangemode="tozero", tick0=0.0, dtick=0.01)
+
+fig.update_layout(
+    title_text="Long-reads",
+    title_x=0.15,
+    # title_y=0.95,
+    template=template,
+    showlegend=False,
+    width=600,
+    height=350,
+)
+
+# fig.write_image(
+#     "Mean silhouette score of MiniBatchKMeans vs. K size - PacBio.svg",
+#     width=600,
+#     height=350,
+# )
 
 fig.show()

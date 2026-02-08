@@ -413,7 +413,9 @@ def multisample_proteins_to_unique_proteins(
     # sum joined reads
     unique_proteins_df["NumOfReads"] = proteins_grouped_by_positions[
         "NumOfReads"
-    ].transform(sum)
+    ].transform(
+        "sum"
+    )  # "sum" instead of sum to keep using SeriesGroupBy.sum
 
     unique_proteins_df = (
         unique_proteins_df.drop_duplicates(

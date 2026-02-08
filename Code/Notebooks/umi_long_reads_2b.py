@@ -370,6 +370,9 @@ concat_unmapped_bams_df = pd.concat(unmapped_bam_dfs, ignore_index=True)
 concat_unmapped_bams_df
 
 # %%
+concat_unmapped_bams_df
+
+# %%
 concat_unmapped_bams_df["CorrectedBarcodeSeq"][0]
 
 # %%
@@ -10530,6 +10533,7 @@ def set_u_v_counts(df):
 
 
 def retain_unique_us_and_vs(df, seed):
+    """Remove edges until each read appears only once (either in U or V)."""
     df = df.copy()
     
     df = set_u_v_counts(df)
@@ -10570,16 +10574,19 @@ def retain_unique_us_and_vs(df, seed):
             max_u_v_max_count = new_max_u_v_max_count
             ic(max_u_v_max_count)
             
-        # remove helper columns
-        df = df.drop(
-            columns=["UCount", "VCount", "UVMinCount", "UVMaxCount"]
-        )
+    # remove helper columns
+    df = df.drop(
+        columns=["UCount", "VCount", "UVMinCount", "UVMaxCount"]
+    )
 
-        return df
+    return df
 
 
 # %% [markdown]
 # ###### Control tests
+
+# %% [markdown]
+# ###### Control tests processing
 
 # %%
 merged_positions_files
@@ -10596,7 +10603,7 @@ reads_noise_dfs[0]
 reads_noise_dfs[1]
 
 # %%
-noise_per_position = reads_noise_dfs[1].iloc[:, 1:].apply(
+noise_per_position = reads_noise_dfs[0].iloc[:, 1:].apply(
     lambda x: x.eq(1).sum() / x.ne(-1).sum()
 ).sort_values(ascending=False)
 noise_per_position.describe()
@@ -10630,17 +10637,19 @@ main_mapping_boundary_diff = 300
 # max_dist_between_two_reads_start_or_end = 100
 max_dist_between_two_reads_start_or_end = 50
 min_control_error = 5 # todo crude control change
-control_to_treatment_groups_initial_ratio = 10 # todo crude control change # this is the ratio before checking the num of errors between the umis of each pair
+control_to_treatment_groups_initial_ratio = 10 # 
 
 # %%
-gene = genes[1]
-reads_file = merged_annotated_reads_files[1]
-main_mapping_boundaries = main_mapping_boundaries_per_gene[1]
-positions_file = merged_positions_files[1]
-expected_disagreements_per_position_series = per_gene_expected_disagreements_per_position_series[1]
-reads_noise_df = reads_noise_dfs[1]
+i = 0
+
+gene = genes[i]
+reads_file = merged_annotated_reads_files[i]
+main_mapping_boundaries = main_mapping_boundaries_per_gene[i]
+positions_file = merged_positions_files[i]
+expected_disagreements_per_position_series = per_gene_expected_disagreements_per_position_series[i]
+reads_noise_df = reads_noise_dfs[i]
 # repeat = "1"
-repeat = "3"
+repeat = "1"
 
 
 one_sample_df = best_gene_specific_pcr_amplified_concat_alignments_df.loc[
@@ -10734,50 +10743,387 @@ umi_seqs_overlap_results_df
 
 # %%
 
-# sample_control_edges_with_no_shared_sub_seq == True
+# # sample_control_edges_with_no_shared_sub_seq == True
 
-# for start, don't search control edges in edges checked for treatment edges
-# (some of these have more alignment errors than accepted,
-# but still, each pair have at least a 5nt shared UMI subseq)
-edges_to_skip_when_searching_for_control_edges = copy.copy(potential_edges)
+# # for start, don't search control edges in edges checked for treatment edges
+# # (some of these have more alignment errors than accepted,
+# # but still, each pair have at least a 5nt shared UMI subseq)
+# edges_to_skip_when_searching_for_control_edges = copy.copy(potential_edges)
+
+# negative_umi_seqs_overlap_results_df = pd.DataFrame(
+#     columns=['Gene', 'Repeat', 'U', 'V', 'MinimalErrors', 'SharedSubSeq']
+# )
+# # negative_edges = []
+
+# U = one_sample_df["Read"].tolist()
+# U.sort()
+
+# while negative_umi_seqs_overlap_results_df.shape[0] / umi_seqs_overlap_results_df.shape[0] < control_to_treatment_groups_initial_ratio:
+    
+#     # ic(len(negative_edges))
+#     # ic(len(edges_to_skip_when_searching_for_control_edges))
+    
+#     new_negative_edges_generator = (
+#         (u, v) # (u, v) are sorted because u < v in distinct_combinations
+#         for u, v in more_itertools.distinct_combinations(U, r=2)
+#         if (
+#             # (u, v) not in verified_non_negative_edges
+#             # and (u, v) not in negative_edges
+#             (u, v) not in edges_to_skip_when_searching_for_control_edges
+#         )
+#     )
+#     new_negative_edges = more_itertools.sample(
+#         new_negative_edges_generator,
+#         # k=control_to_treatment_groups_initial_ratio * len(potential_edges)
+#         k=control_to_treatment_groups_initial_ratio * umi_seqs_overlap_results_df.shape[0]
+#     )
+#     new_negative_edges = [
+#         (u, v)
+#         for u, v in new_negative_edges
+#         if (
+#             np.abs(read_umi_rtg_boundaries_df.loc[u, "RTGGeneStart"] - read_umi_rtg_boundaries_df.loc[v, "RTGGeneStart"]) <= max_dist_between_two_reads_start_or_end
+#             and np.abs(read_umi_rtg_boundaries_df.loc[u, "RTGGeneEnd"] - read_umi_rtg_boundaries_df.loc[v, "RTGGeneEnd"]) <= max_dist_between_two_reads_start_or_end
+#         )
+#     ]
+#     # ic(len(new_negative_edges))
+    
+#     new_negative_umi_seqs_overlap_inputs = [
+#         (
+#             u, 
+#             v, 
+#             read_umi_rtg_boundaries_df.loc[u, "SpanningUMISeq"], 
+#             read_umi_rtg_boundaries_df.loc[v, "SpanningUMISeq"],
+#             max_errors,
+#         )
+#         for u, v in new_negative_edges
+#     ]
+
+#     with mp.get_context("spawn").Pool(processes=processes) as pool:
+#         new_negative_umi_seqs_overlap_batched_results = pool.map(
+#             func=umi_processing.one_batch_umi_seqs_overlap,
+#             iterable=more_itertools.divide(processes * batches_per_process, new_negative_umi_seqs_overlap_inputs)
+#         )
+#     new_negative_umi_seqs_overlap_results = (
+#         (u, v, o, e, False)
+#         for u, v, o, e in chain.from_iterable(new_negative_umi_seqs_overlap_batched_results)
+#     )
+#     new_negative_umi_seqs_overlap_results_df = pd.DataFrame(
+#         new_negative_umi_seqs_overlap_results,
+#         columns=["U", "V", "Overlap", "MinimalErrors", "SharedSubSeq"]
+#     )
+
+#     new_negative_umi_seqs_overlap_results_df.insert(
+#         0, "Gene", gene
+#     )
+#     new_negative_umi_seqs_overlap_results_df.insert(
+#         1, "Repeat", repeat
+#     )
+#     new_negative_umi_seqs_overlap_results_df = new_negative_umi_seqs_overlap_results_df.drop(columns=["Overlap"])
+    
+#     negative_umi_seqs_overlap_results_df = pd.concat(
+#         [
+#             negative_umi_seqs_overlap_results_df,
+#             new_negative_umi_seqs_overlap_results_df.loc[
+#                 new_negative_umi_seqs_overlap_results_df["MinimalErrors"] >= min_control_error
+#             ],
+#         ],
+#         ignore_index=True
+#     )
+    
+#     # each read is allowed to show up in one edge only
+#     negative_umi_seqs_overlap_results_df = retain_unique_us_and_vs(negative_umi_seqs_overlap_results_df, seed)
+    
+#     if ic(negative_umi_seqs_overlap_results_df.shape[0] / umi_seqs_overlap_results_df.shape[0] >= control_to_treatment_groups_initial_ratio):
+#         # there are enough (or more than enough) control edges - take what we need and break
+#         negative_umi_seqs_overlap_results_df = negative_umi_seqs_overlap_results_df.sample(
+#             n=umi_seqs_overlap_results_df.shape[0]*control_to_treatment_groups_initial_ratio, 
+#             random_state=seed
+#         )
+#         break
+#     else:
+#         # add the edges we just tested so we don't try them again
+#         new_edges_to_skip_when_searching_for_control_edges = set(
+#             tuple(sorted((u, v)))
+#             for u, v in new_negative_umi_seqs_overlap_results_df.loc[:, ["U", "V"]].values.tolist()
+#         )
+#         edges_to_skip_when_searching_for_control_edges = edges_to_skip_when_searching_for_control_edges | new_edges_to_skip_when_searching_for_control_edges
+    
+
+# negative_umi_seqs_overlap_results_df
+
+# %%
+# edges_to_skip_when_searching_for_control_edges = set(
+#     chain.from_iterable(potential_edges)
+# )
+# ic(len(potential_edges), len(edges_to_skip_when_searching_for_control_edges));
+
+# %%
+umi_seqs_overlap_results_df
+
+# %%
+# # sample_control_edges_with_no_shared_sub_seq == True
+
+# # # for start, don't search control edges in edges checked for treatment edges
+# # # (some of these have more alignment errors than accepted,
+# # # but still, each pair have at least a 5nt shared UMI subseq)
+# # edges_to_skip_when_searching_for_control_edges = copy.copy(potential_edges)
+
+# # nodes_to_skip_when_searching_for_control_edges = set()
+
+# negative_umi_seqs_overlap_results_df = pd.DataFrame(
+#     columns=['Gene', 'Repeat', 'U', 'V', 'MinimalErrors', 'SharedSubSeq']
+# )
+# # negative_edges = []
+
+# nodes = set(one_sample_df["Read"].tolist())
+
+# while negative_umi_seqs_overlap_results_df.shape[0] / umi_seqs_overlap_results_df.shape[0] < control_to_treatment_groups_initial_ratio:
+    
+#     # ic(len(negative_edges))
+#     # ic(len(edges_to_skip_when_searching_for_control_edges))
+    
+#     # # a generator of possible new negative edges, where the excluded are
+#     # # 1 - individual reads removed from "nodes" (meaning this is the 2+ iteration of the loop) 
+#     # # because they were already used in negative edges
+#     # # 2 - edges (u, v read pairs) in potential_edges (edges already tested as positive edges)
+    
+#     # new_negative_edges_generator = (
+#     #     (u, v) # (u, v) are sorted because u < v in distinct_combinations
+#     #     for u, v in more_itertools.distinct_combinations(sorted(list(nodes)), r=2)
+#     #     if (
+#     #         # (u, v) not in edges_to_skip_when_searching_for_control_edges
+            
+#     #         # for start, don't search control edges in edges checked for treatment edges
+#     #         # (some of these have more alignment errors than accepted,
+#     #         # but still, each pair have at least a 5nt shared UMI subseq)
+#     #         (u, v) not in potential_edges
+#     #     )
+#     # )
+    
+#     new_negative_edges = [] # initialize to allow availability from the outside of the loop
+    
+#     required_sample_size = control_to_treatment_groups_initial_ratio * umi_seqs_overlap_results_df.shape[0]
+    
+#     # while 
+    
+#     first_factor = 1.3
+#     # last_factor = 0.7
+#     last_factor = 1
+#     for factor in np.arange(first_factor, last_factor, -0.1):
+#         ic(factor)
+#         try:
+#             # a generator of possible new negative edges, where the excluded are
+#             # 1 - individual reads removed from "nodes" (meaning this is the 2+ iteration of the loop) 
+#             # because they were already used in negative edges
+#             # 2 - edges (u, v read pairs) in potential_edges (edges already tested as positive edges)
+#             new_negative_edges_generator = (
+#                 (u, v) # (u, v) are sorted because u < v in distinct_combinations
+#                 for u, v in more_itertools.distinct_combinations(sorted(list(nodes)), r=2)
+#                 # if (
+#                 #     # for start, don't search control edges in edges checked for treatment edges
+#                 #     # (some of these have more alignment errors than accepted,
+#                 #     # but still, each pair have at least a 5nt shared UMI subseq)
+#                 #     (u, v) not in potential_edges
+#                 # )
+#             )
+#             # new_negative_edges = more_itertools.sample(
+#             #     new_negative_edges_generator,
+#             #     k=control_to_treatment_groups_initial_ratio * factor * umi_seqs_overlap_results_df.shape[0]
+#             # )
+#             new_negative_edges = [
+#                 (u, v) # (u, v) are sorted because u < v in distinct_combinations
+#                 for u, v in more_itertools.sample(
+#                     new_negative_edges_generator,
+#                     k=control_to_treatment_groups_initial_ratio * factor * umi_seqs_overlap_results_df.shape[0]
+#                 ) 
+#                 if (
+#                     # for start, don't search control edges in edges checked for treatment edges
+#                     # (some of these have more alignment errors than accepted,
+#                     # but still, each pair have at least a 5nt shared UMI subseq)
+#                     (u, v) not in potential_edges
+#                     and np.abs(read_umi_rtg_boundaries_df.loc[u, "RTGGeneStart"] - read_umi_rtg_boundaries_df.loc[v, "RTGGeneStart"]) <= max_dist_between_two_reads_start_or_end
+#                     and np.abs(read_umi_rtg_boundaries_df.loc[u, "RTGGeneEnd"] - read_umi_rtg_boundaries_df.loc[v, "RTGGeneEnd"]) <= max_dist_between_two_reads_start_or_end
+#                 )
+#             ]
+#             break
+#         except ValueError:
+#             if factor == last_factor:
+#                 new_negative_edges = [
+#                     (u, v) # (u, v) are sorted because u < v in distinct_combinations
+#                     for u, v in more_itertools.distinct_combinations(sorted(list(nodes)), r=2)
+#                     if (
+#                         # for start, don't search control edges in edges checked for treatment edges
+#                         # (some of these have more alignment errors than accepted,
+#                         # but still, each pair have at least a 5nt shared UMI subseq)
+#                         (u, v) not in potential_edges
+#                         and np.abs(read_umi_rtg_boundaries_df.loc[u, "RTGGeneStart"] - read_umi_rtg_boundaries_df.loc[v, "RTGGeneStart"]) <= max_dist_between_two_reads_start_or_end
+#                         and np.abs(read_umi_rtg_boundaries_df.loc[u, "RTGGeneEnd"] - read_umi_rtg_boundaries_df.loc[v, "RTGGeneEnd"]) <= max_dist_between_two_reads_start_or_end
+#                     )
+#                 ]
+
+        
+#     # new_negative_edges = [
+#     #     (u, v)
+#     #     for u, v in new_negative_edges
+#     #     if (
+#     #         np.abs(read_umi_rtg_boundaries_df.loc[u, "RTGGeneStart"] - read_umi_rtg_boundaries_df.loc[v, "RTGGeneStart"]) <= max_dist_between_two_reads_start_or_end
+#     #         and np.abs(read_umi_rtg_boundaries_df.loc[u, "RTGGeneEnd"] - read_umi_rtg_boundaries_df.loc[v, "RTGGeneEnd"]) <= max_dist_between_two_reads_start_or_end
+#     #     )
+#     # ]
+#     ic(len(new_negative_edges))
+    
+#     new_negative_umi_seqs_overlap_inputs = [
+#         (
+#             u, 
+#             v, 
+#             read_umi_rtg_boundaries_df.loc[u, "SpanningUMISeq"], 
+#             read_umi_rtg_boundaries_df.loc[v, "SpanningUMISeq"],
+#             max_errors,
+#         )
+#         for u, v in new_negative_edges
+#     ]
+
+#     with mp.get_context("spawn").Pool(processes=processes) as pool:
+#         new_negative_umi_seqs_overlap_batched_results = pool.map(
+#             func=umi_processing.one_batch_umi_seqs_overlap,
+#             iterable=more_itertools.divide(processes * batches_per_process, new_negative_umi_seqs_overlap_inputs)
+#         )
+#     new_negative_umi_seqs_overlap_results = (
+#         (u, v, o, e, False)
+#         for u, v, o, e in chain.from_iterable(new_negative_umi_seqs_overlap_batched_results)
+#     )
+#     new_negative_umi_seqs_overlap_results_df = pd.DataFrame(
+#         new_negative_umi_seqs_overlap_results,
+#         columns=["U", "V", "Overlap", "MinimalErrors", "SharedSubSeq"]
+#     )
+    
+#     break # todo remove
+    
+#     # # each read is allowed to show up in one edge only
+#     # new_negative_umi_seqs_overlap_results_df = retain_unique_us_and_vs(new_negative_umi_seqs_overlap_results_df, seed)
+    
+    
+#     new_negative_umi_seqs_overlap_results_df.insert(
+#         0, "Gene", gene
+#     )
+#     new_negative_umi_seqs_overlap_results_df.insert(
+#         1, "Repeat", repeat
+#     )
+#     new_negative_umi_seqs_overlap_results_df = new_negative_umi_seqs_overlap_results_df.drop(columns=["Overlap"])
+    
+#     negative_umi_seqs_overlap_results_df = pd.concat(
+#         [
+#             negative_umi_seqs_overlap_results_df,
+#             new_negative_umi_seqs_overlap_results_df.loc[
+#                 new_negative_umi_seqs_overlap_results_df["MinimalErrors"] >= min_control_error
+#             ],
+#         ],
+#         ignore_index=True
+#     )
+    
+    
+    
+#     ic(negative_umi_seqs_overlap_results_df.shape[0], umi_seqs_overlap_results_df.shape[0])
+    
+#     if ic(negative_umi_seqs_overlap_results_df.shape[0] / umi_seqs_overlap_results_df.shape[0] >= control_to_treatment_groups_initial_ratio):
+#         # there are enough (or more than enough) control edges - take what we need and break
+#         negative_umi_seqs_overlap_results_df = negative_umi_seqs_overlap_results_df.sample(
+#             n=umi_seqs_overlap_results_df.shape[0]*control_to_treatment_groups_initial_ratio, 
+#             random_state=seed
+#         )
+#         break
+#     else:
+#         # # add the edges we just tested so we don't try them again
+#         # new_edges_to_skip_when_searching_for_control_edges = set(
+#         #     tuple(sorted((u, v)))
+#         #     for u, v in new_negative_umi_seqs_overlap_results_df.loc[:, ["U", "V"]].values.tolist()
+#         # )
+#         # edges_to_skip_when_searching_for_control_edges = edges_to_skip_when_searching_for_control_edges | new_edges_to_skip_when_searching_for_control_edges
+        
+#         # remove nodes that were used in this round s.t. we only take each read at most once
+#         final_new_control_nodes = set(
+#             chain.from_iterable(
+#                 new_negative_umi_seqs_overlap_results_df.loc[:, ["U", "V"]].values
+#             )
+#         )
+#         nodes = nodes - final_new_control_nodes
+        
+#     break # todo uncomment - this is just to test the first iteration
+    
+
+# negative_umi_seqs_overlap_results_df
+
+# %%
+# sample control edges without shared UMI subseqs and min_control_error between them
+
+checked_control_edges = set()
 
 negative_umi_seqs_overlap_results_df = pd.DataFrame(
     columns=['Gene', 'Repeat', 'U', 'V', 'MinimalErrors', 'SharedSubSeq']
 )
-# negative_edges = []
 
-U = one_sample_df["Read"].tolist()
-U.sort()
+nodes = set(one_sample_df["Read"].tolist())
 
 while negative_umi_seqs_overlap_results_df.shape[0] / umi_seqs_overlap_results_df.shape[0] < control_to_treatment_groups_initial_ratio:
     
     # ic(len(negative_edges))
     # ic(len(edges_to_skip_when_searching_for_control_edges))
     
+    # a generator of possible new negative edges, where the excluded are
+    # individual reads removed from "nodes" (meaning this is the 2+ iteration of the loop) 
+    # because they were already used in negative edges
     new_negative_edges_generator = (
         (u, v) # (u, v) are sorted because u < v in distinct_combinations
-        for u, v in more_itertools.distinct_combinations(U, r=2)
-        if (
-            # (u, v) not in verified_non_negative_edges
-            # and (u, v) not in negative_edges
-            (u, v) not in edges_to_skip_when_searching_for_control_edges
-        )
+        for u, v in more_itertools.distinct_combinations(sorted(list(nodes)), r=2)
     )
-    new_negative_edges = more_itertools.sample(
-        new_negative_edges_generator,
-        # k=control_to_treatment_groups_initial_ratio * len(potential_edges)
-        k=control_to_treatment_groups_initial_ratio * umi_seqs_overlap_results_df.shape[0]
+    
+    n_nodes = len(nodes)
+    max_num_of_edges_from_nodes = (n_nodes * (n_nodes - 1)) / 2
+    # number of unchecked control edges considering remaining nodes
+    max_control_edges = max_num_of_edges_from_nodes - len(potential_edges)
+    
+    required_sample_size = min(
+        control_to_treatment_groups_initial_ratio * umi_seqs_overlap_results_df.shape[0],
+        max_control_edges
     )
-    new_negative_edges = [
+    
+    ic(n_nodes, max_num_of_edges_from_nodes, max_control_edges, required_sample_size)
+    
+    raw_new_negative_edges = [
         (u, v)
-        for u, v in new_negative_edges
+        for u, v in more_itertools.sample(
+            new_negative_edges_generator,
+            k=required_sample_size
+        )
         if (
+            # don't search control edges in edges checked for treatment edges
+            # (some of these have more alignment errors than accepted,
+            # but still, each pair have at least a 5nt shared UMI subseq)
+            (u, v) not in potential_edges
+            # also skip previously checked control edges
+            and (u, v) not in checked_control_edges
+        )
+    ]
+    
+    
+    new_negative_edges = [
+        (u, v) # (u, v) are sorted because u < v in distinct_combinations
+        for u, v in raw_new_negative_edges
+        if (
+            # consider mapping boundaries
             np.abs(read_umi_rtg_boundaries_df.loc[u, "RTGGeneStart"] - read_umi_rtg_boundaries_df.loc[v, "RTGGeneStart"]) <= max_dist_between_two_reads_start_or_end
             and np.abs(read_umi_rtg_boundaries_df.loc[u, "RTGGeneEnd"] - read_umi_rtg_boundaries_df.loc[v, "RTGGeneEnd"]) <= max_dist_between_two_reads_start_or_end
         )
     ]
-    # ic(len(new_negative_edges))
     
+    ic(len(new_negative_edges))
+    
+    if len(new_negative_edges) == 0:
+        # don't use these edges next time
+        checked_control_edges = checked_control_edges | set(raw_new_negative_edges)
+        # try again sampling new control edges
+        continue 
+
     new_negative_umi_seqs_overlap_inputs = [
         (
             u, 
@@ -10802,7 +11148,10 @@ while negative_umi_seqs_overlap_results_df.shape[0] / umi_seqs_overlap_results_d
         new_negative_umi_seqs_overlap_results,
         columns=["U", "V", "Overlap", "MinimalErrors", "SharedSubSeq"]
     )
-
+    
+    # each read is allowed to show up in one edge only
+    new_negative_umi_seqs_overlap_results_df = retain_unique_us_and_vs(new_negative_umi_seqs_overlap_results_df, seed)
+    
     new_negative_umi_seqs_overlap_results_df.insert(
         0, "Gene", gene
     )
@@ -10821,8 +11170,7 @@ while negative_umi_seqs_overlap_results_df.shape[0] / umi_seqs_overlap_results_d
         ignore_index=True
     )
     
-    # each read is allowed to show up in one edge only
-    negative_umi_seqs_overlap_results_df = retain_unique_us_and_vs(negative_umi_seqs_overlap_results_df, seed)
+    ic(negative_umi_seqs_overlap_results_df.shape[0], umi_seqs_overlap_results_df.shape[0])
     
     if ic(negative_umi_seqs_overlap_results_df.shape[0] / umi_seqs_overlap_results_df.shape[0] >= control_to_treatment_groups_initial_ratio):
         # there are enough (or more than enough) control edges - take what we need and break
@@ -10832,15 +11180,29 @@ while negative_umi_seqs_overlap_results_df.shape[0] / umi_seqs_overlap_results_d
         )
         break
     else:
-        # add the edges we just tested so we don't try them again
-        new_edges_to_skip_when_searching_for_control_edges = set(
-            tuple(sorted((u, v)))
-            for u, v in new_negative_umi_seqs_overlap_results_df.loc[:, ["U", "V"]].values.tolist()
+        final_new_control_edges = set(
+            (u, v)
+            for u, v in new_negative_umi_seqs_overlap_results_df.loc[:, ["U", "V"]].values
         )
-        edges_to_skip_when_searching_for_control_edges = edges_to_skip_when_searching_for_control_edges | new_edges_to_skip_when_searching_for_control_edges
+        final_new_control_nodes = set(
+            chain.from_iterable(
+                final_new_control_edges
+            )
+        )
+        # remove nodes that were used in this round s.t. we only take each read at most once
+        nodes = nodes - final_new_control_nodes
+        # also, don't check these edges in the next iteration
+        checked_control_edges = checked_control_edges | final_new_control_edges
+        
     
 
 negative_umi_seqs_overlap_results_df
+
+# %%
+set1 = {"apple", "banana", "cherry"}
+set2 = {"google", "microsoft", "apple"}
+set3 = set1 & set2
+print(set3)
 
 # %%
 umi_seqs_overlap_results_df = pd.concat(
@@ -10856,9 +11218,6 @@ umi_seqs_overlap_results_df = pd.concat(
 # # but combining them may have created some)
 umi_seqs_overlap_results_df = retain_unique_us_and_vs(umi_seqs_overlap_results_df, seed)
 
-umi_seqs_overlap_results_df
-
-# %%
 umi_seqs_overlap_results_df
 
 # %%
@@ -10950,6 +11309,9 @@ editing_statuses_df["%TotalSharedAmbiguousPositions"] = (
 )
 
 editing_statuses_df
+
+# %% [markdown]
+# ###### Control tests plots
 
 # %%
 
@@ -11301,9 +11663,307 @@ fig.update_xaxes(dtick=1)
 config = {'staticPlot': True}
 fig.show(config=config)
 
-
 # %% [markdown]
 # ###### Full control df
+
+# %%
+# def make_new_crude_control_editing_statuses_df(
+#     reads_file,
+#     gene,
+#     repeat,
+#     one_sample_df, # defined by a gene-repeat combination
+#     expected_disagreements_per_position_series,
+#     reads_noise_df,
+#     used_reads_first_col_pos = 6,
+#     min_shared_umi_sub_seq_len = 5,
+#     max_errors = 1,
+#     processes = 30,
+#     batches_per_process = 100,
+#     # sample_fraction: float = 0.01, # fraction of edges to sample
+#     max_error_to_take_all: int | None = 0, # take all edges with this many or fewer errors (apply sampling only to edges with more errors)
+#     # max_error_to_check: int | None = None, # consider only edges with this many or fewer errors
+#     # sample_control_edges_with_no_shared_sub_seq: bool = False, # whether to sample control edges that do not share any UMI subseq
+#     main_mapping_boundaries: list[tuple] | None = None, # only consider reads that cover the main mapping boundaries +/- main_mapping_boundary_diff
+#     main_mapping_boundary_diff: int = 300,
+#     max_dist_between_two_reads_start_or_end: int | None = 50, # two reads are connected by an edge only if their mapping starts/ends are within this distance
+#     min_control_error = 5, # minimum number of errors for control edges
+#     control_to_treatment_groups_initial_ratio = 10  # ratio of control to treatment groups edges to aim for
+# ):
+#     ic(gene, repeat)
+    
+#     # filter reads based on main mapping boundaries
+#     if main_mapping_boundaries is not None:
+#         main_mapping_start, main_mapping_end = main_mapping_boundaries
+#         one_sample_df = one_sample_df.loc[
+#             (one_sample_df["RTGGeneStart"].le(main_mapping_start + main_mapping_boundary_diff))
+#             & (one_sample_df["RTGGeneEnd"].ge(main_mapping_end - main_mapping_boundary_diff))
+#         ]
+    
+#     one_sample_df["UMIUniqueSubSeqs"] = (
+#         one_sample_df["SpanningUMISeq"].apply(
+#             lambda x: split_umi_seq_to_unique_sub_seqs(x, min_shared_umi_sub_seq_len)
+#         )
+#     )
+#     one_sample_df = compute_reads_with_indistinguishable_umi_subseqs(one_sample_df)
+    
+#     # edges with shared UMI subseqs
+    
+
+#     potential_edges = set(
+#         tuple(sorted((u, v)))
+#         for u, vs in one_sample_df.loc[:, ["Read", "OtherReadswithIndistinguishableUMISubSeqs"]].values.tolist()
+#         for v in vs
+#     )
+#     ic(len(potential_edges))
+#     assert len(potential_edges) <= one_sample_df["OtherReadswithIndistinguishableUMISubSeqs"].apply(len).sum()
+    
+#     read_umi_rtg_boundaries_df = one_sample_df.loc[:, ["Read", "SpanningUMISeq", "RTGGeneStart", "RTGGeneEnd"]].set_index("Read")
+#     assert read_umi_rtg_boundaries_df.isna().sum().sum() == 0
+    
+#     umi_seqs_overlap_inputs = [
+#         (
+#             u, 
+#             v, 
+#             read_umi_rtg_boundaries_df.loc[u, "SpanningUMISeq"], 
+#             read_umi_rtg_boundaries_df.loc[v, "SpanningUMISeq"],
+#             max_errors,
+#         )
+#         for u, v in potential_edges
+#         if (
+#             np.abs(read_umi_rtg_boundaries_df.loc[u, "RTGGeneStart"] - read_umi_rtg_boundaries_df.loc[v, "RTGGeneStart"]) <= max_dist_between_two_reads_start_or_end
+#             and np.abs(read_umi_rtg_boundaries_df.loc[u, "RTGGeneEnd"] - read_umi_rtg_boundaries_df.loc[v, "RTGGeneEnd"]) <= max_dist_between_two_reads_start_or_end
+#         )
+#     ]
+#     ic(len(umi_seqs_overlap_inputs));
+    
+#     with mp.get_context("spawn").Pool(processes=processes) as pool:
+#         umi_seqs_overlap_batched_results = pool.map(
+#             func=umi_processing.one_batch_umi_seqs_overlap,
+#             iterable=more_itertools.divide(processes * batches_per_process, umi_seqs_overlap_inputs)
+#         )
+    
+#     # create a symmetric df with all pairs (U, V) and (V, U)
+#     umi_seqs_overlap_results = (
+#         (u, v, o, e, True)
+#         for u, v, o, e in chain.from_iterable(umi_seqs_overlap_batched_results)
+#     )
+#     umi_seqs_overlap_results_df = pd.DataFrame(
+#         umi_seqs_overlap_results,
+#         columns=["U", "V", "Overlap", "MinimalErrors", "SharedSubSeq"]
+#     )
+    
+#     # assert len(umi_seqs_overlap_inputs) * 2 == umi_seqs_overlap_results_df.shape[0]
+    
+#     umi_seqs_overlap_results_df.insert(
+#         0, "Gene", gene
+#     )
+#     umi_seqs_overlap_results_df.insert(
+#         1, "Repeat", repeat
+#     )
+#     umi_seqs_overlap_results_df = umi_seqs_overlap_results_df.drop(columns=["Overlap"])
+
+#     umi_seqs_overlap_results_df = umi_seqs_overlap_results_df.loc[
+#         umi_seqs_overlap_results_df["MinimalErrors"] <= max_error_to_take_all
+#     ]
+
+#     # each read is allowed to show up in one edge only
+#     umi_seqs_overlap_results_df = retain_unique_us_and_vs(umi_seqs_overlap_results_df, seed)
+
+#     # sample control edges without shared UMI subseqs and min_control_error between them
+
+#     # for start, don't search control edges in edges checked for treatment edges
+#     # (some of these have more alignment errors than accepted,
+#     # but still, each pair have at least a 5nt shared UMI subseq)
+#     edges_to_skip_when_searching_for_control_edges = copy.copy(potential_edges)
+
+#     negative_umi_seqs_overlap_results_df = pd.DataFrame(
+#         columns=['Gene', 'Repeat', 'U', 'V', 'MinimalErrors', 'SharedSubSeq']
+#     )
+#     # negative_edges = []
+
+#     U = one_sample_df["Read"].tolist()
+#     U.sort()
+
+#     while negative_umi_seqs_overlap_results_df.shape[0] / umi_seqs_overlap_results_df.shape[0] < control_to_treatment_groups_initial_ratio:
+        
+#         # ic(len(negative_edges))
+#         # ic(len(edges_to_skip_when_searching_for_control_edges))
+        
+#         new_negative_edges_generator = (
+#             (u, v) # (u, v) are sorted because u < v in distinct_combinations
+#             for u, v in more_itertools.distinct_combinations(U, r=2)
+#             if (
+#                 # (u, v) not in verified_non_negative_edges
+#                 # and (u, v) not in negative_edges
+#                 (u, v) not in edges_to_skip_when_searching_for_control_edges
+#             )
+#         )
+#         new_negative_edges = more_itertools.sample(
+#             new_negative_edges_generator,
+#             # k=control_to_treatment_groups_initial_ratio * len(potential_edges)
+#             k=control_to_treatment_groups_initial_ratio * umi_seqs_overlap_results_df.shape[0]
+#         )
+#         new_negative_edges = [
+#             (u, v)
+#             for u, v in new_negative_edges
+#             if (
+#                 np.abs(read_umi_rtg_boundaries_df.loc[u, "RTGGeneStart"] - read_umi_rtg_boundaries_df.loc[v, "RTGGeneStart"]) <= max_dist_between_two_reads_start_or_end
+#                 and np.abs(read_umi_rtg_boundaries_df.loc[u, "RTGGeneEnd"] - read_umi_rtg_boundaries_df.loc[v, "RTGGeneEnd"]) <= max_dist_between_two_reads_start_or_end
+#             )
+#         ]
+#         # ic(len(new_negative_edges))
+        
+#         new_negative_umi_seqs_overlap_inputs = [
+#             (
+#                 u, 
+#                 v, 
+#                 read_umi_rtg_boundaries_df.loc[u, "SpanningUMISeq"], 
+#                 read_umi_rtg_boundaries_df.loc[v, "SpanningUMISeq"],
+#                 max_errors,
+#             )
+#             for u, v in new_negative_edges
+#         ]
+
+#         with mp.get_context("spawn").Pool(processes=processes) as pool:
+#             new_negative_umi_seqs_overlap_batched_results = pool.map(
+#                 func=umi_processing.one_batch_umi_seqs_overlap,
+#                 iterable=more_itertools.divide(processes * batches_per_process, new_negative_umi_seqs_overlap_inputs)
+#             )
+#         new_negative_umi_seqs_overlap_results = (
+#             (u, v, o, e, False)
+#             for u, v, o, e in chain.from_iterable(new_negative_umi_seqs_overlap_batched_results)
+#         )
+#         new_negative_umi_seqs_overlap_results_df = pd.DataFrame(
+#             new_negative_umi_seqs_overlap_results,
+#             columns=["U", "V", "Overlap", "MinimalErrors", "SharedSubSeq"]
+#         )
+
+#         new_negative_umi_seqs_overlap_results_df.insert(
+#             0, "Gene", gene
+#         )
+#         new_negative_umi_seqs_overlap_results_df.insert(
+#             1, "Repeat", repeat
+#         )
+#         new_negative_umi_seqs_overlap_results_df = new_negative_umi_seqs_overlap_results_df.drop(columns=["Overlap"])
+        
+#         negative_umi_seqs_overlap_results_df = pd.concat(
+#             [
+#                 negative_umi_seqs_overlap_results_df,
+#                 new_negative_umi_seqs_overlap_results_df.loc[
+#                     new_negative_umi_seqs_overlap_results_df["MinimalErrors"] >= min_control_error
+#                 ],
+#             ],
+#             ignore_index=True
+#         )
+        
+#         # each read is allowed to show up in one edge only
+#         negative_umi_seqs_overlap_results_df = retain_unique_us_and_vs(negative_umi_seqs_overlap_results_df, seed)
+        
+#         if ic(negative_umi_seqs_overlap_results_df.shape[0] / umi_seqs_overlap_results_df.shape[0] >= control_to_treatment_groups_initial_ratio):
+#             # there are enough (or more than enough) control edges - take what we need and break
+#             negative_umi_seqs_overlap_results_df = negative_umi_seqs_overlap_results_df.sample(
+#                 n=umi_seqs_overlap_results_df.shape[0]*control_to_treatment_groups_initial_ratio, 
+#                 random_state=seed
+#             )
+#             break
+#         else:
+#             # add the edges we just tested so we don't try them again
+#             new_edges_to_skip_when_searching_for_control_edges = set(
+#                 tuple(sorted((u, v)))
+#                 for u, v in new_negative_umi_seqs_overlap_results_df.loc[:, ["U", "V"]].values.tolist()
+#             )
+#             edges_to_skip_when_searching_for_control_edges = edges_to_skip_when_searching_for_control_edges | new_edges_to_skip_when_searching_for_control_edges
+    
+    
+#     umi_seqs_overlap_results_df = pd.concat(
+#         [umi_seqs_overlap_results_df, 
+#             negative_umi_seqs_overlap_results_df],
+#         ignore_index=True
+#     )
+    
+#     # each read is allowed to show up in one edge only
+#     # (there were no duplicates in umi_seqs_overlap_results_df and negative_umi_seqs_overlap_results_df individually,
+#     # # but combining them may have created some)
+#     umi_seqs_overlap_results_df = retain_unique_us_and_vs(umi_seqs_overlap_results_df, seed)
+    
+        
+#     used_reads_df = pd.read_csv(reads_file, sep="\t")
+#     used_reads_df["Gene"] = gene
+    
+#     num_of_editing_sites_in_gene = used_reads_df.loc[:, ["EditedPositions", "UneditedPositions", "AmbigousPositions", ]].sum(axis=1).unique()
+#     assert len(num_of_editing_sites_in_gene) == 1, "Each read should have the same number of editing sites, whether edited, unedited or ambiguous."
+#     num_of_editing_sites_in_gene = num_of_editing_sites_in_gene[0]
+#     ic(num_of_editing_sites_in_gene)
+
+    
+#     # this can be further improved by creating a df with the editing status
+#     # of each read, thus saving time and memory on filtering the used_reads_df each time
+#     # edges_to_compare_editing_statuses = [
+#     #     (gene, repeat, num_of_editing_sites_in_gene, u, v, errors, used_reads_df, used_reads_first_col_pos)
+#     #     for u, v, errors in umi_seqs_overlap_results_df.loc[:, ["U", "V", "MinimalErrors"]].values.tolist()
+#     # ]
+#     edges_to_compare_editing_statuses = [
+#         (gene, repeat, num_of_editing_sites_in_gene, u, v, errors, used_reads_df, expected_disagreements_per_position_series, used_reads_first_col_pos)
+#         for u, v, errors in umi_seqs_overlap_results_df.loc[:, ["U", "V", "MinimalErrors"]].values.tolist()
+#     ]
+#     with mp.get_context("spawn").Pool(processes=processes) as pool:
+#         editing_statuses_series = pool.starmap(
+#             func=umi_processing.compare_u_v_editing_statuses_light,
+#             # iterable=more_itertools.divide(processes * batches_per_process, edges_to_compare_editing_statuses)
+#             iterable=edges_to_compare_editing_statuses
+#         )
+#     editing_statuses_df = pd.DataFrame(editing_statuses_series)
+    
+#     editing_statuses_df = editing_statuses_df.merge(
+#         umi_seqs_overlap_results_df.loc[:, ["U", "V", "SharedSubSeq"]],
+#         on=["U", "V"],
+#         how="inner",
+#     )
+#     # editing_statuses_df["0/1+"] = editing_statuses_df["MinimalErrors"].apply(
+#     #     lambda x: 
+#     #         "0" if x == 0 
+#     #         else "1+"
+#     # )
+#     # editing_statuses_df["0/1/2+"] = editing_statuses_df["MinimalErrors"].apply(
+#     #     lambda x: 
+#     #         "0" if x == 0 
+#     #         else "1" if x == 1 
+#     #         else "2+"
+#     # )
+    
+#     edges_to_compare_noise_statuses = [
+#         (gene, u, v, reads_noise_df)
+#         for u, v in editing_statuses_df.loc[:, ["U", "V", ]].values.tolist()
+#     ]
+#     with mp.get_context("spawn").Pool(processes=processes) as pool:
+#         noise_statuses_series = pool.starmap(
+#             func=umi_processing.compare_u_v_noise_statuses_light,
+#             iterable=edges_to_compare_noise_statuses
+#         )
+#     noise_statuses_df = pd.DataFrame(noise_statuses_series)
+    
+#     editing_statuses_df = editing_statuses_df.merge(
+#         noise_statuses_df
+#     )
+    
+#     editing_statuses_df["Group"] = editing_statuses_df.apply(
+#         # lambda row: "Treatment" if row["SharedSubSeq"] else "Control",
+#         lambda row: "IdenticalUMIs" if row["SharedSubSeq"] else "Control",
+#         axis=1
+#     )
+
+#     editing_statuses_df["%RelativeSharedAmbiguousPositions"] = (
+#         editing_statuses_df["SharedAmbiguousPositions"]
+#         * 100
+#         / editing_statuses_df["AllAmbiguousPositions"]
+#     )
+#     editing_statuses_df["%TotalSharedAmbiguousPositions"] = (
+#         editing_statuses_df["SharedAmbiguousPositions"]
+#         * 100
+#         / editing_statuses_df["EditingSitesInGene"]
+#     )
+    
+#     return editing_statuses_df
 
 # %%
 def make_new_crude_control_editing_statuses_df(
@@ -11410,48 +12070,83 @@ def make_new_crude_control_editing_statuses_df(
 
     # sample control edges without shared UMI subseqs and min_control_error between them
 
-    # for start, don't search control edges in edges checked for treatment edges
-    # (some of these have more alignment errors than accepted,
-    # but still, each pair have at least a 5nt shared UMI subseq)
-    edges_to_skip_when_searching_for_control_edges = copy.copy(potential_edges)
+    checked_control_edges = set()
 
     negative_umi_seqs_overlap_results_df = pd.DataFrame(
         columns=['Gene', 'Repeat', 'U', 'V', 'MinimalErrors', 'SharedSubSeq']
     )
-    # negative_edges = []
 
-    U = one_sample_df["Read"].tolist()
-    U.sort()
+    nodes = set(one_sample_df["Read"].tolist())
 
     while negative_umi_seqs_overlap_results_df.shape[0] / umi_seqs_overlap_results_df.shape[0] < control_to_treatment_groups_initial_ratio:
         
         # ic(len(negative_edges))
         # ic(len(edges_to_skip_when_searching_for_control_edges))
         
+        # a generator of possible new negative edges, where the excluded are
+        # individual reads removed from "nodes" (meaning this is the 2+ iteration of the loop) 
+        # because they were already used in negative edges
         new_negative_edges_generator = (
             (u, v) # (u, v) are sorted because u < v in distinct_combinations
-            for u, v in more_itertools.distinct_combinations(U, r=2)
-            if (
-                # (u, v) not in verified_non_negative_edges
-                # and (u, v) not in negative_edges
-                (u, v) not in edges_to_skip_when_searching_for_control_edges
+            for u, v in more_itertools.distinct_combinations(sorted(list(nodes)), r=2)
+        )
+        
+        n_nodes = len(nodes)
+        max_num_of_edges_from_nodes = (n_nodes * (n_nodes - 1)) / 2
+        # number of unchecked control edges considering remaining nodes
+        max_control_edges = max_num_of_edges_from_nodes - len(potential_edges)
+        
+        required_sample_size = min(
+            max(
+                control_to_treatment_groups_initial_ratio * umi_seqs_overlap_results_df.shape[0],
+                0
+            ),
+            max(
+                max_control_edges, 
+                0
             )
         )
-        new_negative_edges = more_itertools.sample(
-            new_negative_edges_generator,
-            # k=control_to_treatment_groups_initial_ratio * len(potential_edges)
-            k=control_to_treatment_groups_initial_ratio * umi_seqs_overlap_results_df.shape[0]
-        )
-        new_negative_edges = [
+        
+        ic(n_nodes, max_num_of_edges_from_nodes, max_control_edges, required_sample_size)
+        
+        if required_sample_size <= 0:
+            break
+        
+        raw_new_negative_edges = [
             (u, v)
-            for u, v in new_negative_edges
+            for u, v in more_itertools.sample(
+                new_negative_edges_generator,
+                k=required_sample_size
+            )
             if (
+                # don't search control edges in edges checked for treatment edges
+                # (some of these have more alignment errors than accepted,
+                # but still, each pair have at least a 5nt shared UMI subseq)
+                (u, v) not in potential_edges
+                # also skip previously checked control edges
+                and (u, v) not in checked_control_edges
+            )
+        ]
+        
+        
+        new_negative_edges = [
+            (u, v) # (u, v) are sorted because u < v in distinct_combinations
+            for u, v in raw_new_negative_edges
+            if (
+                # consider mapping boundaries
                 np.abs(read_umi_rtg_boundaries_df.loc[u, "RTGGeneStart"] - read_umi_rtg_boundaries_df.loc[v, "RTGGeneStart"]) <= max_dist_between_two_reads_start_or_end
                 and np.abs(read_umi_rtg_boundaries_df.loc[u, "RTGGeneEnd"] - read_umi_rtg_boundaries_df.loc[v, "RTGGeneEnd"]) <= max_dist_between_two_reads_start_or_end
             )
         ]
-        # ic(len(new_negative_edges))
         
+        ic(len(new_negative_edges))
+        
+        if len(new_negative_edges) == 0:
+            # don't use these edges next time
+            checked_control_edges = checked_control_edges | set(raw_new_negative_edges)
+            # try again sampling new control edges
+            continue 
+
         new_negative_umi_seqs_overlap_inputs = [
             (
                 u, 
@@ -11476,7 +12171,10 @@ def make_new_crude_control_editing_statuses_df(
             new_negative_umi_seqs_overlap_results,
             columns=["U", "V", "Overlap", "MinimalErrors", "SharedSubSeq"]
         )
-
+        
+        # each read is allowed to show up in one edge only
+        new_negative_umi_seqs_overlap_results_df = retain_unique_us_and_vs(new_negative_umi_seqs_overlap_results_df, seed)
+        
         new_negative_umi_seqs_overlap_results_df.insert(
             0, "Gene", gene
         )
@@ -11495,8 +12193,7 @@ def make_new_crude_control_editing_statuses_df(
             ignore_index=True
         )
         
-        # each read is allowed to show up in one edge only
-        negative_umi_seqs_overlap_results_df = retain_unique_us_and_vs(negative_umi_seqs_overlap_results_df, seed)
+        ic(negative_umi_seqs_overlap_results_df.shape[0], umi_seqs_overlap_results_df.shape[0])
         
         if ic(negative_umi_seqs_overlap_results_df.shape[0] / umi_seqs_overlap_results_df.shape[0] >= control_to_treatment_groups_initial_ratio):
             # there are enough (or more than enough) control edges - take what we need and break
@@ -11506,12 +12203,19 @@ def make_new_crude_control_editing_statuses_df(
             )
             break
         else:
-            # add the edges we just tested so we don't try them again
-            new_edges_to_skip_when_searching_for_control_edges = set(
-                tuple(sorted((u, v)))
-                for u, v in new_negative_umi_seqs_overlap_results_df.loc[:, ["U", "V"]].values.tolist()
+            final_new_control_edges = set(
+                (u, v)
+                for u, v in new_negative_umi_seqs_overlap_results_df.loc[:, ["U", "V"]].values
             )
-            edges_to_skip_when_searching_for_control_edges = edges_to_skip_when_searching_for_control_edges | new_edges_to_skip_when_searching_for_control_edges
+            final_new_control_nodes = set(
+                chain.from_iterable(
+                    final_new_control_edges
+                )
+            )
+            # remove nodes that were used in this round s.t. we only take each read at most once
+            nodes = nodes - final_new_control_nodes
+            # also, don't check these edges in the next iteration
+            checked_control_edges = checked_control_edges | final_new_control_edges
     
     
     umi_seqs_overlap_results_df = pd.concat(
@@ -11520,10 +12224,10 @@ def make_new_crude_control_editing_statuses_df(
         ignore_index=True
     )
     
-    # each read is allowed to show up in one edge only
-    # (there were no duplicates in umi_seqs_overlap_results_df and negative_umi_seqs_overlap_results_df individually,
-    # # but combining them may have created some)
-    umi_seqs_overlap_results_df = retain_unique_us_and_vs(umi_seqs_overlap_results_df, seed)
+    # # each read is allowed to show up in one edge only
+    # # (there were no duplicates in umi_seqs_overlap_results_df and negative_umi_seqs_overlap_results_df individually,
+    # # # but combining them may have created some)
+    # umi_seqs_overlap_results_df = retain_unique_us_and_vs(umi_seqs_overlap_results_df, seed)
     
         
     used_reads_df = pd.read_csv(reads_file, sep="\t")
@@ -11558,17 +12262,6 @@ def make_new_crude_control_editing_statuses_df(
         on=["U", "V"],
         how="inner",
     )
-    # editing_statuses_df["0/1+"] = editing_statuses_df["MinimalErrors"].apply(
-    #     lambda x: 
-    #         "0" if x == 0 
-    #         else "1+"
-    # )
-    # editing_statuses_df["0/1/2+"] = editing_statuses_df["MinimalErrors"].apply(
-    #     lambda x: 
-    #         "0" if x == 0 
-    #         else "1" if x == 1 
-    #         else "2+"
-    # )
     
     edges_to_compare_noise_statuses = [
         (gene, u, v, reads_noise_df)
@@ -11651,16 +12344,600 @@ concat_new_crude_control_editing_statuses_df = pd.concat(
             reads_noise_dfs,
         )
         for repeat in list("123")
-        # for reads_file, gene, main_mapping_boundaries in zip(
-        #     merged_annotated_reads_files[1:], genes[1:], main_mapping_boundaries_per_gene[1:]
+        # for (
+        #     reads_file, 
+        #     gene, 
+        #     main_mapping_boundaries, 
+        #     expected_disagreements_per_position_series,
+        #     reads_noise_df
+        # ) in zip(
+        #     merged_annotated_reads_files[1:],
+        #     genes[1:],
+        #     main_mapping_boundaries_per_gene[1:],
+        #     per_gene_expected_disagreements_per_position_series[1:],
+        #     reads_noise_dfs[1:],
         # )
-        # for repeat in list("123")[2:] # only repeat 3
+        # for repeat in list("123")
     ),
     ignore_index=True
 )
 
 
-concat_control_editing_statuses_df
+concat_new_crude_control_editing_statuses_df
+
+# %%
+concat_new_crude_control_editing_statuses_df
+
+# %%
+concat_new_crude_control_editing_statuses_df.groupby(["Gene", "Group"]).size().reset_index(name="Edges")
+
+# %%
+concat_new_crude_control_editing_statuses_df.loc[
+    concat_new_crude_control_editing_statuses_df["Group"].eq("IdenticalUMIs")
+].groupby(["Gene", "Repeat"]).size().reset_index()
+
+# %%
+concat_new_crude_control_editing_statuses_df.groupby(["Gene", "Repeat"]).size().reset_index()
+
+# %%
+concat_new_crude_control_editing_statuses_df.groupby(["Gene", "Repeat", "Group"]).size().reset_index(name="Edges")
+
+# %%
+# fig = px.box(
+#     concat_new_crude_control_editing_statuses_df,
+#     x="Group",
+#     y="StronglyDisagreeingPositions",
+#     color="Group",
+#     facet_row="Gene",
+#     facet_col="Repeat",
+
+#     # category_orders={
+#     #     # "0/1/2+": ["0", "1", "2+"],
+#     # },
+#     # labels={
+#     #     # "MinimalErrors": "Alignment errors",
+#     #     "0/1/2+": "Alignment errors",
+#     # }
+# )
+# fig.update_layout(
+#     width=800,
+#     height=600,
+#     showlegend=False,
+# )
+# # fig.show()
+# config = {'staticPlot': True}
+# fig.show(config=config)
+
+# %%
+fig = px.box(
+    concat_new_crude_control_editing_statuses_df,
+    x="Group",
+    y="%RelativeStronglyDisagreeingPositions",
+    color="Group",
+    facet_row="Gene",
+    facet_col="Repeat",
+
+    # category_orders={
+    #     # "0/1/2+": ["0", "1", "2+"],
+    # },
+    labels={
+        # "MinimalErrors": "Alignment errors",
+        "%RelativeStronglyDisagreeingPositions": "Strongly disagreeing positions /<br>unambiguous positions [%]",
+    }
+)
+fig.update_layout(
+    width=800,
+    height=650,
+    showlegend=False,
+)
+# fig.show()
+config = {'staticPlot': True}
+fig.show(config=config)
+
+# %%
+fig = px.box(
+    concat_new_crude_control_editing_statuses_df,
+    x="Group",
+    y="%RelativeStronglyDisagreeingNoisePositions",
+    color="Group",
+    facet_row="Gene",
+    facet_col="Repeat",
+
+    # category_orders={
+    #     # "0/1/2+": ["0", "1", "2+"],
+    # },
+    labels={
+        # "MinimalErrors": "Alignment errors",
+        # "%RelativeStronglyDisagreeingNoisePositions": "Strongly disagreeing noise positions /<br>unambiguous positions [%]",
+        "%RelativeStronglyDisagreeingNoisePositions": "Strongly disagreeing noise /<br>unambiguous positions [%]",
+    }
+)
+fig.update_layout(
+    width=800,
+    height=650,
+    showlegend=False,
+)
+# fig.show()
+config = {'staticPlot': True}
+fig.show(config=config)
+
+# %%
+# concat_new_crude_control_editing_statuses_df.groupby(
+#     ["Gene", "Group"]
+# )[["%RelativeStronglyDisagreeingPositions", "%RelativeStronglyDisagreeingNoisePositions"]].describe().round(2).reset_index()
+
+# %%
+fig = px.box(
+    concat_new_crude_control_editing_statuses_df,
+    x="Group",
+    y="WeaklyDisagreeingPositions",
+    color="Group",
+    facet_row="Gene",
+    facet_col="Repeat",
+
+    # category_orders={
+    #     # "0/1/2+": ["0", "1", "2+"],
+    # },
+    # labels={
+    #     # "MinimalErrors": "Alignment errors",
+    #     "0/1/2+": "Alignment errors",
+    # }
+)
+fig.update_layout(
+    width=800,
+    height=600,
+    showlegend=False,
+)
+# fig.show()
+config = {'staticPlot': True}
+fig.show(config=config)
+
+# %%
+fig = px.box(
+    concat_new_crude_control_editing_statuses_df,
+    x="Group",
+    y="%RelativeSharedAmbiguousPositions",
+    color="Group",
+    facet_row="Gene",
+    facet_col="Repeat",
+
+    # category_orders={
+    #     # "0/1/2+": ["0", "1", "2+"],
+    # },
+    labels={
+        # "MinimalErrors": "Alignment errors",
+        "%RelativeSharedAmbiguousPositions": "Shared ambiguous positions /<br>ambiguous positions [%]",
+    }
+)
+fig.update_layout(
+    
+    width=800,
+    height=600,
+    showlegend=False,
+)
+# fig.show()
+config = {'staticPlot': True}
+fig.show(config=config)
+
+
+# %% [markdown]
+# ###### Increasred diversity at reads' ends
+
+# %%
+def get_u_v_shared_unambiguous_and_strongly_disagreeing_positions(
+    used_reads_df,
+    u,
+    v
+):
+    u_v_reads_df = used_reads_df.loc[
+        [u, v]
+    ]
+    u_v_reads_df.columns = u_v_reads_df.columns.astype(int)
+    u_v_reads_df = u_v_reads_df.loc[
+        :,
+        u_v_reads_df.apply(
+            lambda x: x.ne(-1).all()
+        )    
+    ]
+    
+    shared_unambiguous_positions = u_v_reads_df.columns.tolist()
+    
+    strongly_disagreeing_positions = u_v_reads_df.loc[
+        :,
+        u_v_reads_df.apply(lambda x: x.nunique() == 2)
+    ].columns.tolist()
+    
+    return shared_unambiguous_positions, strongly_disagreeing_positions
+
+
+# %%
+def get_u_v_shared_unambiguous_and_strongly_disagreeing_positions_counters_per_gene_and_group(
+    used_reads_df,
+    u_v_pairs,
+    processes=5
+):
+    with Pool(processes=processes) as pool:
+        u_v_shared_unambiguous_and_strongly_disagreeing_positions = pool.starmap(
+            func=get_u_v_shared_unambiguous_and_strongly_disagreeing_positions,
+            iterable=[
+                (used_reads_df, u, v)
+                for u, v in u_v_pairs
+            ]
+        )
+        
+    shared_unambiguous_positions = [
+        x[0]
+        for x in u_v_shared_unambiguous_and_strongly_disagreeing_positions
+    ]
+    strongly_disagreeing_positions = [
+        x[1]
+        for x in u_v_shared_unambiguous_and_strongly_disagreeing_positions
+    ]
+
+    shared_unambiguous_positions_counter = Counter(
+        chain.from_iterable(shared_unambiguous_positions)
+    )
+    strongly_disagreeing_positions_counter = Counter(
+        chain.from_iterable(strongly_disagreeing_positions)
+    )
+
+    return shared_unambiguous_positions_counter, strongly_disagreeing_positions_counter
+
+
+# %%
+def make_one_gene_reads_ends_diversity_df(
+    gene,
+    reads_file,
+    used_reads_first_col_pos,
+    mapping_boundaries,
+    gene_edges_and_groups_df, # a df with cols ["U", "V", "Group"]
+    processes=5
+):
+    
+    used_reads_df = pd.read_csv(reads_file, sep="\t")
+    # used_reads_df["Gene"] = gene
+    used_reads_df = used_reads_df.set_index("Read").iloc[:, used_reads_first_col_pos-1:]
+    
+    reads_ends_diversity_df = pd.DataFrame(
+        used_reads_df.apply(
+            lambda x: x.eq(1).sum() / x.ne(-1).sum()
+        ).T.rename("EditingFrequency")
+    ).reset_index(names="Position")
+    reads_ends_diversity_df["Position"] = reads_ends_diversity_df["Position"].astype(int)
+    
+    # add gene info
+    reads_ends_diversity_df.insert(0, "Gene", gene)
+
+    # add distance from beggining/end of amlification
+    mapping_start, mapping_end = mapping_boundaries
+    ic(mapping_start, mapping_end)
+    reads_ends_diversity_df.insert(
+        2,
+        "AmplificationStartDistance",
+        reads_ends_diversity_df["Position"] - mapping_start
+    )
+    reads_ends_diversity_df.insert(
+        3,
+        "AmplificationEndDistance",
+        mapping_end - reads_ends_diversity_df["Position"]
+    )
+
+    # finally, for each group (identical umis/control), count for each position:
+    # 1 - num of u,v pairs fully jointly covering the position (no NA)
+    # 2 - num of u,v pairs strongly disagreeing at the position (one edited, one unedited)
+
+
+    treatment_u_v_pairs = gene_edges_and_groups_df.loc[
+        gene_edges_and_groups_df["Group"].eq("IdenticalUMIs"), 
+        ["U", "V"]
+    ].values.tolist()
+    control_u_v_pairs = gene_edges_and_groups_df.loc[
+        gene_edges_and_groups_df["Group"].eq("Control"),
+        ["U", "V"]
+    ].values.tolist()
+
+    treatment_shared_unambiguous_positions_counter, treatment_strongly_disagreeing_positions_counter = get_u_v_shared_unambiguous_and_strongly_disagreeing_positions_counters_per_gene_and_group(
+        used_reads_df,
+        treatment_u_v_pairs,
+        processes=processes
+    )
+    control_shared_unambiguous_positions_counter, control_strongly_disagreeing_positions_counter = get_u_v_shared_unambiguous_and_strongly_disagreeing_positions_counters_per_gene_and_group(
+        used_reads_df,
+        control_u_v_pairs,
+        processes=processes
+    )
+
+    reads_ends_diversity_df["StronglyDisagreeingIdenticalEdges"] = reads_ends_diversity_df["Position"].apply(
+        lambda x: treatment_strongly_disagreeing_positions_counter[x]
+    )
+    reads_ends_diversity_df["UnambiguouslyCoveringIdenticalEdges"] = reads_ends_diversity_df["Position"].apply(
+        lambda x: treatment_shared_unambiguous_positions_counter[x]
+    )
+    reads_ends_diversity_df["%StronglyDisagreeingIdenticalEdges"] = reads_ends_diversity_df["StronglyDisagreeingIdenticalEdges"].mul(
+        100
+    ).div(reads_ends_diversity_df["UnambiguouslyCoveringIdenticalEdges"]).fillna(0)
+
+    reads_ends_diversity_df["StronglyDisagreeingControlEdges"] = reads_ends_diversity_df["Position"].apply(
+        lambda x: control_strongly_disagreeing_positions_counter[x]
+    )
+    reads_ends_diversity_df["UnambiguouslyCoveringControlEdges"] = reads_ends_diversity_df["Position"].apply(
+        lambda x: control_shared_unambiguous_positions_counter[x]
+    )
+    reads_ends_diversity_df["%StronglyDisagreeingControlEdges"] = reads_ends_diversity_df["StronglyDisagreeingControlEdges"].mul(
+        100
+    ).div(reads_ends_diversity_df["UnambiguouslyCoveringControlEdges"]).fillna(0)
+        
+
+
+    return reads_ends_diversity_df
+
+# %%
+# test with ADAR first
+
+# %%
+gene = genes[0]
+reads_file = merged_annotated_reads_files[0]
+mapping_boundaries = main_mapping_boundaries_per_gene[0]
+
+gene_edges_and_groups_df = concat_new_crude_control_editing_statuses_df.loc[
+    concat_new_crude_control_editing_statuses_df["Gene"] == gene,
+    ["U", "V", "Group"]
+]
+
+adar_reads_ends_diversity_df = make_one_gene_reads_ends_diversity_df(
+    gene,
+    reads_file,
+    used_reads_first_col_pos,
+    mapping_boundaries,
+    gene_edges_and_groups_df, # a df with cols ["U", "V", "Group"]
+    processes=10
+)
+adar_reads_ends_diversity_df
+
+# %%
+gene = genes[1]
+reads_file = merged_annotated_reads_files[1]
+mapping_boundaries = main_mapping_boundaries_per_gene[1]
+
+gene_edges_and_groups_df = concat_new_crude_control_editing_statuses_df.loc[
+    concat_new_crude_control_editing_statuses_df["Gene"] == gene,
+    ["U", "V", "Group"]
+]
+
+iqec_reads_ends_diversity_df = make_one_gene_reads_ends_diversity_df(
+    gene,
+    reads_file,
+    used_reads_first_col_pos,
+    mapping_boundaries,
+    gene_edges_and_groups_df, # a df with cols ["U", "V", "Group"]
+    processes=10
+)
+iqec_reads_ends_diversity_df
+
+# %%
+iqec_reads_ends_diversity_df.loc[
+    :, ["Position", "%StronglyDisagreeingIdenticalEdges"]
+].set_index(
+    "Position"
+)
+
+# %%
+iqec_reads_ends_diversity_df.loc[
+    :, ["Position", "%StronglyDisagreeingIdenticalEdges"]
+].set_index(
+    "Position"
+).rolling(2).mean()
+
+# %%
+concat_reads_ends_diversity = pd.concat(
+    [adar_reads_ends_diversity_df, iqec_reads_ends_diversity_df],
+    ignore_index=True
+)
+concat_reads_ends_diversity
+
+# %%
+df = pd.DataFrame(
+    {
+        "A": [1, 2, 3, 5, 1],
+        "B": [11, 3, 2, 1, 0]
+    }
+)
+df
+
+# %%
+sum([1, 3, 2]) / 3
+
+# %%
+df.rolling(
+    3, 
+    center=True, 
+    # closed="both"
+).mean()
+
+# %%
+df.rolling(
+    3, 
+    center=True, 
+    # closed="both"
+).sum() / 3
+
+# %%
+df.rolling(
+    3, 
+    center=True, 
+    # closed="both"
+).sum()
+
+# %%
+df.rolling(
+    3, 
+    # center=True, 
+    # closed="both"
+).sum()
+
+# %%
+df.rolling(
+    3, 
+    # center=True, 
+    # closed="both"
+).sum()
+
+# %%
+df.rolling(
+    3, 
+    # center=True, 
+    # closed="both"
+).mean()
+
+# %%
+df.rolling(
+    3, 
+    center=True, 
+    closed="both"
+).mean()
+
+# %%
+concat_reads_ends_diversity.to_csv(
+    Path(mapped_merged_filtered_bams_dir, "UniqueReadsEndsDiversity.tsv"),
+    sep="\t",
+    index=False
+)
+
+# %%
+adar_reads_ends_diversity_df["%StronglyDisagreeingIdenticalEdges"].describe()
+
+# %%
+adar_reads_ends_diversity_df["%StronglyDisagreeingControlEdges"].describe()
+
+# %%
+fig = px.scatter(
+    concat_reads_ends_diversity,
+    x="EditingFrequency",
+    y="%StronglyDisagreeingIdenticalEdges",
+    color="Gene"
+)
+fig.update_layout(
+    width=400,
+    height=400
+)
+fig.show()
+
+# %%
+fig = px.scatter(
+    concat_reads_ends_diversity,
+    x="EditingFrequency",
+    y="%StronglyDisagreeingControlEdges",
+    color="Gene"
+)
+fig.update_layout(
+    width=400,
+    height=400
+)
+fig.show()
+
+# %%
+# fig = px.area(
+#     concat_reads_ends_diversity,
+#     x="AmplificationStartDistance",
+#     y="%StronglyDisagreeingIdenticalEdges",
+#     color="Gene",
+# )
+# fig.update_layout(
+#     width=800,
+#     height=400
+# )
+# fig.show()
+
+# %%
+fig = px.area(
+    concat_reads_ends_diversity,
+    x="AmplificationStartDistance",
+    y="%StronglyDisagreeingIdenticalEdges",
+    color="Gene",
+    facet_row="Gene",
+    labels={
+        "AmplificationStartDistance": "Distance from amplification start [bp]",
+        "%StronglyDisagreeingIdenticalEdges": "Strongly disagreeing<br>identical UMI edges [%]",
+    }
+)
+fig.update_layout(
+    width=800,
+    height=600,
+    showlegend=False
+)
+fig.show()
+
+# %%
+fig = px.area(
+    concat_reads_ends_diversity,
+    x="AmplificationStartDistance",
+    y="%StronglyDisagreeingControlEdges",
+    color="Gene",
+    facet_row="Gene",
+    labels={
+        "AmplificationStartDistance": "Distance from amplification start [bp]",
+        "%StronglyDisagreeingControlEdges": "Strongly disagreeing<br>control UMI edges [%]",
+    }
+)
+fig.update_layout(
+    width=800,
+    height=600,
+    showlegend=False
+)
+fig.show()
+
+# %%
+# fig = px.area(
+#     concat_reads_ends_diversity,
+#     x="AmplificationStartDistance",
+#     y="%StronglyDisagreeingControlEdges",
+#     color="Gene",
+# )
+# fig.update_layout(
+#     width=800,
+#     height=400
+# )
+# fig.show()
+
+# %%
+fig = px.area(
+    adar_reads_ends_diversity_df,
+    x="AmplificationStartDistance",
+    y="%StronglyDisagreeingControlEdges"
+)
+fig.update_layout(
+    width=800,
+    height=400
+)
+fig.show()
+
+# %%
+fig = px.area(
+    adar_reads_ends_diversity_df,
+    x="AmplificationEndDistance",
+    y="%StronglyDisagreeingIdenticalEdges"
+)
+fig.update_layout(
+    width=800,
+    height=400
+)
+fig.show()
+
+# %%
+fig = px.area(
+    adar_reads_ends_diversity_df,
+    x="AmplificationEndDistance",
+    y="%StronglyDisagreeingControlEdges"
+)
+fig.update_layout(
+    width=800,
+    height=400
+)
+fig.show()
+
+# %%
+
+# %%
 
 # %% [markdown]
 # ### Obtain MIS
