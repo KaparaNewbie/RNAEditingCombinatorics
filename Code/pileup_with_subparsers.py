@@ -1445,8 +1445,11 @@ def define_args() -> argparse.Namespace:
     )
     undirected_sequencing_subparser.add_argument(
         "--max_snps_per_gene_to_allow_editing_detection",
-        default=0,
-        help=("Max number of SNPs allowed in gene to allow editing detection in it."),
+        default=np.inf,
+        help=(
+            "Max number of SNPs allowed in gene to allow editing detection in it. "
+            "Equals to np.inf by default, meaning no limit."
+        ),
         type=int,
     )
     undirected_sequencing_subparser.add_argument(

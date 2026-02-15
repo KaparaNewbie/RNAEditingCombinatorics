@@ -18,6 +18,7 @@
 
 # %%
 code_dir = "/private7/projects/Combinatorics/Code"
+out_dir = "/private7/projects/Combinatorics/Code/Notebooks"
 
 # %%
 
@@ -2823,6 +2824,9 @@ len(reads_mapped_to_edited_positions_info_dfs)
 # %%
 # reads_dfs[1]
 
+# %% [markdown]
+# ### Count num of reads in reads files
+
 # %%
 def count_lines_in_file(file, cat_cmd="zcat"):
     cmd = f"{cat_cmd} {file} | wc -l"
@@ -3237,6 +3241,7 @@ unique_proteins_dfs[1].iloc[:, unique_proteins_first_col_pos:]
 # %% [markdown]
 # ### Distinct unique proteins
 
+
 # %%
 assert (
     len(conditions)
@@ -3498,10 +3503,10 @@ max_distinct_proteins_df = max_distinct_proteins_df.sort_values(
 max_distinct_proteins_df
 
 # %%
-max_distinct_proteins_df[["IsNeural", "IsNeuralNew", "IsNeuralNew2"]].value_counts()
+# max_distinct_proteins_df[["IsNeural", "IsNeuralNew", "IsNeuralNew2"]].value_counts()
 
 # %%
-max_distinct_proteins_df[["IsNeural", "IsNeuralNew2"]].value_counts()
+# max_distinct_proteins_df[["IsNeural", "IsNeuralNew2"]].value_counts()
 
 # %%
 assert max_distinct_proteins_df.loc[
@@ -6498,13 +6503,32 @@ fig.update_layout(
     #     },
 )
 
-fig.write_image(
-    "Distinct proteins per gene vs. prct of genes - log(y) - Octopus - Single-cell.svg",
-    width=width,
-    height=height,
-)
+# fig.write_image(
+#     "Distinct proteins per gene vs. prct of genes - log(y) - Octopus - Single-cell.svg",
+#     width=width,
+#     height=height,
+# )
 
 fig.show()
+
+# %%
+# variables needed for main fig. bottom panel - 
+# to be saved and combined with whole transcriptome as a top panel
+
+neuronal_max_distinct_proteins_df.to_csv(
+    Path(out_dir, "MaxDistinctProtsForFig6.Neuronal.Octopus.SC.csv"),
+    sep="\t",
+    index=False
+)
+non_neuronal_max_distinct_proteins_df.to_csv(
+    Path(out_dir, "MaxDistinctProtsForFig6.NonNeuronal.Octopus.SC.csv"),
+    sep="\t",
+    index=False
+)
+
+# %%
+,
+    
 
 # %%
 font_size = 24
@@ -6668,11 +6692,11 @@ fig.update_layout(
     #     },
 )
 
-fig.write_image(
-    "Distinct proteins per gene vs. prct of genes - log(y) - Octopus - Single-cell - bottom panel.svg",
-    width=width,
-    height=height,
-)
+# fig.write_image(
+#     "Distinct proteins per gene vs. prct of genes - log(y) - Octopus - Single-cell - bottom panel.svg",
+#     width=width,
+#     height=height,
+# )
 
 fig.show()
 

@@ -425,7 +425,7 @@ def annotate_edited_sites(
     strand: str,
     noise_threshold: float,
     denovo_detection: bool = True,
-    editing_detection_possible: bool = True
+    editing_detection_possible: bool = True,
 ):
     """Determine which sites are currently edited.
 
@@ -442,16 +442,20 @@ def annotate_edited_sites(
 
     if editing_detection_possible:
         if denovo_detection:
-            edited_positions = positions_df.loc[positions_df["RefBase"] == ref_base].apply(
-                lambda x: x["EditingFrequency"] > noise_threshold, axis=1
-            )
+            edited_positions = positions_df.loc[
+                positions_df["RefBase"] == ref_base
+            ].apply(lambda x: x["EditingFrequency"] > noise_threshold, axis=1)
         else:
-            edited_positions = positions_df.loc[positions_df["RefBase"] == ref_base].apply(
-                lambda x: (x["EditingFrequency"] > noise_threshold) and (x["KnownEditing"]),
+            edited_positions = positions_df.loc[
+                positions_df["RefBase"] == ref_base
+            ].apply(
+                lambda x: (x["EditingFrequency"] > noise_threshold)
+                and (x["KnownEditing"]),
                 axis=1,
             )
         edited = [
-            i in edited_positions.loc[edited_positions].index for i in positions_df.index
+            i in edited_positions.loc[edited_positions].index
+            for i in positions_df.index
         ]
     else:
         edited = [False] * len(positions_df)
@@ -1416,7 +1420,7 @@ def multisample_pileups_to_positions_all_transcripts(
     bh_editing_col: str = "EditedCorrected",
     disregard_alt_base_freq_1: bool = True,
     pooled_transcript_noise_threshold: float = 0,
-    max_snps_per_gene_to_allow_editing_detection: int = 3
+    max_snps_per_gene_to_allow_editing_detection: int = 3,
 ):
     """
     Read pileup files of reads mapped to a certain transcript from one or more samples into a DataFrame.
@@ -1494,7 +1498,11 @@ def multisample_pileups_to_positions_all_transcripts(
                     out_files_sep,
                 )
                 for reads_mapping_file, mismatches_file, chrom, strand, positions_file in zip(
-                    reads_mapping_files, mismatches_files, chroms, strands, positions_files
+                    reads_mapping_files,
+                    mismatches_files,
+                    chroms,
+                    strands,
+                    positions_files,
                 )
             ],
         )
@@ -1534,7 +1542,7 @@ def multisample_pileups_to_positions_all_transcripts(
                     bh_noisy_col,
                     disregard_alt_base_freq_1,
                     pooled_transcript_noise_threshold,
-                    max_snps_per_gene_to_allow_editing_detection
+                    max_snps_per_gene_to_allow_editing_detection,
                 )
                 for positions_file, corrected_noise_file, strand in zip(
                     positions_files,
@@ -2054,7 +2062,7 @@ def multisample_pileups_to_positions_part_2(
     bh_noisy_col: str,
     disregard_alt_base_freq_1: bool,
     pooled_transcript_noise_threshold: float,
-    max_snps_per_gene_to_allow_editing_detection: int
+    max_snps_per_gene_to_allow_editing_detection: int,
 ):
     """
     The input positions_file is after noise annotation, and the BH correction is added according to the corrected
@@ -2171,9 +2179,9 @@ def multisample_pileups_to_positions_part_2(
         noise_threshold = noise_levels.mean()
     if pd.isna(noise_threshold):
         noise_threshold = 0
-    
+
     editing_detection_possible = True
-    
+
     # note 1:
     # we require `>` rather than `>=`
     # in order to enforce processing the positions into reads
@@ -2199,8 +2207,7 @@ def multisample_pileups_to_positions_part_2(
         editing_detection_possible = False
     # also, don't consider a gene as edited if there are too many SNPs in it
     num_of_snps_in_gene = positions_df.loc[
-        (positions_df["NoisyFinal"])
-        & (positions_df["Noise"].ge(snp_noise_level))
+        (positions_df["NoisyFinal"]) & (positions_df["Noise"].ge(snp_noise_level))
     ].shape[0]
     if num_of_snps_in_gene > max_snps_per_gene_to_allow_editing_detection:
         # raise Warning(
@@ -2212,13 +2219,13 @@ def multisample_pileups_to_positions_part_2(
             "and thus won't be considered for editing detection and further processing downstream."
         )
         editing_detection_possible = False
-    
+
     # anyway, we finalize the noise threshold
     # (although it won't matter if editing_detection_possible == False)
     noise_threshold *= assurance_factor
 
     # write noise threshold to file
-    chrom = positions_file.name.split('.')[0]
+    chrom = positions_file.name.split(".")[0]
     with open(
         positions_file.parent / f"{chrom}.NoiseThreshold.csv",
         "w",
@@ -2227,7 +2234,13 @@ def multisample_pileups_to_positions_part_2(
 
     # annotate editing frequency and "naive" editing status according to noise threshold
     annotate_editing_frequency_per_position(positions_df, strand)
-    annotate_edited_sites(positions_df, strand, noise_threshold, denovo_detection)
+    annotate_edited_sites(
+        positions_df,
+        strand,
+        noise_threshold,
+        denovo_detection,
+        editing_detection_possible,
+    )
 
     positions_df.to_csv(positions_file, sep=sep, index=False, na_rep=np.nan)
 

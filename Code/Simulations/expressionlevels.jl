@@ -617,6 +617,18 @@ function findprotswithsufficiententropy!(
 		[i for (i, col) in enumerate(eachcol(df)) if colhasambiguousAAs(col)],
 	]
 
+	# If there are no ambiguous AA columns, entropy-based filtering is not meaningful.
+    # Keep the column length consistent with allprotsdf rows to avoid DimensionMismatch.
+    if ncol(df) == 0
+        @warn "$(loggingtime())\tfindprotswithsufficiententropy - no ambiguous AA columns; marking all proteins as sufficient entropy" samplename firstcolpos nrows = nrow(allprotsdf)
+        sufficiententropy = trues(nrow(allprotsdf))
+
+        proteincolpos = findfirst(names(allprotsdf) .== "Protein")
+        insertcols!(allprotsdf, proteincolpos + 1, "SufficientEntropy" => sufficiententropy)
+        firstcolpos += 1
+        return allprotsdf, firstcolpos
+    end
+
 	s_cols = colAAentropy.(eachcol(df))
 	s_0 = sum(s_cols)
 	s_prots = protentropy.(Vector.(eachrow(df)), Ref(s_cols))
@@ -1062,6 +1074,10 @@ function threaded_one_solution_additional_assignment_considering_available_reads
 		distinctdf, allprotsdf, firstcolpos, Δ, solution, readsdf, samplename, reads_lookup, considerentropy,
 	)
 
+	if nrow(unchosendf) == 0
+        @info "$(loggingtime())\tthreaded_one_solution_additional_assignment_considering_available_reads - no unchosen after filtering" samplename solution considerentropy
+    end
+
 
 	# # Partition unchosen proteins among threads
 	# n_threads = min(n_threads, nrow(unchosendf))
@@ -1121,10 +1137,15 @@ function threaded_one_solution_additional_assignment_considering_available_reads
 
 
 
-
-
 	# Partition unchosen proteins among "logical workers"
 	n_unchosen = nrow(unchosendf)
+
+	# Nothing to reassign; skip threading/partitioning to avoid cld(..., 0)
+    if n_unchosen == 0
+        @info "$(loggingtime())\tthreaded_one_solution_additional_assignment_considering_available_reads - no unchosen proteins; skipping reassignment" samplename solution
+        chosendf = finalize_solution_data(chosendf, allprotsdf, solution)
+        return chosendf, newsolutionrow
+    end
 
 	# Keep n_threads within sane bounds
 	n_threads = clamp(n_threads, 1, n_unchosen)
@@ -2007,6 +2028,10 @@ end
 
 
 
+
+
+
+
 # distinctfile =  "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/DistinctProteins/comp183648_c0_seq1.DistinctUniqueProteins.21.03.2024-22:37:27.csv"
 # allprotsfile = "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/ProteinsFiles/comp183648_c0_seq1.unique_proteins.csv.gz"
 # readsfile = "/private7/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.BQ30.AHL.BHAfterNoise.3/ReadsFiles/comp183648_c0_seq1.reads.csv.gz"
@@ -2047,10 +2072,20 @@ end
 # readsfile = "$indir/reads.sorted.aligned.filtered.comp141881_c0_seq3.reads.csv"
 # samplename = "RUSC2"
 
-
-
-
 # firstcolpos = 15
+# onlymaxdistinct = true
+# considerentropy = true
+# postfix_to_add = ".EntropyConsidered"
+# innerthreadedassignment = true
+
+
+# distinctfile =  "/private6/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.PooledSamples/DistinctProteins/comp144504_c0_seq1.DistinctUniqueProteins.09.02.2026-17:13:13.csv"
+# allprotsfile = "/private6/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.PooledSamples/ProteinsFiles/comp144504_c0_seq1.unique_proteins.csv.gz"
+# readsfile = "/private6/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.PooledSamples/ReadsFiles/comp144504_c0_seq1.reads.csv.gz"
+# samplename = "comp144504_c0_seq1"	
+# outdir = "/private6/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.PooledSamples/ExpressionLevels"
+
+# firstcolpos = 16
 # onlymaxdistinct = true
 # considerentropy = true
 # postfix_to_add = ".EntropyConsidered"

@@ -205,22 +205,30 @@ def plot_multiple_logos(
         gridspec_kw={"wspace": 0.5},
         squeeze=False,
     )
+
+    # Set the background color for the entire figure area to white
+    fig.set_facecolor("white")
+
     # axes = list(chain.from_iterable(axes))
     axes = axes.flat
     if main_title:
         fig.subplots_adjust(top=0.8)
         # fig.suptitle(main_title, y=1.0, fontsize="x-large")
-        fig.suptitle(main_title, fontsize="x-large")
+        fig.suptitle(main_title, fontsize="x-large", color="black")
     plots = []
     for ax, title, freq_df in zip(axes, titles, freq_dfs):
-        ax.set_title(title, pad=15)
-        ax.set_title(title)
+
+        # Set the background color for the plot area (axes) to white
+        ax.set_facecolor("white")
+
+        ax.set_title(title, pad=15, color="black")
+        # ax.set_title(title, color="black")
         plot = Logo(df=freq_df, ax=ax, vpad=0.02)
 
         # style plot
         # style plots using Logo methods
         plot.style_spines(visible=False)
-        plot.style_spines(spines=("left", "bottom"), visible=True)
+        plot.style_spines(spines=("left", "bottom"), visible=True, color="black")
         # style plots using matplotlib's Axes methods
         # plot.ax.set_ylabel("Probability", labelpad=5)
         # plot.ax.set_xlabel("Position", labelpad=5)
@@ -234,6 +242,10 @@ def plot_multiple_logos(
             + [str(x) for x in range(1, middle_xtick + 1)]
         )
         plot.ax.set_xticklabels(xticklabels)
+
+        # Set the color of the x and y axes' ticks AND tick labels to black
+        ax.tick_params(axis="x", colors="black")
+        ax.tick_params(axis="y", colors="black")
 
         plots.append(plot)
 

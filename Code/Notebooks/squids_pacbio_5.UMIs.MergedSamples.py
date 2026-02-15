@@ -3281,14 +3281,15 @@ for positions_df, condition, strand in zip(positions_dfs, conditions, strands):
 # #### Saving noise dfs
 
 # %%
-# merged_noise_df.insert(0, "Platform", "Long-reads")
-# merged_noise_df.loc[:, condition_col] = merged_noise_df.loc[:, condition_col].apply(
-#     lambda x: "GRIA2" if x == "GRIA" else x
-# )
-# merged_noise_df
+merged_noise_df.insert(0, "Platform", "Long-reads")
+merged_noise_df
 
 # %%
-# merged_noise_df.to_csv("NoiseLevels.PacBio.tsv", sep="\t", index=False)
+merged_noise_df.to_csv(
+    Path(out_dir, "NoiseLevels.PacBio.UMI.tsv"), 
+    sep="\t", 
+    index=False
+)
 
 # %% [markdown]
 # ### Known & new editing sites
@@ -3325,20 +3326,44 @@ conditions_sets = {
     for positions_df, condition in zip(positions_dfs, conditions)
 }
 
-try:
-    conditions_labels["GRIA2"] = conditions_labels["GRIA"]
-    del conditions_labels["GRIA"]
-except KeyError:
-    pass
+# try:
+#     conditions_labels["GRIA2"] = conditions_labels["GRIA"]
+#     del conditions_labels["GRIA"]
+# except KeyError:
+#     pass
 
-try:
-    conditions_sets["GRIA2"] = conditions_sets["GRIA"]
-    del conditions_sets["GRIA"]
-except KeyError:
-    pass
+# try:
+#     conditions_sets["GRIA2"] = conditions_sets["GRIA"]
+#     del conditions_sets["GRIA"]
+# except KeyError:
+#     pass
 
 # conditions_sets
 
+
+# %%
+conditions_sets[conditions[0]]
+
+# %%
+len(conditions_sets[conditions[0]])
+
+# %%
+editing_sites_venn_df = (
+    pd.DataFrame(conditions_sets)
+    .T
+    .rename(columns={0: "Edited", 1: "KnownEditing", 2: "InProbRegion"})
+    # .rename(columns={x: label for x, label in enumerate(conditions_labels)})
+)
+
+editing_sites_venn_df.to_csv(
+    Path(out_dir, "EditingSitesVennData.PacBio.UMI.tsv"),
+    sep="\t"
+)
+
+editing_sites_venn_df
+
+# %%
+editing_sites_venn_df
 
 # %%
 # len(conditions_sets["PCLO"])
@@ -3387,7 +3412,7 @@ fig.suptitle(
     # y=1.2
 )
 
-# plt.savefig("Known vs new editing sites - PacBio.svg", format="svg", dpi=300)
+plt.savefig("Known vs new editing sites - PacBio.svg", format="svg", dpi=300)
 
 plt.show()
 
@@ -3596,9 +3621,6 @@ for condition in conditions:
 
 # %% [markdown]
 # ### Current vs. known editing levels
-
-# %%
-condition_df
 
 # %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"}
 # todo retain nan rows and turn nans to 0?
@@ -5654,11 +5676,11 @@ fig.update_layout(
     height=400,
 )
 
-fig.write_image(
-    "%SolutionsDispersion - PacBio.svg",
-    width=max(70 * len(conditions), 300),
-    height=400,
-)
+# fig.write_image(
+#     "%SolutionsDispersion - PacBio.svg",
+#     width=max(70 * len(conditions), 300),
+#     height=400,
+# )
 
 
 fig.show()
@@ -5670,7 +5692,8 @@ fig.show()
 # %%
 min_max_fraction_1_distinct_prots_df.insert(0, "Platform", "Long-reads")
 min_max_fraction_1_distinct_prots_df.to_csv(
-    "Dispersion.PacBio.tsv", sep="\t", index=False
+    Path(out_dir, "Dispersion.PacBio.UMI.tsv"), 
+    sep="\t", index=False
 )
 
 # %%
@@ -10274,7 +10297,7 @@ max_sol_exp_dfs_new = [
         relative_expression_sorting_col="%RelativeExpression",  # relative expression based on weighted supporting reads
         impute_nans=False,
     )
-    for assignment_df, unique_proteins_df in zip(assignment_dfs, unique_proteins_dfs)
+    for assignment_df, unique_proteins_df in zip(max_expression_dfs, unique_proteins_dfs)
 ]
 
 max_sol_entropies = [
@@ -10311,7 +10334,10 @@ shannon_df = pd.DataFrame(
 shannon_df
 
 # %%
-shannon_df.to_csv("ShanonEntropy.PacBio.tsv", sep="\t", index=False)
+shannon_df.to_csv(
+    Path(out_dir, "ShanonEntropy.NewPacBio.tsv"), 
+    sep="\t", index=False
+)
 
 # %%
 fig = go.Figure()

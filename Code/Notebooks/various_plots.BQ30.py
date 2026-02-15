@@ -28,29 +28,30 @@ from itertools import chain, combinations, product
 from math import ceil, floor
 from multiprocessing import Pool
 from pathlib import Path
+import copy
 
 from scipy import interpolate  # todo unimport this later?
-import matplotlib.pyplot as plt
-import numpy as np
-
-# from numba import jit, njit, prange
-import pandas as pd
-import plotly.colors as pc
-import plotly.express as px
-import plotly.graph_objects as go
 import scipy.stats
-import seaborn as sns
-from icecream import ic
-from matplotlib_venn import venn2, venn3
-from plotly.subplots import make_subplots
-from pybedtools import BedTool
+import numpy as np
+import pandas as pd
 from sklearn import linear_model
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.metrics import mean_squared_error, r2_score
+from Bio import SeqIO, motifs  # biopython
+from pybedtools import BedTool
+import matplotlib.pyplot as plt
+from matplotlib_venn import venn2, venn3
+from logomaker import Logo  # logomaker
+import seaborn as sns
+import plotly.colors as pc
+import plotly.express as px
+import plotly.graph_objects as go
+import plotly.io as pio
+from plotly.subplots import make_subplots
+from icecream import ic
 
 # from numpy.random import RandomState
-
 
 sys.path.append(str(Path(code_dir).absolute()))
 from Alignment.alignment_utils import count_reads, count_reads_in_unaligned_bam
@@ -371,6 +372,7 @@ template = "plotly_white"
 facet_col_wrap = 6
 facet_row_spacing = facet_col_spacing * 6
 zerolinewidth = 4
+pio.templates.default = template
 
 # %% jupyter={"source_hidden": true} papermill={"duration": 0.054755, "end_time": "2022-02-01T09:42:46.304499", "exception": false, "start_time": "2022-02-01T09:42:46.249744", "status": "completed"}
 # # plotly consts
@@ -1086,27 +1088,27 @@ sep = "\t"
 # notice a transcriptome is different from a genome when considering up- and downstream bases of edited adenosines in order to plot ADAR's motif
 # due to splicing, so it may be better to take the bases from the reads
 transcriptome_file = (
-    "/private7/projects/Combinatorics/D.pealeii/Annotations/orfs_squ.fa"
+    # "/private7/projects/Combinatorics/D.pealeii/Annotations/orfs_squ.fa"
+    "/private7/projects/Combinatorics/D.pealeii/Annotations/Jan2025/orfs_squ.fa"
 )
 
 # %%
 pacbio_data_df = pd.DataFrame(
     {
         # condition_col: ["GRIA", "PCLO"],
-        "Chrom": ["comp141693_c0_seq1", "comp141882_c0_seq14"],
-        "Start": [170, 0],
-        "End": [2999, 6294],
-        "Strand": ["+", "+"],
-        # "PositionFile": [
-        #     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv",
-        #     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv",
-        # ],
+        "Chrom": ["comp141693_c0_seq1", "comp141882_c0_seq14", "comp134400_c0_seq1_extended", "comp141565_c6_seq3"],
+        "Start": [170, 0, 0, 988],
+        "End": [2999, 6294, 3741, 4195],
+        "Strand": ["+", "+", "+", "+"],
         "PositionFile": [
             "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
             "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
+            "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz",
+            "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz",
         ],
     }
 )
+
 
 pacbio_data_df.insert(0, condition_col, conditions[0])
 
@@ -1115,27 +1117,6 @@ pacbio_data_df
 # %% papermill={"duration": 0.071769, "end_time": "2022-02-01T09:42:43.049672", "exception": false, "start_time": "2022-02-01T09:42:42.977903", "status": "completed"} tags=["parameters"]
 illumina_data_df = pd.DataFrame(
     {
-        # condition_col: [
-        #     "RUSC2_MOUSE",
-        #     "TRIM2_BOVIN",
-        #     "CA2D3_MOUSE",
-        #     "ABL_DROME",
-        #     "DGLA_HUMAN",
-        #     "K0513_MOUSE",
-        #     "KCNAS_DROME",
-        #     "ACHA4_MOUSE",
-        #     "ANR17_HUMAN",
-        #     "TWK7_CAEEL",
-        #     "SCN1_HETBL",
-        #     "CACB2_RABIT",
-        #     "RIMS2_RAT",
-        #     "PCLO_CHICK",
-        #     "DOP1_HUMAN",
-        #     "IQEC1_HUMAN",
-        #     "CSKI1_MOUSE",
-        #     "MTUS2_HUMAN",
-        #     "ROBO2_HUMAN",
-        # ],
         "Chrom": [
             "comp141881_c0_seq3",
             "comp141044_c0_seq2",
@@ -1231,69 +1212,6 @@ illumina_data_df["PositionFile"] = [
 ]
 
 illumina_data_df
-
-# %% jupyter={"source_hidden": true}
-# condition = "GRIA"
-# strand = "+"
-# positions_file = "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.2/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv"
-
-# positions_df = pd.read_csv(positions_file, sep=sep).drop(
-#     ["CDS", "Phred"], axis=1, errors="ignore"
-# )  # ignore error from droping these cols which only exist in Illumina data
-# positions_df.insert(0, condition_col, condition)
-
-# positions_df
-
-# %% jupyter={"source_hidden": true}
-# ref_base = "A" if strand == "+" else "T"
-
-# editing_sites_df = (
-#     positions_df.loc[
-#         (positions_df["RefBase"] == ref_base) & (positions_df["Edited"] > 0),
-#         [condition_col, "Chrom", "Position"]
-#     ]
-#     .sort_values(["Chrom", "Position"])
-#     .reset_index(drop=True)
-#     .rename(columns={"Position": "Start"})
-# )
-
-# editing_sites_df
-
-# %% jupyter={"source_hidden": true}
-# editing_sites_df.insert(
-#     editing_sites_df.columns.get_loc("Start") + 1,
-#     "End",
-#     editing_sites_df["Start"] + 1
-# )
-# editing_sites_df
-
-# %% jupyter={"source_hidden": true}
-# editing_sites_df.insert(
-#     editing_sites_df.columns.get_loc("End") + 1,
-#     "Score",
-#     "."
-# )
-# editing_sites_df.insert(
-#     editing_sites_df.columns.get_loc("Score") + 1,
-#     "Strand",
-#     strand
-# )
-# editing_sites_df.insert(
-#     editing_sites_df.columns.get_loc("End") + 1,
-#     "Name",
-#     (
-#         editing_sites_df[condition_col]
-#         + ":"
-#         + editing_sites_df["Chrom"]
-#         + ":"
-#         + editing_sites_df["Start"].astype(str)
-#         + ":"
-#         + editing_sites_df["End"].astype(str)
-#         + ":"
-#         + editing_sites_df["Strand"].astype(str)
-#     )
-# )
-# editing_sites_df
 
 # %%
 fasta_dict = make_fasta_dict(transcriptome_file)
@@ -1457,15 +1375,7 @@ main_title = None
 sub_titles = conditions + ["All"]
 
 # %%
-out_file = "ADAR motif of all currently-edited sites - Squid.svg"
-
-# %%
-
-# %%
-import matplotlib.pyplot as plt  # matplotlib
-import pandas as pd  # pandas
-from Bio import SeqIO, motifs  # biopython
-from logomaker import Logo  # logomaker
+out_file = Path(out_dir, "ADAR motif of all currently-edited sites - Squid w UMIs.svg")
 
 # %%
 records = SeqIO.parse(fasta_files[0], "fasta")
@@ -1475,24 +1385,29 @@ seqs = [record.seq for record in records]
 len(seqs)
 
 # %%
-
-# %%
-
-# %%
 # _sub_titles = [f"Squid's {sub_title}" for sub_title in sub_titles]
 # multiple_logos_from_fasta_files(
 #     fasta_files, main_title, _sub_titles, out_file, width=14, height=4, dpi=300
 # );
 
 # %%
-_sub_titles = [f"Squid's {sub_title}" for sub_title in ["Long-reads", "Short-reads", "pooled data"]]
+# _sub_titles = [f"Squid's {sub_title}" for sub_title in ["Long-reads", "Short-reads", "pooled data"]]
+# multiple_logos_from_fasta_files(
+#     fasta_files, main_title, _sub_titles, out_file, width=14, height=4, dpi=300
+# );
+
+# %%
+_sub_titles_2 = ["Long-reads", "Short-reads"]
+out_file_2 = Path(out_dir, "ADAR motif of all currently-edited sites -  PacBio vs Illumina - Squid w UMIs.svg")
+fasta_files_2 = fasta_files[:2]
+main_title_2 = "Squid"
 multiple_logos_from_fasta_files(
-    fasta_files, main_title, _sub_titles, out_file, width=14, height=4, dpi=300
+    fasta_files_2, main_title_2, _sub_titles_2, out_file_2, width=0.66*14, height=4, dpi=300
 );
 
 # %%
 _sub_titles_2 = ["Long-reads", "Short-reads"]
-out_file_2 = "ADAR motif of all currently-edited sites -  PacBio vs Illumina - Squid.svg"
+out_file_2 = Path(out_dir, "ADAR motif of all currently-edited sites -  PacBio vs Illumina - Squid w UMIs.svg")
 fasta_files_2 = fasta_files[:2]
 main_title_2 = "Squid"
 multiple_logos_from_fasta_files(
@@ -1504,16 +1419,15 @@ multiple_logos_from_fasta_files(
 
 # %%
 known_sites_file = (
-    "/private7/projects/Combinatorics/D.pealeii/Annotations/D.pea.EditingSites.csv"
+    # "/private7/projects/Combinatorics/D.pealeii/Annotations/D.pea.EditingSites.csv"
+    "/private7/projects/Combinatorics/D.pealeii/Annotations/Jan2025/D.pea.EditingSites.csv"
 )
 
-# pacbio_positions_files = [
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
-# ]
 pacbio_positions_files = [
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz",
 ]
 illumina_positions_files = [
     f"/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.{chrom}.positions.csv"
@@ -1574,7 +1488,7 @@ strands = pacbio_strands + illumina_strands
 
 condition_col = "Transcript-Platform"
 
-pacbio_transcripts = ["GRIA", "PCLO"]
+pacbio_transcripts = ["GRIA", "PCLO", "ADAR1", "IQEC1"]
 illumina_transcripts = [
     "RUSC2_MOUSE",
     "TRIM2_BOVIN",
@@ -1973,7 +1887,7 @@ fig.update_xaxes(range=[0, 100])
 fig.update_yaxes(range=[0, 100])
 
 fig.write_image(
-    "Correlation between current vs previously-reported editing levels - Squid.svg",
+    Path(out_dir, "Correlation between current vs previously-reported editing levels - Squid w UMIs.svg"),
     width=600,
     height=500,
 )
@@ -2040,7 +1954,10 @@ fig.update_layout(
 fig.update_yaxes(range=[0, 100])
 
 fig.write_image(
-    "Distribution of pooled editing levels according to their editing status in current vs. previous study - Squid.svg",
+    Path(
+        out_dir, 
+        "Distribution of pooled editing levels according to their editing status in current vs. previous study - Squid w UMIs.svg"
+    ),
     width=600,
     height=500,
 )
@@ -3450,7 +3367,7 @@ fig.show()
 condition_col = "Gene"
 platforms = ["Long-reads", "Short-reads"]
 
-pacbio_conditions = ["GRIA2", "PCLO"]
+pacbio_conditions = ["GRIA2", "PCLO", "ADAR1", "IQEC1"]
 
 illumina_conditions = [
     "RUSC2_MOUSE",
@@ -3488,19 +3405,54 @@ illumina_color_discrete_map = {
 }
 
 # %%
-illumina_merged_noise_file = "NoiseLevels.Illumina.tsv"
-pacbio_merged_noise_file = "NoiseLevels.PacBio.tsv"
-octopus_noise_file = "Noise.Octopus.tsv"
+cols_to_use_from_squid_noise_files = [
+    "Platform",
+    condition_col,
+    "Chrom",
+    "Position",
+    "Noise",
+    "%Noise"
+]
 
 # %%
-illumina_merged_noise_df = pd.read_table(illumina_merged_noise_file)
+pacbio_merged_noise_files = [
+    Path(out_dir, "NoiseLevels.PacBio.tsv"),
+    Path(out_dir, "NoiseLevels.PacBio.UMI.tsv")
+]
+
+illumina_merged_noise_file = Path(out_dir, "NoiseLevels.Illumina.tsv")
+
+# octopus_noise_file = Path(out_dir, "Noise.Octopus.tsv")
+octopus_noise_file = Path(out_dir, "Noise.Octopus.WholeTranscriptome.Pooled.tsv")
+
+# %%
+# pacbio_merged_noise_df = pd.read_table(pacbio_merged_noise_file)
+pacbio_merged_noise_df = pd.concat(
+    [
+        pd.read_table(pacbio_merged_noise_file)
+        for pacbio_merged_noise_file in pacbio_merged_noise_files
+    ],
+    ignore_index=True
+)
+pacbio_merged_noise_df
+
+# %%
+# pacbio_merged_noise_df = pd.read_table(pacbio_merged_noise_file)
+pacbio_merged_noise_df = pd.concat(
+    [
+        pd.read_table(pacbio_merged_noise_file, usecols=cols_to_use_from_squid_noise_files)
+        for pacbio_merged_noise_file in pacbio_merged_noise_files
+    ],
+    ignore_index=True
+)
+pacbio_merged_noise_df
+
+# %%
+illumina_merged_noise_df = pd.read_table(illumina_merged_noise_file, usecols=cols_to_use_from_squid_noise_files)
 illumina_merged_noise_df[condition_col] = (
     illumina_merged_noise_df[condition_col].str.split("_").str[0]
 )
-# illumina_merged_assignment_df
-
-pacbio_merged_noise_df = pd.read_table(pacbio_merged_noise_file)
-# pacbio_merged_assignment_df
+illumina_merged_noise_df
 
 # %%
 illumina_noise_dfs = [
@@ -3636,8 +3588,10 @@ fig.add_trace(
     row=1,
     col=3,
 )
+
 fig.update_xaxes(row=1, col=3, title_text="Genes", type="log")
 fig.update_yaxes(row=1, col=3, title_text="Per-gene noise level [%]", range=[0, max_noise])
+# fig.update_yaxes(dtick=1)
 
     
 # fig.update_xaxes(
@@ -3668,7 +3622,7 @@ fig.update_layout(
 )
 
 fig.write_image(
-    "Per chrom noise levels - PacBio vs. Illumina vs. octopus.svg",
+    Path(out_dir, "Per chrom noise levels - PacBio vs. Illumina vs. octopus pooled.svg"),
     width=width,
     height=height,
 )
@@ -4591,7 +4545,7 @@ fig.show()
 condition_col = "Gene"
 platforms = ["Long-reads", "Short-reads"]
 
-pacbio_conditions = ["GRIA2", "PCLO"]
+pacbio_conditions = ["GRIA2", "PCLO", "ADAR1", "IQEC1"]
 
 illumina_conditions = [
     "RUSC2_MOUSE",
@@ -4640,12 +4594,24 @@ platforms_color_map = {
 platforms_color_map
 
 # %%
-pacbio_dispersion_file = "Dispersion.PacBio.tsv"
-illumina_dispersion_file = "Dispersion.Illumina.tsv"
-octopus_dispersion_file = "Dispersion.Octopus.tsv"
+# pacbio_dispersion_file = "Dispersion.PacBio.tsv"
+pacbio_dispersion_files = [
+    Path(out_dir, "Dispersion.PacBio.tsv"),
+    Path(out_dir, "Dispersion.PacBio.UMI.tsv")
+]
+illumina_dispersion_file = Path(out_dir, "Dispersion.Illumina.tsv")
+# octopus_dispersion_file = Path(out_dir, "Dispersion.Octopus.tsv")
+octopus_dispersion_file = Path("Dispersion.Octopus.WholeTranscriptome.Pooled.tsv")
 
 # %%
-pacbio_dispersion_df = pd.read_table(pacbio_dispersion_file)
+# pacbio_dispersion_df = pd.read_table(pacbio_dispersion_file)
+pacbio_dispersion_df = pd.concat(
+    [
+        pd.read_table(pacbio_dispersion_file)
+        for pacbio_dispersion_file in pacbio_dispersion_files
+    ],
+    ignore_index=True
+)
 pacbio_dispersion_df[condition_col] = pacbio_dispersion_df[condition_col].apply(
     lambda x: "GRIA2" if x == "GRIA" else x
 )
@@ -4802,7 +4768,7 @@ fig.update_layout(
 )
 
 fig.write_image(
-    "SolutionsDispersion - PacBio vs Illumina vs octopus.svg",
+    Path(out_dir, "SolutionsDispersion - PacBio vs Illumina vs octopus pooled.svg"),
     width=width,
     height=height,
 )
@@ -5261,7 +5227,7 @@ fig.show()
 condition_col = "Gene"
 platforms = ["Long-reads", "Short-reads"]
 
-pacbio_conditions = ["GRIA2", "PCLO"]
+pacbio_conditions = ["GRIA2", "PCLO", "ADAR1", "IQEC1"]
 
 illumina_conditions = [
     "RUSC2_MOUSE",
@@ -5308,14 +5274,24 @@ platforms_color_map = {
 }
 
 # %%
-pacbio_file = "ShanonEntropy.PacBio.tsv"
-illumina_file = "ShanonEntropy.Illumina.tsv"
+pacbio_files = [
+    Path(out_dir, "ShanonEntropy.PacBio.tsv"),
+    Path(out_dir, "ShanonEntropy.NewPacBio.tsv")
+]
+illumina_file = Path(out_dir, "ShanonEntropy.Illumina.tsv")
 
 # %%
 illumina_df = pd.read_table(illumina_file)
 illumina_df
 
-pacbio_df = pd.read_table(pacbio_file)
+# pacbio_df = pd.read_table(pacbio_file)
+pacbio_df = pd.concat(
+    [
+        pd.read_table(pacbio_file, dtype={condition_col: str})
+        for pacbio_file in pacbio_files
+    ],
+    ignore_index=True
+)
 pacbio_df[condition_col] = pacbio_df[condition_col].apply(lambda x: x if x != "GRIA" else "GRIA2")
 # pacbio_df.insert(0, "Platform")
 pacbio_df
@@ -5377,51 +5353,74 @@ for col, (shannon_df, platform, conditions) in enumerate(zip(shannon_dfs, platfo
         col=col
     )
     
-# Add single entropy traces for legend
-fig.add_trace(
-    go.Bar(
-        x=[None],
-        y=[None],
-        # visible="legendonly",
-        marker=dict(
-            # color="white",
-            color="black",
-            # size=8,
-            pattern_shape="/",
-            line=dict(
-                # color="grey",
+# # Add single entropy traces for legend
+# fig.add_trace(
+#     go.Bar(
+#         x=[None],
+#         y=[None],
+#         # visible="legendonly",
+#         marker=dict(
+#             # color="white",
+#             color="black",
+#             # size=8,
+#             pattern_shape="/",
+#             line=dict(
+#                 # color="grey",
+#                 color="black",
+#                 # width=8,
+#             ),
+#         ),
+#         legendgroup="Observed",
+#         name="Observed",
+#         showlegend=True,
+#         visible="legendonly",
+#     )
+# )
+# fig.add_trace(
+#     go.Bar(
+#         x=[None],
+#         y=[None],
+#         # visible="legendonly",
+#         marker=dict(
+#             # color="white",
+#             color="black",
+#             # size=8,
+#             pattern_shape="",
+#             line=dict(
+#                 # color="grey",
+#                 color="black",
+#                 # width=4,
+#             ),
+#         ),
+#         legendgroup="Hypothetical",
+#         name="Hypothetical",
+#         showlegend=True,
+#         visible="legendonly",
+#     )
+# )
+
+# Add a black and white legend for pattern shapes: ["Observed", "Hypothetical"] and patterns ["/", ""]
+legend_labels = ["Observed", "Hypothetical"]
+legend_patterns = ["/", "",]
+legend_colors = ["black"] * 2  # All black
+
+for label, pattern in zip(legend_labels, legend_patterns):
+    fig.add_trace(
+        go.Bar(
+            x=[None],
+            y=[None],
+            marker=dict(
                 color="black",
-                # width=8,
+                line_color="black",
+                pattern_fillmode="replace",
+                pattern_shape=pattern,
             ),
-        ),
-        legendgroup="Observed",
-        name="Observed",
-        showlegend=True,
-        visible="legendonly",
+            name=label,
+            # legendgroup=label,
+            showlegend=True,
+            visible="legendonly",
+        )
     )
-)
-fig.add_trace(
-    go.Bar(
-        x=[None],
-        y=[None],
-        # visible="legendonly",
-        marker=dict(
-            # color="white",
-            color="black",
-            # size=8,
-            pattern_shape="",
-            line=dict(
-                # color="grey",
-                color="black",
-                # width=4,
-            ),
-        ),
-        legendgroup="Hypothetical",
-        name="Hypothetical",
-        showlegend=True,
-        visible="legendonly",
-    )
-)
 
 
 # fig.update_yaxes(title_text="Entropy")
@@ -5457,12 +5456,17 @@ fig.update_layout(
         x=0.99,
         orientation="h",
         # itemwidth=40,
+        font=dict(
+            # family="Courier",
+            size=16,
+            color="black"
+        ),
         
     ),
 )
 
 fig.write_image(
-    "Observed vs hypothetical entropy - PacBio vs Illumina.svg",
+    Path(out_dir, "Observed vs hypothetical entropy - PacBio vs Illumina.svg"),
     width=width,
     height=height,
 )
@@ -5720,3 +5724,537 @@ fig.update_layout(
 # )
 
 fig.show()
+
+# %% [markdown]
+# # Combined % genes with X isoforms - octopus
+
+# %% [markdown]
+# ## Load files, read basic dfs
+
+# %%
+tmr50_max_distinct_proteins_file = Path(out_dir, "MaxDistinctProtsForFig6.TMR50.Octopus.Pooled.csv")
+tmr1000_max_distinct_proteins_file = Path(out_dir, "MaxDistinctProtsForFig6.TMR1000.Octopus.Pooled.csv")
+
+# %%
+tmr50_max_distinct_proteins_df = pd.read_table(tmr50_max_distinct_proteins_file)
+tmr1000_max_distinct_proteins_df = pd.read_table(tmr1000_max_distinct_proteins_file)
+
+# %%
+neuronal_max_distinct_proteins_file = Path(out_dir, "MaxDistinctProtsForFig6.Neuronal.Octopus.SC.csv")
+non_neuronal_max_distinct_proteins_file = Path(out_dir, "MaxDistinctProtsForFig6.NonNeuronal.Octopus.SC.csv")
+
+# %%
+neuronal_max_distinct_proteins_df = pd.read_table(neuronal_max_distinct_proteins_file)
+non_neuronal_max_distinct_proteins_df = pd.read_table(non_neuronal_max_distinct_proteins_file)
+
+# %% [markdown]
+# ## Prep dfs
+
+# %% [markdown]
+# ### Whole transcriptome
+
+# %%
+tmr50_df = (
+    tmr50_max_distinct_proteins_df.loc[:, ["NumOfProteins"]]
+    .sort_values("NumOfProteins")
+    .reset_index(drop=True)
+)
+tmr50_df["CummulativeTranscripts"] = 100 * (tmr50_df.index + 1) / len(tmr50_df)
+tmr50_df["CummulativeTranscripts"] = tmr50_df["CummulativeTranscripts"][::-1].values
+x = tmr50_df["NumOfProteins"]
+y = tmr50_df["CummulativeTranscripts"]
+x_mean = x.mean()
+x_std = x.std()
+ic(x_std)
+x_mean_closest = x.iloc[(x - x_mean).abs().argsort()[:1]]
+x_mean_closest_k = x_mean_closest.index.values[0]
+if x_mean == x_mean_closest.values[0]:
+    y_mean = y.iloc[x_mean_closest_k]
+else:
+    if x_mean < x_mean_closest.values[0]:
+        i = x_mean_closest_k - 1
+        j = x_mean_closest_k + 1
+    else:
+        i = x_mean_closest_k
+        j = x_mean_closest_k + 2
+    y_mean = np.interp(x_mean, x.iloc[i:j], y.iloc[i:j])
+tmr50_df = tmr50_df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
+
+tmr50_df
+
+# %%
+tmr1000_df = (
+    tmr1000_max_distinct_proteins_df.loc[:, ["NumOfProteins"]]
+    .sort_values("NumOfProteins")
+    .reset_index(drop=True)
+)
+tmr1000_df["CummulativeTranscripts"] = 100 * (tmr1000_df.index + 1) / len(tmr1000_df)
+tmr1000_df["CummulativeTranscripts"] = tmr1000_df["CummulativeTranscripts"][::-1].values
+tmr1000_x = tmr1000_df["NumOfProteins"]
+tmr1000_y = tmr1000_df["CummulativeTranscripts"]
+tmr1000_x_mean = tmr1000_x.mean()
+tmr1000_x_std = tmr1000_x.std()
+ic(tmr1000_x_std)
+tmr1000_x_mean_closest = tmr1000_x.iloc[
+    (tmr1000_x - tmr1000_x_mean).abs().argsort()[:1]
+]
+tmr1000_x_mean_closest_k = tmr1000_x_mean_closest.index.values[0]
+if tmr1000_x_mean == tmr1000_x_mean_closest.values[0]:
+    tmr1000_y_mean = tmr1000_y.iloc[tmr1000_x_mean_closest_k]
+else:
+    if tmr1000_x_mean < tmr1000_x_mean_closest.values[0]:
+        i = tmr1000_x_mean_closest_k - 1
+        j = tmr1000_x_mean_closest_k + 1
+    else:
+        i = tmr1000_x_mean_closest_k
+        j = tmr1000_x_mean_closest_k + 2
+    tmr1000_y_mean = np.interp(tmr1000_x_mean, tmr1000_x.iloc[i:j], tmr1000_y.iloc[i:j])
+tmr1000_df = tmr1000_df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
+
+tmr1000_df
+
+# %% [markdown]
+# ### Single cell
+
+# %%
+neuronal_max_distinct_proteins_df
+
+# %%
+non_neuronal_max_distinct_proteins_df
+
+# %%
+neural_dfs = []
+for neural_df in [
+    neuronal_max_distinct_proteins_df,
+    non_neuronal_max_distinct_proteins_df,
+]:
+    neural_df = (
+        neural_df.loc[:, ["NumOfProteins"]]
+        .sort_values("NumOfProteins")
+        .reset_index(drop=True)
+    )
+    neural_df["CummulativeTranscripts"] = 100 * (neural_df.index + 1) / len(neural_df)
+    neural_df["CummulativeTranscripts"] = neural_df["CummulativeTranscripts"][
+        ::-1
+    ].values
+    neural_df = neural_df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
+    neural_dfs.append(neural_df)
+
+# %% [markdown]
+# ## Plot
+
+# %% [markdown]
+# ### Intialize fig
+
+# %%
+fig = make_subplots(
+    rows=2,
+    cols=1,
+    # x_title="Distinct proteins per gene",
+    x_title="Distinct protein isoforms per gene",
+    y_title="% of genes",
+    shared_yaxes=True,
+    shared_xaxes=True,
+    # vertical_spacing=facet_row_spacing / 2.5,
+    # horizontal_spacing=facet_col_spacing * 1.5,
+    # vertical_spacing=0.05,
+    vertical_spacing=0.07,
+    # horizontal_spacing=0.025,
+    subplot_titles=[
+        # "Whole-transcriptome long-reads data",
+        # "Single-cell data"
+        "Whole-transcriptome long-reads",
+        "Single-cell"
+    ]
+)
+
+# %%
+y_min = 1
+
+marker_size = 4
+
+tmr50_all_color = "purple"
+tmr_1000_all_color = "green"
+
+# %%
+# tmr50_legendtitle = "50 reads"
+# tmr1000_legendtitle = "1000 reads"
+# legend_title_text = "Minimum coverage per gene      "
+
+# %%
+neural_color_discrete_map = {
+    "Yes": "red",
+    "No": "rgb(0,170,255)",  # kind of azure
+}
+
+# %% [markdown]
+# ### Whole transcriptome
+
+# %%
+# tmr50
+
+x = tmr50_df["NumOfProteins"]
+y = tmr50_df["CummulativeTranscripts"]
+
+y_min = min(y_min, y.min())
+
+fig.add_trace(
+    go.Scatter(
+        x=x,
+        y=y,
+        mode="lines+markers",
+        marker=dict(color=tmr50_all_color, size=marker_size),
+        line=dict(color=tmr50_all_color, dash="dash"),
+        # name="All",
+        # legendgroup=tmr50_legendtitle,  # this can be any string
+        # legendgrouptitle_text=tmr50_legendtitle,
+        name=">= 50 reads",
+        # legend="legend",
+    ),
+    row=1,
+    col=1,
+);
+
+
+fig.add_trace(
+    go.Scatter(
+        x=[x_mean],
+        y=[y_mean],
+        mode="markers+text",
+        marker=dict(
+            color=tmr50_all_color,
+            size=marker_size * 2.5,
+            # line=dict(
+            #     color="yellow",
+            #     width=3
+            # )
+        ),
+        showlegend=False,
+        # text=f"{x_mean:.0f} distinct proteins<br>(avg)",
+        text=f"{x_mean:.0f} distinct<br>proteins<br>(avg)",
+        # text=f"{x_mean:.0f} distinct<br>proteins<br>(avg, STD = {x_std:.0f})",
+        # text=f"{x_mean:.0f} ± {x_std:.0f}<br>distinct proteins",
+        textposition="bottom left",
+        textfont=dict(color=tmr50_all_color, size=11),
+    ),
+    row=1,
+    col=1,
+);
+
+# %%
+# tmr1000
+
+x = tmr1000_df["NumOfProteins"]
+y = tmr1000_df["CummulativeTranscripts"]
+
+y_min = min(y_min, y.min())
+
+fig.add_trace(
+    go.Scatter(
+        x=x,
+        y=y,
+        mode="lines+markers",
+        marker=dict(color=tmr_1000_all_color, size=marker_size),
+        line=dict(color=tmr_1000_all_color, dash="dash"),
+        # name="All",
+        # legendgroup=tmr1000_legendtitle,  # this can be any string
+        # legendgrouptitle_text=tmr1000_legendtitle,
+        name=">= 1000 reads   ",
+        # legend="legend",
+    ),
+    row=1,
+    col=1,
+);
+
+
+fig.add_trace(
+    go.Scatter(
+        x=[tmr1000_x_mean],
+        y=[tmr1000_y_mean],
+        mode="markers+text",
+        marker=dict(
+            color="green",
+            size=marker_size * 2.5,
+            # line=dict(
+            #     color="yellow",
+            #     width=3
+            # )
+        ),
+        showlegend=False,
+        text=f"{tmr1000_x_mean:.0f} distinct proteins<br>(avg)",
+        # text=f"{tmr1000_x_mean:.0f} distinct proteins<br>(avg, STD = {tmr1000_x_std:.0f})",
+        # text=f"{tmr1000_x_mean:.0f} ± {tmr1000_x_std:.0f}<br>distinct proteins",
+        textposition="top right",
+        textfont=dict(color=tmr_1000_all_color, size=11),
+    ),
+    row=1,
+    col=1,
+);
+
+
+# %%
+# Background comparisons
+
+fig.add_shape(
+    type="rect",
+    x0=1,
+    y0=0,
+    x1=5,
+    y1=100,
+    line=dict(
+        # color="RoyalBlue",
+        width=0,
+    ),
+    # fillcolor="LightSkyBlue",
+    fillcolor="orange",
+    opacity=0.2,
+    row=1,
+    col=1,
+)
+
+fig.add_shape(
+    type="rect",
+    x0=5,
+    y0=0,
+    x1=50,
+    y1=100,
+    line=dict(
+        # color="RoyalBlue",
+        width=0,
+    ),
+    fillcolor="LightSkyBlue",
+    # fillcolor="orange",
+    # fillcolor="red",
+    opacity=0.2,
+    row=1,
+    col=1,
+)
+
+fig.add_trace(
+    go.Scatter(
+        x=[2.25, 17],
+        # y=[80, 85],
+        y=[0.3, 0.3],
+        text=[
+            "~5 isoforms<br>per gene<br>due to<br>alternative<br>splicing",
+            #   "Alternative splicing:<br>an average of ~5 isoforms per gene",
+            "~50 distinct<br>polypeptides<br>per gene",
+        ],
+        mode="text",
+        textfont=dict(size=11),
+        showlegend=False,
+    ),
+    row=1,
+    col=1,
+);
+
+# %% [markdown]
+# ### Single cell
+
+# %%
+neural_conditions = ["Yes", "No"]
+neural_trace_names = ["Neural", "Non-neural"]
+
+for neural_condition, neural_trace_name, neural_df in zip(
+    neural_conditions, neural_trace_names, neural_dfs
+):
+
+    x = neural_df["NumOfProteins"]
+    y = neural_df["CummulativeTranscripts"]
+    color = neural_color_discrete_map[neural_condition]
+
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=y,
+            mode="lines+markers",
+            marker=dict(color=color, size=marker_size),
+            line=dict(color=color, dash="dash", width=0.5),
+            name=neural_trace_name,
+            # legendgroup=tmr50_legendtitle,  # this can be any string
+            # legendgrouptitle_text=tmr50_legendtitle,
+            legend="legend2",
+        ),
+        row=2, 
+        col=1
+        # row=1,
+        # col=1,
+    )
+
+    y_min = min(y_min, y.min())
+
+
+x = neuronal_max_distinct_proteins_df["NumOfProteins"]
+y = non_neuronal_max_distinct_proteins_df["NumOfProteins"]
+statistic, pv = scipy.stats.mannwhitneyu(x, y)
+if pv < 10**-22:
+    # neural_vs_non_text = f"<b>Mann-Whitney U between<br>neural to non-neural cells</b><br>p-val < 1E-22<br>statistic = {statistic:.2g}"
+    neural_vs_non_text = "<b>p-val < 1E-22</b><br>(Mann-Whitney U)"
+else:
+    # neural_vs_non_text = f"<b>Mann-Whitney U between<br>neural to non-neural cells</b><br>p-val = {pv:.2e}<br>statistic = {statistic:.2g}"
+    neural_vs_non_text = f"<b>p-val = {pv:.2e}</b><br>(Mann-Whitney U)"
+    
+fig.add_annotation(
+    x=np.log(10) / np.log(10),
+    # y=np.log(1) / np.log(10),
+    y=np.log(10) / np.log(10),
+    xref="x",
+    yref="y",
+    text=neural_vs_non_text,
+    bgcolor="white",
+    borderpad=4,
+    font=dict(size=11),
+    opacity=0.8,
+    showarrow=False,
+    row=2,
+    col=1,
+);
+
+# %% [markdown]
+# ### Finalize & show
+
+# %%
+fig.update_xaxes(type="log")
+fig.update_yaxes(
+    type="log",
+    # range=[-2, 2.2]
+    range=[np.log(y_min) * 1.1 / np.log(10), 2.2],
+)
+
+width = 800
+height = 800
+
+fig.update_layout(
+    # xaxis_title="Distinct proteins per transcript",
+    # yaxis_title="% of transcripts",
+    # title="Pooled octopus data",
+    # title="Whole-transcriptome octopus data",
+    title="Octopus data",
+    title_x=0.15,
+    template=template,
+    width=width,
+    height=height,
+    # legend_title_text=legend_title_text,
+    # legend_font=dict(size=10),
+    # legend_grouptitlefont=dict(size=12),
+    # showlegend=False,
+    legend=dict(
+        title=dict(
+            text="Coverage"
+        ),
+        xref="container",
+        yref="container",
+        # xref="paper",
+        # yref="paper",
+        y=0.87,
+        # bgcolor="Orange"
+    ),
+    legend2=dict(
+        title=dict(
+            text="Cells"
+        ),
+        xref="container",
+        yref="container",
+        # xref="paper",
+        # yref="paper",
+        x=0.95,
+        y=0.42,
+        # y=0.5,
+        # bgcolor="Gold"
+    ),
+)
+
+fig.write_image(
+    Path(out_dir, "Distinct proteins per gene vs. % of genes - log(y) - Octopus - Whole-transcriptome and SC.svg"),
+    width=width,
+    height=height,
+)
+
+fig.show()
+
+# %% [markdown]
+# # Combined venn diagram for known & new sites - squid
+
+# %%
+pacbio_conditions = ["GRIA2", "PCLO", "ADAR1", "IQEC1"]
+
+# %%
+pacbio_venn_file =  Path(out_dir, "EditingSitesVennData.PacBio.tsv")
+pacbio_umi_venn_file = Path(out_dir, "EditingSitesVennData.PacBio.UMI.tsv")
+
+
+# %%
+def str_set_to_proper_set(str_set):
+    return set(
+        (
+            str_set
+            .removeprefix("{")
+            .removesuffix("}")
+            .split(", ")
+        )
+    )
+
+
+# %%
+pacbio_venn_df = pd.concat(
+    [
+        pd.read_table(pacbio_venn_file, index_col=0),
+        pd.read_table(pacbio_umi_venn_file, index_col=0),
+    ]
+).drop(columns="InProbRegion")
+
+pacbio_venn_df = pacbio_venn_df.map(str_set_to_proper_set)
+
+pacbio_venn_df
+
+# %%
+principle_labels = list(pacbio_venn_df.columns)
+principle_labels
+
+# %%
+problamatic_regions_exist = False
+
+
+cols = min(facet_col_wrap, len(pacbio_conditions), 4)
+rows = ceil(len(pacbio_conditions) / cols)
+
+# # Apply the 'classic' style to set the background whiteplt.style.use('classic')
+# plt.style.use('classic')
+
+fig, axs = plt.subplots(
+    nrows=rows,
+    ncols=cols,
+    figsize=(3.5 * cols, 2.5 * rows),
+    constrained_layout=True,
+    gridspec_kw=dict(hspace=0.2, wspace=0.03),
+)
+
+# Set the background color for the entire figure area to white
+fig.set_facecolor("white")
+
+for condition, ax in zip(pacbio_conditions, axs.flat):
+    labels = copy.copy(principle_labels)
+    sets = [
+        pacbio_venn_df.loc[condition, label]
+        for label in labels
+    ]
+    labels[0] = f"De-novo\n({len(sets[0])})"
+    labels[1] = f"Known\n({len(sets[1])})"
+    venn2(sets, set_labels=labels, ax=ax)
+    ax.set_title(condition, fontdict=dict(fontsize=12))
+
+
+fig.suptitle(
+    "Squid's Long-reads",
+    fontsize="xx-large",
+    # y=1.2
+)
+
+plt.savefig(
+    Path(out_dir, "Known vs new editing sites - PacBio w UMIs.svg"), 
+    format="svg", dpi=300
+)
+
+plt.show()
+
+# %%

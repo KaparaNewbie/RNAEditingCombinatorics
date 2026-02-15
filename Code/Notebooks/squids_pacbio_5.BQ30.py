@@ -363,7 +363,7 @@ known_non_syns_per_chrom_df.loc[known_non_syns_per_chrom_df["NonSyns"] >= 100]
 
 # %%
 known_non_syns_per_chrom_df.loc[known_non_syns_per_chrom_df["NonSyns"] >= 100].to_csv(
-    "ChromsWithAtLeast100NonSyns.Squid.tsv", index=False, sep="\t"
+    Path(out_dir, "ChromsWithAtLeast100NonSyns.Squid.tsv"), index=False, sep="\t"
 )
 
 # %%
@@ -2953,6 +2953,21 @@ except KeyError:
 
 # conditions_sets
 
+
+# %%
+editing_sites_venn_df = (
+    pd.DataFrame(conditions_sets)
+    .T
+    .rename(columns={0: "Edited", 1: "KnownEditing", 2: "InProbRegion"})
+    # .rename(columns={x: label for x, label in enumerate(conditions_labels)})
+)
+
+editing_sites_venn_df.to_csv(
+    Path(out_dir, "EditingSitesVennData.PacBio.tsv"),
+    sep="\t"
+)
+
+editing_sites_venn_df
 
 # %%
 len(conditions_sets["PCLO"])
@@ -10775,7 +10790,10 @@ shannon_df = pd.DataFrame(
 shannon_df
 
 # %%
-shannon_df.to_csv("ShanonEntropy.PacBio.tsv", sep="\t", index=False)
+shannon_df.to_csv(
+    Path(out_dir, "ShanonEntropy.PacBio.tsv"), 
+    sep="\t", index=False
+)
 
 # %%
 fig = go.Figure()
@@ -10896,11 +10914,11 @@ fig.update_layout(
     ),
 )
 
-fig.write_image(
-    "Observed vs hypothetical entropy - PacBio.svg",
-    width=width,
-    height=height,
-)
+# fig.write_image(
+#     "Observed vs hypothetical entropy - PacBio.svg",
+#     width=width,
+#     height=height,
+# )
 
 fig.show()
 

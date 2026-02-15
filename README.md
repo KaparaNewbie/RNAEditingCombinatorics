@@ -1688,6 +1688,74 @@ python Code/upload_illumina_samples_to_cloud.py
 ```
 
 
+#### Getting logs for TWK
+
+```bash
+COMB
+mkdir -p D.pealeii/MpileupAndTranscripts/Illumina/TestFixedExpression/CloudLogs
+cd D.pealeii/MpileupAndTranscripts/Illumina/TestFixedExpression/CloudLogs
+
+# RUSC2 40 threads
+mkdir TWK7_60
+
+gsutil -m cp \
+"gs://kobi-rna-comb-bucket/main/work/33/5d7484e1ec2bf1d4c34e65a1bbf40e/expressionlevels.EntropyConsidered.06.02.2026.log" \
+"gs://kobi-rna-comb-bucket/main/work/33/5d7484e1ec2bf1d4c34e65a1bbf40e/julia.TWK7..pidstat" \
+"gs://kobi-rna-comb-bucket/main/work/33/5d7484e1ec2bf1d4c34e65a1bbf40e/julia.TWK7.06.02.2026-19:42:59.time" \
+TWK7_60
+```
+
+#### Testing ANR17 with full 80 threads
+
+I now have a reason to believe that actually, the more threads - the merrier.
+
+```bash
+gsutil cp \
+D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.comp140910_c2_seq1.reads.csv \
+gs://kobi-rna-comb-bucket/main/ANR17_80T/ANR17_80T/
+
+gsutil cp \
+D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.comp140910_c2_seq1.unique_proteins.csv \
+gs://kobi-rna-comb-bucket/main/ANR17_80T/ANR17_80T/
+
+gsutil cp \
+D.pealeii/MpileupAndTranscripts/Illumina/comp140910_c2_seq1.DistinctUniqueProteins.13.07.2022-16:15:35.csv \
+gs://kobi-rna-comb-bucket/main/ANR17_80T/ANR17_80T/
+```
+
+#### Getting logs for ANR17 - 60 vs 80 threads
+
+
+```bash
+COMB
+mkdir -p D.pealeii/MpileupAndTranscripts/Illumina/TestFixedExpression/CloudLogs
+cd D.pealeii/MpileupAndTranscripts/Illumina/TestFixedExpression/CloudLogs
+
+# RUSC2 60 threads
+mkdir ANR17_60
+
+gsutil -m cp \
+"gs://kobi-rna-comb-bucket/main/work/8b/3161a63d1035a959f20470c7dae875/expressionlevels.EntropyConsidered.05.02.2026.log" \
+"gs://kobi-rna-comb-bucket/main/work/8b/3161a63d1035a959f20470c7dae875/julia.ANR17..pidstat" \
+"gs://kobi-rna-comb-bucket/main/work/8b/3161a63d1035a959f20470c7dae875/julia.ANR17.05.02.2026-08:37:47.time" \
+ANR17_60
+
+
+mkdir ANR17_80
+
+gsutil -m cp \
+"gs://kobi-rna-comb-bucket/main/work/da/dfb6f9b595f2962a217dd7e825987f/expressionlevels.EntropyConsidered.09.02.2026.log" \
+"gs://kobi-rna-comb-bucket/main/work/da/dfb6f9b595f2962a217dd7e825987f/julia.ANR17_80T..pidstat" \
+"gs://kobi-rna-comb-bucket/main/work/da/dfb6f9b595f2962a217dd7e825987f/julia.ANR17_80T.09.02.2026-07:27:38.time" \
+ANR17_80
+```
+
+#### Downloading 19 fixed Illumina exp levels
+
+```bash
+python Code/download_illumina_fixed_results_from_cloud.py
+```
+
 
 ## Illumina - 80k sampled reads per transcript
 
@@ -2123,12 +2191,81 @@ undirected_sequencing_data \
 --cds_regions O.vulgaris/Annotations/orfs_oct.bed \
 --samples_table O.vulgaris/Data/PRJNA791920/IsoSeqPolished/samples.csv \
 --keep_bam_files \
-> $OUTDIR/pileup.5.2.2026.out 2>&1 &
+> $OUTDIR/pileup.9.2.2026.out 2>&1 &
 ```
-* alu 13
-* 2017907
+* alu 16
+* 2450730
 
-### total_mapped_reads 500 (instead of 1000) - pooled samples
+#### Distinct proteins
+
+##### Finding isoforms
+
+```bash
+INDIR=O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.PooledSamples
+OUTDIR=$INDIR/DistinctProteins
+mkdir -p $OUTDIR
+INFILES=$(echo $INDIR/ProteinsFiles/*.unique_proteins.csv.gz)
+
+julia \
+--project=. \
+--threads 40 --proc 6 \
+Code/Simulations/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .unique_proteins.csv.gz \
+--idcol Protein \
+--firstcolpos 16 \
+--datatype Proteins \
+--outdir $OUTDIR \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee $INDIR/DistinctProteins.regular.9.2.2026.log
+```
+* alu 16
+
+##### Expression levels
+
+```bash
+DIR=O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.PooledSamples
+
+python \
+Code/Simulations/prepare_fofns_for_expression.py \
+--proteins_dir $DIR/ProteinsFiles \
+--reads_dir $DIR/ReadsFiles \
+--distinct_proteins_dir $DIR/DistinctProteins \
+--proteins_postfix ".gz" \
+--reads_postfix ".gz" \
+--out_dir $DIR
+
+OUTDIR=$DIR/ExpressionLevels
+
+mkdir $OUTDIR
+
+nohup \
+julia \
+--project=. \
+--threads 40 \
+Code/Simulations/expressionlevels.jl \
+--distinctfilesfofn $DIR/DistinctProteinsForExpressionLevels.txt \
+--allprotsfilesfofn $DIR/UniqueProteinsForExpressionLevels.txt \
+--allreadsfilesfofn $DIR/ReadsForExpressionLevels.txt \
+--samplenamesfile $DIR/ChromsNamesForExpressionLevels.txt \
+--firstcolpos 16 \
+--onlymaxdistinct \
+--considerentropy \
+--postfix_to_add .EntropyConsidered \
+--innerthreadedassignment \
+--outdir $OUTDIR \
+> $DIR/expressionlevels.10.2.2026.out &
+```
+* alu 16
+* 2690124
+
+
+
+### total_mapped_reads 500
 
 #### Pileup
 
@@ -2162,10 +2299,111 @@ undirected_sequencing_data \
 --cds_regions O.vulgaris/Annotations/orfs_oct.bed \
 --samples_table O.vulgaris/Data/PRJNA791920/IsoSeqPolished/samples.csv \
 --keep_bam_files \
-> $OUTDIR/pileup.5.2.2026.out 2>&1 &
+> $OUTDIR/pileup.9.2.2026.out 2>&1 &
+```
+* alu 17
+* 3945120
+
+
+#### Distinct proteins
+
+##### Finding isoforms
+
+```bash
+INDIR=O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage500.PooledSamples
+OUTDIR=$INDIR/DistinctProteins
+mkdir -p $OUTDIR
+INFILES=$(echo $INDIR/ProteinsFiles/*.unique_proteins.csv.gz)
+
+julia \
+--project=. \
+--threads 40 --proc 6 \
+Code/Simulations/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .unique_proteins.csv.gz \
+--idcol Protein \
+--firstcolpos 16 \
+--datatype Proteins \
+--outdir $OUTDIR \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee $INDIR/DistinctProteins.regular.9.2.2026.log
+```
+* alu 17
+
+
+### total_mapped_reads 1000 - pooled samples
+
+#### Pileup
+
+```bash
+OUTDIR=O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.PooledSamples
+
+mkdir -p $OUTDIR
+
+nohup python Code/pileup_with_subparsers.py \
+--transcriptome O.vulgaris/Annotations/orfs_oct.fa \
+--known_editing_sites O.vulgaris/Annotations/O.vul.EditingSites.bed \
+--exclude_flags 2304 \
+--parity SE \
+--min_rq 0.998 \
+--min_bq 30 \
+--snp_noise_level 0.05 \
+--out_dir $OUTDIR \
+--processes 40 \
+--threads 5 \
+--gz_compression \
+--keep_pileup_files \
+undirected_sequencing_data \
+--alignments_stats_table O.vulgaris/Alignment/PRJNA791920/IsoSeq.Polished.Unclustered/AggregatedByChromBySampleSummary.tsv \
+--alternative_hypothesis larger \
+--final_editing_scheme "BH after noise thresholding" \
+--disregard_alt_base_freq_1 \
+--total_mapped_reads 1000 \
+--pooled_transcript_noise_threshold 1 \
+--max_snps_per_gene_to_allow_editing_detection 3 \
+--main_by_chrom_dir O.vulgaris/Alignment/PRJNA791920/IsoSeq.Polished.Unclustered/ByChrom \
+--cds_regions O.vulgaris/Annotations/orfs_oct.bed \
+--samples_table O.vulgaris/Data/PRJNA791920/IsoSeqPolished/samples.csv \
+--keep_bam_files \
+> $OUTDIR/pileup.11.2.2026.out 2>&1 &
 ```
 * alu 16
-* 1713955
+* 3831417
+
+
+#### Distinct proteins
+
+##### Finding isoforms
+
+```bash
+INDIR=O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.PooledSamples
+OUTDIR=$INDIR/DistinctProteins
+mkdir -p $OUTDIR
+INFILES=$(echo $INDIR/ProteinsFiles/*.unique_proteins.csv.gz)
+
+julia \
+--project=. \
+--threads 40 --proc 6 \
+Code/Simulations/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove .unique_proteins.csv.gz \
+--idcol Protein \
+--firstcolpos 16 \
+--datatype Proteins \
+--outdir $OUTDIR \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee $INDIR/DistinctProteins.regular.11.2.2026.log
+```
+* alu 16
+
 
 ## Squid long reads w/ UMIs
 

@@ -16,6 +16,7 @@ Code/Notebooks/*.svg
 Code/Notebooks/*.png
 Code/Notebooks/MPILEUP/*.svg
 Code/Notebooks/*.tsv
+Code/Notebooks/*.csv
 Code/Notebooks/*.fasta
 Code/Notebooks/Blast*
 LOGS.md

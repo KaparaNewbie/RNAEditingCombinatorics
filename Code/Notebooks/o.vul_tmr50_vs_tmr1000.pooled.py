@@ -161,10 +161,10 @@ tmr50_alignment_stats_df = alignment_stats_df.loc[
 tmr50_alignment_stats_df
 
 # %%
-# tmr500_alignment_stats_df = alignment_stats_df.loc[
+# tmr1000_alignment_stats_df = alignment_stats_df.loc[
 #     alignment_stats_df["MappedReads"] >= 500
 # ]
-# tmr500_alignment_stats_df
+# tmr1000_alignment_stats_df
 
 # %%
 positions_files = list(positions_dir.glob("*.positions.csv.gz"))
@@ -403,136 +403,136 @@ expression_files = complete_data_df["ExpressionFile"].tolist()
 100 * len(chroms) / len(possibly_na_chroms)
 
 # %% [markdown]
-# # Data loading - TMR 500
+# # Data loading - TMR 1000
 
 # %%
-tmr500_main_data_dir = Path(
-    "/private6/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage500.PooledSamples"
+tmr1000_main_data_dir = Path(
+    "/private6/projects/Combinatorics/O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage1000.PooledSamples"
 )
 
-tmr500_positions_dir = Path(tmr500_main_data_dir, "PositionsFiles")
-tmr500_reads_dir = Path(tmr500_main_data_dir, "ReadsFiles")
-tmr500_proteins_dir = Path(tmr500_main_data_dir, "ProteinsFiles")
-tmr500_distinct_proteins_dir = Path(tmr500_main_data_dir, "DistinctProteins")
+tmr1000_positions_dir = Path(tmr1000_main_data_dir, "PositionsFiles")
+tmr1000_reads_dir = Path(tmr1000_main_data_dir, "ReadsFiles")
+tmr1000_proteins_dir = Path(tmr1000_main_data_dir, "ProteinsFiles")
+tmr1000_distinct_proteins_dir = Path(tmr1000_main_data_dir, "DistinctProteins")
 
 # %%
-tmr500_alignment_stats_df = alignment_stats_df.loc[
-    alignment_stats_df["MappedReads"] >= 500
+tmr1000_alignment_stats_df = alignment_stats_df.loc[
+    alignment_stats_df["MappedReads"] >= 1000
 ]
-tmr500_alignment_stats_df
+tmr1000_alignment_stats_df
 
 # %%
-tmr500_positions_files = list(tmr500_positions_dir.glob("*.positions.csv.gz"))
+tmr1000_positions_files = list(tmr1000_positions_dir.glob("*.positions.csv.gz"))
 
-tmr500_chroms_in_positions = [
-    positions_file.name.split(".")[0] for positions_file in tmr500_positions_files
+tmr1000_chroms_in_positions = [
+    positions_file.name.split(".")[0] for positions_file in tmr1000_positions_files
 ]
 
-tmr500_positions_data_df = pd.DataFrame(
+tmr1000_positions_data_df = pd.DataFrame(
     {
-        "Chrom": tmr500_chroms_in_positions,
-        "PositionsFile": tmr500_positions_files,
+        "Chrom": tmr1000_chroms_in_positions,
+        "PositionsFile": tmr1000_positions_files,
     }
 )
 
-tmr500_positions_data_df
+tmr1000_positions_data_df
 
 # %%
-tmr500_mismatches_files = list(tmr500_positions_dir.glob("*.Mismatches.csv.gz"))
+tmr1000_mismatches_files = list(tmr1000_positions_dir.glob("*.Mismatches.csv.gz"))
 
-tmr500_chroms_in_mismatches_files = [
-    mismatches_file.name.split(".")[0] for mismatches_file in tmr500_mismatches_files
+tmr1000_chroms_in_mismatches_files = [
+    mismatches_file.name.split(".")[0] for mismatches_file in tmr1000_mismatches_files
 ]
 
-tmr500_mismatches_data_df = pd.DataFrame(
+tmr1000_mismatches_data_df = pd.DataFrame(
     {
-        "Chrom": tmr500_chroms_in_mismatches_files,
-        "PositionsFile": tmr500_mismatches_files,
+        "Chrom": tmr1000_chroms_in_mismatches_files,
+        "PositionsFile": tmr1000_mismatches_files,
     }
 )
 
-tmr500_mismatches_data_df
+tmr1000_mismatches_data_df
 
 # %%
-tmr500_noise_threshold_files = list(tmr500_positions_dir.glob("*.NoiseThreshold.csv"))
+tmr1000_noise_threshold_files = list(tmr1000_positions_dir.glob("*.NoiseThreshold.csv"))
 
-tmr500_chroms_in_noise_threshold_files = [
-    noise_threshold_file.name.split(".")[0] for noise_threshold_file in tmr500_noise_threshold_files
+tmr1000_chroms_in_noise_threshold_files = [
+    noise_threshold_file.name.split(".")[0] for noise_threshold_file in tmr1000_noise_threshold_files
 ]
 
-tmr500_noise_threshold_files_df = pd.DataFrame(
+tmr1000_noise_threshold_files_df = pd.DataFrame(
     {
-        "Chrom": tmr500_chroms_in_noise_threshold_files,
-        "NoiseThresholdFile": tmr500_noise_threshold_files,
+        "Chrom": tmr1000_chroms_in_noise_threshold_files,
+        "NoiseThresholdFile": tmr1000_noise_threshold_files,
     }
 )
 
-tmr500_noise_threshold_files_df
+tmr1000_noise_threshold_files_df
 
 # %%
-tmr500_alignment_stats_df.loc[
-    ~tmr500_alignment_stats_df["Chrom"].isin(tmr500_positions_data_df["Chrom"])
+tmr1000_alignment_stats_df.loc[
+    ~tmr1000_alignment_stats_df["Chrom"].isin(tmr1000_positions_data_df["Chrom"])
 ]
 
 # %%
-tmr500_reads_files = list(tmr500_reads_dir.glob("*.reads.csv.gz"))
-tmr500_chroms_in_reads_files = [
-    reads_file.name.split(".")[0] for reads_file in tmr500_reads_files
+tmr1000_reads_files = list(tmr1000_reads_dir.glob("*.reads.csv.gz"))
+tmr1000_chroms_in_reads_files = [
+    reads_file.name.split(".")[0] for reads_file in tmr1000_reads_files
 ]
 
-tmr500_unique_reads_files = list(tmr500_reads_dir.glob("*.unique_reads.csv.gz"))
-tmr500_chroms_in_unique_reads_files = [
+tmr1000_unique_reads_files = list(tmr1000_reads_dir.glob("*.unique_reads.csv.gz"))
+tmr1000_chroms_in_unique_reads_files = [
     unique_reads_file.name.split(".")[0]
-    for unique_reads_file in tmr500_unique_reads_files
+    for unique_reads_file in tmr1000_unique_reads_files
 ]
 
-tmr500_reads_data_df = pd.DataFrame(
+tmr1000_reads_data_df = pd.DataFrame(
     {
-        "Chrom": tmr500_chroms_in_reads_files,
-        "ReadsFile": tmr500_reads_files,
+        "Chrom": tmr1000_chroms_in_reads_files,
+        "ReadsFile": tmr1000_reads_files,
     }
 )
 
-tmr500_unique_reads_data_df = pd.DataFrame(
+tmr1000_unique_reads_data_df = pd.DataFrame(
     {
-        "Chrom": tmr500_chroms_in_unique_reads_files,
-        "UniqueReadsFile": tmr500_unique_reads_files,
+        "Chrom": tmr1000_chroms_in_unique_reads_files,
+        "UniqueReadsFile": tmr1000_unique_reads_files,
     }
 )
 
-tmr500_reads_data_df = tmr500_reads_data_df.merge(
-    tmr500_unique_reads_data_df, on="Chrom", how="left"
+tmr1000_reads_data_df = tmr1000_reads_data_df.merge(
+    tmr1000_unique_reads_data_df, on="Chrom", how="left"
 )
 
-tmr500_reads_data_df
+tmr1000_reads_data_df
 
 # %%
-tmr500_alignment_stats_df.loc[
-    ~tmr500_alignment_stats_df["Chrom"].isin(tmr500_reads_data_df["Chrom"])
+tmr1000_alignment_stats_df.loc[
+    ~tmr1000_alignment_stats_df["Chrom"].isin(tmr1000_reads_data_df["Chrom"])
 ]
 
 # %%
-tmr500_proteins_files = list(tmr500_proteins_dir.glob("*.proteins.csv.gz"))
-tmr500_chroms_in_proteins_files = [
-    proteins_file.name.split(".")[0] for proteins_file in tmr500_proteins_files
+tmr1000_proteins_files = list(tmr1000_proteins_dir.glob("*.proteins.csv.gz"))
+tmr1000_chroms_in_proteins_files = [
+    proteins_file.name.split(".")[0] for proteins_file in tmr1000_proteins_files
 ]
 
-tmr500_unique_proteins_files = list(
-    tmr500_proteins_dir.glob("*.unique_proteins.csv.gz")
+tmr1000_unique_proteins_files = list(
+    tmr1000_proteins_dir.glob("*.unique_proteins.csv.gz")
 )
-tmr500_chroms_in_unique_proteins_files = [
+tmr1000_chroms_in_unique_proteins_files = [
     unique_proteins_file.name.split(".")[0]
-    for unique_proteins_file in tmr500_unique_proteins_files
+    for unique_proteins_file in tmr1000_unique_proteins_files
 ]
 
-tmr500_distinct_proteins_files = [
+tmr1000_distinct_proteins_files = [
     f
-    for f in tmr500_distinct_proteins_dir.glob("*DistinctUniqueProteins.*.csv")
+    for f in tmr1000_distinct_proteins_dir.glob("*DistinctUniqueProteins.*.csv")
     if "expression" not in f.name.lower()
 ]
-tmr500_chroms_in_distinct_proteins_files = [
+tmr1000_chroms_in_distinct_proteins_files = [
     distinct_proteins_file.name.split(".")[0]
-    for distinct_proteins_file in tmr500_distinct_proteins_files
+    for distinct_proteins_file in tmr1000_distinct_proteins_files
 ]
 
 # expression_files = list(
@@ -543,25 +543,25 @@ tmr500_chroms_in_distinct_proteins_files = [
 # ]
 
 
-tmr500_proteins_data_df = pd.DataFrame(
+tmr1000_proteins_data_df = pd.DataFrame(
     {
-        "Chrom": tmr500_chroms_in_proteins_files,
-        "ProteinsFile": tmr500_proteins_files,
+        "Chrom": tmr1000_chroms_in_proteins_files,
+        "ProteinsFile": tmr1000_proteins_files,
     }
 )
 
-tmr500_unique_proteins_data_df = pd.DataFrame(
+tmr1000_unique_proteins_data_df = pd.DataFrame(
     {
-        "Chrom": tmr500_chroms_in_unique_proteins_files,
-        "UniqueProteinsFile": tmr500_unique_proteins_files,
+        "Chrom": tmr1000_chroms_in_unique_proteins_files,
+        "UniqueProteinsFile": tmr1000_unique_proteins_files,
     }
 )
 
 
-tmr500_distinct_proteins_data_df = pd.DataFrame(
+tmr1000_distinct_proteins_data_df = pd.DataFrame(
     {
-        "Chrom": tmr500_chroms_in_distinct_proteins_files,
-        "DistinctProteinsFile": tmr500_distinct_proteins_files,
+        "Chrom": tmr1000_chroms_in_distinct_proteins_files,
+        "DistinctProteinsFile": tmr1000_distinct_proteins_files,
     }
 )
 
@@ -570,76 +570,76 @@ tmr500_distinct_proteins_data_df = pd.DataFrame(
 #     {"Chrom": chroms_in_expression_files, "ExpressionFile": expression_files}
 # )
 
-tmr500_proteins_data_df = (
-    tmr500_proteins_data_df
+tmr1000_proteins_data_df = (
+    tmr1000_proteins_data_df
     .merge(
-        tmr500_unique_proteins_data_df, on="Chrom", how="left"
+        tmr1000_unique_proteins_data_df, on="Chrom", how="left"
     )
-    .merge(tmr500_distinct_proteins_data_df, on="Chrom", how="left") # TODO uncomment later
+    .merge(tmr1000_distinct_proteins_data_df, on="Chrom", how="left") # TODO uncomment later
     # .merge(expression_data_df, on="Chrom", how="left")
 )
 
-tmr500_proteins_data_df
+tmr1000_proteins_data_df
 
 # %%
-tmr500_data_df = (
-    orfs_df.merge(tmr500_alignment_stats_df, on="Chrom", how="right")
-    .merge(tmr500_positions_data_df, on="Chrom", how="left")
-    .merge(tmr500_reads_data_df, on="Chrom", how="left")
-    .merge(tmr500_proteins_data_df, on="Chrom", how="left")
+tmr1000_data_df = (
+    orfs_df.merge(tmr1000_alignment_stats_df, on="Chrom", how="right")
+    .merge(tmr1000_positions_data_df, on="Chrom", how="left")
+    .merge(tmr1000_reads_data_df, on="Chrom", how="left")
+    .merge(tmr1000_proteins_data_df, on="Chrom", how="left")
 )
 
-tmr500_data_df
+tmr1000_data_df
 
 # %%
-# tmr500_complete_data_df = tmr500_data_df.loc[
-#     tmr500_data_df["ReadsFile"].notna()
+# tmr1000_complete_data_df = tmr1000_data_df.loc[
+#     tmr1000_data_df["ReadsFile"].notna()
 # ].reset_index(drop=True)
-tmr500_complete_data_df = tmr500_data_df.loc[
-    tmr500_data_df["DistinctProteinsFile"].notna()
+tmr1000_complete_data_df = tmr1000_data_df.loc[
+    tmr1000_data_df["DistinctProteinsFile"].notna()
 ].reset_index(drop=True)
 # complete_data_df = data_df.loc[data_df["ExpressionFile"].notna()].reset_index(drop=True)
 
 # complete_data_df = complete_data_df.drop_duplicates(
 #     "Name", keep=False, ignore_index=True
 # )
-tmr500_complete_data_df
+tmr1000_complete_data_df
 
 # %%
 # complete_data_df.loc[complete_data_df["Name"].duplicated(keep=False)].sort_values("Name", ignore_index=True)
 
 # %%
-tmr500_possibly_na_conditions = tmr500_data_df["Name"].tolist()
-tmr500_possibly_na_chroms = tmr500_data_df["Chrom"].tolist()
-tmr500_possibly_na_starts = tmr500_data_df["Start"].tolist()
-tmr500_possibly_na_ends = tmr500_data_df["End"].tolist()
-tmr500_possibly_na_strands = tmr500_data_df["Strand"].tolist()
+tmr1000_possibly_na_conditions = tmr1000_data_df["Name"].tolist()
+tmr1000_possibly_na_chroms = tmr1000_data_df["Chrom"].tolist()
+tmr1000_possibly_na_starts = tmr1000_data_df["Start"].tolist()
+tmr1000_possibly_na_ends = tmr1000_data_df["End"].tolist()
+tmr1000_possibly_na_strands = tmr1000_data_df["Strand"].tolist()
 
-tmr500_possibly_na_positions_files = tmr500_data_df["PositionsFile"].tolist()
-tmr500_possibly_na_reads_files = tmr500_data_df["ReadsFile"].tolist()
-tmr500_possibly_na_unique_reads_files = tmr500_data_df["UniqueReadsFile"].tolist()
-tmr500_possibly_na_proteins_files = tmr500_data_df["ProteinsFile"].tolist()
-tmr500_possibly_na_unique_proteins_files = tmr500_data_df[
+tmr1000_possibly_na_positions_files = tmr1000_data_df["PositionsFile"].tolist()
+tmr1000_possibly_na_reads_files = tmr1000_data_df["ReadsFile"].tolist()
+tmr1000_possibly_na_unique_reads_files = tmr1000_data_df["UniqueReadsFile"].tolist()
+tmr1000_possibly_na_proteins_files = tmr1000_data_df["ProteinsFile"].tolist()
+tmr1000_possibly_na_unique_proteins_files = tmr1000_data_df[
     "UniqueProteinsFile"
 ].tolist()
-tmr500_possibly_na_distinct_unique_proteins_files = tmr500_data_df[
+tmr1000_possibly_na_distinct_unique_proteins_files = tmr1000_data_df[
     "DistinctProteinsFile"
 ].tolist()
 # expression_files = complete_data_df["ExpressionFile"].tolist()
 
 # %%
-tmr500_conditions = tmr500_complete_data_df["Name"].tolist()
-tmr500_chroms = tmr500_complete_data_df["Chrom"].tolist()
-tmr500_starts = tmr500_complete_data_df["Start"].tolist()
-tmr500_ends = tmr500_complete_data_df["End"].tolist()
-tmr500_strands = tmr500_complete_data_df["Strand"].tolist()
+tmr1000_conditions = tmr1000_complete_data_df["Name"].tolist()
+tmr1000_chroms = tmr1000_complete_data_df["Chrom"].tolist()
+tmr1000_starts = tmr1000_complete_data_df["Start"].tolist()
+tmr1000_ends = tmr1000_complete_data_df["End"].tolist()
+tmr1000_strands = tmr1000_complete_data_df["Strand"].tolist()
 
-tmr500_positions_files = tmr500_complete_data_df["PositionsFile"].tolist()
-tmr500_reads_files = tmr500_complete_data_df["ReadsFile"].tolist()
-tmr500_unique_reads_files = tmr500_complete_data_df["UniqueReadsFile"].tolist()
-tmr500_proteins_files = tmr500_complete_data_df["ProteinsFile"].tolist()
-tmr500_unique_proteins_files = tmr500_complete_data_df["UniqueProteinsFile"].tolist()
-tmr500_distinct_unique_proteins_files = complete_data_df[
+tmr1000_positions_files = tmr1000_complete_data_df["PositionsFile"].tolist()
+tmr1000_reads_files = tmr1000_complete_data_df["ReadsFile"].tolist()
+tmr1000_unique_reads_files = tmr1000_complete_data_df["UniqueReadsFile"].tolist()
+tmr1000_proteins_files = tmr1000_complete_data_df["ProteinsFile"].tolist()
+tmr1000_unique_proteins_files = tmr1000_complete_data_df["UniqueProteinsFile"].tolist()
+tmr1000_distinct_unique_proteins_files = complete_data_df[
     "DistinctProteinsFile"
 ].tolist()
 # expression_files = complete_data_df["ExpressionFile"].tolist()
@@ -916,6 +916,9 @@ concat_all_positions_df = make_concat_all_positions_df(
     possibly_na_positions_files, condition_col, possibly_na_conditions
 )
 concat_all_positions_df
+
+# %%
+concat_all_positions_df["NoisyFinal"].value_counts(dropna=False)
 
 # %%
 transcript_and_chrom_from_positions_df = concat_all_positions_df.loc[
@@ -1403,6 +1406,48 @@ mismatches_df = mismatches_df.merge(
 
 mismatches_df
 
+# %% [markdown]
+# ### SNPs and coverage per gene
+
+# %%
+snps_and_coverage_per_gene_df = mismatches_df.loc[
+    (mismatches_df["NoisyFinal"])
+    & (mismatches_df["MismatchFrequency"].ge(snp_noise_level))
+].groupby("Chrom").size().reset_index(name="SNPs").merge(
+    alignment_stats_df.loc[:, ["Chrom", "MappedReads"]],
+    how="outer"
+).fillna(0)
+snps_and_coverage_per_gene_df["SNPs"] = (
+    snps_and_coverage_per_gene_df["SNPs"].astype(int)
+)
+snps_and_coverage_per_gene_df
+
+# %%
+tmr50_alignment_stats_df
+
+# %% [markdown]
+# The next two dfs allow to easily filter for genes which were intially considered as "editable" (i.e. genes with a low number of SNPs).
+
+# %%
+tmr50_alignment_stats_and_snps_df = tmr50_alignment_stats_df.merge(
+    snps_and_coverage_per_gene_df.loc[
+        snps_and_coverage_per_gene_df["SNPs"].le(max_snps_per_gene_to_allow_editing_detection)
+    ],
+    how="inner"
+)
+tmr50_alignment_stats_and_snps_df
+
+# %%
+tmr1000_alignment_stats_and_snps_df = tmr1000_alignment_stats_df.merge(
+    snps_and_coverage_per_gene_df.loc[
+        snps_and_coverage_per_gene_df["SNPs"].le(max_snps_per_gene_to_allow_editing_detection)
+    ],
+    how="inner"
+)
+tmr1000_alignment_stats_and_snps_df
+
+# %%
+
 # %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"}
 # ## Reads
 
@@ -1577,21 +1622,21 @@ num_of_reads_comparison_df["%Decrease"].describe()
 # ### Unique - TMR 1000
 
 # %% papermill={"duration": 0.126539, "end_time": "2022-02-01T09:42:47.923363", "exception": false, "start_time": "2022-02-01T09:42:47.796824", "status": "completed"}
-tmr500_unique_reads_dfs = [
+tmr1000_unique_reads_dfs = [
     pd.read_csv(unique_reads_file, sep=sep, dtype={"UniqueRead": str, "Reads": str})
-    for unique_reads_file in tmr500_unique_reads_files
+    for unique_reads_file in tmr1000_unique_reads_files
 ]
-for chrom, unique_reads_df in zip(tmr500_chroms, tmr500_unique_reads_dfs):
+for chrom, unique_reads_df in zip(tmr1000_chroms, tmr1000_unique_reads_dfs):
     unique_reads_df.insert(0, "Chrom", chrom)
-tmr500_unique_reads_dfs[0]
+tmr1000_unique_reads_dfs[0]
 
 
 # %%
-len(tmr500_unique_reads_dfs)
+len(tmr1000_unique_reads_dfs)
 
 # %%
-# tmr500_concat_unique_reads_df = make_concat_unique_reads_df(tmr500_unique_reads_files, tmr500_chroms)
-# tmr500_concat_unique_reads_df
+# tmr1000_concat_unique_reads_df = make_concat_unique_reads_df(tmr1000_unique_reads_files, tmr1000_chroms)
+# tmr1000_concat_unique_reads_df
 
 # %% [markdown]
 # ## Proteins
@@ -1886,45 +1931,45 @@ distinct_unique_proteins_df2
 
 # %%
 assert (
-    len(tmr500_conditions)
-    == len(tmr500_chroms)
-    == len(tmr500_distinct_proteins_files)
-    == len(tmr500_unique_reads_dfs)
+    len(tmr1000_conditions)
+    == len(tmr1000_chroms)
+    == len(tmr1000_distinct_proteins_files)
+    == len(tmr1000_unique_reads_dfs)
 )
 
-tmr500_distinct_unique_proteins_dfs = []
+tmr1000_distinct_unique_proteins_dfs = []
 for condition, chrom, distinct_unique_proteins_file, unique_reads_df in zip(
-    tmr500_conditions,
-    tmr500_chroms,
-    tmr500_distinct_proteins_files,
-    tmr500_unique_reads_dfs,
+    tmr1000_conditions,
+    tmr1000_chroms,
+    tmr1000_distinct_proteins_files,
+    tmr1000_unique_reads_dfs,
 ):
-    tmr500_distinct_unique_proteins_df = pd.read_csv(
+    tmr1000_distinct_unique_proteins_df = pd.read_csv(
         distinct_unique_proteins_file, 
         sep=sep,
         dtype={"UniqueSamples": str, "AvailableReads": str}
     )
-    tmr500_distinct_unique_proteins_df.insert(0, condition_col, condition)
-    tmr500_distinct_unique_proteins_df.insert(
+    tmr1000_distinct_unique_proteins_df.insert(0, condition_col, condition)
+    tmr1000_distinct_unique_proteins_df.insert(
         1,
         "NumOfReads",
         (
-            tmr500_distinct_unique_proteins_df["Fraction"]
+            tmr1000_distinct_unique_proteins_df["Fraction"]
             * unique_reads_df["NumOfReads"].sum()
         ).astype(int),
     )
-    tmr500_distinct_unique_proteins_df.insert(0, "Chrom", chrom)
-    tmr500_distinct_unique_proteins_dfs.append(tmr500_distinct_unique_proteins_df)
+    tmr1000_distinct_unique_proteins_df.insert(0, "Chrom", chrom)
+    tmr1000_distinct_unique_proteins_dfs.append(tmr1000_distinct_unique_proteins_df)
 
-ic(len(tmr500_distinct_unique_proteins_dfs))
+ic(len(tmr1000_distinct_unique_proteins_dfs))
 
-tmr500_distinct_unique_proteins_df = (
-    pd.concat(tmr500_distinct_unique_proteins_dfs)
+tmr1000_distinct_unique_proteins_df = (
+    pd.concat(tmr1000_distinct_unique_proteins_dfs)
     .reset_index(drop=True)
     .rename(columns={"NumUniqueSamples": "NumOfProteins", "UniqueSamples": "Proteins"})
 )
 
-tmr500_distinct_unique_proteins_df = tmr500_distinct_unique_proteins_df.sort_values(
+tmr1000_distinct_unique_proteins_df = tmr1000_distinct_unique_proteins_df.sort_values(
     [
         condition_col,
         "Fraction",
@@ -1934,7 +1979,7 @@ tmr500_distinct_unique_proteins_df = tmr500_distinct_unique_proteins_df.sort_val
     ]
 ).reset_index(drop=True)
 
-tmr500_distinct_unique_proteins_df
+tmr1000_distinct_unique_proteins_df
 
 
 # %% [markdown]
@@ -2317,6 +2362,9 @@ def calc_all_per_sample_a_and_g_counts(positions_dfs, strands, samples, processe
 def calc_per_sample_editing_index_df(
     concat_all_positions_df, chroms, strands, samples, processes=1
 ):
+    """Calc A-to-I RNA editing index per sample, considering edited genes."""
+    
+    # keep only chroms in which we detected editing (at least 1 editing site)
     concat_all_positions_df = concat_all_positions_df.loc[
         concat_all_positions_df["Chrom"].isin(chroms)
     ]
@@ -2372,6 +2420,9 @@ len(chroms)
 
 # %%
 concat_edited_positions_df["Chrom"].nunique()
+
+# %%
+concat_edited_positions_df.groupby("Chrom").size().describe().round(2)
 
 # %%
 expanded_concat_edited_positions_df = (
@@ -2447,8 +2498,12 @@ per_sample_agged_expanded_concat_edited_positions_df = expanded_concat_edited_po
 ).reset_index().fillna(0)
 
 # per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"] = per_sample_agged_expanded_concat_edited_positions_df.loc[:, ["A", "G", np.nan]].sum(axis=1)
-per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"] = per_sample_agged_expanded_concat_edited_positions_df.loc[:, ["A", "G"]].sum(axis=1)
-per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"] = per_sample_agged_expanded_concat_edited_positions_df["G"] / per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"]
+per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"] = (
+    per_sample_agged_expanded_concat_edited_positions_df.loc[:, ["A", "G"]].sum(axis=1)
+)
+per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"] = (
+    per_sample_agged_expanded_concat_edited_positions_df["G"] / per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"]
+)
 
 per_sample_agged_expanded_concat_edited_positions_df
 
@@ -2726,7 +2781,7 @@ fig.update_layout(
 fig.write_image(
     Path(
         out_dir,
-        "Number of sites edited per sample - Octopus.svg",
+        "Number of sites edited per sample - Octopus - pooled.svg",
     ),
     width=width,
     height=height,
@@ -2768,9 +2823,6 @@ fig.show()
 #     title="Number of samples editing each site"
 # )
 # fig.show()
-
-# %%
-concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df
 
 # %%
 fig = px.line(
@@ -2854,7 +2906,7 @@ fig.update_layout(
 fig.write_image(
     Path(
         out_dir,
-        "Cumulative % of edited sites supported by X samples or less - Octopus.svg",
+        "Cumulative % of edited sites supported by X samples or less - Octopus - pooled.svg",
     ),
     width=width,
     height=height,
@@ -2868,11 +2920,15 @@ raise Exception("Stop notebook execution here")
 # %% [markdown]
 # ### Noise in positions
 
+# %% [markdown]
+# Only show estimated noise levels for genes with max 3 SNPs.
+
 # %%
 (
     concat_all_positions_df.loc[
         (concat_all_positions_df["Noise"] <= snp_noise_level)
-        & (concat_all_positions_df["NoisyFinal"]),
+        & (concat_all_positions_df["NoisyFinal"])
+        & (concat_all_positions_df["Chrom"].isin(tmr50_alignment_stats_and_snps_df["Chrom"].values)) # only consider genes with <= 3 SNPs
     ]
     .groupby("Chrom")
     .size()
@@ -2883,7 +2939,7 @@ raise Exception("Stop notebook execution here")
 
 
 # %%
-def mean_noise_levels(positions_df, top_x_noisy_positions=3, snp_noise_level=0.1):
+def mean_noise_levels(positions_df, top_x_noisy_positions=3, snp_noise_level=0.05):
     # if positions_df.empty:
     #     return 0.0
     noise_levels = (
@@ -2909,7 +2965,8 @@ all_per_chrom_mean_noise_levels = (
     .apply(mean_noise_levels, 3, snp_noise_level, include_groups=False)
     .reset_index()
     .rename(columns={0: "Noise"})
-    .merge(tmr50_alignment_stats_df.loc[:, ["Chrom"]], on="Chrom", how="right")
+    # .merge(tmr50_alignment_stats_df.loc[:, ["Chrom"]], on="Chrom", how="right")
+    .merge(tmr50_alignment_stats_and_snps_df.loc[:, ["Chrom"]], on="Chrom", how="right")
     .fillna(0.0)
     .sort_values(["Chrom", "Noise"])
 )
@@ -2922,18 +2979,22 @@ all_per_chrom_mean_noise_levels
 all_per_chrom_mean_noise_levels["Noise"].describe()
 
 # %%
-# saved_per_chrom_mean_noise_levels_df = all_per_chrom_mean_noise_levels.merge(
-#     orfs_df[["Chrom", "Name"]], how="left"
-# )
-# saved_per_chrom_mean_noise_levels_df.insert(
-#     1, "Gene", saved_per_chrom_mean_noise_levels_df["Name"]
-# )
-# del saved_per_chrom_mean_noise_levels_df["Name"]
-# saved_per_chrom_mean_noise_levels_df.insert(
-#     0, "Platform", "Whole-transcriptome octopus data"
-# )
-# # saved_per_chrom_mean_noise_levels_df.to_csv("Noise.Octopus.tsv", sep="\t", index=False)
-# saved_per_chrom_mean_noise_levels_df
+saved_per_chrom_mean_noise_levels_df = all_per_chrom_mean_noise_levels.merge(
+    orfs_df[["Chrom", "Name"]], how="left"
+)
+saved_per_chrom_mean_noise_levels_df.insert(
+    1, "Gene", saved_per_chrom_mean_noise_levels_df["Name"]
+)
+del saved_per_chrom_mean_noise_levels_df["Name"]
+saved_per_chrom_mean_noise_levels_df.insert(
+    0, "Platform", "Whole-transcriptome octopus data"
+)
+saved_per_chrom_mean_noise_levels_df.to_csv(
+    Path(out_dir, "Noise.Octopus.WholeTranscriptome.Pooled.tsv"), 
+    sep="\t", 
+    index=False
+)
+saved_per_chrom_mean_noise_levels_df
 
 # %%
 # per_chrom_mean_noise_levels["%Noise"].describe()
@@ -3053,7 +3114,7 @@ fig.update_layout(
 fig.show()
 
 # %% [markdown]
-# ### Mismatches by type
+# ### Mismatches by type (old, redistribute to other sections)
 
 # %%
 significant_mismatches_df = mismatches_df.loc[
@@ -3426,6 +3487,35 @@ fig.show()
 # %%
 
 # %%
+
+# %%
+
+# %% [markdown]
+# ### 12 mismatches distribution
+
+# %% [markdown]
+# For this analysis, we only consider genes in which we detected editing.  
+# This excludes genes with too many SNPs where we didn't even look for editing, or genes we looked at but didn't find any editing.  
+# Also, one needs to remember that by our definition of editing, a site is considered an A->G if its mismatch frequency
+# is above the noise threshold. Therefore, not many sites of other mismatches can possibly be above the noise threshold.
+
+# %%
+significant_mismatches_df = mismatches_df.loc[
+    ((mismatches_df["EditedFinal"]) | (mismatches_df["NoisyFinal"]))
+    & (mismatches_df["MismatchFrequency"].ge(mismatches_df["NoiseThreshold"]))
+    & (mismatches_df["Chrom"].isin(chroms))
+]
+significant_mismatches_df = significant_mismatches_df.sort_values("Mismatch", ignore_index=True)
+significant_mismatches_df
+
+# %%
+significant_mismatches_df.to_csv(
+    Path(out_dir, "12MismatchsAboveNoiseThreshold.Octopus.WholeTranscriptome.Pooled.csv"),
+    sep="\t",
+    index=False
+)
+
+# %%
 # mismatches_color_sequence = px.colors.qualitative.Set3
 mismatches_color_sequence = px.colors.qualitative.Dark24
 mismatch_dolor_map = {
@@ -3435,9 +3525,6 @@ mismatch_dolor_map = {
     )
 }
 # mismatch_dolor_map
-
-# %%
-significant_mismatches_df
 
 # %%
 fig = px.histogram(
@@ -3450,50 +3537,22 @@ fig = px.histogram(
     # facet_col_wrap=4,
     # log_y=True,
     template=template,
-    # title="Number of significant sites in transcripts<br>with pooled noise level < 6%",
+    title="Total number of significant sites per mismatch across<br>all octopus genes",
 )
+
+width = 600
+height = 500
 
 # Reduce opacity to see both histograms
 # fig.update_traces(opacity=0.75)
 fig.update_layout(
-    width=600,
-    height=500,
+    width=width,
+    height=height,
     showlegend=False
     # barmode='overlay' # Overlay both histograms
 )
 
 fig.show()
-
-# %%
-fig = px.histogram(
-    significant_mismatches_df.loc[
-        significant_mismatches_df["Chrom"].isin(chroms)
-    ],
-    x="Mismatch",
-    # x="MismatchFrequency",
-    # facet_col="EditedFinal",
-    color="Mismatch",
-    color_discrete_map=mismatch_dolor_map,
-    # facet_col_wrap=4,
-    # log_y=True,
-    template=template,
-    # title="Number of significant sites with mismatch frequency ≥ 5%<br>in transcripts with pooled noise level < 6%",
-)
-
-# Reduce opacity to see both histograms
-# fig.update_traces(opacity=0.75)
-fig.update_layout(
-    width=600,
-    height=500,
-    showlegend=False
-    # barmode='overlay' # Overlay both histograms
-)
-
-fig.show()
-
-# %%
-
-# %%
 
 # %%
 # Per gene: (A>G sites / all sites in gene) divided by (top other mismatch sites / all sites in gene)
@@ -3648,30 +3707,6 @@ fig.update_layout(
 )
 
 fig.show()
-
-# %%
-# fig = px.scatter(
-#     significant_mismatches_df.loc[
-#         (significant_mismatches_df["EditedFinal"])
-#         & (significant_mismatches_df["Mismatch"] != "A>G")
-#     ],
-#     x="EditingFrequency",
-#     y="MismatchFrequency",
-#     facet_col="Mismatch",
-#     color="Mismatch",
-#     color_discrete_map=mismatch_dolor_map,
-#     # facet_col_wrap=4,
-#     # log_y=True,
-#     template=template,
-#     title="Editing frequency vs mismatch frequency of `wrong` significantly editing sites<br>in transcripts with pooled noise level < 6%",
-# )
-
-# fig.update_traces(marker_size=7)
-# fig.update_layout(width=800, height=400, showlegend=False)
-
-# fig.show()
-
-# %%
 
 # %%
 
@@ -4436,11 +4471,15 @@ fig.show()
 cols = 1
 rows = 1
 
+# Apply the 'classic' style to set the background white
+plt.style.use('classic')
+
 fig, ax = plt.subplots(
     # nrows=rows,
     # ncols=cols,
     # figsize=(3.5 * cols, 2.5 * rows),
-    figsize=(4.5 * cols, 2.5 * rows),
+    # figsize=(4.5 * cols, 2.5 * rows),
+    figsize=(5 * cols, 2.5 * rows),
     constrained_layout=True,
     gridspec_kw=dict(hspace=0.2, wspace=0.3),
 )
@@ -4479,7 +4518,10 @@ fig.suptitle(
 # # fig.suptitle("Pooled octopus data", fontsize="xx-large", y=1.2)
 # fig.tight_layout()
 
-plt.savefig("Known vs new editing sites - Octopus.svg", format="svg", dpi=300)
+plt.savefig(
+    Path(out_dir, "Known vs new editing sites - Octopus - pooled.svg"), 
+    format="svg", dpi=300
+)
 
 plt.show()
 
@@ -4591,11 +4633,16 @@ fasta_files = [editing_sites_bedtool.seqfn]
 main_title = "Whole-transcriptome octopus data"
 sub_titles = [""]
 
-out_file = Path("ADAR motif of pooled editing sites - Octopus.svg")
+out_file = Path(out_dir, "ADAR motif of pooled editing sites - Octopus - pooled.svg")
 
 # %%
 multiple_logos_from_fasta_files(
-    fasta_files, main_title, sub_titles, out_file, width=0.33 * 14, height=4, dpi=300
+    fasta_files, main_title, sub_titles, out_file, 
+    # width=0.33 * 14, 
+    width=0.33 * 14, 
+    height=4, 
+    dpi=300,
+    # tighthen_layout=True
 );
 
 # %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"}
@@ -4660,13 +4707,13 @@ num_genes_with_at_most_3_snps_and_at_least_50_reads = (
         & (snps_and_coverage_per_gene_df["MappedReads"].ge(50))
     ].shape[0]
 )
-num_genes_with_at_most_3_snps_and_at_least_500_reads = (
+num_genes_with_at_most_3_snps_and_at_least_1000_reads = (
     snps_and_coverage_per_gene_df.loc[
         (snps_and_coverage_per_gene_df["SNPs"].le(max_snps_per_gene_to_allow_editing_detection))
-        & (snps_and_coverage_per_gene_df["MappedReads"].ge(500))
+        & (snps_and_coverage_per_gene_df["MappedReads"].ge(1000))
     ].shape[0]
 )
-num_genes_with_at_most_3_snps_and_at_least_50_reads, num_genes_with_at_most_3_snps_and_at_least_500_reads
+num_genes_with_at_most_3_snps_and_at_least_50_reads, num_genes_with_at_most_3_snps_and_at_least_1000_reads
 
 # %%
 max_distinct_proteins_df = (
@@ -4819,13 +4866,13 @@ fig.update_layout(width=600, height=400, template=template)
 fig.show()
 
 # %%
-tmr500_max_distinct_proteins_df = (
-    tmr500_distinct_unique_proteins_df.sort_values("Fraction", ascending=False)
+tmr1000_max_distinct_proteins_df = (
+    tmr1000_distinct_unique_proteins_df.sort_values("Fraction", ascending=False)
     .groupby("Chrom")
     .apply(pd.DataFrame.nlargest, n=1, columns="NumOfProteins")
 )
-tmr500_max_distinct_proteins_df = (
-    tmr500_max_distinct_proteins_df.drop("Chrom", axis=1)
+tmr1000_max_distinct_proteins_df = (
+    tmr1000_max_distinct_proteins_df.drop("Chrom", axis=1)
     .reset_index()
     .drop("level_1", axis=1)
 )
@@ -4834,40 +4881,40 @@ tmr500_max_distinct_proteins_df = (
 # #     condition_col
 # # ].astype(str)
 
-# tmr500_max_distinct_proteins_df = tmr500_max_distinct_proteins_df.merge(
-#     tmr500_alignment_stats_df,
+# tmr1000_max_distinct_proteins_df = tmr1000_max_distinct_proteins_df.merge(
+#     tmr1000_alignment_stats_df,
 #     on="Chrom",
 #     # how="left",
 #     how="right",
 # )
-tmr500_max_distinct_proteins_df = tmr500_max_distinct_proteins_df.merge(
+tmr1000_max_distinct_proteins_df = tmr1000_max_distinct_proteins_df.merge(
     snps_and_coverage_per_gene_df.loc[
         (snps_and_coverage_per_gene_df["SNPs"].le(max_snps_per_gene_to_allow_editing_detection))
-        & (snps_and_coverage_per_gene_df["MappedReads"].ge(500))
+        & (snps_and_coverage_per_gene_df["MappedReads"].ge(1000))
     ],
     on="Chrom",
     how="right",
 )
 
-tmr500_max_distinct_proteins_df["NumOfProteins"] = tmr500_max_distinct_proteins_df[
+tmr1000_max_distinct_proteins_df["NumOfProteins"] = tmr1000_max_distinct_proteins_df[
     "NumOfProteins"
 ].fillna(1)
 
-# tmr500_max_distinct_proteins_df["NumOfReads"] = tmr500_max_distinct_proteins_df.apply(
+# tmr1000_max_distinct_proteins_df["NumOfReads"] = tmr1000_max_distinct_proteins_df.apply(
 #     lambda x: x["NumOfReads"] if not pd.isna(x["NumOfReads"]) else x["MappedReads"],
 #     axis=1,
 # )
 
-# # tmr500_max_distinct_proteins_df = (
-# #     tmr500_max_distinct_proteins_df.dropna().reset_index(drop=True)
+# # tmr1000_max_distinct_proteins_df = (
+# #     tmr1000_max_distinct_proteins_df.dropna().reset_index(drop=True)
 # # )
 
-# tmr500_max_distinct_proteins_df["DistinctProteins/Reads"] = (
-#     tmr500_max_distinct_proteins_df["NumOfProteins"]
-#     / tmr500_max_distinct_proteins_df["NumOfReads"]
+# tmr1000_max_distinct_proteins_df["DistinctProteins/Reads"] = (
+#     tmr1000_max_distinct_proteins_df["NumOfProteins"]
+#     / tmr1000_max_distinct_proteins_df["NumOfReads"]
 # )
 
-tmr500_max_distinct_proteins_df = tmr500_max_distinct_proteins_df.merge(
+tmr1000_max_distinct_proteins_df = tmr1000_max_distinct_proteins_df.merge(
     neural_vs_non_neural_expression_df.loc[:, ["OvulChrom", "IsNeural"]].rename(
         columns={"OvulChrom": "Chrom"}
     ),
@@ -4875,19 +4922,19 @@ tmr500_max_distinct_proteins_df = tmr500_max_distinct_proteins_df.merge(
     how="left",
 )
 
-tmr500_max_distinct_proteins_df["IsNeural"] = tmr500_max_distinct_proteins_df[
+tmr1000_max_distinct_proteins_df["IsNeural"] = tmr1000_max_distinct_proteins_df[
     "IsNeural"
 ].fillna("Missing")
 
-tmr500_max_distinct_proteins_df = tmr500_max_distinct_proteins_df.sort_values(
+tmr1000_max_distinct_proteins_df = tmr1000_max_distinct_proteins_df.sort_values(
     "NumOfProteins", ascending=False, ignore_index=True
 )
 
-tmr500_max_distinct_proteins_df
+tmr1000_max_distinct_proteins_df
 
 # %%
 report_isoforms_per_gene(
-    tmr500_max_distinct_proteins_df, 
+    tmr1000_max_distinct_proteins_df, 
     # chroms_of_edited_positions=chroms
 )
 
@@ -4920,33 +4967,33 @@ else:
     y_mean = np.interp(x_mean, x.iloc[i:j], y.iloc[i:j])
 df = df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
 
-tmr500_df = (
-    tmr500_max_distinct_proteins_df.loc[:, ["NumOfProteins"]]
+tmr1000_df = (
+    tmr1000_max_distinct_proteins_df.loc[:, ["NumOfProteins"]]
     .sort_values("NumOfProteins")
     .reset_index(drop=True)
 )
-tmr500_df["CummulativeTranscripts"] = 100 * (tmr500_df.index + 1) / len(tmr500_df)
-tmr500_df["CummulativeTranscripts"] = tmr500_df["CummulativeTranscripts"][::-1].values
-tmr500_x = tmr500_df["NumOfProteins"]
-tmr500_y = tmr500_df["CummulativeTranscripts"]
-tmr500_x_mean = tmr500_x.mean()
-tmr500_x_std = tmr500_x.std()
-ic(tmr500_x_std)
-tmr500_x_mean_closest = tmr500_x.iloc[
-    (tmr500_x - tmr500_x_mean).abs().argsort()[:1]
+tmr1000_df["CummulativeTranscripts"] = 100 * (tmr1000_df.index + 1) / len(tmr1000_df)
+tmr1000_df["CummulativeTranscripts"] = tmr1000_df["CummulativeTranscripts"][::-1].values
+tmr1000_x = tmr1000_df["NumOfProteins"]
+tmr1000_y = tmr1000_df["CummulativeTranscripts"]
+tmr1000_x_mean = tmr1000_x.mean()
+tmr1000_x_std = tmr1000_x.std()
+ic(tmr1000_x_std)
+tmr1000_x_mean_closest = tmr1000_x.iloc[
+    (tmr1000_x - tmr1000_x_mean).abs().argsort()[:1]
 ]
-tmr500_x_mean_closest_k = tmr500_x_mean_closest.index.values[0]
-if tmr500_x_mean == tmr500_x_mean_closest.values[0]:
-    tmr500_y_mean = tmr500_y.iloc[tmr500_x_mean_closest_k]
+tmr1000_x_mean_closest_k = tmr1000_x_mean_closest.index.values[0]
+if tmr1000_x_mean == tmr1000_x_mean_closest.values[0]:
+    tmr1000_y_mean = tmr1000_y.iloc[tmr1000_x_mean_closest_k]
 else:
-    if tmr500_x_mean < tmr500_x_mean_closest.values[0]:
-        i = tmr500_x_mean_closest_k - 1
-        j = tmr500_x_mean_closest_k + 1
+    if tmr1000_x_mean < tmr1000_x_mean_closest.values[0]:
+        i = tmr1000_x_mean_closest_k - 1
+        j = tmr1000_x_mean_closest_k + 1
     else:
-        i = tmr500_x_mean_closest_k
-        j = tmr500_x_mean_closest_k + 2
-    tmr500_y_mean = np.interp(tmr500_x_mean, tmr500_x.iloc[i:j], tmr500_y.iloc[i:j])
-tmr500_df = tmr500_df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
+        i = tmr1000_x_mean_closest_k
+        j = tmr1000_x_mean_closest_k + 2
+    tmr1000_y_mean = np.interp(tmr1000_x_mean, tmr1000_x.iloc[i:j], tmr1000_y.iloc[i:j])
+tmr1000_df = tmr1000_df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
 
 neural_conditions = ["Yes", "No", "Missing"]
 neural_trace_names = ["Neural", "Non-neural", "Missing"]
@@ -4974,7 +5021,7 @@ for neural_condition in neural_conditions:
 y_min = 1
 
 tmr50_legendtitle = "50 reads"
-tmr500_legendtitle = "1000 reads"
+tmr1000_legendtitle = "1000 reads"
 legend_title_text = "Minimum coverage per gene      "
 
 marker_size = 4
@@ -5045,10 +5092,10 @@ fig.add_trace(
     col=1,
 )
 
-# tmr500
+# tmr1000
 
-x = tmr500_df["NumOfProteins"]
-y = tmr500_df["CummulativeTranscripts"]
+x = tmr1000_df["NumOfProteins"]
+y = tmr1000_df["CummulativeTranscripts"]
 
 y_min = min(y_min, y.min())
 
@@ -5060,8 +5107,8 @@ fig.add_trace(
         marker=dict(color="green", size=marker_size),
         line=dict(color="green", dash="dash"),
         # name="All",
-        # legendgroup=tmr500_legendtitle,  # this can be any string
-        # legendgrouptitle_text=tmr500_legendtitle,
+        # legendgroup=tmr1000_legendtitle,  # this can be any string
+        # legendgrouptitle_text=tmr1000_legendtitle,
         name=">= 1000 reads   ",
         legend="legend",
     ),
@@ -5072,8 +5119,8 @@ fig.add_trace(
 
 fig.add_trace(
     go.Scatter(
-        x=[tmr500_x_mean],
-        y=[tmr500_y_mean],
+        x=[tmr1000_x_mean],
+        y=[tmr1000_y_mean],
         mode="markers+text",
         marker=dict(
             color="green",
@@ -5084,9 +5131,9 @@ fig.add_trace(
             # )
         ),
         showlegend=False,
-        text=f"{tmr500_x_mean:.0f} distinct proteins<br>(avg)",
-        # text=f"{tmr500_x_mean:.0f} distinct proteins<br>(avg, STD = {tmr500_x_std:.0f})",
-        # text=f"{tmr500_x_mean:.0f} ± {tmr500_x_std:.0f}<br>distinct proteins",
+        text=f"{tmr1000_x_mean:.0f} distinct proteins<br>(avg)",
+        # text=f"{tmr1000_x_mean:.0f} distinct proteins<br>(avg, STD = {tmr1000_x_std:.0f})",
+        # text=f"{tmr1000_x_mean:.0f} ± {tmr1000_x_std:.0f}<br>distinct proteins",
         textposition="top right",
         textfont=dict(color="green", size=11),
     ),
@@ -5281,38 +5328,38 @@ else:
     y_mean = np.interp(x_mean, x.iloc[i:j], y.iloc[i:j])
 df = df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
 
-tmr500_df = (
-    tmr500_max_distinct_proteins_df.loc[:, ["NumOfProteins"]]
+tmr1000_df = (
+    tmr1000_max_distinct_proteins_df.loc[:, ["NumOfProteins"]]
     .sort_values("NumOfProteins")
     .reset_index(drop=True)
 )
-tmr500_df["CummulativeTranscripts"] = 100 * (tmr500_df.index + 1) / len(tmr500_df)
-tmr500_df["CummulativeTranscripts"] = tmr500_df["CummulativeTranscripts"][::-1].values
-tmr500_x = tmr500_df["NumOfProteins"]
-tmr500_y = tmr500_df["CummulativeTranscripts"]
-tmr500_x_mean = tmr500_x.mean()
-tmr500_x_std = tmr500_x.std()
-ic(tmr500_x_std)
-tmr500_x_mean_closest = tmr500_x.iloc[
-    (tmr500_x - tmr500_x_mean).abs().argsort()[:1]
+tmr1000_df["CummulativeTranscripts"] = 100 * (tmr1000_df.index + 1) / len(tmr1000_df)
+tmr1000_df["CummulativeTranscripts"] = tmr1000_df["CummulativeTranscripts"][::-1].values
+tmr1000_x = tmr1000_df["NumOfProteins"]
+tmr1000_y = tmr1000_df["CummulativeTranscripts"]
+tmr1000_x_mean = tmr1000_x.mean()
+tmr1000_x_std = tmr1000_x.std()
+ic(tmr1000_x_std)
+tmr1000_x_mean_closest = tmr1000_x.iloc[
+    (tmr1000_x - tmr1000_x_mean).abs().argsort()[:1]
 ]
-tmr500_x_mean_closest_k = tmr500_x_mean_closest.index.values[0]
-if tmr500_x_mean == tmr500_x_mean_closest.values[0]:
-    tmr500_y_mean = tmr500_y.iloc[tmr500_x_mean_closest_k]
+tmr1000_x_mean_closest_k = tmr1000_x_mean_closest.index.values[0]
+if tmr1000_x_mean == tmr1000_x_mean_closest.values[0]:
+    tmr1000_y_mean = tmr1000_y.iloc[tmr1000_x_mean_closest_k]
 else:
-    if tmr500_x_mean < tmr500_x_mean_closest.values[0]:
-        i = tmr500_x_mean_closest_k - 1
-        j = tmr500_x_mean_closest_k + 1
+    if tmr1000_x_mean < tmr1000_x_mean_closest.values[0]:
+        i = tmr1000_x_mean_closest_k - 1
+        j = tmr1000_x_mean_closest_k + 1
     else:
-        i = tmr500_x_mean_closest_k
-        j = tmr500_x_mean_closest_k + 2
-    tmr500_y_mean = np.interp(tmr500_x_mean, tmr500_x.iloc[i:j], tmr500_y.iloc[i:j])
-tmr500_df = tmr500_df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
+        i = tmr1000_x_mean_closest_k
+        j = tmr1000_x_mean_closest_k + 2
+    tmr1000_y_mean = np.interp(tmr1000_x_mean, tmr1000_x.iloc[i:j], tmr1000_y.iloc[i:j])
+tmr1000_df = tmr1000_df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
 
 y_min = 1
 
 tmr50_legendtitle = "50 reads"
-tmr500_legendtitle = "500 reads"
+tmr1000_legendtitle = "1000 reads"
 # legend_title_text = "Minimum coverage per gene      "
 
 marker_size = 4
@@ -5388,10 +5435,10 @@ fig.add_trace(
     col=1,
 )
 
-# tmr500
+# tmr1000
 
-x = tmr500_df["NumOfProteins"]
-y = tmr500_df["CummulativeTranscripts"]
+x = tmr1000_df["NumOfProteins"]
+y = tmr1000_df["CummulativeTranscripts"]
 
 y_min = min(y_min, y.min())
 
@@ -5403,9 +5450,9 @@ fig.add_trace(
         marker=dict(color="green", size=marker_size),
         line=dict(color="green", dash="dash"),
         # name="All",
-        # legendgroup=tmr500_legendtitle,  # this can be any string
-        # legendgrouptitle_text=tmr500_legendtitle,
-        name=">= 500 reads   ",
+        # legendgroup=tmr1000_legendtitle,  # this can be any string
+        # legendgrouptitle_text=tmr1000_legendtitle,
+        name=">= 1000 reads   ",
         legend="legend",
     ),
     row=1,
@@ -5415,8 +5462,8 @@ fig.add_trace(
 
 fig.add_trace(
     go.Scatter(
-        x=[tmr500_x_mean],
-        y=[tmr500_y_mean],
+        x=[tmr1000_x_mean],
+        y=[tmr1000_y_mean],
         mode="markers+text",
         marker=dict(
             color="green",
@@ -5427,9 +5474,9 @@ fig.add_trace(
             # )
         ),
         showlegend=False,
-        text=f"{tmr500_x_mean:.0f} distinct proteins<br>(avg)",
-        # text=f"{tmr500_x_mean:.0f} distinct proteins<br>(avg, STD = {tmr500_x_std:.0f})",
-        # text=f"{tmr500_x_mean:.0f} ± {tmr500_x_std:.0f}<br>distinct proteins",
+        text=f"{tmr1000_x_mean:.0f} distinct proteins<br>(avg)",
+        # text=f"{tmr1000_x_mean:.0f} distinct proteins<br>(avg, STD = {tmr1000_x_std:.0f})",
+        # text=f"{tmr1000_x_mean:.0f} ± {tmr1000_x_std:.0f}<br>distinct proteins",
         textposition="top right",
         textfont=dict(
             color="green",
@@ -5575,8 +5622,8 @@ max_distinct_proteins_df.to_csv(
     sep="\t",
     index=False
 )
-tmr500_max_distinct_proteins_df.to_csv(
-    Path(out_dir, "MaxDistinctProtsForFig6.TMR500.Octopus.Pooled.csv"),
+tmr1000_max_distinct_proteins_df.to_csv(
+    Path(out_dir, "MaxDistinctProtsForFig6.TMR1000.Octopus.Pooled.csv"),
     sep="\t",
     index=False
 )
@@ -5612,38 +5659,38 @@ else:
     y_mean = np.interp(x_mean, x.iloc[i:j], y.iloc[i:j])
 df = df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
 
-tmr500_df = (
-    tmr500_max_distinct_proteins_df.loc[:, ["NumOfProteins"]]
+tmr1000_df = (
+    tmr1000_max_distinct_proteins_df.loc[:, ["NumOfProteins"]]
     .sort_values("NumOfProteins")
     .reset_index(drop=True)
 )
-tmr500_df["CummulativeTranscripts"] = 100 * (tmr500_df.index + 1) / len(tmr500_df)
-tmr500_df["CummulativeTranscripts"] = tmr500_df["CummulativeTranscripts"][::-1].values
-tmr500_x = tmr500_df["NumOfProteins"]
-tmr500_y = tmr500_df["CummulativeTranscripts"]
-tmr500_x_mean = tmr500_x.mean()
-tmr500_x_std = tmr500_x.std()
-ic(tmr500_x_std)
-tmr500_x_mean_closest = tmr500_x.iloc[
-    (tmr500_x - tmr500_x_mean).abs().argsort()[:1]
+tmr1000_df["CummulativeTranscripts"] = 100 * (tmr1000_df.index + 1) / len(tmr1000_df)
+tmr1000_df["CummulativeTranscripts"] = tmr1000_df["CummulativeTranscripts"][::-1].values
+tmr1000_x = tmr1000_df["NumOfProteins"]
+tmr1000_y = tmr1000_df["CummulativeTranscripts"]
+tmr1000_x_mean = tmr1000_x.mean()
+tmr1000_x_std = tmr1000_x.std()
+ic(tmr1000_x_std)
+tmr1000_x_mean_closest = tmr1000_x.iloc[
+    (tmr1000_x - tmr1000_x_mean).abs().argsort()[:1]
 ]
-tmr500_x_mean_closest_k = tmr500_x_mean_closest.index.values[0]
-if tmr500_x_mean == tmr500_x_mean_closest.values[0]:
-    tmr500_y_mean = tmr500_y.iloc[tmr500_x_mean_closest_k]
+tmr1000_x_mean_closest_k = tmr1000_x_mean_closest.index.values[0]
+if tmr1000_x_mean == tmr1000_x_mean_closest.values[0]:
+    tmr1000_y_mean = tmr1000_y.iloc[tmr1000_x_mean_closest_k]
 else:
-    if tmr500_x_mean < tmr500_x_mean_closest.values[0]:
-        i = tmr500_x_mean_closest_k - 1
-        j = tmr500_x_mean_closest_k + 1
+    if tmr1000_x_mean < tmr1000_x_mean_closest.values[0]:
+        i = tmr1000_x_mean_closest_k - 1
+        j = tmr1000_x_mean_closest_k + 1
     else:
-        i = tmr500_x_mean_closest_k
-        j = tmr500_x_mean_closest_k + 2
-    tmr500_y_mean = np.interp(tmr500_x_mean, tmr500_x.iloc[i:j], tmr500_y.iloc[i:j])
-tmr500_df = tmr500_df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
+        i = tmr1000_x_mean_closest_k
+        j = tmr1000_x_mean_closest_k + 2
+    tmr1000_y_mean = np.interp(tmr1000_x_mean, tmr1000_x.iloc[i:j], tmr1000_y.iloc[i:j])
+tmr1000_df = tmr1000_df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
 
 y_min = 1
 
 tmr50_legendtitle = "50 reads"
-tmr500_legendtitle = "500 reads"
+tmr1000_legendtitle = "1000 reads"
 # legend_title_text = "Minimum coverage per gene      "
 
 marker_size = 4
@@ -5719,10 +5766,10 @@ fig.add_trace(
     col=1,
 )
 
-# tmr500
+# tmr1000
 
-x = tmr500_df["NumOfProteins"]
-y = tmr500_df["CummulativeTranscripts"]
+x = tmr1000_df["NumOfProteins"]
+y = tmr1000_df["CummulativeTranscripts"]
 
 y_min = min(y_min, y.min())
 
@@ -5734,9 +5781,9 @@ fig.add_trace(
         marker=dict(color="green", size=marker_size),
         line=dict(color="green", dash="dash"),
         # name="All",
-        # legendgroup=tmr500_legendtitle,  # this can be any string
-        # legendgrouptitle_text=tmr500_legendtitle,
-        name=">= 500 reads   ",
+        # legendgroup=tmr1000_legendtitle,  # this can be any string
+        # legendgrouptitle_text=tmr1000_legendtitle,
+        name=">= 1000 reads   ",
         legend="legend",
     ),
     row=1,
@@ -5746,8 +5793,8 @@ fig.add_trace(
 
 fig.add_trace(
     go.Scatter(
-        x=[tmr500_x_mean],
-        y=[tmr500_y_mean],
+        x=[tmr1000_x_mean],
+        y=[tmr1000_y_mean],
         mode="markers+text",
         marker=dict(
             color="green",
@@ -5758,9 +5805,9 @@ fig.add_trace(
             # )
         ),
         showlegend=False,
-        text=f"{tmr500_x_mean:.0f} distinct proteins<br>(avg)",
-        # text=f"{tmr500_x_mean:.0f} distinct proteins<br>(avg, STD = {tmr500_x_std:.0f})",
-        # text=f"{tmr500_x_mean:.0f} ± {tmr500_x_std:.0f}<br>distinct proteins",
+        text=f"{tmr1000_x_mean:.0f} distinct proteins<br>(avg)",
+        # text=f"{tmr1000_x_mean:.0f} distinct proteins<br>(avg, STD = {tmr1000_x_std:.0f})",
+        # text=f"{tmr1000_x_mean:.0f} ± {tmr1000_x_std:.0f}<br>distinct proteins",
         textposition="top right",
         textfont=dict(
             color="green",
@@ -6108,38 +6155,38 @@ else:
     y_mean = np.interp(x_mean, x.iloc[i:j], y.iloc[i:j])
 df = df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
 
-tmr500_df = (
-    tmr500_max_distinct_proteins_df.loc[:, ["NumOfProteins"]]
+tmr1000_df = (
+    tmr1000_max_distinct_proteins_df.loc[:, ["NumOfProteins"]]
     .sort_values("NumOfProteins")
     .reset_index(drop=True)
 )
-tmr500_df["CummulativeTranscripts"] = 100 * (tmr500_df.index + 1) / len(tmr500_df)
-tmr500_df["CummulativeTranscripts"] = tmr500_df["CummulativeTranscripts"][::-1].values
-tmr500_x = tmr500_df["NumOfProteins"]
-tmr500_y = tmr500_df["CummulativeTranscripts"]
-tmr500_x_mean = tmr500_x.mean()
-tmr500_x_std = tmr500_x.std()
-ic(tmr500_x_std)
-tmr500_x_mean_closest = tmr500_x.iloc[
-    (tmr500_x - tmr500_x_mean).abs().argsort()[:1]
+tmr1000_df["CummulativeTranscripts"] = 100 * (tmr1000_df.index + 1) / len(tmr1000_df)
+tmr1000_df["CummulativeTranscripts"] = tmr1000_df["CummulativeTranscripts"][::-1].values
+tmr1000_x = tmr1000_df["NumOfProteins"]
+tmr1000_y = tmr1000_df["CummulativeTranscripts"]
+tmr1000_x_mean = tmr1000_x.mean()
+tmr1000_x_std = tmr1000_x.std()
+ic(tmr1000_x_std)
+tmr1000_x_mean_closest = tmr1000_x.iloc[
+    (tmr1000_x - tmr1000_x_mean).abs().argsort()[:1]
 ]
-tmr500_x_mean_closest_k = tmr500_x_mean_closest.index.values[0]
-if tmr500_x_mean == tmr500_x_mean_closest.values[0]:
-    tmr500_y_mean = tmr500_y.iloc[tmr500_x_mean_closest_k]
+tmr1000_x_mean_closest_k = tmr1000_x_mean_closest.index.values[0]
+if tmr1000_x_mean == tmr1000_x_mean_closest.values[0]:
+    tmr1000_y_mean = tmr1000_y.iloc[tmr1000_x_mean_closest_k]
 else:
-    if tmr500_x_mean < tmr500_x_mean_closest.values[0]:
-        i = tmr500_x_mean_closest_k - 1
-        j = tmr500_x_mean_closest_k + 1
+    if tmr1000_x_mean < tmr1000_x_mean_closest.values[0]:
+        i = tmr1000_x_mean_closest_k - 1
+        j = tmr1000_x_mean_closest_k + 1
     else:
-        i = tmr500_x_mean_closest_k
-        j = tmr500_x_mean_closest_k + 2
-    tmr500_y_mean = np.interp(tmr500_x_mean, tmr500_x.iloc[i:j], tmr500_y.iloc[i:j])
-tmr500_df = tmr500_df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
+        i = tmr1000_x_mean_closest_k
+        j = tmr1000_x_mean_closest_k + 2
+    tmr1000_y_mean = np.interp(tmr1000_x_mean, tmr1000_x.iloc[i:j], tmr1000_y.iloc[i:j])
+tmr1000_df = tmr1000_df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
 
 y_min = 1
 
 tmr50_legendtitle = "50 reads"
-tmr500_legendtitle = "1000 reads"
+tmr1000_legendtitle = "1000 reads"
 legend_title_text = "Minimum coverage per gene      "
 
 marker_size = 4
@@ -6215,10 +6262,10 @@ fig.add_trace(
     col=1,
 )
 
-# tmr500
+# tmr1000
 
-x = tmr500_df["NumOfProteins"]
-y = tmr500_df["CummulativeTranscripts"]
+x = tmr1000_df["NumOfProteins"]
+y = tmr1000_df["CummulativeTranscripts"]
 
 y_min = min(y_min, y.min())
 
@@ -6230,8 +6277,8 @@ fig.add_trace(
         marker=dict(color="green", size=marker_size),
         line=dict(color="green", dash="dash"),
         # name="All",
-        # legendgroup=tmr500_legendtitle,  # this can be any string
-        # legendgrouptitle_text=tmr500_legendtitle,
+        # legendgroup=tmr1000_legendtitle,  # this can be any string
+        # legendgrouptitle_text=tmr1000_legendtitle,
         name=">= 1000 reads   ",
         legend="legend",
     ),
@@ -6242,8 +6289,8 @@ fig.add_trace(
 
 fig.add_trace(
     go.Scatter(
-        x=[tmr500_x_mean],
-        y=[tmr500_y_mean],
+        x=[tmr1000_x_mean],
+        y=[tmr1000_y_mean],
         mode="markers+text",
         marker=dict(
             color="green",
@@ -6254,9 +6301,9 @@ fig.add_trace(
             # )
         ),
         showlegend=False,
-        text=f"{tmr500_x_mean:.0f} distinct proteins<br>(avg)",
-        # text=f"{tmr500_x_mean:.0f} distinct proteins<br>(avg, STD = {tmr500_x_std:.0f})",
-        # text=f"{tmr500_x_mean:.0f} ± {tmr500_x_std:.0f}<br>distinct proteins",
+        text=f"{tmr1000_x_mean:.0f} distinct proteins<br>(avg)",
+        # text=f"{tmr1000_x_mean:.0f} distinct proteins<br>(avg, STD = {tmr1000_x_std:.0f})",
+        # text=f"{tmr1000_x_mean:.0f} ± {tmr1000_x_std:.0f}<br>distinct proteins",
         textposition="top right",
         textfont=dict(
             color="green",
@@ -6421,38 +6468,38 @@ else:
     y_mean = np.interp(x_mean, x.iloc[i:j], y.iloc[i:j])
 df = df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
 
-tmr500_df = (
-    tmr500_max_distinct_proteins_df.loc[:, ["NumOfProteins"]]
+tmr1000_df = (
+    tmr1000_max_distinct_proteins_df.loc[:, ["NumOfProteins"]]
     .sort_values("NumOfProteins")
     .reset_index(drop=True)
 )
-tmr500_df["CummulativeTranscripts"] = 100 * (tmr500_df.index + 1) / len(tmr500_df)
-tmr500_df["CummulativeTranscripts"] = tmr500_df["CummulativeTranscripts"][::-1].values
-tmr500_x = tmr500_df["NumOfProteins"]
-tmr500_y = tmr500_df["CummulativeTranscripts"]
-tmr500_x_mean = tmr500_x.mean()
-tmr500_x_std = tmr500_x.std()
-ic(tmr500_x_std)
-tmr500_x_mean_closest = tmr500_x.iloc[
-    (tmr500_x - tmr500_x_mean).abs().argsort()[:1]
+tmr1000_df["CummulativeTranscripts"] = 100 * (tmr1000_df.index + 1) / len(tmr1000_df)
+tmr1000_df["CummulativeTranscripts"] = tmr1000_df["CummulativeTranscripts"][::-1].values
+tmr1000_x = tmr1000_df["NumOfProteins"]
+tmr1000_y = tmr1000_df["CummulativeTranscripts"]
+tmr1000_x_mean = tmr1000_x.mean()
+tmr1000_x_std = tmr1000_x.std()
+ic(tmr1000_x_std)
+tmr1000_x_mean_closest = tmr1000_x.iloc[
+    (tmr1000_x - tmr1000_x_mean).abs().argsort()[:1]
 ]
-tmr500_x_mean_closest_k = tmr500_x_mean_closest.index.values[0]
-if tmr500_x_mean == tmr500_x_mean_closest.values[0]:
-    tmr500_y_mean = tmr500_y.iloc[tmr500_x_mean_closest_k]
+tmr1000_x_mean_closest_k = tmr1000_x_mean_closest.index.values[0]
+if tmr1000_x_mean == tmr1000_x_mean_closest.values[0]:
+    tmr1000_y_mean = tmr1000_y.iloc[tmr1000_x_mean_closest_k]
 else:
-    if tmr500_x_mean < tmr500_x_mean_closest.values[0]:
-        i = tmr500_x_mean_closest_k - 1
-        j = tmr500_x_mean_closest_k + 1
+    if tmr1000_x_mean < tmr1000_x_mean_closest.values[0]:
+        i = tmr1000_x_mean_closest_k - 1
+        j = tmr1000_x_mean_closest_k + 1
     else:
-        i = tmr500_x_mean_closest_k
-        j = tmr500_x_mean_closest_k + 2
-    tmr500_y_mean = np.interp(tmr500_x_mean, tmr500_x.iloc[i:j], tmr500_y.iloc[i:j])
-tmr500_df = tmr500_df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
+        i = tmr1000_x_mean_closest_k
+        j = tmr1000_x_mean_closest_k + 2
+    tmr1000_y_mean = np.interp(tmr1000_x_mean, tmr1000_x.iloc[i:j], tmr1000_y.iloc[i:j])
+tmr1000_df = tmr1000_df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
 
 y_min = 1
 
 tmr50_legendtitle = "50 reads"
-tmr500_legendtitle = "1000 reads"
+tmr1000_legendtitle = "1000 reads"
 legend_title_text = "Minimum coverage per gene      "
 
 marker_size = 4
@@ -6528,10 +6575,10 @@ fig.add_trace(
     col=1,
 )
 
-# tmr500
+# tmr1000
 
-x = tmr500_df["NumOfProteins"]
-y = tmr500_df["CummulativeTranscripts"]
+x = tmr1000_df["NumOfProteins"]
+y = tmr1000_df["CummulativeTranscripts"]
 
 y_min = min(y_min, y.min())
 
@@ -6543,8 +6590,8 @@ fig.add_trace(
         marker=dict(color="green", size=marker_size),
         line=dict(color="green", dash="dash"),
         # name="All",
-        # legendgroup=tmr500_legendtitle,  # this can be any string
-        # legendgrouptitle_text=tmr500_legendtitle,
+        # legendgroup=tmr1000_legendtitle,  # this can be any string
+        # legendgrouptitle_text=tmr1000_legendtitle,
         name=">= 1000 reads   ",
         legend="legend",
     ),
@@ -6555,8 +6602,8 @@ fig.add_trace(
 
 fig.add_trace(
     go.Scatter(
-        x=[tmr500_x_mean],
-        y=[tmr500_y_mean],
+        x=[tmr1000_x_mean],
+        y=[tmr1000_y_mean],
         mode="markers+text",
         marker=dict(
             color="green",
@@ -6567,9 +6614,9 @@ fig.add_trace(
             # )
         ),
         showlegend=False,
-        text=f"{tmr500_x_mean:.0f} distinct proteins<br>(avg)",
-        # text=f"{tmr500_x_mean:.0f} distinct proteins<br>(avg, STD = {tmr500_x_std:.0f})",
-        # text=f"{tmr500_x_mean:.0f} ± {tmr500_x_std:.0f}<br>distinct proteins",
+        text=f"{tmr1000_x_mean:.0f} distinct proteins<br>(avg)",
+        # text=f"{tmr1000_x_mean:.0f} distinct proteins<br>(avg, STD = {tmr1000_x_std:.0f})",
+        # text=f"{tmr1000_x_mean:.0f} ± {tmr1000_x_std:.0f}<br>distinct proteins",
         textposition="top right",
         textfont=dict(
             color="green",
@@ -6726,31 +6773,31 @@ else:
     y_mean = np.interp(x_mean, x.iloc[i:j], y.iloc[i:j])
 df = df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
 
-tmr500_df = (
-    tmr500_max_distinct_proteins_df.loc[:, ["NumOfProteins"]]
+tmr1000_df = (
+    tmr1000_max_distinct_proteins_df.loc[:, ["NumOfProteins"]]
     .sort_values("NumOfProteins")
     .reset_index(drop=True)
 )
-tmr500_df["CummulativeTranscripts"] = 100 * (tmr500_df.index + 1) / len(tmr500_df)
-tmr500_df["CummulativeTranscripts"] = tmr500_df["CummulativeTranscripts"][::-1].values
-tmr500_x = tmr500_df["NumOfProteins"]
-tmr500_y = tmr500_df["CummulativeTranscripts"]
-tmr500_x_mean = tmr500_x.mean()
-tmr500_x_mean_closest = tmr500_x.iloc[
-    (tmr500_x - tmr500_x_mean).abs().argsort()[:1]
+tmr1000_df["CummulativeTranscripts"] = 100 * (tmr1000_df.index + 1) / len(tmr1000_df)
+tmr1000_df["CummulativeTranscripts"] = tmr1000_df["CummulativeTranscripts"][::-1].values
+tmr1000_x = tmr1000_df["NumOfProteins"]
+tmr1000_y = tmr1000_df["CummulativeTranscripts"]
+tmr1000_x_mean = tmr1000_x.mean()
+tmr1000_x_mean_closest = tmr1000_x.iloc[
+    (tmr1000_x - tmr1000_x_mean).abs().argsort()[:1]
 ]
-tmr500_x_mean_closest_k = tmr500_x_mean_closest.index.values[0]
-if tmr500_x_mean == tmr500_x_mean_closest.values[0]:
-    tmr500_y_mean = tmr500_y.iloc[tmr500_x_mean_closest_k]
+tmr1000_x_mean_closest_k = tmr1000_x_mean_closest.index.values[0]
+if tmr1000_x_mean == tmr1000_x_mean_closest.values[0]:
+    tmr1000_y_mean = tmr1000_y.iloc[tmr1000_x_mean_closest_k]
 else:
-    if tmr500_x_mean < tmr500_x_mean_closest.values[0]:
-        i = tmr500_x_mean_closest_k - 1
-        j = tmr500_x_mean_closest_k + 1
+    if tmr1000_x_mean < tmr1000_x_mean_closest.values[0]:
+        i = tmr1000_x_mean_closest_k - 1
+        j = tmr1000_x_mean_closest_k + 1
     else:
-        i = tmr500_x_mean_closest_k
-        j = tmr500_x_mean_closest_k + 2
-    tmr500_y_mean = np.interp(tmr500_x_mean, tmr500_x.iloc[i:j], tmr500_y.iloc[i:j])
-tmr500_df = tmr500_df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
+        i = tmr1000_x_mean_closest_k
+        j = tmr1000_x_mean_closest_k + 2
+    tmr1000_y_mean = np.interp(tmr1000_x_mean, tmr1000_x.iloc[i:j], tmr1000_y.iloc[i:j])
+tmr1000_df = tmr1000_df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
 
 neural_conditions = ["Yes", "No", "Missing"]
 neural_trace_names = ["Neural", "Non-neural", "Missing"]
@@ -6778,7 +6825,7 @@ for neural_condition in neural_conditions:
 y_min = 1
 
 tmr50_legendtitle = "50 reads"
-tmr500_legendtitle = "1000 reads"
+tmr1000_legendtitle = "1000 reads"
 legend_title_text = "Minimum coverage per gene      "
 
 marker_size = 4
@@ -6844,10 +6891,10 @@ fig.add_trace(
     col=1,
 )
 
-# tmr500
+# tmr1000
 
-x = tmr500_df["NumOfProteins"]
-y = tmr500_df["CummulativeTranscripts"]
+x = tmr1000_df["NumOfProteins"]
+y = tmr1000_df["CummulativeTranscripts"]
 
 y_min = min(y_min, y.min())
 
@@ -6859,8 +6906,8 @@ fig.add_trace(
         marker=dict(color="green", size=marker_size),
         line=dict(color="green", dash="dash"),
         name="All",
-        legendgroup=tmr500_legendtitle,  # this can be any string
-        legendgrouptitle_text=tmr500_legendtitle,
+        legendgroup=tmr1000_legendtitle,  # this can be any string
+        legendgrouptitle_text=tmr1000_legendtitle,
     ),
     row=1,
     col=1,
@@ -6869,8 +6916,8 @@ fig.add_trace(
 
 fig.add_trace(
     go.Scatter(
-        x=[tmr500_x_mean],
-        y=[tmr500_y_mean],
+        x=[tmr1000_x_mean],
+        y=[tmr1000_y_mean],
         mode="markers+text",
         marker=dict(
             color="green",
@@ -6881,7 +6928,7 @@ fig.add_trace(
             # )
         ),
         showlegend=False,
-        text=f"{tmr500_x_mean:.0f} distinct proteins<br>(avg)",
+        text=f"{tmr1000_x_mean:.0f} distinct proteins<br>(avg)",
         textposition="top right",
         textfont=dict(color="green", size=11),
     ),
@@ -8461,12 +8508,15 @@ fig.update_layout(
 fig.show()
 
 # %% [markdown] jp-MarkdownHeadingCollapsed=true
-# Saving dispersion df
+# ##### Saving dispersion df
 
 # %%
 saved_dispersion_df = dispersion_df.rename(columns={"Transcript": "Gene"})
 saved_dispersion_df.insert(0, "Platform", "Whole-transcriptome octopus data")
-saved_dispersion_df.to_csv("Dispersion.Octopus.tsv", sep="\t", index=False)
+saved_dispersion_df.to_csv(
+    Path("Dispersion.Octopus.WholeTranscriptome.Pooled.tsv"), 
+    sep="\t", index=False
+)
 saved_dispersion_df
 
 # %%
