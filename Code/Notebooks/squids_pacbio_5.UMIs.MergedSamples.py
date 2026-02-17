@@ -102,9 +102,17 @@ positions_files = [
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz",
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz",
 ]
+snps_positions_files = [
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.snps.csv.gz",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.snps.csv.gz"
+]
 reads_files = [
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz",
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz",
+]
+reads_snps_files = [
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.snps.csv.gz",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.snps.csv.gz"
 ]
 unique_reads_files = [
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_reads.csv.gz",
@@ -454,6 +462,122 @@ print(
 #     print(x)
 
 # %% [markdown]
+# ## SNPs positions
+
+# %%
+snps_positions_dfs = [
+    pd.read_csv(position_file, sep=sep, dtype={"Reads": str}) for position_file in snps_positions_files
+]
+for positions_df, condition in zip(snps_positions_dfs, conditions):
+    positions_df.insert(0, condition_col, condition)
+snps_positions_dfs[0]
+
+# %%
+snps_positions_dfs[1]
+
+# %% [markdown]
+# ## 12 mismatches
+
+# %%
+positions_dfs[0]
+
+# %%
+twelve_mismatches_dfs = []
+
+for positions_df, snps_positions_df in zip(positions_dfs, snps_positions_dfs):
+    
+    positions_df = positions_df.loc[
+        positions_df["Edited"],
+        [
+            condition_col,
+            "Chrom",
+            "Position",
+            "TotalCoverage",
+            "EditingFrequency"
+        ]
+    ].rename(
+        columns={"EditingFrequency": "MismatchFrequency"}
+    ).assign(
+        Mismatch="A>G"
+    ).loc[
+        :,
+        [
+            condition_col,
+            "Chrom",
+            "Position",
+            "Mismatch",
+            "TotalCoverage",
+            "MismatchFrequency"
+        ]
+    ]
+    
+    snps_positions_df = snps_positions_df.loc[
+        :,
+        [
+            condition_col,
+            "Chrom",
+            "Position",
+            "RefBase",
+            "AltBase",
+            "TotalCoverage",
+            "Noise"
+        ]
+    ].rename(
+        columns={"Noise": "MismatchFrequency"}
+    ).assign(
+        Mismatch=lambda x: x.RefBase + ">" + x.AltBase
+    ).drop(
+        columns=["RefBase", "AltBase",]
+    ).loc[
+        :,
+        [
+            condition_col,
+            "Chrom",
+            "Position",
+            "Mismatch",
+            "TotalCoverage",
+            "MismatchFrequency"
+        ]
+    ]
+    
+    positions_df_not_empty = not positions_df.empty
+    snps_positions_df_not_empty = not snps_positions_df.empty
+    
+    if positions_df_not_empty and snps_positions_df_not_empty:
+        twelve_mismatches_df = pd.concat([positions_df, snps_positions_df])
+    elif positions_df_not_empty:
+        twelve_mismatches_df = positions_df
+    elif snps_positions_df_not_empty:
+        twelve_mismatches_df = snps_positions_df
+    else:
+        twelve_mismatches_df = pd.DataFrame(
+            columns=[
+                condition_col,
+                "Chrom",
+                "Position",
+                "Mismatch",
+                "TotalCoverage",
+                "MismatchFrequency"
+            ]
+        )    
+    
+    twelve_mismatches_dfs.append(twelve_mismatches_df)
+    
+concat_twelve_mismatches_df = pd.concat(twelve_mismatches_dfs, ignore_index=True)
+
+concat_twelve_mismatches_df
+
+# %%
+concat_twelve_mismatches_df.groupby(condition_col)["Mismatch"].value_counts()
+
+# %%
+concat_twelve_mismatches_df.to_csv(
+    Path(out_dir, "12MismatchsAboveNoiseThreshold.Squid.PacBio.UMIs.csv"),
+    sep="\t",
+    index=False
+)
+
+# %% [markdown]
 # ## Raw reads
 
 # %% [markdown]
@@ -717,6 +841,284 @@ np.percentile(ambigous_positions_in_reads_df["NAsPerRead"], [25, 75])
 # ]
 # edited_reads_dfs[0]
 
+
+# %% [markdown]
+# ### All SNPs reads
+
+# %%
+def make_editing_and_snps_reads_df(
+    reads_snps_file,
+    reads_df,
+    reads_first_col_pos,
+    condition_col,
+    sep
+):
+    # this df contain snps status per position
+    reads_snps_df = pd.read_csv(
+        reads_snps_file, 
+        sep=sep
+    ).rename(
+        columns={
+            "Sample": condition_col
+        }
+    ).drop(
+        columns="Platform"
+    )
+    
+    if reads_snps_df.empty:
+        return None, None
+    
+    # add all reads (even those without a single SNP covered) to reads_snps_df
+    # to allow direct insertion of data from reads_snps_df into editing_and_snps_reads_df (see below)
+    # based on ordering of the two dfs by the Read col
+    reads_snps_df = reads_snps_df.merge(
+        reads_df.loc[:, [condition_col, "Read"]],
+        how="right"
+    )
+    reads_snps_df = reads_snps_df.sort_values("Read", ignore_index=True)
+
+    # fill missing SNPs information with -1 and change dtype to int
+    reads_snps_df.iloc[:, 2:] = reads_snps_df.iloc[:, 2:].fillna(-1)
+    for col in reads_snps_df.columns[2:]:
+        reads_snps_df[col] = reads_snps_df[col].astype(int)
+
+    snps_positions = reads_snps_df.columns[2:]
+    # snps_positions
+    
+    editing_and_snps_reads_df = (
+    reads_df
+    .merge(
+        reads_snps_df.loc[:, [condition_col, "Read"]],
+        how="left"
+    )
+    .sort_values("Read", ignore_index=True)
+)
+
+    # insert each indivdual SNP to reads with editing status df
+    reads_first_col_pos_in_editing_and_snps_reads_df = reads_first_col_pos
+    ic(reads_first_col_pos_in_editing_and_snps_reads_df)
+
+    for snp_position in snps_positions:
+        ic(snp_position)
+        # we can directly insert this col from reads_snps_df into editing_and_snps_reads_df 
+        # because both dataframes are sorted by Read
+        editing_and_snps_reads_df.insert(
+            reads_first_col_pos_in_editing_and_snps_reads_df,
+            f"SNP_{snp_position}",
+            reads_snps_df[snp_position]
+        )
+        reads_first_col_pos_in_editing_and_snps_reads_df += 1
+        ic(reads_first_col_pos_in_editing_and_snps_reads_df);
+
+
+    # Identify the editing site columns (starting from the current offset onwards)
+    editing_cols = editing_and_snps_reads_df.columns[reads_first_col_pos_in_editing_and_snps_reads_df:]
+    # editing_cols
+
+    snp_cols = [f"SNP_{pos}" for pos in snps_positions]
+    # snp_cols
+
+    # Filter to keep only reads where the SNP positions have a valid base (0 or 1, not -1)
+    # Using .all(axis=1) ensures we have a complete haplotype for the selected SNPs
+    valid_reads_mask = editing_and_snps_reads_df[snp_cols].ne(-1).all(axis=1)
+    editing_and_snps_reads_df = editing_and_snps_reads_df.loc[valid_reads_mask].copy()
+
+    # Replace -1 (unmapped/ignored) with NaN in the editing columns
+    # so means are computed on covered reads only
+    editing_and_snps_reads_df[editing_cols] = editing_and_snps_reads_df[editing_cols].replace(-1, np.nan)
+
+    # define a single haplotype label (useful for counting / plotting / downstream merges)
+    # e.g. "SNP_123=0|SNP_456=1|SNP_789=0"
+    editing_and_snps_reads_df.insert(
+        reads_first_col_pos_in_editing_and_snps_reads_df,
+        "Haplotype",
+        editing_and_snps_reads_df[snp_cols].astype(str).agg("|".join, axis=1)
+    )
+    reads_first_col_pos_in_editing_and_snps_reads_df += 1
+    ic(reads_first_col_pos_in_editing_and_snps_reads_df)
+
+    return editing_and_snps_reads_df, reads_first_col_pos_in_editing_and_snps_reads_df
+
+# %%
+editing_and_snps_reads_dfs_and_first_col_poses = [
+        make_editing_and_snps_reads_df(
+        reads_snps_file,
+        reads_df,
+        reads_first_col_pos,
+        condition_col,
+        sep
+    )
+    for reads_snps_file, reads_df in zip(
+        reads_snps_files, reads_dfs
+    )
+]
+editing_and_snps_reads_dfs_and_first_col_poses[0][0]
+
+# %%
+editing_and_snps_reads_df = editing_and_snps_reads_dfs_and_first_col_poses[0][0]
+editing_and_snps_reads_df
+
+# %%
+editing_cols = editing_and_snps_reads_df.loc[:, "Haplotype":].iloc[:, 1:].columns
+editing_cols
+
+# %%
+# temp_df.groupby("Haplotype")[editing_cols].agg(["mean", "std"])
+editing_long_df = (
+    editing_and_snps_reads_df.groupby("Haplotype")[editing_cols]
+    .agg(["mean", "std"])
+    .stack(level=0, future_stack=True)  # silence FutureWarning (pandas>=2.1)
+    .reset_index()
+    .rename(columns={"level_1": "EditingSite"})
+)
+
+# # optional: nicer dtypes / sorting
+editing_long_df["EditingSite"] = editing_long_df["EditingSite"].astype(int)
+editing_long_df = editing_long_df.sort_values(["EditingSite", "Haplotype"], ignore_index=True)
+editing_long_df["EditingSite"] = editing_long_df["EditingSite"].astype(str)
+
+editing_long_df
+
+# %%
+fig = px.scatter(
+    editing_long_df,
+    x="EditingSite",
+    y="mean",
+    color="Haplotype",
+    # error_y="std",
+    # facet_row="Haplotype",
+    opacity=0.8,
+)
+fig.update_layout(
+    height=500,
+    width=1000,
+    template="simple_white",
+    # title=f"Editing Status Distribution per Editing Site<br>for Reads with Complete SNP Haplotypes"
+)
+fig.show()
+
+# %%
+# Group by the SNP alleles (haplotypes) and calculate the editing frequency for each site
+# (rows=editing sites, cols=haplotypes)
+# editing_profiles = temp_df.groupby("Haplotype")[editing_cols].mean().T
+editing_profiles = editing_and_snps_reads_df.groupby("Haplotype")[editing_cols].mean().mul(100).T
+editing_profiles.dropna(how="all", inplace=True)
+# editing_profiles["MeanOfMeans"] = editing_profiles.mean(axis=1)
+editing_profiles = editing_profiles.merge(
+    editing_and_snps_reads_df.loc[:, editing_cols].mean().mul(100).T.rename("GlobalMeanEditing"),
+    left_index=True,
+    right_index=True
+)
+editing_profiles["MeanEditingDiff(1-0)"] = editing_profiles.apply(
+    lambda x: x.iloc[1] - x.iloc[0], axis=1
+)
+
+editing_profiles
+
+# %%
+editing_profiles["MeanEditingDiff(1-0)"].sort_values(ascending=False).round(2)
+
+# %%
+fig = px.histogram(
+    editing_profiles,
+    x="MeanEditingDiff(1-0)",
+    labels={
+        "MeanEditingDiff(1-0)": "Mean % editing difference per site (Haplotype 1 - Haplotype 0)"
+    }
+)
+fig.update_xaxes(dtick=1)
+fig.update_layout(
+    height=500,
+    width=1000,
+    template="simple_white",
+)
+fig.show()
+
+# %%
+fig = px.scatter_matrix(df,
+    dimensions=["sepal_length", "sepal_width", "petal_length", "petal_width"],
+    color="species", symbol="species",
+    title="Scatter matrix of iris data set",
+    labels={col:col.replace('_', ' ') for col in df.columns}) # remove underscore
+fig.update_traces(diagonal_visible=False)
+fig.show()
+
+# %%
+editing_and_snps_reads_df["Haplotype"].unique()
+
+# %%
+fig = px.scatter(
+    editing_profiles,
+    x="0",
+    y="1",
+    labels={
+        "0": "Haplotype 0 mean editing frequency [%]",
+        "1": "Haplotype 1 mean editing frequency [%]",
+    },
+    # marginal_x="histogram", marginal_y="histogram",
+    # trendline="ols", trendline_color_override="black"
+)
+
+fig.update_xaxes(dtick=10, range=[0, 100])
+fig.update_yaxes(dtick=10, range=[0, 100])
+
+fig.update_layout(
+    height=500,
+    width=500,
+    template="simple_white",
+    # yaxis=dict(
+    #     scaleanchor="x",
+    #     scaleratio=1,
+    # )
+)
+fig.show()
+
+# %%
+fig = px.scatter_matrix(
+    editing_profiles,
+    dimensions=editing_and_snps_reads_df["Haplotype"].unique(),
+    # x="GlobalMeanEditing",
+    # y="MeanEditingDiff(1-0)",
+    # labels={
+    #     "MeanEditingDiff(1-0)": "Mean % editing difference per site<br>(Haplotype 1 - Haplotype 0)",
+    #     "GlobalMeanEditing": "Global mean % editing per site"
+    # },
+    # marginal_x="histogram", marginal_y="histogram",
+    # trendline="ols", trendline_color_override="black"
+)
+
+# fig.update_xaxes(dtick=1)
+fig.update_layout(
+    height=700,
+    width=700,
+    template="simple_white",
+)
+fig.show()
+
+# %%
+fig = px.scatter(
+    editing_profiles,
+    x="GlobalMeanEditing",
+    y="MeanEditingDiff(1-0)",
+    labels={
+        "MeanEditingDiff(1-0)": "Mean % editing difference per site<br>(Haplotype 1 - Haplotype 0)",
+        "GlobalMeanEditing": "Global mean % editing per site"
+    },
+    marginal_x="histogram", marginal_y="histogram",
+    trendline="ols", trendline_color_override="black"
+)
+
+
+results = px.get_trendline_results(fig)
+print(results.iloc[0].px_fit_results.summary())
+
+# fig.update_xaxes(dtick=1)
+fig.update_layout(
+    height=700,
+    width=700,
+    template="simple_white",
+)
+fig.show()
 
 # %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"}
 # ### Unique

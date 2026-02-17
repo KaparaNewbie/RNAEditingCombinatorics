@@ -13,7 +13,66 @@
 #     name: python3
 # ---
 
-# %% papermill={"duration": 0.071769, "end_time": "2022-02-01T09:42:43.049672", "exception": false, "start_time": "2022-02-01T09:42:42.977903", "status": "completed"} tags=["parameters"]
+# %% [markdown] papermill={"duration": 0.029907, "end_time": "2022-02-01T09:42:43.198426", "exception": false, "start_time": "2022-02-01T09:42:43.168519", "status": "completed"}
+# # Imports
+
+# %%
+code_dir = "/private7/projects/Combinatorics/Code"
+
+# %%
+# %load_ext autoreload
+# %autoreload 2
+
+# %% papermill={"duration": 2.901153, "end_time": "2022-02-01T09:42:46.125355", "exception": false, "start_time": "2022-02-01T09:42:43.224202", "status": "completed"}
+import subprocess
+import sys
+from functools import reduce
+from itertools import chain, combinations, product, repeat
+from math import ceil
+from multiprocessing import Pool
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import plotly.colors as pc
+import plotly.express as px
+import plotly.graph_objects as go
+import scipy.stats
+import seaborn as sns
+import umap
+from Bio import SeqIO
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+from icecream import ic
+from matplotlib_venn import venn2, venn3
+from plotly.subplots import make_subplots
+from statsmodels.stats.multitest import multipletests, fdrcorrection
+from scipy import interpolate  # todo unimport this later?
+from scipy.spatial import ConvexHull, convex_hull_plot_2d
+from scipy.stats import iqr
+from sklearn import linear_model
+from sklearn.cluster import HDBSCAN, MiniBatchKMeans
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
+from sklearn.metrics import mean_squared_error, r2_score, silhouette_score
+from sklearn.preprocessing import StandardScaler
+from statsmodels.stats.multitest import multipletests
+
+sys.path.append(str(Path(code_dir).absolute()))
+from Alignment.alignment_utils import (
+    count_reads,
+    count_reads_in_fastq,
+    count_reads_in_unaligned_bam,
+    count_unique_filtered_aligned_reads,
+    count_unique_reads,
+)
+from EditingUtils.seq import make_fasta_dict
+
+# %% [markdown]
+# # Inputs
+
+# %%
 condition_col = "Gene"
 conditions = [
     "RUSC2_MOUSE",
@@ -36,6 +95,7 @@ conditions = [
     "MTUS2_HUMAN",
     "ROBO2_HUMAN",
 ]
+shortened_conditions = [condition.split("_")[0] for condition in conditions]
 chroms = [
     "comp141881_c0_seq3",
     "comp141044_c0_seq2",
@@ -140,6 +200,10 @@ positions_files = [
     f"/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.{chrom}.positions.csv"
     for chrom in chroms
 ]
+snps_positions_files = [
+    f"/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.{chrom}.positions.snps.csv.gz"
+    for chrom in chroms
+]
 reads_files = [
     f"/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.{chrom}.reads.csv"
     for chrom in chroms
@@ -206,10 +270,21 @@ distinct_unique_proteins_files = [
 #     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/comp141158_c1_seq2.JaccardMatrixProteins.13.07.2022-01:54:59.csv",
 # ]
 
+# expression_files = [
+#     f"/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/{condition}.DistinctUniqueProteins.ExpressionLevels.csv"
+#     for condition in conditions
+# ]
 expression_files = [
-    f"/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/{condition}.DistinctUniqueProteins.ExpressionLevels.csv"
-    for condition in conditions
+    Path(
+        "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/FinalFixedExpressionFromCloud",
+        shortened_condition,
+        f"{shortened_condition}.DistinctUniqueProteins.ExpressionLevels.EntropyConsidered.csv",
+    )
+    for shortened_condition in shortened_conditions
 ]
+for expression_file in expression_files:
+    if not expression_file.exists():
+        print(f"Expression file {expression_file} does not exist.")
 
 # todo update & uncomment
 # alg_repetitions = 5
@@ -222,70 +297,16 @@ transcriptome_file = (
 )
 samtools_path = "/home/alu/kobish/anaconda3/envs/combinatorics/bin/samtools"
 threads = 20
-code_dir = "/private7/projects/Combinatorics/Code"
+
 seed = 1892
 
-# %%
-shortened_conditions = [condition.split("_")[0] for condition in conditions]
+out_dir = Path("/private6/projects/Combinatorics/Code/Notebooks")
 
 # %%
 len(chroms)
 
 # %%
 len(positions_files)
-
-# %% [markdown] papermill={"duration": 0.029907, "end_time": "2022-02-01T09:42:43.198426", "exception": false, "start_time": "2022-02-01T09:42:43.168519", "status": "completed"}
-# # Imports
-
-# %%
-# %load_ext autoreload
-# %autoreload 2
-
-# %% papermill={"duration": 2.901153, "end_time": "2022-02-01T09:42:46.125355", "exception": false, "start_time": "2022-02-01T09:42:43.224202", "status": "completed"}
-import subprocess
-import sys
-from functools import reduce
-from itertools import chain, combinations, product
-from math import ceil
-from multiprocessing import Pool
-from pathlib import Path
-
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-import plotly.colors as pc
-import plotly.express as px
-import plotly.graph_objects as go
-import scipy.stats
-import seaborn as sns
-import umap
-from Bio import SeqIO
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
-from icecream import ic
-from matplotlib_venn import venn2, venn3
-from plotly.subplots import make_subplots
-from statsmodels.stats.multitest import multipletests, fdrcorrection
-from scipy import interpolate  # todo unimport this later?
-from scipy.spatial import ConvexHull, convex_hull_plot_2d
-from scipy.stats import iqr
-from sklearn import linear_model
-from sklearn.cluster import HDBSCAN, MiniBatchKMeans
-from sklearn.decomposition import PCA
-from sklearn.manifold import TSNE
-from sklearn.metrics import mean_squared_error, r2_score, silhouette_score
-from sklearn.preprocessing import StandardScaler
-from statsmodels.stats.multitest import multipletests
-
-sys.path.append(str(Path(code_dir).absolute()))
-from Alignment.alignment_utils import (
-    count_reads,
-    count_reads_in_fastq,
-    count_reads_in_unaligned_bam,
-    count_unique_filtered_aligned_reads,
-    count_unique_reads,
-)
-from EditingUtils.seq import make_fasta_dict
 
 
 # %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"}
@@ -337,6 +358,9 @@ ic(conditions);
 color_sequence = px.colors.qualitative.Dark24
 color_discrete_map = {
     condition: color for condition, color in zip(conditions, color_sequence)
+}
+shortened_color_discrete_map = {
+    condition: color for condition, color in zip(shortened_conditions, color_sequence)
 }
 ic(color_discrete_map)
 subcolors_discrete_map = {
@@ -412,13 +436,44 @@ known_sites_df
 # ## Positions
 
 # %%
-positions_dfs = [
-    pd.read_csv(position_file, sep=sep) for position_file in positions_files
-]
-for positions_df, condition in zip(positions_dfs, conditions):
-    positions_df.insert(0, condition_col, condition)
-positions_dfs[0]
+# positions_dfs = [
+#     pd.read_csv(position_file, sep=sep) for position_file in positions_files
+# ]
+# for positions_df, condition in zip(positions_dfs, conditions):
+#     positions_df.insert(0, condition_col, condition)
+# positions_dfs[0]
 
+
+# %%
+# positions_dfs = []
+# for i, (positions_file, condition) in enumerate(zip(positions_files, conditions), start=1):
+#     positions_file = Path(positions_file)
+#     print(f"{i} - Reading positions file {positions_file.name} for condition {condition}")
+#     positions_df = read_positions_file(positions_file, sep, condition_col, condition)
+#     print(f"{i} - Finished reading positions file {positions_file.name} for condition {condition}")
+#     positions_dfs.append(positions_df)
+#     print(f"{i} - {len(positions_dfs) = }")
+# positions_dfs[0]
+
+# %%
+def read_positions_file(positions_file, sep, condition_col, condition) -> pd.DataFrame:
+    # print(f"Reading positions file {positions_file} for condition {condition}")
+    positions_df = pd.read_csv(positions_file, sep=sep)
+    positions_df.insert(0, condition_col, condition)
+    # print(f"Finished reading positions file {positions_file} for condition {condition}")
+    return positions_df
+
+
+# %%
+with Pool(processes=len(positions_files)) as pool:
+    positions_dfs = pool.starmap(
+        read_positions_file,
+        zip(positions_files, repeat(sep), repeat(condition_col), conditions),
+    )
+
+ic(len(positions_dfs))
+
+positions_dfs[0].head()
 
 # %%
 editing_positions_per_sample = [
@@ -760,6 +815,122 @@ for x, y in zip(
 # %%
 
 # %%
+
+# %% [markdown]
+# ## SNPs positions
+
+# %%
+snps_positions_dfs = [
+    pd.read_csv(position_file, sep=sep, dtype={"Reads": str}) for position_file in snps_positions_files
+]
+for positions_df, condition in zip(snps_positions_dfs, conditions):
+    positions_df.insert(0, condition_col, condition)
+snps_positions_dfs[0]
+
+# %% [markdown]
+# ## 12 mismatches
+
+# %%
+positions_dfs[0].head()
+
+# %%
+twelve_mismatches_dfs = []
+
+for positions_df, snps_positions_df in zip(positions_dfs, snps_positions_dfs):
+    
+    positions_df = positions_df.loc[
+        positions_df["Edited"],
+        [
+            condition_col,
+            "Chrom",
+            "Position",
+            "TotalCoverage",
+            "EditingFrequency"
+        ]
+    ].rename(
+        columns={"EditingFrequency": "MismatchFrequency"}
+    ).assign(
+        Mismatch="A>G"
+    ).loc[
+        :,
+        [
+            condition_col,
+            "Chrom",
+            "Position",
+            "Mismatch",
+            "TotalCoverage",
+            "MismatchFrequency"
+        ]
+    ]
+    
+    snps_positions_df = snps_positions_df.loc[
+        :,
+        [
+            condition_col,
+            "Chrom",
+            "Position",
+            "RefBase",
+            "AltBase",
+            "TotalCoverage",
+            "Noise"
+        ]
+    ].rename(
+        columns={"Noise": "MismatchFrequency"}
+    ).assign(
+        Mismatch=lambda x: x.RefBase + ">" + x.AltBase
+    ).drop(
+        columns=["RefBase", "AltBase",]
+    ).loc[
+        :,
+        [
+            condition_col,
+            "Chrom",
+            "Position",
+            "Mismatch",
+            "TotalCoverage",
+            "MismatchFrequency"
+        ]
+    ]
+    
+    positions_df_not_empty = not positions_df.empty
+    snps_positions_df_not_empty = not snps_positions_df.empty
+    
+    if positions_df_not_empty and snps_positions_df_not_empty:
+        twelve_mismatches_df = pd.concat([positions_df, snps_positions_df])
+    elif positions_df_not_empty:
+        twelve_mismatches_df = positions_df
+    elif snps_positions_df_not_empty:
+        twelve_mismatches_df = snps_positions_df
+    else:
+        twelve_mismatches_df = pd.DataFrame(
+            columns=[
+                condition_col,
+                "Chrom",
+                "Position",
+                "Mismatch",
+                "TotalCoverage",
+                "MismatchFrequency"
+            ]
+        )    
+    
+    twelve_mismatches_dfs.append(twelve_mismatches_df)
+    
+concat_twelve_mismatches_df = pd.concat(twelve_mismatches_dfs, ignore_index=True)
+
+concat_twelve_mismatches_df
+
+# %%
+concat_twelve_mismatches_df.groupby(condition_col)["Mismatch"].value_counts()
+
+# %%
+concat_twelve_mismatches_df["Mismatch"].value_counts()
+
+# %%
+concat_twelve_mismatches_df.to_csv(
+    Path(out_dir, "12MismatchsAboveNoiseThreshold.Squid.Illumina.csv"),
+    sep="\t",
+    index=False
+)
 
 # %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"}
 # ## Reads
@@ -5687,7 +5858,7 @@ fig.update_layout(
 )
 
 fig.write_image(
-    f"{head_title} - Illumina.svg",
+    Path(out_dir, f"{head_title} - Illumina - fixed expression.svg"),
     width=width,
     height=height,
 )
@@ -6437,7 +6608,10 @@ fig.update_layout(
     height=height,
 )
 
-fig.write_image(f"{head_title} - Illumina.svg", width=width, height=height)
+fig.write_image(
+    Path(out_dir, f"{head_title} - Illumina - fixed expression.svg"), 
+    width=width, height=height
+)
 
 fig.show()
 # fig.show(config={'staticPlot': True, 'responsive': False})
@@ -6452,7 +6626,10 @@ merged_assignment_df.insert(0, "Platform", "Short-reads")
 merged_assignment_df
 
 # %%
-merged_assignment_df.to_csv("AssignedExpression.Illumina.tsv", sep="\t", index=False)
+merged_assignment_df.to_csv(
+    Path(out_dir, "AssignedExpression.Fixed.Illumina.tsv"), 
+    sep="\t", index=False
+)
 
 # %%
 
@@ -6581,7 +6758,10 @@ def drop_uniformative_aa_cols(df):
     # value_counts = df.apply(pd.unique)
     # informative_cols = value_counts.loc[value_counts.apply(lambda x: 0 in x and 1 in x)].index
 
-    cols_editing_frequency = df.applymap(
+    # cols_editing_frequency = df.applymap(
+    #     lambda x: x if x in [0.0, 1.0] else np.nan
+    # ).apply(np.mean)
+    cols_editing_frequency = df.map(
         lambda x: x if x in [0.0, 1.0] else np.nan
     ).apply(np.mean)
     informative_cols = cols_editing_frequency.loc[cols_editing_frequency > 0].index
@@ -7542,8 +7722,19 @@ n_jobs = 60
 # ##### Clustering: kmeans
 
 # %%
-X = weighted_exp_tsne_input_dfs[0].iloc[:, ML_INPUT_FIRST_COL_POS_NEW:].values
-X
+weighted_exp_tsne_input_dfs = [
+    prepare_ml_input_df_new(
+        assignment_df,
+        unique_proteins_df,
+        unique_proteins_first_col_pos,
+    )
+    for assignment_df, unique_proteins_df in zip(assignment_dfs, unique_proteins_dfs)
+]
+weighted_exp_tsne_input_dfs[0]
+
+# %%
+# X = weighted_exp_tsne_input_dfs[0].iloc[:, ML_INPUT_FIRST_COL_POS_NEW:].values
+# X
 
 # %%
 # weighted_exp_tsne_input_dfs
@@ -7585,6 +7776,110 @@ conditions_kmeans_silhouette_scores = [
     for condition_kmeans, X in zip(conditions_kmeans, conditions_Xs)
 ]
 # kmeans_silhouette_scores[0]
+
+# %%
+len(conditions_kmeans_silhouette_scores)
+
+# %%
+Platform        Gene    ClusterSize     MeanSilhouetteScore
+Long-reads      GRIA    10      0.04705395716386156
+Long-reads      GRIA    20      0.04935121021857848
+Long-reads      GRIA    30      0.04452454408430921
+Long-reads      GRIA    40      0.05089000815870861
+
+# %%
+l = [1, 2, 3]
+
+# %%
+[l for _ in range(2)]
+
+# %%
+concat_kmeans_silhouette_scores_df = pd.DataFrame(
+    {
+        "Platform": "Short-reads",
+        condition_col: shortened_conditions,
+        "ClusterSize": [cluster_sizes for _ in shortened_conditions],
+        "MeanSilhouetteScore": conditions_kmeans_silhouette_scores
+    }
+)
+
+concat_kmeans_silhouette_scores_df = concat_kmeans_silhouette_scores_df.explode(
+    [
+        "ClusterSize",
+        "MeanSilhouetteScore"
+    ]
+)
+
+concat_kmeans_silhouette_scores_df
+
+# %%
+concat_kmeans_silhouette_scores_df.to_csv(
+    Path(out_dir, "KMeansMeanSilhouetteScores.Illumina.tsv"),
+    sep="\t",
+    index=False
+)
+
+# %%
+title_font_size = 24
+
+fig = px.line(
+    concat_kmeans_silhouette_scores_df,
+    x="ClusterSize",
+    y="MeanSilhouetteScore",
+    color=condition_col,
+    color_discrete_map=shortened_color_discrete_map,
+    # opacity=0.7,
+    labels={
+        # "ClusterSize": "Number of clusters (k)",
+        # "MeanSilhouetteScore": "Mean silhouette score<br>of MiniBatchKMeans"
+        "ClusterSize": "Number of MiniBatchKMeans clusters (k)",
+        "MeanSilhouetteScore": "Mean silhouette score"
+    },
+    markers=True
+)
+
+fig.update_xaxes(
+    dtick=100, 
+    # title_font=dict(size=title_font_size)
+)
+
+fig.update_yaxes(
+    rangemode="tozero", 
+    tick0=0.0, 
+    # dtick=0.05,
+    dtick=0.025,
+    # title_font=dict(size=title_font_size)
+)
+
+# width = 500
+# width = 700
+width = 1000
+# height = 350
+# height = 300
+height = 0.6 * width
+
+# fig.update_annotations(font_size=title_font_size)
+
+fig.update_layout(
+    title_text="Short-reads",
+    title_x=0.15,
+    # title_y=0.95,
+    template=template,
+    # showlegend=False,
+    width=width,
+    height=height,
+    # title_font=dict(size=title_font_size+4)
+    # legend_font=dict(size=18),
+    # legend_grouptitlefont=dict(size=22),
+)
+
+fig.write_image(
+    Path(out_dir, "Mean silhouette score of MiniBatchKMeans vs. K size - Illumina - dense.svg",),
+    width=width,
+    height=height,
+)
+
+fig.show()
 
 # %%
 facet_col_spacing
@@ -8145,7 +8440,10 @@ shannon_df[condition_col] = (
 shannon_df
 
 # %%
-shannon_df.to_csv("ShanonEntropy.Illumina.tsv", sep="\t", index=False)
+shannon_df.to_csv(
+    Path(out_dir, "ShanonEntropy.Illumina.FixedExpression.tsv"), 
+    sep="\t", index=False
+)
 
 # %%
 fig = go.Figure()

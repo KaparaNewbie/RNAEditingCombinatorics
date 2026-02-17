@@ -104,7 +104,7 @@ samples_and_tissues_file = Path(
     "/private7/projects/Combinatorics/O.vulgaris/Data/PRJNA791920/IsoSeqPolished/samples.csv"
 )
 
-# reads_first_col_pos = 7
+reads_first_col_pos = 7
 # unique_reads_first_col_pos = 9
 # proteins_first_col_pos = 13
 unique_proteins_first_col_pos = 15
@@ -168,17 +168,31 @@ tmr50_alignment_stats_df
 
 # %%
 positions_files = list(positions_dir.glob("*.positions.csv.gz"))
-
 chroms_in_positions = [
     positions_file.name.split(".")[0] for positions_file in positions_files
 ]
-
 positions_data_df = pd.DataFrame(
     {
         "Chrom": chroms_in_positions,
         "PositionsFile": positions_files,
     }
 )
+
+snps_positions_files = list(positions_dir.glob("*.positions.snps.csv.gz"))
+chroms_in_snps_positions = [
+    positions_file.name.split(".")[0] for positions_file in snps_positions_files
+]
+snps_positions_data_df = pd.DataFrame(
+    {
+        "Chrom": chroms_in_snps_positions,
+        "SNPsPositionsFile": snps_positions_files,
+    }
+)
+
+positions_data_df = positions_data_df.merge(
+    snps_positions_data_df, on="Chrom", how="outer"
+)
+assert not positions_data_df.isna().any().any(), "There are some chroms that are missing either positions file or snps positions file. Please check the dataframes to see which ones are missing and fix the issue."
 
 positions_data_df
 
@@ -220,8 +234,6 @@ tmr50_alignment_stats_df.loc[
 ]
 
 # %%
-
-# %%
 reads_files = list(reads_dir.glob("*.reads.csv.gz"))
 chroms_in_reads_files = [reads_file.name.split(".")[0] for reads_file in reads_files]
 
@@ -244,7 +256,22 @@ unique_reads_data_df = pd.DataFrame(
     }
 )
 
-reads_data_df = reads_data_df.merge(unique_reads_data_df, on="Chrom", how="left")
+reads_data_df = reads_data_df.merge(unique_reads_data_df, on="Chrom", how="outer")
+assert not positions_data_df.isna().any().any(), "There should be as many as reads as unique reads files."
+
+
+snps_reads_files = list(reads_dir.glob("*.reads.snps.csv.gz"))
+chroms_in_snps_reads_files = [reads_file.name.split(".")[0] for reads_file in snps_reads_files]
+snps_reads_df = pd.DataFrame(
+    {
+        "Chrom": chroms_in_snps_reads_files,
+        "SNPsReadsFile": snps_reads_files,
+    }
+)
+
+reads_data_df = reads_data_df.merge(
+    snps_reads_df, on="Chrom", how="left"
+)
 
 reads_data_df
 
@@ -252,6 +279,17 @@ reads_data_df
 tmr50_alignment_stats_df.loc[
     ~tmr50_alignment_stats_df["Chrom"].isin(reads_data_df["Chrom"])
 ]
+
+# %%
+# snps_reads_files = list(reads_dir.glob("*.reads.snps.csv.gz"))
+# chroms_in_snps_reads_files = [reads_file.name.split(".")[0] for reads_file in snps_reads_files]
+# snps_reads_df = pd.DataFrame(
+#     {
+#         "Chrom": chroms_in_snps_reads_files,
+#         "SNPsReadsFile": snps_reads_files,
+#     }
+# )
+# snps_reads_df
 
 # %%
 proteins_files = list(proteins_dir.glob("*.proteins.csv.gz"))
@@ -349,6 +387,7 @@ possibly_na_strands = data_df["Strand"].tolist()
 
 possibly_na_positions_files = data_df["PositionsFile"].tolist()
 possibly_na_reads_files = data_df["ReadsFile"].tolist()
+possibly_na_snps_reads_files = data_df["SNPsReadsFile"].tolist()
 possibly_na_unique_reads_files = data_df["UniqueReadsFile"].tolist()
 possibly_na_proteins_files = data_df["ProteinsFile"].tolist()
 possibly_na_unique_proteins_files = data_df["UniqueProteinsFile"].tolist()
@@ -387,6 +426,7 @@ strands = complete_data_df["Strand"].tolist()
 
 positions_files = complete_data_df["PositionsFile"].tolist()
 reads_files = complete_data_df["ReadsFile"].tolist()
+snps_reads_files = complete_data_df["SNPsReadsFile"].tolist()
 unique_reads_files = complete_data_df["UniqueReadsFile"].tolist()
 proteins_files = complete_data_df["ProteinsFile"].tolist()
 unique_proteins_files = complete_data_df["UniqueProteinsFile"].tolist()
@@ -831,58 +871,12 @@ fig = px.histogram(
 fig.update_layout(width=800, height=400)
 fig.show()
 
+
 # %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"}
 # ## Positions
 
-# %% jupyter={"source_hidden": true}
-# positions_dfs = [
-#     pd.read_csv(position_file, sep=sep, dtype={"Reads": str}) for position_file in positions_files
-# ]
-# for positions_df, condition in zip(positions_dfs, conditions):
-#     positions_df.insert(0, condition_col, condition)
-# positions_dfs[0]
-
-
-# %% jupyter={"source_hidden": true}
-# positions_df = pd.concat(positions_dfs, ignore_index=True)
-# # positions_df.insert(positions_df.columns.get_loc("G")+1, "ATCGs", positions_df.loc[:, ["A", "T", "C", "G"]].sum(axis=1))
-# positions_df
-
-# %% jupyter={"source_hidden": true}
-# def make_concat_positions_df(positions_files, condition_col, conditions):
-#     positions_dfs = [
-#         pd.read_csv(position_file, sep=sep, dtype={"Reads": str}) for position_file in positions_files
-#     ]
-#     for positions_df, condition in zip(positions_dfs, conditions):
-#         positions_df.insert(0, condition_col, condition)
-#     concat_positions_df = pd.concat(positions_dfs, ignore_index=True)
-#     return concat_positions_df
-
-# %% jupyter={"source_hidden": true}
-# concat_positions_df = make_concat_positions_df(positions_files, condition_col, conditions)
-# concat_positions_df
-
-# %% jupyter={"source_hidden": true}
-# data_df.loc[data_df["PositionsFile"].isna()]
-
-# %% jupyter={"source_hidden": true}
-# possibly_na_positions_files[108]
-
-# %% jupyter={"source_hidden": true}
-# pd.notna(possibly_na_positions_files[108])
-
-# %% jupyter={"source_hidden": true}
-# all_positions_dfs = [
-#     pd.read_csv(position_file, sep=sep, dtype={"Reads": str}) for position_file in possibly_na_positions_files if pd.notna(position_file)
-# ]
-# for positions_df, condition in zip(all_positions_dfs, possibly_na_conditions):
-#     positions_df.insert(0, condition_col, condition)
-# all_positions_dfs[0]
-
-# %%
-# all_positions_df = pd.concat(all_positions_dfs, ignore_index=True)
-# # positions_df.insert(positions_df.columns.get_loc("G")+1, "ATCGs", positions_df.loc[:, ["A", "T", "C", "G"]].sum(axis=1))
-# all_positions_df
+# %% [markdown]
+# ### Base positions
 
 # %%
 def make_concat_all_positions_df(
@@ -1083,166 +1077,6 @@ concat_all_positions_df.loc[
 # %%
 
 # %%
-
-# %%
-
-# %%
-
-# %%
-
-# %%
-
-# %%
-
-# %%
-# edited_positions_df = positions_df.loc[
-#     positions_df["EditedFinal"],
-#     [
-#         condition_col,
-#         "Chrom",
-#         "Position",
-#         "RefBase",
-#         "TotalCoverage",
-#         "A",
-#         "T",
-#         "C",
-#         "G",
-#         "EditingFrequency",
-#     ],
-# ]
-# edited_positions_df
-
-# %%
-# edited_positions_df.loc[edited_positions_df["RefBase"]=="A"]
-
-# %%
-# edited_positions_df["TotalCoverage"].describe()
-
-# %%
-# edited_positions_df["TotalCoverage"].value_counts()
-
-# %%
-# totcov_vs_editfreq_df = edited_positions_df.groupby(["TotalCoverage", "EditingFrequency"]).size().reset_index().rename(columns={0: "DenovoSites"})
-# totcov_vs_editfreq_df
-
-# %%
-# totcov_vs_editing_df = edited_positions_df.groupby(["TotalCoverage", "G"]).size().reset_index().rename(columns={0: "DenovoSites"})
-# totcov_vs_editing_df
-
-# %%
-# totcov_vs_editing_df.head(30)
-
-# %%
-# totcov_vs_editing_df.groupby("G").size().reset_index()
-
-# %%
-# totcov_vs_editing_df.loc[totcov_vs_editing_df["G"] == 1]
-
-# %%
-# fig = px.scatter(
-#     totcov_vs_editfreq_df,
-#     x="TotalCoverage",
-#     y="EditingFrequency",
-#     color="DenovoSites",
-#     template=template,
-#     log_x=True
-# )
-# fig.update_layout(
-#     width=600,
-#     height=400
-# )
-# fig.show()
-
-# %%
-# fig = px.scatter(
-#     totcov_vs_editing_df,
-#     x="TotalCoverage",
-#     y="G",
-#     color="DenovoSites",
-#     template=template,
-#     log_x=True,
-#     marginal_x="rug",
-#     marginal_y="histogram"
-# )
-# fig.update_layout(
-#     width=600,
-#     height=400
-# )
-# fig.show()
-
-# %%
-# fig = px.histogram(
-#     edited_positions_df,
-#     x="TotalCoverage",
-#     # y="EditingFrequency",
-#     # histfunc="avg",
-#     marginal="box",
-#     template=template,
-#     # log_x=True,
-#     log_y=True
-# )
-# fig.update_layout(
-#     width=600,
-#     height=400
-# )
-# fig.show()
-
-# %%
-# fig = px.histogram(
-#     edited_positions_df,
-#     x="TotalCoverage",
-#     y="EditingFrequency",
-#     histfunc="avg",
-#     marginal="box",
-#     template=template,
-#     # log_x=True
-# )
-# fig.update_layout(
-#     width=600,
-#     height=400
-# )
-# fig.show()
-
-# %%
-# fig = px.histogram(
-#     totcov_vs_editing_df,
-#     x="TotalCoverage",
-#     y="G",
-#     histfunc="avg",
-#     marginal="box",
-#     template=template,
-#     # log_x=True
-# )
-# fig.update_layout(
-#     width=600,
-#     height=400
-# )
-# fig.show()
-
-# %%
-# fig = px.histogram(
-#     edited_positions_df.loc[edited_positions_df["TotalCoverage"]<=1000],
-#     x="TotalCoverage",
-#     y="EditingFrequency",
-#     histfunc="avg",
-#     marginal="box",
-#     template=template
-# )
-# fig.update_layout(
-#     width=600,
-#     height=400
-# )
-# fig.show()
-
-# %%
-
-# %%
-
-# %%
-
-# %%
-
-# %%
 # editing_positions_per_sample = [len(df.loc[(df["EditedFinal"])]) for df in positions_dfs]
 # print(
 #     f"Average of {sum(editing_positions_per_sample)/len(positions_dfs)} editing sites per sample"
@@ -1260,6 +1094,44 @@ concat_all_positions_df.loc[
     .mean()
     .round(2)
 )
+
+
+# %% [markdown]
+# ### SNPs
+
+# %%
+positions_data_df
+
+# %%
+snps_positions_files_of_edited_genes = positions_data_df.loc[
+    positions_data_df["Chrom"].isin(chroms),
+    "SNPsPositionsFile"
+].values
+snps_positions_files_of_edited_genes
+
+# %%
+concat_snps_positions_df = pd.concat(
+    [
+        pd.read_table(
+            snps_positions_file, sep="\t", dtype={"Reads": str}
+        ).drop(
+            columns=[
+                "EditingBinomPVal", "EditingCorrectedPVal", "EditedCorrected", "BelowEditingFreq1"
+            ]
+        )
+        for snps_positions_file in positions_data_df["SNPsPositionsFile"].values
+    ]
+)
+concat_snps_positions_df
+
+# %%
+np.isclose
+
+# %%
+concat_snps_positions_df["Chrom"].nunique()
+
+# %%
+concat_snps_positions_df["Chrom"].value_counts().describe().round(2)
 
 
 # %% [markdown]
@@ -1406,6 +1278,41 @@ mismatches_df = mismatches_df.merge(
 
 mismatches_df
 
+# %%
+# so it seems that the same data about snps can be extracted from the general positions files and from the 
+# snps-specific positions files - which is reassuring. the mismatch annotation also allows to get the mismatch 
+# type and frequency, which can be useful for downstream analyses and for setting a noise threshold based on the 
+# distribution of mismatch frequencies at known snps.
+
+df = concat_snps_positions_df.loc[
+    :,
+    ["Chrom", "Position", "Noise", "AboveEditingThreshold"]
+].merge(
+    mismatches_df.loc[
+        (mismatches_df["NoisyFinal"])
+        & (mismatches_df["MismatchFrequency"].ge(snp_noise_level)),
+        ["Chrom", "Position", "MismatchFrequency", "NoiseThreshold"]
+    ],
+    how="outer"
+)
+
+assert df.apply(
+    lambda x: np.isclose(x["MismatchFrequency"], x["Noise"]),
+    axis=1
+).all()
+
+assert df.loc[
+    (df["AboveEditingThreshold"])
+    & (df["Noise"].lt(df["NoiseThreshold"])),
+].empty
+
+del df
+
+# following that, i can use whatever is convinient for me - 
+# but it's still good i made ahead the snps reads files
+
+# %%
+
 # %% [markdown]
 # ### SNPs and coverage per gene
 
@@ -1446,8 +1353,6 @@ tmr1000_alignment_stats_and_snps_df = tmr1000_alignment_stats_df.merge(
 )
 tmr1000_alignment_stats_and_snps_df
 
-# %%
-
 # %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"}
 # ## Reads
 
@@ -1463,8 +1368,12 @@ reads_dfs = [
 ]
 for chrom, reads_df in zip(chroms, reads_dfs):
     reads_df.insert(0, "Chrom", chrom)
+    
+reads_first_col_pos += 1
 reads_dfs[0]
 
+
+# %%
 
 # %%
 # reads_dfs[1]
@@ -1503,6 +1412,525 @@ num_of_reads_in_reads_files[:3]
 # ]
 # edited_reads_dfs[0]
 
+
+# %% [markdown]
+# ### All SNPs reads
+
+# %%
+def make_editing_and_snps_reads_df(
+    reads_snps_file,
+    reads_df,
+    reads_first_col_pos,
+    sep
+):
+    # this df contain snps status per position
+    reads_snps_df = pd.read_csv(
+        reads_snps_file, 
+        sep=sep,
+        dtype={"Read": str}
+    ).rename(
+        columns={
+            "Sample": "Chrom"
+        }
+    ).drop(
+        columns="Platform"
+    )
+    
+    if reads_snps_df.empty:
+        return None, None
+    
+    # add all reads (even those without a single SNP covered) to reads_snps_df
+    # to allow direct insertion of data from reads_snps_df into editing_and_snps_reads_df (see below)
+    # based on ordering of the two dfs by the Read col
+    reads_snps_df = reads_snps_df.merge(
+        reads_df.loc[:, ["Chrom", "Read"]],
+        how="right"
+    )
+    reads_snps_df = reads_snps_df.sort_values("Read", ignore_index=True)
+
+    # fill missing SNPs information with -1 and change dtype to int
+    reads_snps_df.iloc[:, 2:] = reads_snps_df.iloc[:, 2:].fillna(-1)
+    for col in reads_snps_df.columns[2:]:
+        reads_snps_df[col] = reads_snps_df[col].astype(int)
+
+    snps_positions = reads_snps_df.columns[2:]
+    # snps_positions
+    
+    editing_and_snps_reads_df = (
+    reads_df
+    .merge(
+        reads_snps_df.loc[:, ["Chrom", "Read"]],
+        how="left"
+    )
+    .sort_values("Read", ignore_index=True)
+)
+
+    # insert each indivdual SNP to reads with editing status df
+    reads_first_col_pos_in_editing_and_snps_reads_df = reads_first_col_pos
+    # ic(reads_first_col_pos_in_editing_and_snps_reads_df)
+
+    for snp_position in snps_positions:
+        # ic(snp_position)
+        # we can directly insert this col from reads_snps_df into editing_and_snps_reads_df 
+        # because both dataframes are sorted by Read
+        editing_and_snps_reads_df.insert(
+            reads_first_col_pos_in_editing_and_snps_reads_df,
+            f"SNP_{snp_position}",
+            reads_snps_df[snp_position]
+        )
+        reads_first_col_pos_in_editing_and_snps_reads_df += 1
+        # ic(reads_first_col_pos_in_editing_and_snps_reads_df);
+
+
+    # Identify the editing site columns (starting from the current offset onwards)
+    editing_cols = editing_and_snps_reads_df.columns[reads_first_col_pos_in_editing_and_snps_reads_df:]
+    # editing_cols
+
+    snp_cols = [f"SNP_{pos}" for pos in snps_positions]
+    # snp_cols
+
+    # Filter to keep only reads where the SNP positions have a valid base (0 or 1, not -1)
+    # Using .all(axis=1) ensures we have a complete haplotype for the selected SNPs
+    valid_reads_mask = editing_and_snps_reads_df[snp_cols].ne(-1).all(axis=1)
+    editing_and_snps_reads_df = editing_and_snps_reads_df.loc[valid_reads_mask].copy()
+    
+    # if no reads hold complete haplotype information, terminate early
+    if editing_and_snps_reads_df.empty:
+        return None, None
+
+    # Replace -1 (unmapped/ignored) with NaN in the editing columns
+    # so means are computed on covered reads only
+    editing_and_snps_reads_df[editing_cols] = editing_and_snps_reads_df[editing_cols].replace(-1, np.nan)
+
+    # define a single haplotype label (useful for counting / plotting / downstream merges)
+    # e.g. "SNP_123=0|SNP_456=1|SNP_789=0"
+    editing_and_snps_reads_df.insert(
+        reads_first_col_pos_in_editing_and_snps_reads_df,
+        "Haplotype",
+        editing_and_snps_reads_df[snp_cols].astype(str).agg("|".join, axis=1)
+    )
+    reads_first_col_pos_in_editing_and_snps_reads_df += 1
+    # ic(reads_first_col_pos_in_editing_and_snps_reads_df)
+
+    return editing_and_snps_reads_df, reads_first_col_pos_in_editing_and_snps_reads_df
+
+
+# %%
+def validate_haplotypes_diversity(
+    editing_and_snps_reads_df,
+    min_haplotypes,
+    min_reads_per_haplotype
+):
+    haplotypes_value_counts = editing_and_snps_reads_df["Haplotype"].value_counts()
+    if haplotypes_value_counts.ge(min_reads_per_haplotype).sum() >= min_haplotypes:
+        return True
+    return False
+
+
+# %%
+editing_and_snps_reads_dfs_and_first_col_poses = [
+        make_editing_and_snps_reads_df(
+        reads_snps_file,
+        reads_df,
+        reads_first_col_pos,
+        sep
+    )
+    for reads_snps_file, reads_df in zip(
+        snps_reads_files, reads_dfs,
+        strict=True
+    )
+]
+
+# keep only results where the editing and snps reads df is not None (i.e. there were reads with complete haplotype information)
+editing_and_snps_reads_dfs_and_first_col_poses = [
+    res
+    for res in editing_and_snps_reads_dfs_and_first_col_poses
+    # if res != (None, None)
+    if type(res[0]) == pd.core.frame.DataFrame
+]
+
+ic(len(editing_and_snps_reads_dfs_and_first_col_poses));
+
+# editing_and_snps_reads_dfs_and_first_col_poses[0][0]
+
+# %%
+# editing_and_snps_reads_dfs = [
+#     x[0] for x in editing_and_snps_reads_dfs_and_first_col_poses
+# ]
+# reads_first_col_pos_in_editing_and_snps_reads_dfs = [
+#     x[1] for x in editing_and_snps_reads_dfs_and_first_col_poses
+# ]
+
+# %%
+diverse_haplotypes_editing_and_snps_reads_dfs_and_first_col_poses = [
+    res
+    for res in editing_and_snps_reads_dfs_and_first_col_poses
+    # if validate_haplotypes_diversity(res[0], 2, 50)
+    # if validate_haplotypes_diversity(res[0], 2, 300) or validate_haplotypes_diversity(res[0], 3, 100)
+    if validate_haplotypes_diversity(res[0], 3, 100)
+]
+ic(len(diverse_haplotypes_editing_and_snps_reads_dfs_and_first_col_poses));
+
+# %%
+editing_and_snps_reads_dfs = [
+    x[0] for x in diverse_haplotypes_editing_and_snps_reads_dfs_and_first_col_poses
+]
+reads_first_col_pos_in_editing_and_snps_reads_dfs = [
+    x[1] for x in diverse_haplotypes_editing_and_snps_reads_dfs_and_first_col_poses
+]
+
+# %%
+editing_and_snps_reads_df = editing_and_snps_reads_dfs[1]
+editing_and_snps_reads_df
+
+# %%
+
+# %%
+editing_and_snps_reads_df[["Haplotype", "Sample"]].value_counts()
+
+# %%
+haplotypes_value_counts = editing_and_snps_reads_df["Haplotype"].value_counts()
+haplotypes_value_counts
+
+# %%
+editing_cols = editing_and_snps_reads_df.loc[:, "Haplotype":].iloc[:, 1:].columns
+editing_cols
+
+# %%
+# temp_df.groupby("Haplotype")[editing_cols].agg(["mean", "std"])
+editing_long_df = (
+    editing_and_snps_reads_df.groupby("Haplotype")[editing_cols]
+    .agg(["mean", "std"])
+    .stack(level=0, future_stack=True)  # silence FutureWarning (pandas>=2.1)
+    .reset_index()
+    .rename(columns={"level_1": "EditingSite"})
+)
+
+# # optional: nicer dtypes / sorting
+editing_long_df["EditingSite"] = editing_long_df["EditingSite"].astype(int)
+editing_long_df = editing_long_df.sort_values(["EditingSite", "Haplotype"], ignore_index=True)
+editing_long_df["EditingSite"] = editing_long_df["EditingSite"].astype(str)
+
+editing_long_df
+
+# %%
+# Group by the SNP alleles (haplotypes) and calculate the editing frequency for each site
+# (rows=editing sites, cols=haplotypes)
+# editing_profiles = temp_df.groupby("Haplotype")[editing_cols].mean().T
+editing_profiles = editing_and_snps_reads_df.groupby("Haplotype")[editing_cols].mean().mul(100).T
+editing_profiles.dropna(how="all", inplace=True)
+# # editing_profiles["MeanOfMeans"] = editing_profiles.mean(axis=1)
+# editing_profiles = editing_profiles.merge(
+#     editing_and_snps_reads_df.loc[:, editing_cols].mean().mul(100).T.rename("GlobalMeanEditing"),
+#     left_index=True,
+#     right_index=True
+# )
+# editing_profiles["MeanEditingDiff(1-0)"] = editing_profiles.apply(
+#     lambda x: x.iloc[1] - x.iloc[0], axis=1
+# )
+
+editing_profiles
+
+# %%
+editing_long_dfs = []
+editing_profiles_dfs = []
+
+for editing_and_snps_reads_df in editing_and_snps_reads_dfs:
+    
+    chrom = editing_and_snps_reads_df["Chrom"].iloc[0]
+    editing_cols = editing_and_snps_reads_df.loc[:, "Haplotype":].iloc[:, 1:].columns
+    
+    editing_long_df = (
+        editing_and_snps_reads_df.groupby("Haplotype")[editing_cols]
+        .agg(["mean", "std"])
+        .stack(level=0, future_stack=True)  # silence FutureWarning (pandas>=2.1)
+        .reset_index()
+        .rename(columns={"level_1": "EditingSite"})
+    )
+    # # optional: nicer dtypes / sorting
+    editing_long_df["EditingSite"] = editing_long_df["EditingSite"].astype(int)
+    editing_long_df = editing_long_df.sort_values(["EditingSite", "Haplotype"], ignore_index=True)
+    editing_long_df["EditingSite"] = editing_long_df["EditingSite"].astype(str)
+    editing_long_df.insert(0, "Chrom", chrom)
+    editing_long_dfs.append(editing_long_df)
+    
+    editing_profiles_df = editing_and_snps_reads_df.groupby("Haplotype")[editing_cols].mean().mul(100).T
+    editing_profiles_df.dropna(how="all", inplace=True)
+    editing_profiles_df.insert(0, "Chrom", chrom)
+    editing_profiles_dfs.append(editing_profiles_df)
+    
+concat_editing_long_df = pd.concat(editing_long_dfs)
+concat_editing_profiles_dfs = pd.concat(editing_profiles_dfs)
+
+concat_editing_long_df["EditingSite"] = concat_editing_long_df["EditingSite"].astype(int)
+concat_editing_long_df["%mean"] = concat_editing_long_df["mean"].mul(100)
+
+# del editing_long_dfs, editing_profiles_dfs
+del editing_long_dfs
+
+# %%
+concat_editing_long_df 
+
+# %%
+editing_profiles_dfs[0]
+
+# %%
+#
+concat_editing_profiles_dfs
+
+# %%
+fig = px.scatter(
+    concat_editing_long_df,
+    x="EditingSite",
+    y="mean",
+    color="Haplotype",
+    facet_col="Chrom",
+    facet_col_wrap=3,
+    # error_y="std",
+    # facet_row="Haplotype",
+    opacity=0.8,
+)
+fig.update_layout(
+    height=600,
+    width=1000,
+    # template="simple_white",
+    # title=f"Editing Status Distribution per Editing Site<br>for Reads with Complete SNP Haplotypes"
+)
+fig.show()
+
+# %%
+import math
+import pandas as pd
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import plotly.express as px
+
+# ---- inputs ----
+df = concat_editing_long_df  # expects columns: Chrom, EditingSite, %mean, Haplotype
+
+facet_col = "Chrom"
+x_col = "EditingSite"
+y_col = "%mean"
+color_col = "Haplotype"
+
+facet_col_wrap = 3
+opacity = 0.8
+
+width = 1000
+height = 600
+
+# ---------------------------
+# 1) Decide facet order + grid
+# ---------------------------
+chroms = list(pd.unique(df[facet_col]))
+n_panels = len(chroms)
+ncols = facet_col_wrap
+nrows = math.ceil(n_panels / ncols)
+
+# -----------------------------------------
+# 2) Stable color map for haplotypes (global)
+#    Same haplotype -> same color across all subplots
+# -----------------------------------------
+haplotypes = list(pd.unique(df[color_col]))
+
+palette = px.colors.qualitative.D3
+if len(haplotypes) > len(palette):
+    palette = (palette * (len(haplotypes) // len(palette) + 1))[: len(haplotypes)]
+
+color_map = {h: c for h, c in zip(haplotypes, palette)}
+
+# ---------------------------
+# 3) Create subplots
+#    subtitle should be just chrom (not "Chrom=...")
+#    add more space between rows
+# ---------------------------
+subplot_titles = [str(c) for c in chroms]
+
+fig = make_subplots(
+    rows=nrows,
+    cols=ncols,
+    subplot_titles=subplot_titles,
+    horizontal_spacing=0.06,
+    # vertical_spacing=0.20,  # more space between rows
+    vertical_spacing=0.14,
+)
+
+panel_legends = {}  # (row, col) -> list[(haplotype, color)]
+
+# ---------------------------
+# 4) Add traces per panel
+#    Separate x-axis per subplot (default; do NOT match)
+#    X label only on bottom row
+#    Y label only on left-most col
+# ---------------------------
+for i, chrom in enumerate(chroms):
+    r = i // ncols + 1
+    c = i % ncols + 1
+
+    sub = df[df[facet_col] == chrom]
+
+    present_haps = list(pd.unique(sub[color_col]))
+    panel_legends[(r, c)] = [(h, color_map[h]) for h in present_haps]
+
+    for h in present_haps:
+        sh = sub[sub[color_col] == h]
+        fig.add_trace(
+            go.Scattergl(
+                x=sh[x_col],
+                y=sh[y_col],
+                mode="markers",
+                marker=dict(color=color_map[h], size=7, opacity=opacity),
+                name=str(h),
+                showlegend=False,  # we draw a per-panel legend via annotations
+            ),
+            row=r,
+            col=c,
+        )
+
+    # X axis label: only bottom row, with pretty text
+    fig.update_xaxes(
+        title_text=("Editing site" if r == nrows else None),
+        row=r,
+        col=c,
+    )
+
+    # Y axis label: only left-most column (as you already do)
+    fig.update_yaxes(
+        title_text=("Mean editing [%]" if c == 1 else None),
+        row=r,
+        col=c,
+    )
+
+# ---------------------------
+# 5) Layout + styling
+# ---------------------------
+fig.update_layout(
+    width=width,
+    height=height,
+    # template="simple_white",
+    margin=dict(l=80, r=20, t=60, b=60),
+)
+
+# Make subplot titles a bit nicer
+fig.update_annotations(font=dict(size=12))
+
+# ---------------------------
+# 6) "Legend inside each subplot" via annotations
+#     (Plotly supports only one real legend per figure)
+# ---------------------------
+layout = fig.layout
+
+for i, chrom in enumerate(chroms):
+    r = i // ncols + 1
+    c = i % ncols + 1
+
+    axis_index = i + 1
+    xaxis_name = "xaxis" if axis_index == 1 else f"xaxis{axis_index}"
+    yaxis_name = "yaxis" if axis_index == 1 else f"yaxis{axis_index}"
+
+    xdom = getattr(layout, xaxis_name).domain
+    ydom = getattr(layout, yaxis_name).domain
+
+    items = panel_legends[(r, c)]
+    legend_lines = ["<span style='font-size:12px;'><b>Haplotype</b></span>"]
+    for h, colr in items:
+        legend_lines.append(
+            f"<span style='color:{colr};'>●</span> <span style='font-size:11px;'>{h}</span>"
+        )
+    legend_html = "<br>".join(legend_lines)
+
+    fig.add_annotation(
+        x=xdom[1] - 0.01,
+        y=ydom[1] - 0.01,
+        xref="paper",
+        yref="paper",
+        xanchor="right",
+        yanchor="top",
+        text=legend_html,
+        showarrow=False,
+        align="left",
+        bgcolor="rgba(255,255,255,0.7)",
+        bordercolor="rgba(0,0,0,0.15)",
+        borderwidth=1,
+        borderpad=4,
+    )
+
+fig.show()
+
+
+# %%
+# editing_profiles["MeanEditingDiff(1-0)"].sort_values(ascending=False).round(2)
+
+# %%
+# fig = px.histogram(
+#     editing_profiles,
+#     x="MeanEditingDiff(1-0)",
+#     labels={
+#         "MeanEditingDiff(1-0)": "Mean % editing difference per site (Haplotype 1 - Haplotype 0)"
+#     }
+# )
+# fig.update_xaxes(dtick=1)
+# fig.update_layout(
+#     height=500,
+#     width=1000,
+#     template="simple_white",
+# )
+# fig.show()
+
+# %%
+editing_and_snps_reads_df["Haplotype"].unique()
+
+# %%
+fig = px.scatter_matrix(
+    editing_profiles,
+    dimensions=editing_and_snps_reads_df["Haplotype"].unique(),
+    # x="GlobalMeanEditing",
+    # y="MeanEditingDiff(1-0)",
+    # labels={
+    #     "MeanEditingDiff(1-0)": "Mean % editing difference per site<br>(Haplotype 1 - Haplotype 0)",
+    #     "GlobalMeanEditing": "Global mean % editing per site"
+    # },
+    # marginal_x="histogram", marginal_y="histogram",
+    # trendline="ols", trendline_color_override="black"
+)
+
+# fig.update_xaxes(dtick=1)
+fig.update_traces(diagonal_visible=False)
+fig.update_layout(
+    height=700,
+    width=700,
+    # template="simple_white",
+)
+fig.show()
+
+# %%
+fig = px.scatter(
+    editing_profiles,
+    x="0",
+    y="1",
+    labels={
+        "0": "Haplotype 0 mean editing frequency [%]",
+        "1": "Haplotype 1 mean editing frequency [%]",
+    },
+    # marginal_x="histogram", marginal_y="histogram",
+    # trendline="ols", trendline_color_override="black"
+)
+
+fig.update_xaxes(dtick=10, range=[0, 100])
+fig.update_yaxes(dtick=10, range=[0, 100])
+
+fig.update_layout(
+    height=500,
+    width=500,
+    template="simple_white",
+    # yaxis=dict(
+    #     scaleanchor="x",
+    #     scaleratio=1,
+    # )
+)
+fig.show()
+
+# %%
 
 # %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"}
 # ### Unique

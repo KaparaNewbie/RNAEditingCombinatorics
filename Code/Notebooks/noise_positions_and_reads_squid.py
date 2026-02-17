@@ -184,12 +184,12 @@ illumina_snps_reads_files = [
 ]
 
 # %%
-# first_illumina_sample_index = 0
-# last_illumina_sample_index = len(illumina_samples)
+first_illumina_sample_index = 0
+last_illumina_sample_index = len(illumina_samples)
 
 # using only a few samples for now to test the code and make sure it runs in a reasonable time.
-first_illumina_sample_index = 13
-last_illumina_sample_index = 16
+# first_illumina_sample_index = 13
+# last_illumina_sample_index = 16
 
 num_illumina_samples = last_illumina_sample_index - first_illumina_sample_index
 
