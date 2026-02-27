@@ -8,7 +8,7 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.18.1
 #   kernelspec:
-#     display_name: Python 3 (ipykernel)
+#     display_name: combinatorics2
 #     language: python
 #     name: python3
 # ---
@@ -302,10 +302,10 @@ fig.update_layout(
     width=width, height=height, title_x=0.13,
 )
 
-fig.write_image(
-    "Accumulated % of reads length - PacBio.svg",
-    width=width, height=height,
-)
+# fig.write_image(
+#     "Accumulated % of reads length - PacBio.svg",
+#     width=width, height=height,
+# )
 
 fig.show()
 
@@ -454,10 +454,10 @@ fig.update_layout(
         xanchor="right",)
 )
 
-fig.write_image(
-    "Avg deletion events vs read quality - PacBio.svg",
-    width=width,
-    height=height,
-)
+# fig.write_image(
+#     "Avg deletion events vs read quality - PacBio.svg",
+#     width=width,
+#     height=height,
+# )
 
 fig.show()

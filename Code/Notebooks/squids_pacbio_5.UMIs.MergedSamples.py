@@ -110,7 +110,7 @@ reads_files = [
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz",
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz",
 ]
-reads_snps_files = [
+snps_reads_files = [
     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.snps.csv.gz",
     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.snps.csv.gz"
 ]
@@ -154,10 +154,13 @@ expression_files = [
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.DistinctUniqueProteins.ExpressionLevels.EntropyConsidered.csv",
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC1.DistinctUniqueProteins.ExpressionLevels.EntropyConsidered.csv",
 ]
-# fraction01_expression_files = [
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA.DistinctUniqueProteins.ExpressionLevels.Fraction0_1.csv",
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO.DistinctUniqueProteins.ExpressionLevels.Fraction0_1.csv",
-# ]
+# TODO fill update f01 exp files
+fraction01_expression_files = [
+    # "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA.DistinctUniqueProteins.ExpressionLevels.Fraction0_1.csv",
+    # "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO.DistinctUniqueProteins.ExpressionLevels.Fraction0_1.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.DistinctUniqueProteins.ExpressionLevels.Fraction0_1.EntropyConsidered.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC1.DistinctUniqueProteins.ExpressionLevels.Fraction0_1.EntropyConsidered.csv"
+]
 
 # distinct_dissimilar_miyata_proteins_files = [
 #     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.AAgroupsMiyata1979.06.02.2024-13:43:37.csv",
@@ -577,6 +580,85 @@ concat_twelve_mismatches_df.to_csv(
     index=False
 )
 
+
+# %% [markdown]
+# ## Raw unfiltered reads
+
+# %%
+def count_deletions(read: pysam.AlignedSegment):
+    cigar = read.cigarstring
+    return sum(1 for x in cigar if x == "D")
+
+
+# %%
+def make_raw_reads_stats_df(
+    aligned_bam_files,
+    condition_col,
+    conditions
+):
+    all_read_lens = []
+    all_nps = []
+    all_rqs = []
+    all_deletion_events = []
+    for mapped_bam in aligned_bam_files:
+        with pysam.AlignmentFile(mapped_bam, "rb") as samfile:
+            read_lens = []
+            nps = []
+            rqs = []
+            deletion_events = []
+            for read in samfile:
+                # print(read.query_name)
+                # rq_tag = read.get_tag("rq")
+                # print(f"{rq_tag = }, {type(rq_tag) = }")
+                # break
+                read_lens.append(len(read.seq))
+                deletion_events.append(count_deletions(read))
+                tags = dict(read.tags)
+                nps.append(int(tags["np"]))
+                rqs.append(float(tags["rq"]))
+            all_read_lens.append(read_lens)
+            all_nps.append(nps)
+            all_rqs.append(rqs)
+            all_deletion_events.append(deletion_events)
+            
+    dfs = [
+        (
+            pd.DataFrame(
+                {
+                    "ReadLen": read_lens,
+                    "NumOfPasses": nps,
+                    "ReadQuality": rqs,
+                    "Deletions": deletions,
+                }
+            )
+            .assign(condition_col=condition)
+            .rename(columns={"condition_col": condition_col})
+        )
+        for read_lens, nps, rqs, condition, deletions in zip(
+            all_read_lens, all_nps, all_rqs, conditions, all_deletion_events
+        )
+    ]
+
+    df = pd.concat(dfs).reset_index(drop=True)
+    
+    return df
+
+
+# %%
+concat_raw_reads_stats_df = make_raw_reads_stats_df(
+    aligned_bam_files,
+    condition_col,
+    conditions
+)
+concat_raw_reads_stats_df
+
+# %%
+concat_raw_reads_stats_df.to_csv(
+    Path(out_dir, "RawReadsStats.Squid.PacBio.UMIs.csv"),
+    sep="\t",
+    index=False
+)
+
 # %% [markdown]
 # ## Raw reads
 
@@ -843,7 +925,7 @@ np.percentile(ambigous_positions_in_reads_df["NAsPerRead"], [25, 75])
 
 
 # %% [markdown]
-# ### All SNPs reads
+# ### Reads with full haplotype information (SNPs and editing positions covered)
 
 # %%
 def make_editing_and_snps_reads_df(
@@ -866,7 +948,7 @@ def make_editing_and_snps_reads_df(
     )
     
     if reads_snps_df.empty:
-        return None, None
+        return None
     
     # add all reads (even those without a single SNP covered) to reads_snps_df
     # to allow direct insertion of data from reads_snps_df into editing_and_snps_reads_df (see below)
@@ -886,20 +968,20 @@ def make_editing_and_snps_reads_df(
     # snps_positions
     
     editing_and_snps_reads_df = (
-    reads_df
-    .merge(
-        reads_snps_df.loc[:, [condition_col, "Read"]],
-        how="left"
+        reads_df
+        .merge(
+            reads_snps_df.loc[:, [condition_col, "Read"]],
+            how="left"
+        )
+        .sort_values("Read", ignore_index=True)
     )
-    .sort_values("Read", ignore_index=True)
-)
 
     # insert each indivdual SNP to reads with editing status df
     reads_first_col_pos_in_editing_and_snps_reads_df = reads_first_col_pos
-    ic(reads_first_col_pos_in_editing_and_snps_reads_df)
+    # ic(reads_first_col_pos_in_editing_and_snps_reads_df)
 
     for snp_position in snps_positions:
-        ic(snp_position)
+        # ic(snp_position)
         # we can directly insert this col from reads_snps_df into editing_and_snps_reads_df 
         # because both dataframes are sorted by Read
         editing_and_snps_reads_df.insert(
@@ -908,7 +990,7 @@ def make_editing_and_snps_reads_df(
             reads_snps_df[snp_position]
         )
         reads_first_col_pos_in_editing_and_snps_reads_df += 1
-        ic(reads_first_col_pos_in_editing_and_snps_reads_df);
+        # ic(reads_first_col_pos_in_editing_and_snps_reads_df);
 
 
     # Identify the editing site columns (starting from the current offset onwards)
@@ -922,7 +1004,11 @@ def make_editing_and_snps_reads_df(
     # Using .all(axis=1) ensures we have a complete haplotype for the selected SNPs
     valid_reads_mask = editing_and_snps_reads_df[snp_cols].ne(-1).all(axis=1)
     editing_and_snps_reads_df = editing_and_snps_reads_df.loc[valid_reads_mask].copy()
-
+    
+    # if no reads hold complete haplotype information, terminate early
+    if editing_and_snps_reads_df.empty:
+        return None
+    
     # Replace -1 (unmapped/ignored) with NaN in the editing columns
     # so means are computed on covered reads only
     editing_and_snps_reads_df[editing_cols] = editing_and_snps_reads_df[editing_cols].replace(-1, np.nan)
@@ -935,13 +1021,27 @@ def make_editing_and_snps_reads_df(
         editing_and_snps_reads_df[snp_cols].astype(str).agg("|".join, axis=1)
     )
     reads_first_col_pos_in_editing_and_snps_reads_df += 1
-    ic(reads_first_col_pos_in_editing_and_snps_reads_df)
+    # ic(reads_first_col_pos_in_editing_and_snps_reads_df)
 
-    return editing_and_snps_reads_df, reads_first_col_pos_in_editing_and_snps_reads_df
+    # return editing_and_snps_reads_df, reads_first_col_pos_in_editing_and_snps_reads_df
+    return editing_and_snps_reads_df
+
 
 # %%
-editing_and_snps_reads_dfs_and_first_col_poses = [
-        make_editing_and_snps_reads_df(
+def validate_haplotypes_diversity(
+    editing_and_snps_reads_df,
+    min_haplotypes,
+    min_reads_per_haplotype
+):
+    haplotypes_value_counts = editing_and_snps_reads_df["Haplotype"].value_counts()
+    if haplotypes_value_counts.ge(min_reads_per_haplotype).sum() >= min_haplotypes:
+        return True
+    return False
+
+
+# %%
+editing_and_snps_reads_dfs = [
+    make_editing_and_snps_reads_df(
         reads_snps_file,
         reads_df,
         reads_first_col_pos,
@@ -949,176 +1049,20 @@ editing_and_snps_reads_dfs_and_first_col_poses = [
         sep
     )
     for reads_snps_file, reads_df in zip(
-        reads_snps_files, reads_dfs
+        snps_reads_files, reads_dfs
     )
 ]
-editing_and_snps_reads_dfs_and_first_col_poses[0][0]
 
-# %%
-editing_and_snps_reads_df = editing_and_snps_reads_dfs_and_first_col_poses[0][0]
-editing_and_snps_reads_df
+# keep only results where the editing and snps reads df is not None (i.e. there were reads with complete haplotype information)
+editing_and_snps_reads_dfs = [
+    res
+    for res in editing_and_snps_reads_dfs
+    if type(res) == pd.core.frame.DataFrame
+]
 
-# %%
-editing_cols = editing_and_snps_reads_df.loc[:, "Haplotype":].iloc[:, 1:].columns
-editing_cols
+ic(len(editing_and_snps_reads_dfs));
 
-# %%
-# temp_df.groupby("Haplotype")[editing_cols].agg(["mean", "std"])
-editing_long_df = (
-    editing_and_snps_reads_df.groupby("Haplotype")[editing_cols]
-    .agg(["mean", "std"])
-    .stack(level=0, future_stack=True)  # silence FutureWarning (pandas>=2.1)
-    .reset_index()
-    .rename(columns={"level_1": "EditingSite"})
-)
-
-# # optional: nicer dtypes / sorting
-editing_long_df["EditingSite"] = editing_long_df["EditingSite"].astype(int)
-editing_long_df = editing_long_df.sort_values(["EditingSite", "Haplotype"], ignore_index=True)
-editing_long_df["EditingSite"] = editing_long_df["EditingSite"].astype(str)
-
-editing_long_df
-
-# %%
-fig = px.scatter(
-    editing_long_df,
-    x="EditingSite",
-    y="mean",
-    color="Haplotype",
-    # error_y="std",
-    # facet_row="Haplotype",
-    opacity=0.8,
-)
-fig.update_layout(
-    height=500,
-    width=1000,
-    template="simple_white",
-    # title=f"Editing Status Distribution per Editing Site<br>for Reads with Complete SNP Haplotypes"
-)
-fig.show()
-
-# %%
-# Group by the SNP alleles (haplotypes) and calculate the editing frequency for each site
-# (rows=editing sites, cols=haplotypes)
-# editing_profiles = temp_df.groupby("Haplotype")[editing_cols].mean().T
-editing_profiles = editing_and_snps_reads_df.groupby("Haplotype")[editing_cols].mean().mul(100).T
-editing_profiles.dropna(how="all", inplace=True)
-# editing_profiles["MeanOfMeans"] = editing_profiles.mean(axis=1)
-editing_profiles = editing_profiles.merge(
-    editing_and_snps_reads_df.loc[:, editing_cols].mean().mul(100).T.rename("GlobalMeanEditing"),
-    left_index=True,
-    right_index=True
-)
-editing_profiles["MeanEditingDiff(1-0)"] = editing_profiles.apply(
-    lambda x: x.iloc[1] - x.iloc[0], axis=1
-)
-
-editing_profiles
-
-# %%
-editing_profiles["MeanEditingDiff(1-0)"].sort_values(ascending=False).round(2)
-
-# %%
-fig = px.histogram(
-    editing_profiles,
-    x="MeanEditingDiff(1-0)",
-    labels={
-        "MeanEditingDiff(1-0)": "Mean % editing difference per site (Haplotype 1 - Haplotype 0)"
-    }
-)
-fig.update_xaxes(dtick=1)
-fig.update_layout(
-    height=500,
-    width=1000,
-    template="simple_white",
-)
-fig.show()
-
-# %%
-fig = px.scatter_matrix(df,
-    dimensions=["sepal_length", "sepal_width", "petal_length", "petal_width"],
-    color="species", symbol="species",
-    title="Scatter matrix of iris data set",
-    labels={col:col.replace('_', ' ') for col in df.columns}) # remove underscore
-fig.update_traces(diagonal_visible=False)
-fig.show()
-
-# %%
-editing_and_snps_reads_df["Haplotype"].unique()
-
-# %%
-fig = px.scatter(
-    editing_profiles,
-    x="0",
-    y="1",
-    labels={
-        "0": "Haplotype 0 mean editing frequency [%]",
-        "1": "Haplotype 1 mean editing frequency [%]",
-    },
-    # marginal_x="histogram", marginal_y="histogram",
-    # trendline="ols", trendline_color_override="black"
-)
-
-fig.update_xaxes(dtick=10, range=[0, 100])
-fig.update_yaxes(dtick=10, range=[0, 100])
-
-fig.update_layout(
-    height=500,
-    width=500,
-    template="simple_white",
-    # yaxis=dict(
-    #     scaleanchor="x",
-    #     scaleratio=1,
-    # )
-)
-fig.show()
-
-# %%
-fig = px.scatter_matrix(
-    editing_profiles,
-    dimensions=editing_and_snps_reads_df["Haplotype"].unique(),
-    # x="GlobalMeanEditing",
-    # y="MeanEditingDiff(1-0)",
-    # labels={
-    #     "MeanEditingDiff(1-0)": "Mean % editing difference per site<br>(Haplotype 1 - Haplotype 0)",
-    #     "GlobalMeanEditing": "Global mean % editing per site"
-    # },
-    # marginal_x="histogram", marginal_y="histogram",
-    # trendline="ols", trendline_color_override="black"
-)
-
-# fig.update_xaxes(dtick=1)
-fig.update_layout(
-    height=700,
-    width=700,
-    template="simple_white",
-)
-fig.show()
-
-# %%
-fig = px.scatter(
-    editing_profiles,
-    x="GlobalMeanEditing",
-    y="MeanEditingDiff(1-0)",
-    labels={
-        "MeanEditingDiff(1-0)": "Mean % editing difference per site<br>(Haplotype 1 - Haplotype 0)",
-        "GlobalMeanEditing": "Global mean % editing per site"
-    },
-    marginal_x="histogram", marginal_y="histogram",
-    trendline="ols", trendline_color_override="black"
-)
-
-
-results = px.get_trendline_results(fig)
-print(results.iloc[0].px_fit_results.summary())
-
-# fig.update_xaxes(dtick=1)
-fig.update_layout(
-    height=700,
-    width=700,
-    template="simple_white",
-)
-fig.show()
+editing_and_snps_reads_dfs[0]
 
 # %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"}
 # ### Unique
@@ -1333,9 +1277,6 @@ unique_proteins_dfs[1].loc[:, cols_which_contain_blosum62_nonsyn_2]
 # #### Basic
 
 # %%
-unique_reads_dfs[0]
-
-# %%
 distinct_unique_proteins_dfs = []
 for condition, distinct_unique_proteins_file, unique_reads_df in zip(
     conditions, distinct_unique_proteins_files, unique_reads_dfs
@@ -1381,9 +1322,6 @@ assert distinct_unique_proteins_df.loc[
 
 distinct_unique_proteins_df
 
-
-# %%
-condition_col
 
 # %% [markdown]
 # #### Expanded
@@ -4561,6 +4499,906 @@ singatures_statistics_df = singatures_statistics_df.drop(columns=["TestResult"])
 
 
 singatures_statistics_df
+
+# %% [markdown]
+# ## Editing by haplotype
+
+# %% [markdown]
+# ### Prev plots
+
+# %%
+editing_and_snps_reads_df = editing_and_snps_reads_dfs[0]
+editing_and_snps_reads_df
+
+# %%
+editing_cols = editing_and_snps_reads_df.loc[:, "Haplotype":].iloc[:, 1:].columns
+editing_cols
+
+# %%
+# temp_df.groupby("Haplotype")[editing_cols].agg(["mean", "std"])
+editing_long_df = (
+    editing_and_snps_reads_df.groupby("Haplotype")[editing_cols]
+    .agg(["mean", "std"])
+    .stack(level=0, future_stack=True)  # silence FutureWarning (pandas>=2.1)
+    .reset_index()
+    .rename(columns={"level_1": "EditingSite"})
+)
+
+# # optional: nicer dtypes / sorting
+editing_long_df["EditingSite"] = editing_long_df["EditingSite"].astype(int)
+editing_long_df = editing_long_df.sort_values(["EditingSite", "Haplotype"], ignore_index=True)
+editing_long_df["EditingSite"] = editing_long_df["EditingSite"].astype(str)
+editing_long_df["%mean"] = editing_long_df["mean"] * 100
+
+editing_long_df
+
+# %%
+fig = px.scatter(
+    editing_long_df,
+    x="EditingSite",
+    y="%mean",
+    color="Haplotype",
+    opacity=0.8,
+    labels={
+        "EditingSite": "Editing site",
+        "%mean": "Mean editing [%]"
+    }
+)
+fig.update_layout(
+    height=500,
+    width=1000,
+    template="simple_white",
+    # title=f"Editing Status Distribution per Editing Site<br>for Reads with Complete SNP Haplotypes"
+)
+fig.show()
+
+# %%
+# Group by the SNP alleles (haplotypes) and calculate the editing frequency for each site
+# (rows=editing sites, cols=haplotypes)
+# editing_profiles = temp_df.groupby("Haplotype")[editing_cols].mean().T
+editing_profiles = editing_and_snps_reads_df.groupby("Haplotype")[editing_cols].mean().mul(100).T
+editing_profiles.dropna(how="all", inplace=True)
+# editing_profiles["MeanOfMeans"] = editing_profiles.mean(axis=1)
+editing_profiles = editing_profiles.merge(
+    editing_and_snps_reads_df.loc[:, editing_cols].mean().mul(100).T.rename("GlobalMeanEditing"),
+    left_index=True,
+    right_index=True
+)
+editing_profiles["MeanEditingDiff(1-0)"] = editing_profiles.apply(
+    lambda x: x.iloc[1] - x.iloc[0], axis=1
+)
+
+editing_profiles
+
+# %%
+editing_profiles["MeanEditingDiff(1-0)"].sort_values(ascending=False).round(2)
+
+# %%
+fig = px.histogram(
+    editing_profiles,
+    x="MeanEditingDiff(1-0)",
+    labels={
+        "MeanEditingDiff(1-0)": "Mean % editing difference per site (Haplotype 1 - Haplotype 0)"
+    }
+)
+fig.update_xaxes(dtick=1)
+fig.update_layout(
+    height=500,
+    width=1000,
+    template="simple_white",
+)
+fig.show()
+
+# %%
+fig = px.scatter_matrix(df,
+    dimensions=["sepal_length", "sepal_width", "petal_length", "petal_width"],
+    color="species", symbol="species",
+    title="Scatter matrix of iris data set",
+    labels={col:col.replace('_', ' ') for col in df.columns}) # remove underscore
+fig.update_traces(diagonal_visible=False)
+fig.show()
+
+# %%
+editing_and_snps_reads_df["Haplotype"].unique()
+
+# %%
+fig = px.scatter(
+    editing_profiles,
+    x="0",
+    y="1",
+    labels={
+        "0": "Haplotype 0 mean editing frequency [%]",
+        "1": "Haplotype 1 mean editing frequency [%]",
+    },
+    # marginal_x="histogram", marginal_y="histogram",
+    # trendline="ols", trendline_color_override="black"
+)
+
+max_x = int(
+    np.ceil(
+        editing_profiles.loc[:, ["0", "1"]].max().max()
+    )
+)
+
+fig.update_xaxes(dtick=10, range=[0, max_x])
+fig.update_yaxes(dtick=10, range=[0, max_x])
+
+fig.update_layout(
+    height=500,
+    width=500,
+    template="simple_white",
+    # yaxis=dict(
+    #     scaleanchor="x",
+    #     scaleratio=1,
+    # )
+)
+fig.show()
+
+# %%
+editing_profiles
+
+# %%
+editing_profiles.loc[:, ["0", "1"]].max().max()
+
+# %%
+
+# %%
+
+# %%
+fig = go.Figure(
+    data=go.Scatter(
+        x=editing_profiles["0"], 
+        y=editing_profiles["1"], 
+        name='Original data',
+        mode='markers', 
+    )
+)
+
+# Add a second line as a new trace
+fig.add_trace(
+    go.Scatter(
+        x=[0, 100], 
+        y=[0, 100], 
+        mode='lines', 
+        name='No differential editing',
+        line=dict(color='firebrick', width=2)
+    )
+)
+
+max_x = int(
+    np.ceil(
+        editing_profiles.loc[:, ["0", "1"]].max().max()
+    )
+)
+
+fig.update_xaxes(
+    dtick=10, 
+    range=[0, max_x],
+    title_text="Haplotype 0 mean editing [%]"
+)
+fig.update_yaxes(
+    dtick=10, 
+    range=[0, max_x],
+    title_text="Haplotype 1 mean editing [%]"
+)
+
+fig.update_layout(
+    height=500,
+    width=600,
+    template="simple_white",
+    # yaxis=dict(
+    #     scaleanchor="x",
+    #     scaleratio=1,
+    # )
+)
+fig.show()
+
+# %%
+# fig = px.scatter(
+#     editing_profiles,
+#     x="GlobalMeanEditing",
+#     y="MeanEditingDiff(1-0)",
+#     labels={
+#         "MeanEditingDiff(1-0)": "Mean % editing difference per site<br>(Haplotype 1 - Haplotype 0)",
+#         "GlobalMeanEditing": "Global mean % editing per site"
+#     },
+#     marginal_x="histogram", marginal_y="histogram",
+#     trendline="ols", trendline_color_override="black"
+# )
+
+
+# results = px.get_trendline_results(fig)
+# print(results.iloc[0].px_fit_results.summary())
+
+# # fig.update_xaxes(dtick=1)
+# fig.update_layout(
+#     height=700,
+#     width=700,
+#     template="simple_white",
+# )
+# fig.show()
+
+# %% [markdown]
+# ### Selected diverse haplotypes tests
+
+# %%
+def validate_haplotypes_diversity(
+    editing_and_snps_reads_df,
+    min_haplotypes,
+    min_reads_per_haplotype
+):
+    haplotypes_value_counts = editing_and_snps_reads_df["Haplotype"].value_counts()
+    if haplotypes_value_counts.ge(min_reads_per_haplotype).sum() >= min_haplotypes:
+        return True
+    return False
+
+
+# %%
+diverse_haplotypes_editing_and_snps_reads_dfs = [
+    df
+    for df in editing_and_snps_reads_dfs
+    # if validate_haplotypes_diversity(df, 2, 50)
+    # if validate_haplotypes_diversity(df, 2, 300) or validate_haplotypes_diversity(df, 3, 100)
+    if validate_haplotypes_diversity(df, 3, 100)
+]
+ic(len(diverse_haplotypes_editing_and_snps_reads_dfs));
+
+# %%
+diverse_haplotypes_editing_and_snps_reads_dfs[0]
+
+# %%
+editing_long_dfs = []
+editing_profiles_dfs = []
+
+for editing_and_snps_reads_df in diverse_haplotypes_editing_and_snps_reads_dfs:
+    
+    chrom = editing_and_snps_reads_df["Chrom"].iloc[0]
+    editing_cols = editing_and_snps_reads_df.loc[:, "Haplotype":].iloc[:, 1:].columns
+    
+    editing_long_df = (
+        editing_and_snps_reads_df.groupby("Haplotype")[editing_cols]
+        .agg(["mean", "std"])
+        .stack(level=0, future_stack=True)  # silence FutureWarning (pandas>=2.1)
+        .reset_index()
+        .rename(columns={"level_1": "EditingSite"})
+    )
+    # # optional: nicer dtypes / sorting
+    editing_long_df["EditingSite"] = editing_long_df["EditingSite"].astype(int)
+    editing_long_df = editing_long_df.sort_values(["EditingSite", "Haplotype"], ignore_index=True)
+    editing_long_df["EditingSite"] = editing_long_df["EditingSite"].astype(str)
+    editing_long_df.insert(0, "Chrom", chrom)
+    editing_long_dfs.append(editing_long_df)
+    
+    editing_profiles_df = editing_and_snps_reads_df.groupby("Haplotype")[editing_cols].mean().mul(100).T
+    editing_profiles_df.dropna(how="all", inplace=True)
+    editing_profiles_df.insert(0, "Chrom", chrom)
+    editing_profiles_dfs.append(editing_profiles_df)
+    
+concat_editing_long_df = pd.concat(editing_long_dfs)
+concat_editing_profiles_dfs = pd.concat(editing_profiles_dfs)
+
+concat_editing_long_df["EditingSite"] = concat_editing_long_df["EditingSite"].astype(int)
+concat_editing_long_df["%mean"] = concat_editing_long_df["mean"].mul(100)
+
+# del editing_long_dfs, editing_profiles_dfs
+# del editing_long_dfs
+
+# %%
+concat_editing_long_df 
+
+# %%
+editing_profiles_dfs[0]
+
+# %%
+concat_editing_profiles_dfs
+
+# %%
+# fig = px.scatter(
+#     concat_editing_long_df,
+#     x="EditingSite",
+#     y="%mean",
+#     color="Haplotype",
+#     facet_col="Chrom",
+#     facet_col_wrap=3,
+#     # error_y="std",
+#     # facet_row="Haplotype",
+#     opacity=0.8,
+# )
+# fig.update_layout(
+#     height=600,
+#     width=1000,
+#     # template="simple_white",
+#     # title=f"Editing Status Distribution per Editing Site<br>for Reads with Complete SNP Haplotypes"
+# )
+# fig.show()
+
+# %%
+# ---- inputs ----
+df = concat_editing_long_df  # expects columns: Chrom, EditingSite, %mean, Haplotype
+
+facet_col = "Chrom"
+x_col = "EditingSite"
+y_col = "%mean"
+color_col = "Haplotype"
+
+facet_col_wrap = 3
+opacity = 0.8
+
+width = 1000
+height = 600
+
+# ---------------------------
+# 1) Decide facet order + grid
+# ---------------------------
+chroms = list(pd.unique(df[facet_col]))
+n_panels = len(chroms)
+ncols = facet_col_wrap
+nrows = math.ceil(n_panels / ncols)
+
+# -----------------------------------------
+# 2) Stable color map for haplotypes (global)
+#    Same haplotype -> same color across all subplots
+# -----------------------------------------
+haplotypes = list(pd.unique(df[color_col]))
+
+palette = px.colors.qualitative.D3
+if len(haplotypes) > len(palette):
+    palette = (palette * (len(haplotypes) // len(palette) + 1))[: len(haplotypes)]
+
+color_map = {h: c for h, c in zip(haplotypes, palette)}
+
+# ---------------------------
+# 3) Create subplots
+#    subtitle should be just chrom (not "Chrom=...")
+#    add more space between rows
+# ---------------------------
+subplot_titles = [str(c) for c in chroms]
+
+fig = make_subplots(
+    rows=nrows,
+    cols=ncols,
+    subplot_titles=subplot_titles,
+    horizontal_spacing=0.06,
+    # vertical_spacing=0.20,  # more space between rows
+    vertical_spacing=0.14,
+)
+
+panel_legends = {}  # (row, col) -> list[(haplotype, color)]
+
+# ---------------------------
+# 4) Add traces per panel
+#    Separate x-axis per subplot (default; do NOT match)
+#    X label only on bottom row
+#    Y label only on left-most col
+# ---------------------------
+for i, chrom in enumerate(chroms):
+    r = i // ncols + 1
+    c = i % ncols + 1
+
+    sub = df[df[facet_col] == chrom]
+
+    present_haps = list(pd.unique(sub[color_col]))
+    panel_legends[(r, c)] = [(h, color_map[h]) for h in present_haps]
+
+    for h in present_haps:
+        sh = sub[sub[color_col] == h]
+        fig.add_trace(
+            go.Scattergl(
+                x=sh[x_col],
+                y=sh[y_col],
+                mode="markers",
+                marker=dict(color=color_map[h], size=7, opacity=opacity),
+                name=str(h),
+                showlegend=False,  # we draw a per-panel legend via annotations
+            ),
+            row=r,
+            col=c,
+        )
+
+    # X axis label: only bottom row, with pretty text
+    fig.update_xaxes(
+        title_text=("Editing site" if r == nrows else None),
+        row=r,
+        col=c,
+    )
+
+    # Y axis label: only left-most column (as you already do)
+    fig.update_yaxes(
+        title_text=("Mean editing [%]" if c == 1 else None),
+        row=r,
+        col=c,
+    )
+
+# ---------------------------
+# 5) Layout + styling
+# ---------------------------
+fig.update_layout(
+    width=width,
+    height=height,
+    # template="simple_white",
+    margin=dict(l=80, r=20, t=60, b=60),
+)
+
+# Make subplot titles a bit nicer
+fig.update_annotations(font=dict(size=12))
+
+# ---------------------------
+# 6) "Legend inside each subplot" via annotations
+#     (Plotly supports only one real legend per figure)
+# ---------------------------
+layout = fig.layout
+
+for i, chrom in enumerate(chroms):
+    r = i // ncols + 1
+    c = i % ncols + 1
+
+    axis_index = i + 1
+    xaxis_name = "xaxis" if axis_index == 1 else f"xaxis{axis_index}"
+    yaxis_name = "yaxis" if axis_index == 1 else f"yaxis{axis_index}"
+
+    xdom = getattr(layout, xaxis_name).domain
+    ydom = getattr(layout, yaxis_name).domain
+
+    items = panel_legends[(r, c)]
+    legend_lines = ["<span style='font-size:12px;'><b>Haplotype</b></span>"]
+    for h, colr in items:
+        legend_lines.append(
+            f"<span style='color:{colr};'>●</span> <span style='font-size:11px;'>{h}</span>"
+        )
+    legend_html = "<br>".join(legend_lines)
+
+    fig.add_annotation(
+        x=xdom[1] - 0.01,
+        y=ydom[1] - 0.01,
+        xref="paper",
+        yref="paper",
+        xanchor="right",
+        yanchor="top",
+        text=legend_html,
+        showarrow=False,
+        align="left",
+        bgcolor="rgba(255,255,255,0.7)",
+        bordercolor="rgba(0,0,0,0.15)",
+        borderwidth=1,
+        borderpad=4,
+    )
+
+fig.show()
+
+
+# %%
+# editing_profiles["MeanEditingDiff(1-0)"].sort_values(ascending=False).round(2)
+
+# %%
+# fig = px.histogram(
+#     editing_profiles,
+#     x="MeanEditingDiff(1-0)",
+#     labels={
+#         "MeanEditingDiff(1-0)": "Mean % editing difference per site (Haplotype 1 - Haplotype 0)"
+#     }
+# )
+# fig.update_xaxes(dtick=1)
+# fig.update_layout(
+#     height=500,
+#     width=1000,
+#     template="simple_white",
+# )
+# fig.show()
+
+# %%
+concat_editing_profiles_dfs
+
+# %%
+len(concat_editing_profiles_dfs.columns[1:])
+
+# %%
+# unique_haplotypes_across_all_tested_chroms = concat_editing_profiles_dfs.columns[1:]   # exclude Chrom col
+# fig = px.scatter_matrix(
+#     concat_editing_profiles_dfs,
+#     dimensions=unique_haplotypes_across_all_tested_chroms,
+#     color="Chrom",
+# )
+# # fig.update_xaxes(dtick=20, range=[0, 100])
+# # fig.update_yaxes(dtick=20, range=[0, 100])
+# fig.update_traces(diagonal_visible=False)
+# fig.update_layout(
+#     height=len(unique_haplotypes_across_all_tested_chroms)*90,
+#     width=len(unique_haplotypes_across_all_tested_chroms)*90+200,
+# )
+# fig.show()
+
+# %%
+# # Define indices corresponding to Chrom categories, using pandas label encoding
+# index_vals = concat_editing_profiles_dfs['Chrom'].astype('category').cat.codes
+
+
+# unique_haplotypes_across_all_tested_chroms = concat_editing_profiles_dfs.columns[1:]   # exclude Chrom col
+
+# fig = go.Figure(
+#      data=go.Splom(
+#           dimensions=[
+#                dict(
+#                     label=haplotype,
+#                     values=concat_editing_profiles_dfs[haplotype]
+#                )
+#                for haplotype in unique_haplotypes_across_all_tested_chroms   
+#           ],
+#           diagonal_visible=False, # remove plots on diagonal
+#           showupperhalf=False, # remove plots on upper half
+#           text=concat_editing_profiles_dfs['Chrom'],
+#           marker=dict(
+#                color=index_vals,
+#                showscale=False, # colors encode categorical variables
+#                line_color='white', 
+#                line_width=0.5
+#           )
+#      )
+# )
+
+# fig.update_layout(
+# #     title=dict(text='Iris Data set'),
+#     dragmode='select',
+# #     width=800,
+# #     height=800,
+#     height=len(unique_haplotypes_across_all_tested_chroms)*100,
+#     width=len(unique_haplotypes_across_all_tested_chroms)*100+200,
+#     hovermode='closest',
+# )
+
+# fig.show()
+
+# %%
+editing_profiles_dfs[0]
+
+# %%
+for editing_profiles_df in editing_profiles_dfs:
+    chrom = editing_profiles_df["Chrom"].iloc[0]
+    fig = px.scatter_matrix(
+        editing_profiles_df,
+        dimensions=editing_profiles_df.columns[1:],  # exclude Chrom col
+    )
+    # fig.update_xaxes(dtick=10)
+    # fig.update_yaxes(dtick=10)
+    fig.update_traces(diagonal_visible=False)
+    fig.update_layout(
+        height=500,
+        width=500,
+        title=chrom,
+    )
+    fig.show()
+
+# %%
+# editing_profiles_df = editing_profiles_dfs[0]
+# editing_profiles_df
+
+
+# %%
+
+# chrom = editing_profiles_df["Chrom"].iloc[0]
+# fig = px.scatter_matrix(
+#     editing_profiles_df,
+
+#     x="0",
+#     y="1",
+#     labels={
+#         "0": "Haplotype 0 mean editing frequency [%]",
+#         "1": "Haplotype 1 mean editing frequency [%]",
+#     },
+#     # marginal_x="histogram", marginal_y="histogram",
+#     trendline="ols", trendline_color_override="black"
+# )
+
+# fig.update_xaxes(dtick=10, range=[0, 100])
+# fig.update_yaxes(dtick=10, range=[0, 100])
+
+# fig.update_layout(
+#     height=500,
+#     width=500,
+#     template="simple_white",
+#     # yaxis=dict(
+#     #     scaleanchor="x",
+#     #     scaleratio=1,
+#     # )
+# )
+# fig.show()
+
+# %%
+
+# %% [markdown]
+# ### Global enrichment with chi-square permutations
+
+# %%
+def _per_site_counts(df, site_col, haplotype_col, haplotypes):
+    """
+    Returns a 2x2 (or rxc where r=len(haplotypes) and c=2 (unedited/edited)) counts:
+      [[h1_edited0, h1_edited1],
+       [h2_edited0, h2_edited1]]
+    using df rows with non-NaN at site_col and haplotype_col in haplotypes (e.g. {h1,h2}).
+    """
+    sub = df.loc[df[haplotype_col].isin(haplotypes), [haplotype_col, site_col]].dropna()
+    # keep only 0/1
+    sub = sub.loc[sub[site_col].isin([0, 1])]
+    if sub.empty:
+        return None
+
+    cros = pd.crosstab(sub[haplotype_col], sub[site_col])
+    # ensure full shape
+    cros = cros.reindex(index=haplotypes, columns=[0, 1], fill_value=0)
+    return cros.values
+
+
+# %%
+def _fisher_two_sided(contingency_table):
+    _, p = fisher_exact(contingency_table, alternative="two-sided")
+    return p
+
+
+# %%
+def _chi_square_two_sided(contingency_table):
+    res = chi2_contingency(contingency_table)
+    return res.pvalue
+
+
+# %%
+def count_diff_sites(
+    df, haplotype_col, haplotypes, editing_sites_cols, 
+    alpha=0.05, min_reads_per_cell=5, 
+    test=_chi_square_two_sided
+):
+    pvals = []
+    tested_cols = []
+    for site_col in editing_sites_cols:
+        contingency_table = _per_site_counts(df, site_col, haplotype_col, haplotypes)
+        if contingency_table is None:
+            continue
+        if any(contingency_table.flatten() < min_reads_per_cell):
+            # print(f"Skipping site {site_col} due to low total reads ({contingency_table.sum()})")
+            print(f"Skipping site {site_col} due to low reads in one or more cells ({contingency_table})")
+            continue
+        # p = _fisher_two_sided(contingency_table)
+        p = test(contingency_table)
+        pvals.append(p)
+        tested_cols.append(site_col)
+
+    pvals = np.asarray(pvals)
+    rejected, pvalue_corrected = fdrcorrection(
+        pvals,
+        alpha=alpha,
+        # general correlated tests, see:
+        # https://www.statsmodels.org/stable/generated/statsmodels.stats.multitest.fdrcorrection.html#statsmodels.stats.multitest.fdrcorrection.method
+        method="n"
+    )
+    tests_df = pd.DataFrame(
+        {
+            "Site": tested_cols,
+            "P": pvals,
+            "P_FDR": pvalue_corrected,
+            "Rejected_H0": rejected,
+        }
+    ).sort_values("Site")
+    # num of significant sites after FDR correction
+    n_sig = sum(rejected)
+    return n_sig, len(tested_cols), tests_df
+
+# n_sig, n_tested_cols, tests_df = count_diff_sites(temp_df, "Haplotype", editing_cols, "0", "1", alpha=0.05, min_reads_per_cell=5)
+
+
+# %%
+def permutation_null(
+    df, 
+    haplotypes, 
+    n_perm=200, 
+    alpha=0.05, 
+    min_reads_per_cell=5, 
+    seed=seed, 
+    hap_col="Haplotype",
+    test=_chi_square_two_sided
+):
+    # set up random generator with fixed seed for reproducibility
+    rng = np.random.default_rng(seed)
+    # the editing columns are all columns after the haplotype column
+    editing_cols = df.iloc[:, df.columns.get_loc(hap_col) + 1:].columns
+    # copy relevant subset to allow shuffling haplotype labels w/o modifying original df
+    sub = df.loc[df[hap_col].isin(haplotypes)].copy()
+    # calculate observed number of significant sites in the original data
+    observed, m_tested, per_site = count_diff_sites(sub, hap_col, haplotypes, editing_cols, alpha=alpha, min_reads_per_cell=min_reads_per_cell, test=test)
+
+    null_counts = []
+    hap_values = sub[hap_col].to_numpy()
+    for _ in range(n_perm):
+        # Randomly shuffle (“permute”) the haplotype labels across reads
+        perm = hap_values.copy()
+        rng.shuffle(perm)
+        sub[hap_col] = perm
+        # Recalculate the number of significant sites for this permutation
+        c, _, _ = count_diff_sites(sub, hap_col, haplotypes, editing_cols, alpha=alpha, min_reads_per_cell=min_reads_per_cell, test=test)
+        null_counts.append(c)
+
+    null_counts = np.asarray(null_counts)
+    # empirical p-value
+    p_emp = (1 + (null_counts >= observed).sum()) / (1 + n_perm)
+    return observed, null_counts, p_emp, m_tested, per_site
+
+
+
+# %%
+def all_haplotypes_permutation_null(
+    editing_and_snps_reads_df,
+    n_perm=200, 
+    alpha=0.05, 
+    seed=seed,
+    # min_reads_per_cell=5, 
+    # test=_chi_square_two_sided
+    min_reads_per_cell=0, 
+    test=_fisher_two_sided,
+    hap_col="Haplotype"
+):
+    chrom = editing_and_snps_reads_df["Chrom"].iloc[0]
+    
+    hap_counts = editing_and_snps_reads_df[hap_col].value_counts()
+    haplotypes_couples = list(combinations(hap_counts.index, 2))
+
+    results_dict = defaultdict(list)
+
+    for h1, h2 in haplotypes_couples:
+        haplotypes = [h1, h2]
+        # print(haplotypes)
+        # print("Comparing:", h1, "vs", h2)
+        # print("Reads per haplotype:\n", hap_counts.loc[haplotypes])
+        obs, null_counts, p_emp, m_tested, _ = permutation_null(
+            editing_and_snps_reads_df, 
+            haplotypes,
+            n_perm=n_perm, 
+            alpha=alpha,
+            min_reads_per_cell=min_reads_per_cell,  
+            seed=seed,
+            hap_col=hap_col,
+            test=test
+        )
+        # print(f"Tested sites: {m_tested}")
+        # print(f"Observed #diff sites (p<0.05): {obs}")
+        # print(f"Null mean: {null_counts.mean():.2f}, null 95%: [{np.quantile(null_counts, 0.025)}, {np.quantile(null_counts, 0.975)}]")
+        # print(f"Empirical p-value: {p_emp:.4g}")
+        null_counts_ge_observed = (null_counts >= obs).sum()
+        results_dict["Haplotypes"].append(haplotypes)
+        results_dict["Tested sites"].append(m_tested)
+        results_dict["Observed"].append(obs)
+        results_dict["Null >= Observed"].append(null_counts_ge_observed)
+        # results_dict["Null Mean"].append(null_counts.mean())
+        # results_dict["Null 95%"].append([np.quantile(null_counts, 0.025), np.quantile(null_counts, 0.975)])
+        results_dict["Empirical p-value"].append(p_emp)
+
+    results_df = pd.DataFrame(results_dict)
+    results_df.insert(0, "Chrom", chrom)
+    
+    # also correct for multiple testing across the different haplotype pairs (e.g. 3 pairs for 3 haplotypes) 
+    # using Benjamini-Hochberg FDR correction
+    reject, pvals_corr, *_ = multipletests(results_df["Empirical p-value"].tolist(), method='fdr_bh')
+    results_df["Empirical p-value (FDR)"] = pvals_corr
+    results_df["Reject H0 (FDR)"] = reject
+    
+    return results_df
+
+
+# %%
+diverse_haplotypes_editing_and_snps_reads_dfs_for_fisher_tests = [
+    df
+    for df in editing_and_snps_reads_dfs
+    if validate_haplotypes_diversity(df, 2, 50)
+    # if validate_haplotypes_diversity(df, 2, 300) or validate_haplotypes_diversity(df, 3, 100)
+    # if validate_haplotypes_diversity(df, 3, 100)
+]
+ic(len(diverse_haplotypes_editing_and_snps_reads_dfs_for_fisher_tests));
+
+# %%
+with Pool(processes=6) as pool:
+    fisher_haplotypes_dfs = pool.map(
+        all_haplotypes_permutation_null,
+        diverse_haplotypes_editing_and_snps_reads_dfs_for_fisher_tests
+    )
+concat_fisher_haplotypes_df = pd.concat(fisher_haplotypes_dfs, ignore_index=True)
+concat_fisher_haplotypes_df
+
+# %%
+concat_fisher_haplotypes_df.sort_values("Chrom")
+
+# %%
+summarized_fisher_df = (
+    concat_fisher_haplotypes_df
+    .groupby("Chrom")["Reject H0 (FDR)"]
+    .agg(
+        NumHaplotypePairs=lambda x: x.size,
+        NumSignificantPairs=lambda x: x.sum(),
+        PrctSignificantPairs=lambda x: 100 * x.sum() / x.size
+    )
+    .reset_index()
+    .rename(columns={"PrctSignificantPairs": "%SignificantPairs"})
+)
+summarized_fisher_df
+
+# %%
+summarized_fisher_df.loc[
+    summarized_fisher_df["%SignificantPairs"].eq(0)
+]
+
+# %%
+summarized_fisher_df["NumHaplotypePairs"].max()
+
+# %%
+fig = px.histogram(
+    summarized_fisher_df,
+    x="NumHaplotypePairs",
+    # y="%SignificantPairs",
+    labels={
+        "NumHaplotypePairs": "Number of haplotype pairs",
+        # "%SignificantPairs": "% of haplotype pairs with<br>significant editing differences",
+        # "%SignificantPairs": "% of differentially edited haplotype pairs",
+    },
+    nbins=int(summarized_fisher_df["NumHaplotypePairs"].max()),
+    histnorm="percent",
+)
+fig.update_xaxes(dtick=1)
+fig.update_yaxes(title="% of tested genes")
+fig.update_layout(
+    width=600,
+    height=450,
+)
+fig.show()
+
+# %%
+fig = px.scatter(
+    summarized_fisher_df,
+    x="NumHaplotypePairs",
+    y="%SignificantPairs",
+    labels={
+        "NumHaplotypePairs": "Number of haplotype pairs",
+        # "%SignificantPairs": "% of haplotype pairs with<br>significant editing differences",
+        "%SignificantPairs": "% of differentially edited haplotype pairs",
+    },
+)
+# fig.update_xaxes(dtick=10, range=[0, 100])
+# fig.update_yaxes(title="% of tested genes")
+fig.update_layout(
+    width=600,
+    height=450,
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    summarized_fisher_df,
+    x="%SignificantPairs",
+    labels={
+        "%SignificantPairs": "% of differentially edited haplotype pairs",
+    },
+    nbins=20,
+    histnorm="percent",
+)
+fig.update_xaxes(dtick=10, range=[0, 100])
+fig.update_yaxes(title="% of tested genes")
+fig.update_layout(
+    width=600,
+    height=450,
+)
+fig.show()
+
+# %%
+fig = px.ecdf(
+    summarized_fisher_df,
+    x="%SignificantPairs",
+    labels={
+        "%SignificantPairs": "% of differentially edited haplotype pairs",
+    },
+    ecdfmode="reversed"
+)
+fig.update_xaxes(dtick=10, range=[0, 100])
+fig.update_yaxes(title="Fraction of tested genes")
+fig.update_layout(
+    width=600,
+    height=450,
+    # ti
+)
+fig.show()
 
 # %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"}
 # ## Num of distinct unique proteins
@@ -8191,8 +9029,10 @@ row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(condi
 
 # (start, end) tuples for both x and y
 linear_spaces = [
-    (173, 8_402),
-    (615, 17_356),
+    # (173, 8_402),
+    (28, 8_402),
+    # (615, 17_356),
+    (53, 17_356),
 ]
 
 forward_transforms = [
@@ -8415,12 +9255,23 @@ fig.show()
 # ##### Saving assignment dfs
 
 # %%
-merged_assignment_df = pd.concat(assignment_dfs).reset_index(drop=True)
-merged_assignment_df.insert(0, "Platform", "Long-reads")
-merged_assignment_df
+# merged_assignment_df = pd.concat(assignment_dfs).reset_index(drop=True)
+# merged_assignment_df.insert(0, "Platform", "Long-reads")
+# merged_assignment_df
 
 # %%
-merged_assignment_df.to_csv(
+# merged_assignment_df.to_csv(
+#     "/private7/projects/Combinatorics/Code/Notebooks/AssignedExpression.PacBio.WithUMIs.tsv",
+#     sep="\t",
+#     index=False,
+# )
+
+# %%
+max_expression_df.insert(0, "Platform", "Long-reads")
+max_expression_df
+
+# %%
+max_expression_df.to_csv(
     "/private7/projects/Combinatorics/Code/Notebooks/AssignedExpression.PacBio.WithUMIs.tsv",
     sep="\t",
     index=False,
@@ -8492,7 +9343,27 @@ fraction01_expression_dfs[0]
 # %%
 fraction01_expression_df.iloc[[1000, 2000]]
 
+
 # %%
+def find_rand_maximal_solution(
+    expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
+):
+    df = (
+        expression_df.loc[expression_df["Algorithm"].isin(allowed_algorithms)]
+        .groupby("#Solution")
+        .agg("size")
+        .reset_index()
+        .rename(columns={0: "Size"})
+    )
+    # rand_maximal_solution = df.loc[df["Size"] == df["Size"].max(), "#Solution"].sample(random_state=seed).reset_index(drop=True)
+    rand_maximal_solution = (
+        df.loc[df["Size"] == df["Size"].max(), "#Solution"]
+        .sample(random_state=seed)
+        .values[0]
+    )
+    return rand_maximal_solution
+
+
 maximal_fraction01_solutions = [
     find_rand_maximal_solution(
         expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
@@ -8502,26 +9373,6 @@ maximal_fraction01_solutions = [
 maximal_fraction01_solutions
 
 # %%
-# fraction01_percentile_dfs = [
-#     make_percentile_df(
-#         expression_df.loc[expression_df["#Solution"] == maximal_solution].reset_index(
-#             drop=True
-#         ),
-#         allowed_algorithms=["Ascending", "Descending"],
-#     )
-#     for expression_df, maximal_solution in zip(
-#         fraction01_expression_dfs, maximal_fraction01_solutions
-#     )
-# ]
-# fraction01_percentile_dfs[0]
-
-# %%
-# maximal_dfs = [
-#     expression_df.loc[expression_df["#Solution"] == maximal_solution].reset_index(
-#         drop=True
-#     )
-#     for expression_df, maximal_solution in zip(expression_dfs, maximal_solutions)
-# ]
 maximal_fraction01_dfs = [
     fraction01_expression_df.loc[
         fraction01_expression_df["#Solution"] == maximal_fraction01_solution
@@ -8531,15 +9382,6 @@ maximal_fraction01_dfs = [
     )
 ]
 
-# assignment_dfs = [
-#     (
-#         maximal_df.sort_values("TotalWeightedSupportingReads", ascending=False)
-#         .reset_index(drop=True)
-#         .assign(ProteinRank=list(range(1, len(maximal_df) + 1)))
-#         .rename(columns={"ProteinRank": "#Protein"})
-#     )
-#     for maximal_df in maximal_dfs
-# ]
 fraction01_assignment_dfs = [
     (
         fraction01_maximal_df.sort_values(
@@ -8551,17 +9393,7 @@ fraction01_assignment_dfs = [
     )
     for fraction01_maximal_df in maximal_fraction01_dfs
 ]
-# fraction01_assignment_dfs[0]
 
-# for assignment_df in assignment_dfs:
-#     assignment_df["%RelativeExpression"] = (
-#         100
-#         * assignment_df["TotalWeightedSupportingReads"]
-#         / assignment_df["TotalWeightedSupportingReads"].sum()
-#     )
-#     assignment_df["%CummulativeRelativeExpression"] = assignment_df[
-#         "%RelativeExpression"
-#     ].cumsum()
 for assignment_df in fraction01_assignment_dfs:
     assignment_df["%RelativeExpression"] = (
         100
@@ -8575,21 +9407,18 @@ for assignment_df in fraction01_assignment_dfs:
 fraction01_assignment_dfs[0]
 
 # %%
-facet_row_spacing
-
-# %%
-facet_row_spacing / 2.5
-
-# %%
-facet_row_spacing / 4
-
-# %%
-facet_col_spacing
+merged_fraction01_assignment_df = pd.concat(fraction01_assignment_dfs).reset_index(drop=True)
+merged_fraction01_assignment_df.insert(0, "Platform", "Long-reads")
+merged_fraction01_assignment_df.to_csv(
+    Path(out_dir, "AssignedExpression.Fraction01.PacBio.UMIs.tsv"), 
+    sep="\t", index=False
+)
+merged_fraction01_assignment_df
 
 # %%
 x_axis_name = "Isoform rank"
-y_axis_name = "Cummulative relative<br>expression [%]"
-head_title = "Cummulative expression vs. distinct unique proteins"
+y_axis_name = "Cumulative relative<br>expression [%]"
+head_title = "Cumulative expression vs. distinct unique proteins"
 
 cols = min(facet_col_wrap, len(conditions), 4)
 rows = ceil(len(conditions) / cols)
@@ -8611,9 +9440,10 @@ fig = make_subplots(
 )
 
 for (row, col), assignment_df, fraction01_assignment_df, condition in zip(
-    row_col_iter, assignment_dfs, fraction01_assignment_dfs, conditions
+    row_col_iter, max_expression_dfs, fraction01_assignment_dfs, conditions
 ):
-    legend_x = [5]
+    # legend_x = [5]
+    legend_x = [2]
     legend_ys = [[75], [65]]
 
     for color, df, percentile_fraction, legend_y in zip(
@@ -8638,7 +9468,7 @@ for (row, col), assignment_df, fraction01_assignment_df, condition in zip(
                 # mode="lines+markers",
                 marker=dict(
                     color=color,
-                    size=2,
+                    size=3,
                     opacity=0.7,
                     # symbol=symbol,
                     # line=dict(width=0),
@@ -8650,7 +9480,7 @@ for (row, col), assignment_df, fraction01_assignment_df, condition in zip(
 
         # text = f"  Fraction = {percentile_fraction}"
         text = "Subsampled data (10%)" if percentile_fraction == 0.1 else "Full data"
-
+        
         fig.add_trace(
             go.Scatter(
                 x=legend_x,
@@ -8665,7 +9495,7 @@ for (row, col), assignment_df, fraction01_assignment_df, condition in zip(
                 ),
                 text=text,
                 textposition="middle right",
-                textfont=dict(size=10),
+                textfont=dict(size=14),
             ),
             row=row,
             col=col,
@@ -8680,7 +9510,7 @@ fig.update_xaxes(
 )
 
 width = 900
-height = 450
+height = 450    
 
 fig.update_layout(
     # title="Squid's Long-reads",
@@ -8691,24 +9521,21 @@ fig.update_layout(
     height=height,
 )
 
-fig.write_image(
-    f"Cummulative expression vs. distinct protein rank: fractions 0.1 and 1 - PacBio.svg",
-    width=width,
-    height=height,
-)
+# fig.write_image(
+#     Path(out_dir, f"Cumulative expression vs. distinct protein rank: fractions 0.1 and 1 - PacBio.svg"),
+#     width=width,
+#     height=height,
+# )
 
 fig.show()
-
-# %%
-fraction01_assignment_dfs[0]
 
 # %%
 frac_1_merged_to_frac_01_assignment_dfs = []
 
 frac_01_merged_to_frac_1_assignment_dfs = []
 
-for fraction01_assignment_df, assignment_df in zip(
-    fraction01_assignment_dfs, assignment_dfs
+for fraction01_assignment_df, assignment_df, condition in zip(
+    fraction01_assignment_dfs, max_expression_dfs, conditions
 ):
     frac_1_merged_to_frac_01_assignment_df = fraction01_assignment_df.loc[
         :,
@@ -8768,6 +9595,9 @@ for fraction01_assignment_df, assignment_df in zip(
         suffixes=["1.0", "0.1"],
     )
 
+    frac_1_merged_to_frac_01_assignment_df.insert(0, condition_col, condition)
+    frac_01_merged_to_frac_1_assignment_df.insert(0, condition_col, condition)
+    
     frac_1_merged_to_frac_01_assignment_dfs.append(
         frac_1_merged_to_frac_01_assignment_df
     )
@@ -8779,6 +9609,24 @@ frac_1_merged_to_frac_01_assignment_dfs[0]
 
 # %%
 frac_01_merged_to_frac_1_assignment_dfs[0]
+
+# %%
+concat_frac_1_merged_to_frac_01_assignment_df = pd.concat(frac_1_merged_to_frac_01_assignment_dfs)
+concat_frac_1_merged_to_frac_01_assignment_df.insert(0, "Platform", "Long-reads")
+concat_frac_1_merged_to_frac_01_assignment_df.to_csv(
+    Path(out_dir,  "AssignedExpression.Fractions1Vs01.PacBio.UMIs.tsv"), 
+    sep="\t", index=False
+)
+concat_frac_1_merged_to_frac_01_assignment_df
+
+# %%
+concat_frac_01_merged_to_frac_1_assignment_df = pd.concat(frac_01_merged_to_frac_1_assignment_dfs)
+concat_frac_01_merged_to_frac_1_assignment_df.insert(0, "Platform", "Long-reads")
+concat_frac_01_merged_to_frac_1_assignment_df.to_csv(
+    Path(out_dir,  "AssignedExpression.Fractions01Vs1.PacBio.UMIs.tsv"), 
+    sep="\t", index=False
+)
+concat_frac_01_merged_to_frac_1_assignment_df
 
 # %%
 frac_1_merged_to_frac_01_assignment_dfs[0].loc[
@@ -8912,581 +9760,125 @@ fig.update_layout(
     height=height,
 )
 
-fig.write_image(
-    "Fraction 0.1 expression vs. fraction 1 expression - PacBio.svg",
-    width=width,
-    height=height,
-)
-
-fig.show()
-
-# %%
-x_axis_name = "Distinct protein rank: fraction 0.1"
-y_axis_name = "Distinct protein rank: fraction 1"
-
-cols = len(conditions)
-rows = 1
-
-relative_assignment_dfs = [
-    frac_1_merged_to_frac_01_assignment_dfs,
-    frac_01_merged_to_frac_1_assignment_dfs,
-]
-
-fig = make_subplots(
-    rows=rows,
-    cols=cols,
-    # column_titles=["Fraction 1 relative to 0.1", "Fraction 0.1 relative to 1"],
-    # row_titles=conditions,
-    subplot_titles=conditions,
-    shared_xaxes=True,
-    shared_yaxes=True,
-    x_title=x_axis_name,
-    y_title=y_axis_name,
-    # vertical_spacing=facet_row_spacing / 2.5,
-    # horizontal_spacing=facet_col_spacing * 1.5,
-)
-
-for col, condition in zip(range(cols), conditions):
-    frac_1_relative_to_frac_01_df = relative_assignment_dfs[0][col]
-    frac_01_relative_to_frac_1_df = relative_assignment_dfs[1][col]
-
-    frac_1_relative_to_frac_01_x = frac_1_relative_to_frac_01_df["#Protein0.1"]
-    frac_1_relative_to_frac_01_y = frac_1_relative_to_frac_01_df["#Protein1.0"]
-
-    frac_01_relative_to_frac_1_x = frac_01_relative_to_frac_1_df["#Protein0.1"]
-    frac_01_relative_to_frac_1_y = frac_01_relative_to_frac_1_df["#Protein1.0"]
-
-    fig.add_trace(
-        go.Scattergl(
-            x=frac_1_relative_to_frac_01_x,
-            y=frac_1_relative_to_frac_01_y,
-            mode="markers",
-            marker=dict(
-                color=color_discrete_map[condition],
-                size=3,
-                # opacity=0.7,
-                # symbol=symbol,
-            ),
-        ),
-        row=1,
-        col=col + 1,
-    )
-
-    frac_1_matches = frac_1_relative_to_frac_01_y.notna().sum()
-    possible_frac_1_matches = len(frac_1_relative_to_frac_01_y)
-
-    frac_01_matches = frac_01_relative_to_frac_1_x.notna().sum()
-    possible_frac_01_matches = len(frac_01_relative_to_frac_1_x)
-
-    # ic(col, row, condition, possible_matches, matches)
-
-    fig.add_annotation(
-        row=1,
-        col=col + 1,
-        x=2_700,
-        y=3_000,
-        xref="x",
-        yref="y",
-        text=f"{frac_1_matches} / {possible_frac_1_matches} = {100 * frac_1_matches / possible_frac_1_matches:.2f}%<br>of possible matches<br>relative to fraction 0.1",
-        align="center",
-        font=dict(size=8, color="black"),
-        showarrow=False,
-        # bgcolor="#ff7f0e",
-        bgcolor="white",
-    )
-
-    fig.add_annotation(
-        row=1,
-        col=col + 1,
-        x=1000,
-        y=23_000,
-        xref="x",
-        yref="y",
-        text=f"{frac_01_matches} / {possible_frac_01_matches} = {100 * frac_01_matches / possible_frac_01_matches:.2f}%<br>of possible matches<br>relative to fraction 1",
-        align="center",
-        # font=dict(size=10, color="grey"),
-        font=dict(size=8, color="grey"),
-        showarrow=False,
-        # bgcolor="#ff7f0e",
-        bgcolor="white",
-    )
-
-
-# fig.update_xaxes(
-#     tick0 = 0,
-#     dtick = 5_000,
-#     matches='x'
-# )
-fig.update_layout(
-    # title=head_title,
-    showlegend=False,
-    template=template,
-    height=430,
-    width=700,
-)
 # fig.write_image(
-#     f"{head_title} - PacBio.svg",
-#     height=max(300, 200 * rows),
-#     width=max(600, 250 * cols),
+#     "Fraction 0.1 expression vs. fraction 1 expression - PacBio.svg",
+#     width=width,
+#     height=height,
 # )
 
 fig.show()
 
 # %%
-# assignment_method = "Weighted"
-# y_col_name = "TotalWeightedSupportingReads"
+# x_axis_name = "Distinct protein rank: fraction 0.1"
+# y_axis_name = "Distinct protein rank: fraction 1"
 
-# cols = min(facet_col_wrap, len(conditions), 3)
-# rows = ceil(len(conditions) / cols)
-# row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
+# cols = len(conditions)
+# rows = 1
 
-
-# subplot_titles = conditions
-# x_axis_name = "Distinct protein rank"
-# y_axis_name = "Relative expression (%)"
-# # head_title = f"Relative expression of proteins considering a largest solution in each {str(condition_col).lower()}"
-# head_title = "Relative expression vs. distinct protein rank"
-
-# data_marker_size = 2.5
-# data_opacity = 0.2
-# regression_line_width = 6
-
-# data_scatter_type = go.Scattergl
-# fit_scatter_type = go.Scatter
+# relative_assignment_dfs = [
+#     frac_1_merged_to_frac_01_assignment_dfs,
+#     frac_01_merged_to_frac_1_assignment_dfs,
+# ]
 
 # fig = make_subplots(
 #     rows=rows,
 #     cols=cols,
-#     y_title=y_axis_name,
-#     x_title=x_axis_name,
-#     subplot_titles=subplot_titles,
+#     # column_titles=["Fraction 1 relative to 0.1", "Fraction 0.1 relative to 1"],
+#     # row_titles=conditions,
+#     subplot_titles=conditions,
+#     shared_xaxes=True,
 #     shared_yaxes=True,
-#     # shared_xaxes=True,
-#     # # vertical_spacing=facet_row_spacing / 2.5,
+#     x_title=x_axis_name,
+#     y_title=y_axis_name,
+#     # vertical_spacing=facet_row_spacing / 2.5,
 #     # horizontal_spacing=facet_col_spacing * 1.5,
-#     vertical_spacing=0.05,
-#     horizontal_spacing=0.025,
 # )
 
-# for (
-#     (row, col),
-#     condition,
-#     maximal_df,
-#     maximal_solution,
-#     linear_space,
-#     (forward_x_transform, forward_y_transform),
-#     (reverse_x_transform, reverse_y_transform),
-#     # fit_text,
-#     formulate_equation,
-# ) in zip(
-#     row_col_iter,
-#     conditions,
-#     fraction01_assignment_dfs,
-#     maximal_fraction01_solutions,
-#     linear_spaces,
-#     forward_transforms,
-#     reverse_transforms,
-#     # fit_texts,
-#     formulate_equations,
-# ):
+# for col, condition in zip(range(cols), conditions):
+#     frac_1_relative_to_frac_01_df = relative_assignment_dfs[0][col]
+#     frac_01_relative_to_frac_1_df = relative_assignment_dfs[1][col]
 
-#     assignment_df = maximal_df.sort_values(
-#         "TotalWeightedSupportingReads", ascending=False
-#     ).reset_index(drop=True)
-#     assignment_df["#Protein"] = list(range(1, len(assignment_df) + 1))
-#     assignment_df["AssignmentMethod"] = assignment_method
+#     frac_1_relative_to_frac_01_x = frac_1_relative_to_frac_01_df["#Protein0.1"]
+#     frac_1_relative_to_frac_01_y = frac_1_relative_to_frac_01_df["#Protein1.0"]
 
-#     x = assignment_df["#Protein"]
-#     y = 100 * assignment_df[y_col_name] / assignment_df[y_col_name].sum()
+#     frac_01_relative_to_frac_1_x = frac_01_relative_to_frac_1_df["#Protein0.1"]
+#     frac_01_relative_to_frac_1_y = frac_01_relative_to_frac_1_df["#Protein1.0"]
 
 #     fig.add_trace(
-#         data_scatter_type(
-#             x=x,
-#             y=y,
-#             # legendgrouptitle_text=condition,
-#             # legendgroup=condition,
-#             # name=assignment_method,
+#         go.Scattergl(
+#             x=frac_1_relative_to_frac_01_x,
+#             y=frac_1_relative_to_frac_01_y,
 #             mode="markers",
-#             marker_color=color_discrete_map[condition],
-#             marker_size=data_marker_size,
 #             marker=dict(
-#                 opacity=data_opacity,
-#                 line=dict(width=0),
+#                 color=color_discrete_map[condition],
+#                 size=3,
+#                 # opacity=0.7,
+#                 # symbol=symbol,
 #             ),
 #         ),
-#         row=row,
-#         col=col,
+#         row=1,
+#         col=col + 1,
 #     )
 
-# #     train_logspace = [
-# #         int(i)
-# #         for i in np.logspace(
-# #             np.log10(linear_space[0]), np.log10(linear_space[1]), num=1000
-# #         )
-# #     ]
-# #     test_logspace = [
-# #         int(i)
-# #         for i in np.logspace(
-# #             np.log10(linear_space[0] + 20), np.log10(linear_space[1] - 20), num=1000
-# #         )
-# #         if int(i) not in train_logspace
-# #     ]
+#     frac_1_matches = frac_1_relative_to_frac_01_y.notna().sum()
+#     possible_frac_1_matches = len(frac_1_relative_to_frac_01_y)
 
-# #     train_x = forward_x_transform(x[train_logspace])
-# #     train_y = forward_y_transform(y[train_logspace])
+#     frac_01_matches = frac_01_relative_to_frac_1_x.notna().sum()
+#     possible_frac_01_matches = len(frac_01_relative_to_frac_1_x)
 
-# #     test_x = forward_x_transform(x[test_logspace])
-# #     test_y = forward_y_transform(y[test_logspace])
+#     # ic(col, row, condition, possible_matches, matches)
 
-# #     # Create linear regression object
-# #     regr = linear_model.LinearRegression(n_jobs=threads)
-# #     # Train the model using the training sets
-# #     regr.fit(np.array(train_x).reshape(-1, 1), train_y)
-# #     # Make predictions using the testing set
-# #     pred_y = regr.predict(np.array(test_x).reshape(-1, 1))
+#     fig.add_annotation(
+#         row=1,
+#         col=col + 1,
+#         x=2_700,
+#         y=3_000,
+#         xref="x",
+#         yref="y",
+#         text=f"{frac_1_matches} / {possible_frac_1_matches} = {100 * frac_1_matches / possible_frac_1_matches:.2f}%<br>of possible matches<br>relative to fraction 0.1",
+#         align="center",
+#         font=dict(size=8, color="black"),
+#         showarrow=False,
+#         # bgcolor="#ff7f0e",
+#         bgcolor="white",
+#     )
 
-# #     # transform these variables back to original scale so that they can plotted
-# #     test_x = reverse_x_transform(test_x)  # should be equivalent to `test_x = x[test_logspace]`?
-# #     pred_y = reverse_y_transform(pred_y)
+#     fig.add_annotation(
+#         row=1,
+#         col=col + 1,
+#         x=1000,
+#         y=23_000,
+#         xref="x",
+#         yref="y",
+#         text=f"{frac_01_matches} / {possible_frac_01_matches} = {100 * frac_01_matches / possible_frac_01_matches:.2f}%<br>of possible matches<br>relative to fraction 1",
+#         align="center",
+#         # font=dict(size=10, color="grey"),
+#         font=dict(size=8, color="grey"),
+#         showarrow=False,
+#         # bgcolor="#ff7f0e",
+#         bgcolor="white",
+#     )
 
-# #     fig.add_trace(
-# #         fit_scatter_type(
-# #             x=test_x,
-# #             y=pred_y,
-# #             mode="lines",
-# #             marker_color="grey",
-# #             line=dict(
-# #                 dash="dash",
-# #                 width=regression_line_width,
-# #             ),
-# #             # legendgroup=condition,
-# #             # name=f"{assignment_method} - fitted",
-# #             showlegend=False,
-# #         ),
-# #         row=1,
-# #         col=col,
-# #     )
 
-# #     i = int(len(test_x) / 10)
-# #     text_x = test_x.iloc[i] + 2000
-# #     text_y = pred_y[i] + 0.03
-# #     # text_x = 1000
-# #     # text_y = 0.05
-# #     text_x = np.log10(text_x)
-# #     text_y = np.log10(text_y)
-
-# #     coef = regr.coef_[0]
-# #     intercept = regr.intercept_
-# #     # mse = mean_squared_error(test_y, pred_y)
-# #     # r2 = r2_score(test_y, pred_y)
-# #     # if intercept >= 0:
-# #     #     operator = "+"
-# #     # else:
-# #     #     operator = "-"
-# #     #     intercept = np.abs(intercept)
-# #     equation = formulate_equation(coef, intercept)
-
-# #     ic(condition)
-# #     ic(equation)
-
-# #     fit_text_new = (
-# #         # f"<b>{assignment_method}</b>"
-# #         # "<br>"
-# #         # f"<b>y = {coef:.2f}x {operator} {intercept:.2f}</b>"
-# #         # f"y = {coef:.2f}x {operator} {intercept:.2f}"
-# #         f"{equation}"
-# #         # "<br>"
-# #         # f"MSE = {mse:.2f}"  # 0 is perfect prediction
-# #         # "<br>"
-# #         # f"R2 = {r2:.2f}"  # 1 is perfect prediction
-# #     )
-
-# #     fig.add_annotation(
-# #         row=row,
-# #         col=col,
-# #         x=text_x,
-# #         y=text_y,
-# #         xref="x",
-# #         yref="y",
-# #         # text=fit_text,
-# #         text=fit_text_new,
-# #         align="center",
-# #         font=dict(size=10, color="grey"),
-# #         showarrow=False,
-# #     )
-
+# # fig.update_xaxes(
+# #     tick0 = 0,
+# #     dtick = 5_000,
+# #     matches='x'
+# # )
 # fig.update_layout(
-#     # title_text=head_title,
-#     # title_y=0.95,
-#     template=template,
+#     # title=head_title,
 #     showlegend=False,
-#     # legend_itemsizing="constant",
-#     height=max(400, 200 * rows),
-#     width=max(900, 250 * cols),
-# )
-# fig.update_xaxes(type="log", nticks=6)
-# fig.update_yaxes(type="log")
-# fig.write_image(
-#     f"{head_title} - PacBio.svg",
-#     height=max(400, 200 * rows),
-#     # width=max(650, 250 * cols),
-#     width=max(830, 250 * cols),
-# )
-# fig.show()
-# # fig.show(config={'staticPlot': True, 'responsive': False})
-
-
-# %%
-# assignment_method = "Weighted"
-# y_col_name = "TotalWeightedSupportingReads"
-
-# cols = min(facet_col_wrap, len(conditions), 3)
-# rows = ceil(len(conditions) / cols)
-# row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
-
-# # (start, end) tuples for both x and y
-# linear_spaces = [
-#     (300, 15_000),
-#     # (250, 23_000)
-#     (700, 15_000),
-# ]
-
-# forward_transforms = [
-#     (linear_to_log10, linear_to_log10),
-#     # (linear_to_log10, inverse),
-#     (linear_to_log10, linear_to_log10),
-# ]  # (x, y) tuples
-# reverse_transforms = [
-#     (log10_to_linear, log10_to_linear),
-#     # (log10_to_linear, inverse),
-#     (log10_to_linear, log10_to_linear),
-# ]  # (x, y) tuples
-
-# formulate_equations = [
-#     formulate_log10_equation,
-#     # formulate_semilog10_equation
-#     formulate_log10_equation,
-# ]
-# # fit_texts = ["    y ~ 1 / sqrt(x)", "    y ~ 1 / log(x)"]
-
-# # fraction01_expression_dfs
-# # maximal_fraction01_solutions
-
-# maximal_fraction01_dfs = [
-#     fraction01_expression_df.loc[
-#         fraction01_expression_df["#Solution"] == maximal_fraction01_solution
-#     ].reset_index(drop=True)
-#     for fraction01_expression_df, maximal_fraction01_solution in zip(
-#         fraction01_expression_dfs, maximal_fraction01_solutions
-#     )
-# ]
-
-# fraction01_assignment_dfs = [
-#     (
-#         fraction01_maximal_df.sort_values(
-#             "TotalWeightedSupportingReads", ascending=False
-#         )
-#         .reset_index(drop=True)
-#         .assign(ProteinRank=list(range(1, len(fraction01_maximal_df) + 1)))
-#         .rename(columns={"ProteinRank": "#Protein"})
-#     )
-#     for fraction01_maximal_df in maximal_fraction01_dfs
-# ]
-
-# subplot_titles = conditions
-# x_axis_name = "Distinct protein rank"
-# y_axis_name = "Relative expression (%)"
-# # head_title = f"Relative expression of proteins considering a largest solution in each {str(condition_col).lower()}"
-# head_title = "Relative expression vs. distinct protein rank"
-
-# data_marker_size = 2.5
-# data_opacity = 0.2
-# regression_line_width = 6
-
-# data_scatter_type = go.Scattergl
-# fit_scatter_type = go.Scatter
-
-# fig = make_subplots(
-#     rows=rows,
-#     cols=cols,
-#     y_title=y_axis_name,
-#     x_title=x_axis_name,
-#     subplot_titles=subplot_titles,
-#     shared_yaxes=True,
-#     # shared_xaxes=True,
-#     # # vertical_spacing=facet_row_spacing / 2.5,
-#     # horizontal_spacing=facet_col_spacing * 1.5,
-#     vertical_spacing=0.05,
-#     horizontal_spacing=0.025,
-# )
-
-# for (
-#     (row, col),
-#     condition,
-#     maximal_df,
-#     maximal_solution,
-#     linear_space,
-#     (forward_x_transform, forward_y_transform),
-#     (reverse_x_transform, reverse_y_transform),
-#     # fit_text,
-#     formulate_equation,
-# ) in zip(
-#     row_col_iter,
-#     conditions,
-#     fraction01_assignment_dfs,
-#     maximal_fraction01_solutions,
-#     linear_spaces,
-#     forward_transforms,
-#     reverse_transforms,
-#     # fit_texts,
-#     formulate_equations,
-# ):
-
-#     assignment_df = maximal_df.sort_values(
-#         "TotalWeightedSupportingReads", ascending=False
-#     ).reset_index(drop=True)
-#     assignment_df["#Protein"] = list(range(1, len(assignment_df) + 1))
-#     assignment_df["AssignmentMethod"] = assignment_method
-
-#     x = assignment_df["#Protein"]
-#     y = 100 * assignment_df[y_col_name] / assignment_df[y_col_name].sum()
-
-#     fig.add_trace(
-#         data_scatter_type(
-#             x=x,
-#             y=y,
-#             # legendgrouptitle_text=condition,
-#             # legendgroup=condition,
-#             # name=assignment_method,
-#             mode="markers",
-#             marker_color=color_discrete_map[condition],
-#             marker_size=data_marker_size,
-#             marker=dict(
-#                 opacity=data_opacity,
-#                 line=dict(width=0),
-#             ),
-#         ),
-#         row=row,
-#         col=col,
-#     )
-
-# #     train_logspace = [
-# #         int(i)
-# #         for i in np.logspace(
-# #             np.log10(linear_space[0]), np.log10(linear_space[1]), num=1000
-# #         )
-# #     ]
-# #     test_logspace = [
-# #         int(i)
-# #         for i in np.logspace(
-# #             np.log10(linear_space[0] + 20), np.log10(linear_space[1] - 20), num=1000
-# #         )
-# #         if int(i) not in train_logspace
-# #     ]
-
-# #     train_x = forward_x_transform(x[train_logspace])
-# #     train_y = forward_y_transform(y[train_logspace])
-
-# #     test_x = forward_x_transform(x[test_logspace])
-# #     test_y = forward_y_transform(y[test_logspace])
-
-# #     # Create linear regression object
-# #     regr = linear_model.LinearRegression(n_jobs=threads)
-# #     # Train the model using the training sets
-# #     regr.fit(np.array(train_x).reshape(-1, 1), train_y)
-# #     # Make predictions using the testing set
-# #     pred_y = regr.predict(np.array(test_x).reshape(-1, 1))
-
-# #     # transform these variables back to original scale so that they can plotted
-# #     test_x = reverse_x_transform(test_x)  # should be equivalent to `test_x = x[test_logspace]`?
-# #     pred_y = reverse_y_transform(pred_y)
-
-# #     fig.add_trace(
-# #         fit_scatter_type(
-# #             x=test_x,
-# #             y=pred_y,
-# #             mode="lines",
-# #             marker_color="grey",
-# #             line=dict(
-# #                 dash="dash",
-# #                 width=regression_line_width,
-# #             ),
-# #             # legendgroup=condition,
-# #             # name=f"{assignment_method} - fitted",
-# #             showlegend=False,
-# #         ),
-# #         row=1,
-# #         col=col,
-# #     )
-
-# #     i = int(len(test_x) / 10)
-# #     text_x = test_x.iloc[i] + 2000
-# #     text_y = pred_y[i] + 0.03
-# #     # text_x = 1000
-# #     # text_y = 0.05
-# #     text_x = np.log10(text_x)
-# #     text_y = np.log10(text_y)
-
-# #     coef = regr.coef_[0]
-# #     intercept = regr.intercept_
-# #     # mse = mean_squared_error(test_y, pred_y)
-# #     # r2 = r2_score(test_y, pred_y)
-# #     # if intercept >= 0:
-# #     #     operator = "+"
-# #     # else:
-# #     #     operator = "-"
-# #     #     intercept = np.abs(intercept)
-# #     equation = formulate_equation(coef, intercept)
-
-# #     ic(condition)
-# #     ic(equation)
-
-# #     fit_text_new = (
-# #         # f"<b>{assignment_method}</b>"
-# #         # "<br>"
-# #         # f"<b>y = {coef:.2f}x {operator} {intercept:.2f}</b>"
-# #         # f"y = {coef:.2f}x {operator} {intercept:.2f}"
-# #         f"{equation}"
-# #         # "<br>"
-# #         # f"MSE = {mse:.2f}"  # 0 is perfect prediction
-# #         # "<br>"
-# #         # f"R2 = {r2:.2f}"  # 1 is perfect prediction
-# #     )
-
-# #     fig.add_annotation(
-# #         row=row,
-# #         col=col,
-# #         x=text_x,
-# #         y=text_y,
-# #         xref="x",
-# #         yref="y",
-# #         # text=fit_text,
-# #         text=fit_text_new,
-# #         align="center",
-# #         font=dict(size=10, color="grey"),
-# #         showarrow=False,
-# #     )
-
-# fig.update_layout(
-#     # title_text=head_title,
-#     # title_y=0.95,
 #     template=template,
-#     showlegend=False,
-#     # legend_itemsizing="constant",
-#     height=max(400, 200 * rows),
-#     width=max(900, 250 * cols),
+#     height=430,
+#     width=700,
 # )
-# fig.update_xaxes(type="log", nticks=6)
-# fig.update_yaxes(type="log")
-# fig.write_image(
-#     f"{head_title} - PacBio.svg",
-#     height=max(400, 200 * rows),
-#     # width=max(650, 250 * cols),
-#     width=max(830, 250 * cols),
-# )
-# fig.show()
-# # fig.show(config={'staticPlot': True, 'responsive': False})
+# # fig.write_image(
+# #     f"{head_title} - PacBio.svg",
+# #     height=max(300, 200 * rows),
+# #     width=max(600, 250 * cols),
+# # )
 
+# fig.show()
 
 # %% [markdown]
 # ##### Clustering functions

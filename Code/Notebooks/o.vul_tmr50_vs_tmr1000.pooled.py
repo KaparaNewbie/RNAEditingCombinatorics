@@ -30,10 +30,12 @@ out_dir = "/private7/projects/Combinatorics/Code/Notebooks"
 import sys
 from functools import reduce
 from itertools import chain, combinations, product
+import math
 from math import ceil
 from multiprocessing import Pool
 from pathlib import Path
 from random import choice
+from collections import defaultdict
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -44,6 +46,8 @@ import plotly.graph_objects as go
 import plotly.io as pio
 
 from scipy import interpolate  # todo unimport this later?
+from scipy.stats import fisher_exact, chi2_contingency
+from statsmodels.stats.multitest import fdrcorrection, multipletests
 import scipy.stats
 import seaborn as sns
 from Bio import SeqIO, motifs  # biopython
@@ -1414,7 +1418,7 @@ num_of_reads_in_reads_files[:3]
 
 
 # %% [markdown]
-# ### All SNPs reads
+# ### Reads with full haplotype information (SNPs and editing positions covered)
 
 # %%
 def make_editing_and_snps_reads_df(
@@ -1437,7 +1441,7 @@ def make_editing_and_snps_reads_df(
     )
     
     if reads_snps_df.empty:
-        return None, None
+        return None
     
     # add all reads (even those without a single SNP covered) to reads_snps_df
     # to allow direct insertion of data from reads_snps_df into editing_and_snps_reads_df (see below)
@@ -1457,13 +1461,13 @@ def make_editing_and_snps_reads_df(
     # snps_positions
     
     editing_and_snps_reads_df = (
-    reads_df
-    .merge(
-        reads_snps_df.loc[:, ["Chrom", "Read"]],
-        how="left"
+        reads_df
+        .merge(
+            reads_snps_df.loc[:, ["Chrom", "Read"]],
+            how="left"
+        )
+        .sort_values("Read", ignore_index=True)
     )
-    .sort_values("Read", ignore_index=True)
-)
 
     # insert each indivdual SNP to reads with editing status df
     reads_first_col_pos_in_editing_and_snps_reads_df = reads_first_col_pos
@@ -1496,7 +1500,7 @@ def make_editing_and_snps_reads_df(
     
     # if no reads hold complete haplotype information, terminate early
     if editing_and_snps_reads_df.empty:
-        return None, None
+        return None
 
     # Replace -1 (unmapped/ignored) with NaN in the editing columns
     # so means are computed on covered reads only
@@ -1512,23 +1516,11 @@ def make_editing_and_snps_reads_df(
     reads_first_col_pos_in_editing_and_snps_reads_df += 1
     # ic(reads_first_col_pos_in_editing_and_snps_reads_df)
 
-    return editing_and_snps_reads_df, reads_first_col_pos_in_editing_and_snps_reads_df
-
-
-# %%
-def validate_haplotypes_diversity(
-    editing_and_snps_reads_df,
-    min_haplotypes,
-    min_reads_per_haplotype
-):
-    haplotypes_value_counts = editing_and_snps_reads_df["Haplotype"].value_counts()
-    if haplotypes_value_counts.ge(min_reads_per_haplotype).sum() >= min_haplotypes:
-        return True
-    return False
-
+    # return editing_and_snps_reads_df, reads_first_col_pos_in_editing_and_snps_reads_df
+    return editing_and_snps_reads_df
 
 # %%
-editing_and_snps_reads_dfs_and_first_col_poses = [
+editing_and_snps_reads_dfs = [
         make_editing_and_snps_reads_df(
         reads_snps_file,
         reads_df,
@@ -1542,393 +1534,16 @@ editing_and_snps_reads_dfs_and_first_col_poses = [
 ]
 
 # keep only results where the editing and snps reads df is not None (i.e. there were reads with complete haplotype information)
-editing_and_snps_reads_dfs_and_first_col_poses = [
-    res
-    for res in editing_and_snps_reads_dfs_and_first_col_poses
-    # if res != (None, None)
-    if type(res[0]) == pd.core.frame.DataFrame
-]
-
-ic(len(editing_and_snps_reads_dfs_and_first_col_poses));
-
-# editing_and_snps_reads_dfs_and_first_col_poses[0][0]
-
-# %%
-# editing_and_snps_reads_dfs = [
-#     x[0] for x in editing_and_snps_reads_dfs_and_first_col_poses
-# ]
-# reads_first_col_pos_in_editing_and_snps_reads_dfs = [
-#     x[1] for x in editing_and_snps_reads_dfs_and_first_col_poses
-# ]
-
-# %%
-diverse_haplotypes_editing_and_snps_reads_dfs_and_first_col_poses = [
-    res
-    for res in editing_and_snps_reads_dfs_and_first_col_poses
-    # if validate_haplotypes_diversity(res[0], 2, 50)
-    # if validate_haplotypes_diversity(res[0], 2, 300) or validate_haplotypes_diversity(res[0], 3, 100)
-    if validate_haplotypes_diversity(res[0], 3, 100)
-]
-ic(len(diverse_haplotypes_editing_and_snps_reads_dfs_and_first_col_poses));
-
-# %%
 editing_and_snps_reads_dfs = [
-    x[0] for x in diverse_haplotypes_editing_and_snps_reads_dfs_and_first_col_poses
+    res
+    for res in editing_and_snps_reads_dfs
+    if type(res) == pd.core.frame.DataFrame
 ]
-reads_first_col_pos_in_editing_and_snps_reads_dfs = [
-    x[1] for x in diverse_haplotypes_editing_and_snps_reads_dfs_and_first_col_poses
-]
+
+ic(len(editing_and_snps_reads_dfs));
 
 # %%
-editing_and_snps_reads_df = editing_and_snps_reads_dfs[1]
-editing_and_snps_reads_df
-
-# %%
-
-# %%
-editing_and_snps_reads_df[["Haplotype", "Sample"]].value_counts()
-
-# %%
-haplotypes_value_counts = editing_and_snps_reads_df["Haplotype"].value_counts()
-haplotypes_value_counts
-
-# %%
-editing_cols = editing_and_snps_reads_df.loc[:, "Haplotype":].iloc[:, 1:].columns
-editing_cols
-
-# %%
-# temp_df.groupby("Haplotype")[editing_cols].agg(["mean", "std"])
-editing_long_df = (
-    editing_and_snps_reads_df.groupby("Haplotype")[editing_cols]
-    .agg(["mean", "std"])
-    .stack(level=0, future_stack=True)  # silence FutureWarning (pandas>=2.1)
-    .reset_index()
-    .rename(columns={"level_1": "EditingSite"})
-)
-
-# # optional: nicer dtypes / sorting
-editing_long_df["EditingSite"] = editing_long_df["EditingSite"].astype(int)
-editing_long_df = editing_long_df.sort_values(["EditingSite", "Haplotype"], ignore_index=True)
-editing_long_df["EditingSite"] = editing_long_df["EditingSite"].astype(str)
-
-editing_long_df
-
-# %%
-# Group by the SNP alleles (haplotypes) and calculate the editing frequency for each site
-# (rows=editing sites, cols=haplotypes)
-# editing_profiles = temp_df.groupby("Haplotype")[editing_cols].mean().T
-editing_profiles = editing_and_snps_reads_df.groupby("Haplotype")[editing_cols].mean().mul(100).T
-editing_profiles.dropna(how="all", inplace=True)
-# # editing_profiles["MeanOfMeans"] = editing_profiles.mean(axis=1)
-# editing_profiles = editing_profiles.merge(
-#     editing_and_snps_reads_df.loc[:, editing_cols].mean().mul(100).T.rename("GlobalMeanEditing"),
-#     left_index=True,
-#     right_index=True
-# )
-# editing_profiles["MeanEditingDiff(1-0)"] = editing_profiles.apply(
-#     lambda x: x.iloc[1] - x.iloc[0], axis=1
-# )
-
-editing_profiles
-
-# %%
-editing_long_dfs = []
-editing_profiles_dfs = []
-
-for editing_and_snps_reads_df in editing_and_snps_reads_dfs:
-    
-    chrom = editing_and_snps_reads_df["Chrom"].iloc[0]
-    editing_cols = editing_and_snps_reads_df.loc[:, "Haplotype":].iloc[:, 1:].columns
-    
-    editing_long_df = (
-        editing_and_snps_reads_df.groupby("Haplotype")[editing_cols]
-        .agg(["mean", "std"])
-        .stack(level=0, future_stack=True)  # silence FutureWarning (pandas>=2.1)
-        .reset_index()
-        .rename(columns={"level_1": "EditingSite"})
-    )
-    # # optional: nicer dtypes / sorting
-    editing_long_df["EditingSite"] = editing_long_df["EditingSite"].astype(int)
-    editing_long_df = editing_long_df.sort_values(["EditingSite", "Haplotype"], ignore_index=True)
-    editing_long_df["EditingSite"] = editing_long_df["EditingSite"].astype(str)
-    editing_long_df.insert(0, "Chrom", chrom)
-    editing_long_dfs.append(editing_long_df)
-    
-    editing_profiles_df = editing_and_snps_reads_df.groupby("Haplotype")[editing_cols].mean().mul(100).T
-    editing_profiles_df.dropna(how="all", inplace=True)
-    editing_profiles_df.insert(0, "Chrom", chrom)
-    editing_profiles_dfs.append(editing_profiles_df)
-    
-concat_editing_long_df = pd.concat(editing_long_dfs)
-concat_editing_profiles_dfs = pd.concat(editing_profiles_dfs)
-
-concat_editing_long_df["EditingSite"] = concat_editing_long_df["EditingSite"].astype(int)
-concat_editing_long_df["%mean"] = concat_editing_long_df["mean"].mul(100)
-
-# del editing_long_dfs, editing_profiles_dfs
-del editing_long_dfs
-
-# %%
-concat_editing_long_df 
-
-# %%
-editing_profiles_dfs[0]
-
-# %%
-#
-concat_editing_profiles_dfs
-
-# %%
-fig = px.scatter(
-    concat_editing_long_df,
-    x="EditingSite",
-    y="mean",
-    color="Haplotype",
-    facet_col="Chrom",
-    facet_col_wrap=3,
-    # error_y="std",
-    # facet_row="Haplotype",
-    opacity=0.8,
-)
-fig.update_layout(
-    height=600,
-    width=1000,
-    # template="simple_white",
-    # title=f"Editing Status Distribution per Editing Site<br>for Reads with Complete SNP Haplotypes"
-)
-fig.show()
-
-# %%
-import math
-import pandas as pd
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import plotly.express as px
-
-# ---- inputs ----
-df = concat_editing_long_df  # expects columns: Chrom, EditingSite, %mean, Haplotype
-
-facet_col = "Chrom"
-x_col = "EditingSite"
-y_col = "%mean"
-color_col = "Haplotype"
-
-facet_col_wrap = 3
-opacity = 0.8
-
-width = 1000
-height = 600
-
-# ---------------------------
-# 1) Decide facet order + grid
-# ---------------------------
-chroms = list(pd.unique(df[facet_col]))
-n_panels = len(chroms)
-ncols = facet_col_wrap
-nrows = math.ceil(n_panels / ncols)
-
-# -----------------------------------------
-# 2) Stable color map for haplotypes (global)
-#    Same haplotype -> same color across all subplots
-# -----------------------------------------
-haplotypes = list(pd.unique(df[color_col]))
-
-palette = px.colors.qualitative.D3
-if len(haplotypes) > len(palette):
-    palette = (palette * (len(haplotypes) // len(palette) + 1))[: len(haplotypes)]
-
-color_map = {h: c for h, c in zip(haplotypes, palette)}
-
-# ---------------------------
-# 3) Create subplots
-#    subtitle should be just chrom (not "Chrom=...")
-#    add more space between rows
-# ---------------------------
-subplot_titles = [str(c) for c in chroms]
-
-fig = make_subplots(
-    rows=nrows,
-    cols=ncols,
-    subplot_titles=subplot_titles,
-    horizontal_spacing=0.06,
-    # vertical_spacing=0.20,  # more space between rows
-    vertical_spacing=0.14,
-)
-
-panel_legends = {}  # (row, col) -> list[(haplotype, color)]
-
-# ---------------------------
-# 4) Add traces per panel
-#    Separate x-axis per subplot (default; do NOT match)
-#    X label only on bottom row
-#    Y label only on left-most col
-# ---------------------------
-for i, chrom in enumerate(chroms):
-    r = i // ncols + 1
-    c = i % ncols + 1
-
-    sub = df[df[facet_col] == chrom]
-
-    present_haps = list(pd.unique(sub[color_col]))
-    panel_legends[(r, c)] = [(h, color_map[h]) for h in present_haps]
-
-    for h in present_haps:
-        sh = sub[sub[color_col] == h]
-        fig.add_trace(
-            go.Scattergl(
-                x=sh[x_col],
-                y=sh[y_col],
-                mode="markers",
-                marker=dict(color=color_map[h], size=7, opacity=opacity),
-                name=str(h),
-                showlegend=False,  # we draw a per-panel legend via annotations
-            ),
-            row=r,
-            col=c,
-        )
-
-    # X axis label: only bottom row, with pretty text
-    fig.update_xaxes(
-        title_text=("Editing site" if r == nrows else None),
-        row=r,
-        col=c,
-    )
-
-    # Y axis label: only left-most column (as you already do)
-    fig.update_yaxes(
-        title_text=("Mean editing [%]" if c == 1 else None),
-        row=r,
-        col=c,
-    )
-
-# ---------------------------
-# 5) Layout + styling
-# ---------------------------
-fig.update_layout(
-    width=width,
-    height=height,
-    # template="simple_white",
-    margin=dict(l=80, r=20, t=60, b=60),
-)
-
-# Make subplot titles a bit nicer
-fig.update_annotations(font=dict(size=12))
-
-# ---------------------------
-# 6) "Legend inside each subplot" via annotations
-#     (Plotly supports only one real legend per figure)
-# ---------------------------
-layout = fig.layout
-
-for i, chrom in enumerate(chroms):
-    r = i // ncols + 1
-    c = i % ncols + 1
-
-    axis_index = i + 1
-    xaxis_name = "xaxis" if axis_index == 1 else f"xaxis{axis_index}"
-    yaxis_name = "yaxis" if axis_index == 1 else f"yaxis{axis_index}"
-
-    xdom = getattr(layout, xaxis_name).domain
-    ydom = getattr(layout, yaxis_name).domain
-
-    items = panel_legends[(r, c)]
-    legend_lines = ["<span style='font-size:12px;'><b>Haplotype</b></span>"]
-    for h, colr in items:
-        legend_lines.append(
-            f"<span style='color:{colr};'>●</span> <span style='font-size:11px;'>{h}</span>"
-        )
-    legend_html = "<br>".join(legend_lines)
-
-    fig.add_annotation(
-        x=xdom[1] - 0.01,
-        y=ydom[1] - 0.01,
-        xref="paper",
-        yref="paper",
-        xanchor="right",
-        yanchor="top",
-        text=legend_html,
-        showarrow=False,
-        align="left",
-        bgcolor="rgba(255,255,255,0.7)",
-        bordercolor="rgba(0,0,0,0.15)",
-        borderwidth=1,
-        borderpad=4,
-    )
-
-fig.show()
-
-
-# %%
-# editing_profiles["MeanEditingDiff(1-0)"].sort_values(ascending=False).round(2)
-
-# %%
-# fig = px.histogram(
-#     editing_profiles,
-#     x="MeanEditingDiff(1-0)",
-#     labels={
-#         "MeanEditingDiff(1-0)": "Mean % editing difference per site (Haplotype 1 - Haplotype 0)"
-#     }
-# )
-# fig.update_xaxes(dtick=1)
-# fig.update_layout(
-#     height=500,
-#     width=1000,
-#     template="simple_white",
-# )
-# fig.show()
-
-# %%
-editing_and_snps_reads_df["Haplotype"].unique()
-
-# %%
-fig = px.scatter_matrix(
-    editing_profiles,
-    dimensions=editing_and_snps_reads_df["Haplotype"].unique(),
-    # x="GlobalMeanEditing",
-    # y="MeanEditingDiff(1-0)",
-    # labels={
-    #     "MeanEditingDiff(1-0)": "Mean % editing difference per site<br>(Haplotype 1 - Haplotype 0)",
-    #     "GlobalMeanEditing": "Global mean % editing per site"
-    # },
-    # marginal_x="histogram", marginal_y="histogram",
-    # trendline="ols", trendline_color_override="black"
-)
-
-# fig.update_xaxes(dtick=1)
-fig.update_traces(diagonal_visible=False)
-fig.update_layout(
-    height=700,
-    width=700,
-    # template="simple_white",
-)
-fig.show()
-
-# %%
-fig = px.scatter(
-    editing_profiles,
-    x="0",
-    y="1",
-    labels={
-        "0": "Haplotype 0 mean editing frequency [%]",
-        "1": "Haplotype 1 mean editing frequency [%]",
-    },
-    # marginal_x="histogram", marginal_y="histogram",
-    # trendline="ols", trendline_color_override="black"
-)
-
-fig.update_xaxes(dtick=10, range=[0, 100])
-fig.update_yaxes(dtick=10, range=[0, 100])
-
-fig.update_layout(
-    height=500,
-    width=500,
-    template="simple_white",
-    # yaxis=dict(
-    #     scaleanchor="x",
-    #     scaleratio=1,
-    # )
-)
-fig.show()
+editing_and_snps_reads_dfs[0]
 
 # %%
 
@@ -5072,6 +4687,1970 @@ multiple_logos_from_fasta_files(
     dpi=300,
     # tighthen_layout=True
 );
+
+
+# %% [markdown]
+# ## Editing by haplotype
+
+# %% [markdown]
+# ### Chi-square permutations enrichment functions
+
+# %%
+def _per_site_counts(df, site_col, haplotype_col, haplotypes):
+    """
+    Returns a 2x2 (or rxc where r=len(haplotypes) and c=2 (unedited/edited)) counts:
+      [[h1_edited0, h1_edited1],
+       [h2_edited0, h2_edited1]]
+    using df rows with non-NaN at site_col and haplotype_col in haplotypes (e.g. {h1,h2}).
+    """
+    sub = df.loc[df[haplotype_col].isin(haplotypes), [haplotype_col, site_col]].dropna()
+    # keep only 0/1
+    sub = sub.loc[sub[site_col].isin([0, 1])]
+    if sub.empty:
+        return None
+
+    cros = pd.crosstab(sub[haplotype_col], sub[site_col])
+    # ensure full shape
+    cros = cros.reindex(index=haplotypes, columns=[0, 1], fill_value=0)
+    return cros.values
+
+
+# %%
+def _fisher_two_sided(contingency_table):
+    _, p = fisher_exact(contingency_table, alternative="two-sided")
+    return p
+
+
+# %%
+def _chi_square_two_sided(contingency_table):
+    res = chi2_contingency(contingency_table)
+    return res.pvalue
+
+
+# %%
+def count_diff_sites(
+    df, haplotype_col, haplotypes, editing_sites_cols, 
+    alpha=0.05, min_reads_per_cell=5, 
+    test=_chi_square_two_sided
+):
+    pvals = []
+    tested_cols = []
+    for site_col in editing_sites_cols:
+        contingency_table = _per_site_counts(df, site_col, haplotype_col, haplotypes)
+        if contingency_table is None:
+            continue
+        if any(contingency_table.flatten() < min_reads_per_cell):
+            # print(f"Skipping site {site_col} due to low total reads ({contingency_table.sum()})")
+            print(f"Skipping site {site_col} due to low reads in one or more cells ({contingency_table})")
+            continue
+        # p = _fisher_two_sided(contingency_table)
+        p = test(contingency_table)
+        pvals.append(p)
+        tested_cols.append(site_col)
+
+    pvals = np.asarray(pvals)
+    rejected, pvalue_corrected = fdrcorrection(
+        pvals,
+        alpha=alpha,
+        # general correlated tests, see:
+        # https://www.statsmodels.org/stable/generated/statsmodels.stats.multitest.fdrcorrection.html#statsmodels.stats.multitest.fdrcorrection.method
+        method="n"
+    )
+    tests_df = pd.DataFrame(
+        {
+            "Site": tested_cols,
+            "P": pvals,
+            "P_FDR": pvalue_corrected,
+            "Rejected_H0": rejected,
+        }
+    ).sort_values("Site")
+    # num of significant sites after FDR correction
+    n_sig = sum(rejected)
+    return n_sig, len(tested_cols), tests_df
+
+# n_sig, n_tested_cols, tests_df = count_diff_sites(temp_df, "Haplotype", editing_cols, "0", "1", alpha=0.05, min_reads_per_cell=5)
+
+
+# %%
+def permutation_null(
+    df, 
+    haplotypes, 
+    n_perm=200, 
+    alpha=0.05, 
+    min_reads_per_cell=5, 
+    seed=seed, 
+    hap_col="Haplotype",
+    test=_chi_square_two_sided
+):
+    # set up random generator with fixed seed for reproducibility
+    rng = np.random.default_rng(seed)
+    # the editing columns are all columns after the haplotype column
+    editing_cols = df.iloc[:, df.columns.get_loc(hap_col) + 1:].columns
+    # copy relevant subset to allow shuffling haplotype labels w/o modifying original df
+    sub = df.loc[df[hap_col].isin(haplotypes)].copy()
+    # calculate observed number of significant sites in the original data
+    observed, m_tested, per_site = count_diff_sites(sub, hap_col, haplotypes, editing_cols, alpha=alpha, min_reads_per_cell=min_reads_per_cell, test=test)
+
+    null_counts = []
+    hap_values = sub[hap_col].to_numpy()
+    for _ in range(n_perm):
+        # Randomly shuffle (“permute”) the haplotype labels across reads
+        perm = hap_values.copy()
+        rng.shuffle(perm)
+        sub[hap_col] = perm
+        # Recalculate the number of significant sites for this permutation
+        c, _, _ = count_diff_sites(sub, hap_col, haplotypes, editing_cols, alpha=alpha, min_reads_per_cell=min_reads_per_cell, test=test)
+        null_counts.append(c)
+
+    null_counts = np.asarray(null_counts)
+    # empirical p-value
+    p_emp = (1 + (null_counts >= observed).sum()) / (1 + n_perm)
+    return observed, null_counts, p_emp, m_tested, per_site
+
+
+
+# %%
+def all_haplotypes_permutation_null(
+    editing_and_snps_reads_df,
+    n_perm=200, 
+    alpha=0.05, 
+    seed=seed,
+    # min_reads_per_cell=5, 
+    # test=_chi_square_two_sided
+    min_reads_per_cell=0, 
+    test=_fisher_two_sided,
+    hap_col="Haplotype"
+):
+    chrom = editing_and_snps_reads_df["Chrom"].iloc[0]
+    
+    hap_counts = editing_and_snps_reads_df[hap_col].value_counts()
+    haplotypes_couples = list(combinations(hap_counts.index, 2))
+
+    results_dict = defaultdict(list)
+
+    for h1, h2 in haplotypes_couples:
+        haplotypes = [h1, h2]
+        # print(haplotypes)
+        # print("Comparing:", h1, "vs", h2)
+        # print("Reads per haplotype:\n", hap_counts.loc[haplotypes])
+        obs, null_counts, p_emp, m_tested, _ = permutation_null(
+            editing_and_snps_reads_df, 
+            haplotypes,
+            n_perm=n_perm, 
+            alpha=alpha,
+            min_reads_per_cell=min_reads_per_cell,  
+            seed=seed,
+            hap_col=hap_col,
+            test=test
+        )
+        # print(f"Tested sites: {m_tested}")
+        # print(f"Observed #diff sites (p<0.05): {obs}")
+        # print(f"Null mean: {null_counts.mean():.2f}, null 95%: [{np.quantile(null_counts, 0.025)}, {np.quantile(null_counts, 0.975)}]")
+        # print(f"Empirical p-value: {p_emp:.4g}")
+        null_counts_ge_observed = (null_counts >= obs).sum()
+        results_dict["Haplotypes"].append(haplotypes)
+        results_dict["Tested sites"].append(m_tested)
+        results_dict["Observed"].append(obs)
+        results_dict["Null >= Observed"].append(null_counts_ge_observed)
+        # results_dict["Null Mean"].append(null_counts.mean())
+        # results_dict["Null 95%"].append([np.quantile(null_counts, 0.025), np.quantile(null_counts, 0.975)])
+        results_dict["Empirical p-value"].append(p_emp)
+
+    results_df = pd.DataFrame(results_dict)
+    results_df.insert(0, "Chrom", chrom)
+    
+    # also correct for multiple testing across the different haplotype pairs (e.g. 3 pairs for 3 haplotypes) 
+    # using Benjamini-Hochberg FDR correction
+    reject, pvals_corr, *_ = multipletests(results_df["Empirical p-value"].tolist(), method='fdr_bh')
+    results_df["Empirical p-value (FDR)"] = pvals_corr
+    results_df["Reject H0 (FDR)"] = reject
+    
+    return results_df
+
+
+# %%
+editing_and_snps_reads_df
+
+
+# %%
+# n_perm=200
+# alpha=0.05
+# seed=seed
+# # min_reads_per_cell=5, 
+# # test=_chi_square_two_sided
+# min_reads_per_cell=0
+# test=_fisher_two_sided
+# hap_col="Haplotype"
+
+# %%
+# chrom = editing_and_snps_reads_df["Chrom"].iloc[0]
+# chrom
+
+# %%
+# hap_counts = editing_and_snps_reads_df[hap_col].value_counts()
+# hap_counts
+
+# %%
+# haplotypes_couples = list(combinations(hap_counts.index, 2))
+# haplotypes_couples
+
+# %%
+# h1, h2 = haplotypes_couples[0]
+# haplotypes = [h1, h2]
+# h1, h2, haplotypes
+
+# %%
+# obs, null_counts, p_emp, m_tested, _ = permutation_null(
+#     editing_and_snps_reads_df, 
+#     haplotypes,
+#     n_perm=n_perm, 
+#     alpha=alpha,
+#     min_reads_per_cell=min_reads_per_cell,  
+#     seed=seed,
+#     hap_col=hap_col,
+#     test=test
+# )
+# obs, null_counts, p_emp, m_tested
+
+# %%
+# # work on df copy
+# df = editing_and_snps_reads_df.copy()
+# # df
+
+# %%
+# # set up random generator with fixed seed for reproducibility
+# rng = np.random.default_rng(seed)
+
+# # the editing columns are all columns after the haplotype column
+# editing_cols = df.iloc[:, df.columns.get_loc(hap_col) + 1:].columns
+# editing_cols
+
+# %%
+# # # copy relevant subset to allow shuffling haplotype labels w/o modifying original df
+# sub = df.loc[df[hap_col].isin(haplotypes)].copy()
+# sub
+
+# %%
+# # calculate observed number of significant sites in the original data
+# observed, m_tested, per_site = count_diff_sites(
+#     sub, hap_col, haplotypes, editing_cols, 
+#     alpha=alpha, min_reads_per_cell=min_reads_per_cell, test=test
+# )
+
+# null_counts = []
+# hap_values = sub[hap_col].to_numpy()
+# for _ in range(n_perm):
+#     # Randomly shuffle (“permute”) the haplotype labels across reads
+#     perm = hap_values.copy()
+#     rng.shuffle(perm)
+#     sub[hap_col] = perm
+#     # Recalculate the number of significant sites for this permutation
+#     c, _, _ = count_diff_sites(sub, hap_col, haplotypes, editing_cols, alpha=alpha, min_reads_per_cell=min_reads_per_cell, test=test)
+#     null_counts.append(c)
+
+# null_counts = np.asarray(null_counts)
+# # empirical p-value
+# p_emp = (1 + (null_counts >= observed).sum()) / (1 + n_perm)
+
+# %%
+
+# %% [markdown]
+# ### Selected diverse haplotypes tests
+
+# %%
+def validate_haplotypes_diversity(
+    editing_and_snps_reads_df,
+    min_haplotypes,
+    min_reads_per_haplotype,
+    min_editing_sites=0
+):
+    
+    num_editing_sites = len(editing_and_snps_reads_df.loc[:, "Haplotype":].columns) - 1
+    enough_editing_sites = num_editing_sites >= min_editing_sites
+    
+    haplotypes_value_counts = editing_and_snps_reads_df["Haplotype"].value_counts()
+    enough_well_covered_haplotypes = haplotypes_value_counts.ge(min_reads_per_haplotype).sum() >= min_haplotypes
+    
+    if enough_editing_sites and enough_well_covered_haplotypes:
+        return True
+    return False
+
+
+# %%
+# editing_and_snps_reads_df = editing_and_snps_reads_dfs[2]
+# editing_and_snps_reads_df
+
+# %%
+
+# %%
+diverse_haplotypes_editing_and_snps_reads_dfs = [
+    df
+    for df in editing_and_snps_reads_dfs
+    # if validate_haplotypes_diversity(df, 2, 50)
+    # if validate_haplotypes_diversity(df, 2, 300) or validate_haplotypes_diversity(df, 3, 100)
+    # if validate_haplotypes_diversity(df, 3, 100)
+    # if validate_haplotypes_diversity(df, 3, 70, 5)
+    if validate_haplotypes_diversity(df, 2, 200, 15)
+]
+ic(len(diverse_haplotypes_editing_and_snps_reads_dfs));
+
+# %%
+diverse_haplotypes_editing_and_snps_reads_dfs[0]
+
+# %%
+editing_long_dfs = []
+editing_profiles_dfs = []
+
+for editing_and_snps_reads_df in diverse_haplotypes_editing_and_snps_reads_dfs:
+    
+    chrom = editing_and_snps_reads_df["Chrom"].iloc[0]
+    editing_cols = editing_and_snps_reads_df.loc[:, "Haplotype":].iloc[:, 1:].columns
+    
+    editing_long_df = (
+        editing_and_snps_reads_df.groupby("Haplotype")[editing_cols]
+        .agg(["mean", "std"])
+        .stack(level=0, future_stack=True)  # silence FutureWarning (pandas>=2.1)
+        .reset_index()
+        .rename(columns={"level_1": "EditingSite"})
+    )
+    # # optional: nicer dtypes / sorting
+    editing_long_df["EditingSite"] = editing_long_df["EditingSite"].astype(int)
+    editing_long_df = editing_long_df.sort_values(["EditingSite", "Haplotype"], ignore_index=True)
+    editing_long_df["EditingSite"] = editing_long_df["EditingSite"].astype(str)
+    editing_long_df.insert(0, "Chrom", chrom)
+    editing_long_dfs.append(editing_long_df)
+    
+    editing_profiles_df = editing_and_snps_reads_df.groupby("Haplotype")[editing_cols].mean().mul(100).T
+    editing_profiles_df.dropna(how="all", inplace=True)
+    editing_profiles_df.insert(0, "Chrom", chrom)
+    editing_profiles_dfs.append(editing_profiles_df)
+    
+concat_editing_long_df = pd.concat(editing_long_dfs)
+concat_editing_profiles_dfs = pd.concat(editing_profiles_dfs)
+
+concat_editing_long_df["EditingSite"] = concat_editing_long_df["EditingSite"].astype(int)
+concat_editing_long_df["%mean"] = concat_editing_long_df["mean"].mul(100)
+
+# del editing_long_dfs, editing_profiles_dfs
+# del editing_long_dfs
+
+# %%
+concat_editing_long_df 
+
+# %%
+concat_editing_profiles_dfs
+
+# %%
+concat_editing_profiles_dfs.iloc[:, 1:].max().max()
+
+# %%
+editing_profiles_dfs[0]
+
+
+# %%
+def make_haplotype_diffs_df(editing_profiles_df):
+    haplotype_diffs_df = editing_profiles_df.copy()
+
+    haplotypes = haplotype_diffs_df.columns[1:]
+
+    for h1, h2 in combinations(haplotypes, 2):
+        haplotype_diffs_df[f"{h1} - {h2}"] = haplotype_diffs_df[h1] - haplotype_diffs_df[h2]
+        
+    haplotype_diffs_df = haplotype_diffs_df.drop(columns=haplotypes)
+    
+    return haplotype_diffs_df
+
+
+# %%
+haplotype_diffs_dfs = [
+    make_haplotype_diffs_df(editing_profiles_df)
+    for editing_profiles_df in editing_profiles_dfs
+]
+haplotype_diffs_dfs[0]
+
+# %%
+# -----------------------
+# Chrom -> subplot title
+# -----------------------
+chrom_to_title = (
+    orfs_df.drop_duplicates("Chrom")
+    .set_index("Chrom")["Name"]
+    .to_dict()
+)
+
+def chrom_to_plot_title(chrom):
+    name = chrom_to_title.get(chrom, chrom)
+    return str(name).split("_")[0]
+
+
+# %%
+
+df = concat_editing_long_df  # expects columns: Chrom, EditingSite, %mean, Haplotype
+
+facet_col = "Chrom"
+x_col = "EditingSite"
+y_col = "%mean"
+color_col = "Haplotype"
+
+facet_col_wrap = 3
+opacity = 0.8
+
+width = 1000
+height = 600
+
+# Global axis title styling
+global_axis_font_size = 20
+# global_x_title_y = -0.085
+# global_y_title_x = -0.075
+# global_x_title_y = -0.04
+# global_y_title_x = -0.04
+global_x_title_y = -0.055
+global_y_title_x = -0.040
+
+
+# ---------------------------
+# 1) Decide facet order + grid
+# ---------------------------
+chroms = list(pd.unique(df[facet_col]))
+n_panels = len(chroms)
+ncols = facet_col_wrap
+nrows = math.ceil(n_panels / ncols)
+
+# -----------------------------------------
+# 2) Stable color map for haplotypes (global)
+# -----------------------------------------
+haplotypes = list(pd.unique(df[color_col]))
+
+palette = px.colors.qualitative.D3
+if len(haplotypes) > len(palette):
+    palette = (palette * (len(haplotypes) // len(palette) + 1))[: len(haplotypes)]
+
+color_map = {h: c for h, c in zip(haplotypes, palette)}
+
+# ---------------------------
+# 3) Create subplots
+#    Titles should be mapped gene names (not Chrom)
+# ---------------------------
+subplot_titles = [chrom_to_plot_title(c) for c in chroms]
+
+fig = make_subplots(
+    rows=nrows,
+    cols=ncols,
+    subplot_titles=subplot_titles,
+    horizontal_spacing=0.06,
+    vertical_spacing=0.14,
+)
+
+panel_legends = {}  # (row, col) -> list[(haplotype, color)]
+
+# ---------------------------
+# 4) Add traces per panel
+# ---------------------------
+for i, chrom in enumerate(chroms):
+    r = i // ncols + 1
+    c = i % ncols + 1
+
+    sub = df[df[facet_col] == chrom]
+
+    present_haps = list(pd.unique(sub[color_col]))
+    panel_legends[(r, c)] = [(h, color_map[h]) for h in present_haps]
+
+    for h in present_haps:
+        sh = sub[sub[color_col] == h]
+        fig.add_trace(
+            go.Scattergl(
+                x=sh[x_col],
+                y=sh[y_col],
+                mode="markers",
+                marker=dict(color=color_map[h], size=7, opacity=opacity),
+                name=str(h),
+                showlegend=False,  # legend via annotations
+            ),
+            row=r,
+            col=c,
+        )
+
+    # # X axis label only on bottom row
+    # fig.update_xaxes(
+    #     title_text=("Editing site" if r == nrows else None),
+    #     row=r,
+    #     col=c,
+    # )
+
+    # # Y axis label only on left-most column
+    # fig.update_yaxes(
+    #     title_text=("Mean editing [%]" if c == 1 else None),
+    #     row=r,
+    #     col=c,
+    # )
+
+# ---------------------------
+# 5) Layout + styling
+# ---------------------------
+fig.update_layout(
+    width=width,
+    height=height,
+    # template="simple_white",
+    margin=dict(l=80, r=20, t=60, b=60),
+)
+
+fig.update_annotations(font=dict(size=12))
+
+
+# ---------------------------
+# 6) Global/shared axis titles (single title per axis)
+# ---------------------------
+fig.add_annotation(
+    x=0.5,
+    y=global_x_title_y,
+    xref="paper",
+    yref="paper",
+    text="Editing site",
+    showarrow=False,
+    xanchor="center",
+    yanchor="top",
+    font=dict(size=global_axis_font_size),
+)
+
+fig.add_annotation(
+    x=global_y_title_x,
+    y=0.5,
+    xref="paper",
+    yref="paper",
+    text="Mean editing [%]",
+    showarrow=False,
+    xanchor="right",
+    yanchor="middle",
+    textangle=-90,
+    font=dict(size=global_axis_font_size),
+)
+
+# ---------------------------
+# 7) "Legend inside each subplot" via annotations
+# ---------------------------
+layout = fig.layout
+
+for i, chrom in enumerate(chroms):
+    r = i // ncols + 1
+    c = i % ncols + 1
+
+    axis_index = i + 1
+    xaxis_name = "xaxis" if axis_index == 1 else f"xaxis{axis_index}"
+    yaxis_name = "yaxis" if axis_index == 1 else f"yaxis{axis_index}"
+
+    xdom = getattr(layout, xaxis_name).domain
+    ydom = getattr(layout, yaxis_name).domain
+
+    items = panel_legends[(r, c)]
+    legend_lines = ["<span style='font-size:12px;'><b>Haplotype</b></span>"]
+    for h, colr in items:
+        legend_lines.append(
+            f"<span style='color:{colr};'>●</span> <span style='font-size:11px;'>{h}</span>"
+        )
+    legend_html = "<br>".join(legend_lines)
+
+    fig.add_annotation(
+        x=xdom[1] - 0.01,
+        y=ydom[1] - 0.01,
+        xref="paper",
+        yref="paper",
+        xanchor="right",
+        yanchor="top",
+        text=legend_html,
+        showarrow=False,
+        align="left",
+        bgcolor="rgba(255,255,255,0.7)",
+        bordercolor="rgba(0,0,0,0.15)",
+        borderwidth=1,
+        borderpad=4,
+    )
+    
+
+
+fig.show()
+
+# %%
+# for editing_profiles_df in editing_profiles_dfs:
+#     chrom = editing_profiles_df["Chrom"].iloc[0]
+#     fig = px.scatter_matrix(
+#         editing_profiles_df,
+#         dimensions=editing_profiles_df.columns[1:],  # exclude Chrom col
+#     )
+#     # fig.update_xaxes(dtick=10)
+#     # fig.update_yaxes(dtick=10)
+#     fig.update_traces(diagonal_visible=False)
+#     fig.update_layout(
+#         height=500,
+#         width=500,
+#         title=chrom,
+#     )
+#     fig.show()
+
+# %%
+# import numpy as np
+# import pandas as pd
+# import plotly.graph_objects as go
+# from itertools import combinations
+
+# # ---------- helpers (unchanged) ----------
+# def ols_line_and_ci(x, y, x_grid, alpha=0.05):
+#     """
+#     Fit y = a + b x (OLS).
+#     Return y_hat on x_grid and a (1-alpha) CI band for the mean prediction.
+#     """
+#     x = np.asarray(x, dtype=float)
+#     y = np.asarray(y, dtype=float)
+
+#     mask = np.isfinite(x) & np.isfinite(y)
+#     x = x[mask]
+#     y = y[mask]
+
+#     n = x.size
+#     if n < 3 or np.allclose(x.var(), 0):
+#         return None
+
+#     X = np.column_stack([np.ones(n), x])
+#     XtX = X.T @ X
+#     beta = np.linalg.solve(XtX, X.T @ y)
+
+#     y_fit = X @ beta
+#     resid = y - y_fit
+#     dof = n - 2
+#     s2 = (resid @ resid) / dof
+
+#     cov_beta = s2 * np.linalg.inv(XtX)
+
+#     Xg = np.column_stack([np.ones_like(x_grid), x_grid])
+#     y_hat = Xg @ beta
+
+#     se_mean = np.sqrt(np.sum(Xg @ cov_beta * Xg, axis=1))
+
+#     if dof >= 30:
+#         tcrit = 1.96
+#     else:
+#         t_table = {
+#             1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571,
+#             6: 2.447, 7: 2.365, 8: 2.306, 9: 2.262, 10: 2.228,
+#             11: 2.201, 12: 2.179, 13: 2.160, 14: 2.145, 15: 2.131,
+#             16: 2.120, 17: 2.110, 18: 2.101, 19: 2.093, 20: 2.086,
+#             21: 2.080, 22: 2.074, 23: 2.069, 24: 2.064, 25: 2.060,
+#             26: 2.056, 27: 2.052, 28: 2.048, 29: 2.045,
+#         }
+#         tcrit = t_table.get(dof, 1.96)
+
+#     lo = y_hat - tcrit * se_mean
+#     hi = y_hat + tcrit * se_mean
+
+#     return y_hat, lo, hi, beta
+
+
+# def rgba_from_hex(hex_color, alpha):
+#     hex_color = hex_color.lstrip("#")
+#     r = int(hex_color[0:2], 16)
+#     g = int(hex_color[2:4], 16)
+#     b = int(hex_color[4:6], 16)
+#     return f"rgba({r},{g},{b},{alpha})"
+
+
+# # ---------- Chrom → Title mapping ----------
+# chrom_to_title = (
+#     orfs_df
+#     .drop_duplicates("Chrom")
+#     .set_index("Chrom")["Name"]
+#     .to_dict()
+# )
+
+# def chrom_to_plot_title(chrom):
+#     name = chrom_to_title.get(chrom, chrom)
+#     return name.split("_")[0]
+
+
+# # ---------- plotting params ----------
+# pair_palette = [
+#     "#EF553B", "#00CC96", "#AB63FA", "#FFA15A", "#19D3F3",
+#     "#FF6692", "#B6E880", "#FF97FF", "#FECB52", "#636EFA"
+# ]
+
+# show_points = True
+# points_opacity = 0.3
+# band_alpha = 0.15
+# line_width = 2
+# base_line_width = line_width + 1
+
+# axis_max = 100
+# dtick = 10
+
+# # ---------- main loop ----------
+# for editing_profiles in editing_profiles_dfs:
+
+#     chrom = editing_profiles["Chrom"].iloc[0]
+#     hap_cols = list(editing_profiles.iloc[:, 1:].columns)
+
+#     x_grid = np.linspace(0, axis_max, 200)
+
+#     fig = go.Figure()
+
+#     # --- pairwise comparisons ---
+#     for k, (h1, h2) in enumerate(combinations(hap_cols, 2)):
+
+#         color = pair_palette[k % len(pair_palette)]
+#         fill_color = rgba_from_hex(color, band_alpha)
+
+#         x = pd.to_numeric(editing_profiles[h1], errors="coerce").to_numpy()
+#         y = pd.to_numeric(editing_profiles[h2], errors="coerce").to_numpy()
+
+#         res = ols_line_and_ci(x, y, x_grid)
+#         if res is None:
+#             continue
+
+#         y_hat, lo, hi, beta = res
+
+#         lg = f"{h1}__vs__{h2}"
+
+#         # faint points
+#         if show_points:
+#             fig.add_trace(
+#                 go.Scatter(
+#                     x=x, y=y,
+#                     mode="markers",
+#                     marker=dict(color=color, size=6, opacity=points_opacity),
+#                     showlegend=False,
+#                     legendgroup=lg,
+#                     name=f"{h1} vs. {h2}",
+#                 )
+#             )
+
+#         # CI band
+#         fig.add_trace(
+#             go.Scatter(
+#                 x=x_grid, y=hi,
+#                 mode="lines",
+#                 line=dict(width=0),
+#                 showlegend=False,
+#                 legendgroup=lg,
+#                 hoverinfo="skip",
+#             )
+#         )
+#         fig.add_trace(
+#             go.Scatter(
+#                 x=x_grid, y=lo,
+#                 mode="lines",
+#                 line=dict(width=0),
+#                 fill="tonexty",
+#                 fillcolor=fill_color,
+#                 showlegend=False,
+#                 legendgroup=lg,
+#                 hoverinfo="skip",
+#             )
+#         )
+
+#         # regression line (legend entry)
+#         fig.add_trace(
+#             go.Scatter(
+#                 x=x_grid, y=y_hat,
+#                 mode="lines",
+#                 line=dict(color=color, width=line_width),
+#                 name=f"{h1} vs. {h2}",
+#                 showlegend=True,
+#                 legendgroup=lg,
+#             )
+#         )
+
+#     # --- baseline (last in legend) ---
+#     fig.add_trace(
+#         go.Scatter(
+#             x=[0, axis_max],
+#             y=[0, axis_max],
+#             mode="lines",
+#             name="No differential editing<br>(theoretical value)",
+#             line=dict(color="black", width=base_line_width, dash="dash"),
+#         )
+#     )
+
+#     # --- axes ---
+#     fig.update_xaxes(
+#         tick0=0,
+#         dtick=dtick,
+#         range=[0, axis_max],
+#         title_text="Haplotype X mean editing [%]",
+#         constrain="domain",
+#     )
+
+#     fig.update_yaxes(
+#         tick0=0,
+#         dtick=dtick,
+#         range=[0, axis_max],
+#         title_text="Haplotype Y mean editing [%]",
+#         scaleanchor="x",
+#         scaleratio=1,
+#         constrain="domain",
+#     )
+
+#     # --- layout ---
+#     fig.update_layout(
+#         title=chrom_to_plot_title(chrom),
+#         height=500,
+#         width=600,
+#         legend=dict(
+#             x=1.02,
+#             y=1,
+#             xanchor="left",
+#             yanchor="top",
+#             groupclick="togglegroup",
+#         ),
+#         margin=dict(l=80, r=180, t=60, b=60),
+#         # template="simple_white",
+#     )
+
+#     fig.show()
+
+
+# %%
+len(diverse_haplotypes_editing_and_snps_reads_dfs)
+
+# %%
+with Pool(processes=6) as pool:
+    selected_examples_fisher_haplotypes_dfs = pool.map(
+        all_haplotypes_permutation_null,
+        diverse_haplotypes_editing_and_snps_reads_dfs
+    )
+concat_selected_examples_fisher_haplotypes_df = pd.concat(selected_examples_fisher_haplotypes_dfs, ignore_index=True)
+concat_selected_examples_fisher_haplotypes_df.insert(
+    1, 
+    condition_col,
+    concat_selected_examples_fisher_haplotypes_df["Chrom"].apply(chrom_to_plot_title)
+)
+concat_selected_examples_fisher_haplotypes_df
+
+# %%
+concat_selected_examples_fisher_haplotypes_df.round(5)
+
+# %%
+editing_and_snps_reads_df = diverse_haplotypes_editing_and_snps_reads_dfs[0].copy()
+editing_and_snps_reads_df
+
+# %%
+
+# %%
+# # -----------------------
+# # Config
+# # -----------------------
+# facet_col_wrap = 3
+# width = 1100
+# height = 750
+
+# axis_max = 100
+# dtick = 10
+# x_grid = np.linspace(0, axis_max, 200)
+
+# show_points = True
+# points_opacity = 0.5     # ← unchanged per your request
+# marker_size = 4          # ← REDUCED (was 5–6 before)
+# band_alpha = 0.15
+# line_width = 2
+# base_line_width = line_width + 1
+
+# pair_palette = [
+#     "#EF553B", "#00CC96", "#AB63FA", "#FFA15A", "#19D3F3",
+#     "#FF6692", "#B6E880", "#FF97FF", "#FECB52", "#636EFA"
+# ]
+
+
+# # ---------- helpers (unchanged) ----------
+# def ols_line_and_ci(x, y, x_grid, alpha=0.05):
+#     """
+#     Fit y = a + b x (OLS).
+#     Return y_hat on x_grid and a (1-alpha) CI band for the mean prediction.
+#     """
+#     x = np.asarray(x, dtype=float)
+#     y = np.asarray(y, dtype=float)
+
+#     mask = np.isfinite(x) & np.isfinite(y)
+#     x = x[mask]
+#     y = y[mask]
+
+#     n = x.size
+#     if n < 3 or np.allclose(x.var(), 0):
+#         return None
+
+#     X = np.column_stack([np.ones(n), x])
+#     XtX = X.T @ X
+#     beta = np.linalg.solve(XtX, X.T @ y)
+
+#     y_fit = X @ beta
+#     resid = y - y_fit
+#     dof = n - 2
+#     s2 = (resid @ resid) / dof
+
+#     cov_beta = s2 * np.linalg.inv(XtX)
+
+#     Xg = np.column_stack([np.ones_like(x_grid), x_grid])
+#     y_hat = Xg @ beta
+
+#     se_mean = np.sqrt(np.sum(Xg @ cov_beta * Xg, axis=1))
+
+#     if dof >= 30:
+#         tcrit = 1.96
+#     else:
+#         t_table = {
+#             1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571,
+#             6: 2.447, 7: 2.365, 8: 2.306, 9: 2.262, 10: 2.228,
+#             11: 2.201, 12: 2.179, 13: 2.160, 14: 2.145, 15: 2.131,
+#             16: 2.120, 17: 2.110, 18: 2.101, 19: 2.093, 20: 2.086,
+#             21: 2.080, 22: 2.074, 23: 2.069, 24: 2.064, 25: 2.060,
+#             26: 2.056, 27: 2.052, 28: 2.048, 29: 2.045,
+#         }
+#         tcrit = t_table.get(dof, 1.96)
+
+#     lo = y_hat - tcrit * se_mean
+#     hi = y_hat + tcrit * se_mean
+
+#     return y_hat, lo, hi, beta
+
+
+# def rgba_from_hex(hex_color, alpha):
+#     hex_color = hex_color.lstrip("#")
+#     r = int(hex_color[0:2], 16)
+#     g = int(hex_color[2:4], 16)
+#     b = int(hex_color[4:6], 16)
+#     return f"rgba({r},{g},{b},{alpha})"
+
+
+# # -----------------------
+# # Prepare panels
+# # -----------------------
+# chroms = [df["Chrom"].iloc[0] for df in editing_profiles_dfs]
+# titles = [chrom_to_plot_title(c) for c in chroms]
+
+# n_panels = len(editing_profiles_dfs)
+# ncols = facet_col_wrap
+# nrows = math.ceil(n_panels / ncols)
+
+# fig = make_subplots(
+#     rows=nrows,
+#     cols=ncols,
+#     subplot_titles=titles,
+#     horizontal_spacing=0.06,
+#     vertical_spacing=0.14,
+# )
+
+# panel_legends = {}
+
+# # -----------------------
+# # Add traces
+# # -----------------------
+# for i, editing_profiles in enumerate(editing_profiles_dfs):
+
+#     chrom = editing_profiles["Chrom"].iloc[0]
+#     hap_cols = list(editing_profiles.iloc[:, 1:].columns)
+
+#     r = i // ncols + 1
+#     c = i % ncols + 1
+
+#     # diagonal baseline
+#     fig.add_trace(
+#         go.Scatter(
+#             x=[0, axis_max],
+#             y=[0, axis_max],
+#             mode="lines",
+#             line=dict(color="black", width=base_line_width, dash="dash"),
+#             showlegend=False,
+#             hoverinfo="skip",
+#         ),
+#         row=r,
+#         col=c,
+#     )
+
+#     legend_items = []
+
+#     for k, (h1, h2) in enumerate(combinations(hap_cols, 2)):
+
+#         color = pair_palette[k % len(pair_palette)]
+#         fill_color = rgba_from_hex(color, band_alpha)
+
+#         x = pd.to_numeric(editing_profiles[h1], errors="coerce").to_numpy()
+#         y = pd.to_numeric(editing_profiles[h2], errors="coerce").to_numpy()
+
+#         res = ols_line_and_ci(x, y, x_grid)
+#         if res is None:
+#             continue
+
+#         y_hat, lo, hi, beta = res
+#         label = f"{h1} vs. {h2}"
+#         legend_items.append((label, color))
+
+#         # ---- points (smaller markers) ----
+#         if show_points:
+#             fig.add_trace(
+#                 go.Scatter(
+#                     x=x,
+#                     y=y,
+#                     mode="markers",
+#                     marker=dict(
+#                         color=color,
+#                         size=marker_size,   # ← reduced
+#                         opacity=points_opacity
+#                     ),
+#                     showlegend=False,
+#                     hoverinfo="skip",
+#                 ),
+#                 row=r,
+#                 col=c,
+#             )
+
+#         # ---- CI band ----
+#         fig.add_trace(
+#             go.Scatter(
+#                 x=x_grid,
+#                 y=hi,
+#                 mode="lines",
+#                 line=dict(width=0),
+#                 showlegend=False,
+#                 hoverinfo="skip",
+#             ),
+#             row=r,
+#             col=c,
+#         )
+#         fig.add_trace(
+#             go.Scatter(
+#                 x=x_grid,
+#                 y=lo,
+#                 mode="lines",
+#                 line=dict(width=0),
+#                 fill="tonexty",
+#                 fillcolor=fill_color,
+#                 showlegend=False,
+#                 hoverinfo="skip",
+#             ),
+#             row=r,
+#             col=c,
+#         )
+
+#         # ---- regression line ----
+#         fig.add_trace(
+#             go.Scatter(
+#                 x=x_grid,
+#                 y=y_hat,
+#                 mode="lines",
+#                 line=dict(color=color, width=line_width),
+#                 showlegend=False,
+#                 hovertemplate=f"{label}<br>x=%{{x:.1f}}<br>y=%{{y:.1f}}<extra></extra>",
+#             ),
+#             row=r,
+#             col=c,
+#         )
+
+#     panel_legends[(r, c)] = legend_items
+
+#     # axes
+#     fig.update_xaxes(
+#         range=[0, axis_max],
+#         tick0=0,
+#         dtick=dtick,
+#         title_text=("Haplotype X mean editing [%]" if r == nrows else None),
+#         constrain="domain",
+#         row=r,
+#         col=c,
+#     )
+
+#     fig.update_yaxes(
+#         range=[0, axis_max],
+#         tick0=0,
+#         dtick=dtick,
+#         title_text=("Haplotype Y mean editing [%]" if c == 1 else None),
+#         scaleanchor=f"x{i+1}",
+#         scaleratio=1,
+#         constrain="domain",
+#         row=r,
+#         col=c,
+#     )
+
+# # -----------------------
+# # Per-panel legends
+# # -----------------------
+# layout = fig.layout
+
+# for i in range(n_panels):
+
+#     r = i // ncols + 1
+#     c = i % ncols + 1
+
+#     axis_index = i + 1
+#     xaxis_name = "xaxis" if axis_index == 1 else f"xaxis{axis_index}"
+#     yaxis_name = "yaxis" if axis_index == 1 else f"yaxis{axis_index}"
+
+#     xdom = getattr(layout, xaxis_name).domain
+#     ydom = getattr(layout, yaxis_name).domain
+
+#     items = panel_legends.get((r, c), [])
+
+#     legend_lines = [
+#         # "<span style='font-size:12px;'><b>Pairs</b></span>",
+#         "<span style='font-size:12px;'><b>Haplotypes</b></span>",
+#         "<span style='color:black;'>— —</span> <span style='font-size:11px;'>y=x</span>"
+#     ]
+
+#     for label, colr in items:
+#         legend_lines.append(
+#             f"<span style='color:{colr};'>—</span> <span style='font-size:11px;'>{label}</span>"
+#         )
+
+#     legend_html = "<br>".join(legend_lines)
+
+#     fig.add_annotation(
+#         x=xdom[0] + 0.02,
+#         y=ydom[1] - 0.01,
+#         xref="paper",
+#         yref="paper",
+#         xanchor="left",
+#         yanchor="top",
+#         text=legend_html,
+#         showarrow=False,
+#         align="left",
+#         bgcolor="rgba(255,255,255,0.75)",
+#         bordercolor="rgba(0,0,0,0.15)",
+#         borderwidth=1,
+#         borderpad=4,
+#     )
+
+
+# # -----------------------
+# # Layout
+# # -----------------------
+# fig.update_layout(
+#     width=width,
+#     height=height,
+#     margin=dict(l=90, r=30, t=70, b=70),
+# )
+
+# fig.update_annotations(font=dict(size=12))
+# fig.show()
+
+
+# %%
+# COMPLETE CODE REPLACEMENT (Plotly) — fixes:
+# 1) y=x legend entry: shows a dashed sample in the legend (like the line), while the plotted line stays normal dash
+# 2) axis titles: truly bigger (and we avoid shrinking them via update_annotations at the end)
+
+import math
+import numpy as np
+import pandas as pd
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from itertools import combinations
+import ast
+
+# -----------------------
+# Config
+# -----------------------
+facet_col_wrap = 3
+width = 1100
+height = 820
+
+axis_max = 100
+dtick = 10
+x_grid = np.linspace(0, axis_max, 200)
+
+show_points = True
+points_opacity = 0.5
+marker_size = 4
+band_alpha = 0.15
+line_width = 2
+
+# y=x line in plot (keep normal dashed)
+base_line_width = line_width + 1
+base_line_dash = "dash"   # normal dashed
+
+# Axis titles (make them obviously bigger)
+# global_axis_font_size = 38   # bumped up so it's unmistakably larger
+global_axis_font_size = 20   # bumped up so it's unmistakably larger
+global_x_title_y = -0.055
+global_y_title_x = -0.040
+
+# spacing
+horizontal_spacing = 0.035
+vertical_spacing = 0.105
+
+pair_palette = [
+    "#EF553B", "#00CC96", "#AB63FA", "#FFA15A", "#19D3F3",
+    "#FF6692", "#B6E880", "#FF97FF", "#FECB52", "#636EFA"
+]
+
+# Legend placement: left edge corresponds to x=3 (data units)
+legend_data_x = 3.0
+legend_top_inset = 0.002
+
+# Legend fonts (smaller as requested)
+# panel_header_size = 11
+panel_header_size = 12
+panel_item_size = 9
+panel_section_size = 10
+panel_footer_size = 9
+
+# ---------- helpers ----------
+def ols_line_and_ci(x, y, x_grid, alpha=0.05):
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+
+    mask = np.isfinite(x) & np.isfinite(y)
+    x = x[mask]
+    y = y[mask]
+
+    n = x.size
+    if n < 3 or np.allclose(x.var(), 0):
+        return None
+
+    X = np.column_stack([np.ones(n), x])
+    XtX = X.T @ X
+    beta = np.linalg.solve(XtX, X.T @ y)
+
+    y_fit = X @ beta
+    resid = y - y_fit
+    dof = n - 2
+    s2 = (resid @ resid) / dof
+    cov_beta = s2 * np.linalg.inv(XtX)
+
+    Xg = np.column_stack([np.ones_like(x_grid), x_grid])
+    y_hat = Xg @ beta
+
+    se_mean = np.sqrt(np.sum(Xg @ cov_beta * Xg, axis=1))
+    tcrit = 1.96
+
+    lo = y_hat - tcrit * se_mean
+    hi = y_hat + tcrit * se_mean
+    return y_hat, lo, hi, beta
+
+
+def rgba_from_hex(hex_color, alpha):
+    hex_color = hex_color.lstrip("#")
+    r = int(hex_color[0:2], 16)
+    g = int(hex_color[2:4], 16)
+    b = int(hex_color[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
+
+def parse_hap_pair(v):
+    if isinstance(v, (list, tuple)) and len(v) == 2:
+        return frozenset(map(str, v))
+    if isinstance(v, str):
+        try:
+            obj = ast.literal_eval(v)
+            if isinstance(obj, (list, tuple)) and len(obj) == 2:
+                return frozenset(map(str, obj))
+        except Exception:
+            return None
+    return None
+
+
+def legend_xpaper_for_data_x(layout, axis_index, data_x):
+    xaxis_name = "xaxis" if axis_index == 1 else f"xaxis{axis_index}"
+    xdom = getattr(layout, xaxis_name).domain
+    frac = (data_x - 0.0) / (axis_max - 0.0)
+    frac = float(np.clip(frac, 0.0, 1.0))
+    return xdom[0] + frac * (xdom[1] - xdom[0])
+
+
+# -----------------------
+# Chrom -> plot title (first token of Name)
+# -----------------------
+chrom_to_title = (
+    orfs_df.drop_duplicates("Chrom")
+    .set_index("Chrom")["Name"]
+    .to_dict()
+)
+
+def chrom_to_plot_title(chrom):
+    name = chrom_to_title.get(chrom, chrom)
+    return str(name).split("_")[0]
+
+
+# -----------------------
+# Enrichment map
+# -----------------------
+enrich_df = concat_selected_examples_fisher_haplotypes_df.copy()
+reject_col = "Reject H0 (FDR)"
+if reject_col not in enrich_df.columns:
+    raise KeyError(f"Expected column '{reject_col}' in concat_selected_examples_fisher_haplotypes_df.")
+
+enrich_df["_pairset"] = enrich_df["Haplotypes"].apply(parse_hap_pair)
+
+enriched_pairs_by_chrom = {}
+for chrom, sub in enrich_df.groupby("Chrom", dropna=False):
+    enriched_pairs_by_chrom[str(chrom)] = set(
+        sub.loc[(sub[reject_col] == True) & sub["_pairset"].notna(), "_pairset"].tolist()
+    )
+
+
+# -----------------------
+# Prepare panels
+# -----------------------
+chroms = [df["Chrom"].iloc[0] for df in editing_profiles_dfs]
+titles = [chrom_to_plot_title(c) for c in chroms]
+
+n_panels = len(editing_profiles_dfs)
+ncols = facet_col_wrap
+nrows = math.ceil(n_panels / ncols)
+
+fig = make_subplots(
+    rows=nrows,
+    cols=ncols,
+    subplot_titles=titles,
+    horizontal_spacing=horizontal_spacing,
+    vertical_spacing=vertical_spacing,
+)
+
+panel_legends = {}
+
+# -----------------------
+# Add traces
+# -----------------------
+for i, editing_profiles in enumerate(editing_profiles_dfs):
+    chrom = str(editing_profiles["Chrom"].iloc[0])
+    hap_cols = list(editing_profiles.iloc[:, 1:].columns)
+
+    r = i // ncols + 1
+    c = i % ncols + 1
+
+    # y=x baseline (normal dash)
+    fig.add_trace(
+        go.Scatter(
+            x=[0, axis_max],
+            y=[0, axis_max],
+            mode="lines",
+            line=dict(color="black", width=base_line_width, dash=base_line_dash),
+            showlegend=False,
+            hoverinfo="skip",
+        ),
+        row=r,
+        col=c,
+    )
+
+    enriched_set = enriched_pairs_by_chrom.get(chrom, set())
+    enriched_items = []
+    not_enriched_items = []
+
+    for k, (h1, h2) in enumerate(combinations(hap_cols, 2)):
+        color = pair_palette[k % len(pair_palette)]
+        fill_color = rgba_from_hex(color, band_alpha)
+
+        x = pd.to_numeric(editing_profiles[h1], errors="coerce").to_numpy()
+        y = pd.to_numeric(editing_profiles[h2], errors="coerce").to_numpy()
+
+        res = ols_line_and_ci(x, y, x_grid)
+        if res is None:
+            continue
+
+        y_hat, lo, hi, beta = res
+
+        label = f"{h1} vs. {h2}"
+        pairset = frozenset([str(h1), str(h2)])
+        (enriched_items if pairset in enriched_set else not_enriched_items).append((label, color))
+
+        if show_points:
+            fig.add_trace(
+                go.Scatter(
+                    x=x,
+                    y=y,
+                    mode="markers",
+                    marker=dict(color=color, size=marker_size, opacity=points_opacity),
+                    showlegend=False,
+                    hoverinfo="skip",
+                ),
+                row=r,
+                col=c,
+            )
+
+        # CI band
+        fig.add_trace(
+            go.Scatter(x=x_grid, y=hi, mode="lines", line=dict(width=0),
+                       showlegend=False, hoverinfo="skip"),
+            row=r, col=c
+        )
+        fig.add_trace(
+            go.Scatter(x=x_grid, y=lo, mode="lines", line=dict(width=0),
+                       fill="tonexty", fillcolor=fill_color,
+                       showlegend=False, hoverinfo="skip"),
+            row=r, col=c
+        )
+
+        # regression line
+        fig.add_trace(
+            go.Scatter(
+                x=x_grid,
+                y=y_hat,
+                mode="lines",
+                line=dict(color=color, width=line_width),
+                showlegend=False,
+            ),
+            row=r,
+            col=c,
+        )
+
+    total_pairs = len(enriched_items) + len(not_enriched_items)
+    pct_enriched = (100.0 * len(enriched_items) / total_pairs) if total_pairs else 0.0
+
+    panel_legends[(r, c)] = dict(
+        enriched=enriched_items,
+        not_enriched=not_enriched_items,
+        n_enriched=len(enriched_items),
+        n_total=total_pairs,
+        pct=pct_enriched,
+    )
+
+    fig.update_xaxes(range=[0, axis_max], tick0=0, dtick=dtick, row=r, col=c)
+    fig.update_yaxes(range=[0, axis_max], tick0=0, dtick=dtick,
+                     scaleanchor=f"x{i+1}", scaleratio=1, row=r, col=c)
+
+    fig.update_yaxes(showticklabels=(c == 1), row=r, col=c)
+    fig.update_xaxes(showticklabels=(r == nrows), row=r, col=c)
+
+
+# -----------------------
+# Panel legends (HTML annotations)
+# -----------------------
+layout = fig.layout
+
+for i in range(n_panels):
+    r = i // ncols + 1
+    c = i % ncols + 1
+    axis_index = i + 1
+
+    yaxis_name = "yaxis" if axis_index == 1 else f"yaxis{axis_index}"
+    ydom = getattr(layout, yaxis_name).domain
+
+    info = panel_legends.get((r, c), {})
+    enriched_items = info.get("enriched", [])
+    not_items = info.get("not_enriched", [])
+    n_enriched = info.get("n_enriched", 0)
+    n_total = info.get("n_total", 0)
+    pct = info.get("pct", 0.0)
+
+    # left edge at x=3 (data)
+    legend_x_paper = legend_xpaper_for_data_x(layout, axis_index, legend_data_x)
+
+    # (1) legend entry for y=x should LOOK dashed.
+    # We simulate a dashed sample using a monospace string of dashes with gaps.
+    # dashed_sample = "<span style='font-family:monospace;'>- - -</span>"
+    # dashed_sample = "<span style='font-family:monospace;'>- -</span>"
+    dashed_sample = "<span style='font-family:monospace;'>— —</span>"
+
+    legend_lines = [
+        f"<span style='font-size:{panel_header_size}px;'><b>Pairs</b></span>",
+        f"{dashed_sample} <span style='font-size:{panel_item_size}px; color:black;'>y = x</span>",
+    ]
+
+    # (your enriched / not enriched structure kept; if you still want the headers, keep them)
+    if enriched_items:
+        legend_lines.append(f"<span style='font-size:{panel_section_size}px;'><b>Enriched</b></span>")
+        for label, colr in enriched_items:
+            legend_lines.append(
+                f"<span style='color:{colr};'>—</span> "
+                f"<span style='font-size:{panel_item_size}px;'>{label}</span>"
+            )
+
+    if not_items or (not enriched_items):
+        legend_lines.append(f"<span style='font-size:{panel_section_size}px;'><b>Not enriched</b></span>")
+        if not_items:
+            for label, colr in not_items:
+                legend_lines.append(
+                    f"<span style='color:{colr};'>—</span> "
+                    f"<span style='font-size:{panel_item_size}px;'>{label}</span>"
+                )
+        else:
+            legend_lines.append(
+                f"<span style='font-size:{panel_item_size}px; color:rgba(0,0,0,0.55);'>None</span>"
+            )
+
+    legend_lines.append(
+        f"<span style='font-size:{panel_footer_size}px; color:rgba(0,0,0,0.75);'>"
+        f"({n_enriched}/{n_total} enriched; {pct:.0f}%)</span>"
+    )
+
+    fig.add_annotation(
+        x=legend_x_paper,
+        y=ydom[1] - legend_top_inset,
+        xref="paper",
+        yref="paper",
+        xanchor="left",
+        yanchor="top",
+        text="<br>".join(legend_lines),
+        showarrow=False,
+        align="left",
+        bgcolor="rgba(255,255,255,0.75)",
+        bordercolor="rgba(0,0,0,0.15)",
+        borderwidth=1,
+        borderpad=4,
+    )
+
+
+# -----------------------
+# Global axis titles (BIGGER)
+# -----------------------
+fig.add_annotation(
+    x=0.5,
+    y=global_x_title_y,
+    xref="paper",
+    yref="paper",
+    text="Haplotype X mean editing [%]",
+    showarrow=False,
+    xanchor="center",
+    yanchor="top",
+    font=dict(size=global_axis_font_size),
+)
+
+fig.add_annotation(
+    x=global_y_title_x,
+    y=0.5,
+    xref="paper",
+    yref="paper",
+    text="Haplotype Y mean editing [%]",
+    showarrow=False,
+    xanchor="right",
+    yanchor="middle",
+    textangle=-90,
+    font=dict(size=global_axis_font_size),
+)
+
+# -----------------------
+# Layout
+# -----------------------
+fig.update_layout(
+    width=width,
+    height=height,
+    margin=dict(l=85, r=25, t=70, b=105),
+)
+
+# IMPORTANT: do NOT shrink all annotations globally anymore (this was making titles look small)
+# fig.update_annotations(font=dict(size=12))
+
+fig.show()
+
+
+# %%
+# import math
+# import numpy as np
+# import pandas as pd
+# import plotly.graph_objects as go
+# from plotly.subplots import make_subplots
+# import plotly.express as px
+
+# # -----------------------
+# # Inputs
+# # -----------------------
+# dfs = haplotype_diffs_dfs  # list[pd.DataFrame]
+# facet_col_wrap = 3
+# width = 1100
+# height = 650
+
+# # If your df uses different gene id column, change this:
+# gene_col = "Chrom"
+
+# # Optional: drop these columns from histogram consideration if present
+# non_value_cols = {gene_col, "EditingSite", "Site", "Pos", "position", "index"}
+
+# # -----------------------
+# # 1) Gene names (subplot titles)
+# # -----------------------
+# gene_names = []
+# for j, d in enumerate(dfs):
+#     if gene_col in d.columns and d[gene_col].nunique() == 1:
+#         gene_names.append(str(d[gene_col].iloc[0]))
+#     else:
+#         gene_names.append(f"Gene {j+1}")
+
+# n_panels = len(dfs)
+# ncols = facet_col_wrap
+# nrows = math.ceil(n_panels / ncols)
+
+# # -----------------------
+# # 2) Determine columns to plot (haplotype pair cols)
+# #    and global binning range
+# # -----------------------
+# pair_cols_per_df = []
+# all_values = []
+
+# for d in dfs:
+#     pair_cols = [c for c in d.columns if c not in non_value_cols]
+#     # keep only numeric-like cols
+#     numeric_pair_cols = []
+#     for c in pair_cols:
+#         if pd.api.types.is_numeric_dtype(d[c]):
+#             numeric_pair_cols.append(c)
+#         else:
+#             # try coercion if they came in as strings
+#             tmp = pd.to_numeric(d[c], errors="coerce")
+#             if tmp.notna().any():
+#                 d[c] = tmp
+#                 numeric_pair_cols.append(c)
+
+#     pair_cols_per_df.append(numeric_pair_cols)
+
+#     vals = d[numeric_pair_cols].to_numpy().ravel()
+#     vals = vals[np.isfinite(vals)]
+#     all_values.append(vals)
+
+# all_values = np.concatenate(all_values) if len(all_values) else np.array([])
+
+# # Robust range for bins (avoid single crazy outlier dominating)
+# if all_values.size == 0:
+#     raise ValueError("No numeric diff values found across haplotype_diffs_dfs.")
+
+# lo, hi = np.quantile(all_values, [0.01, 0.99])
+# # Expand a bit so edges aren't clipped
+# pad = 0.05 * (hi - lo) if hi > lo else 1.0
+# xmin, xmax = lo - pad, hi + pad
+
+# # Choose bin size / count
+# nbins = 35
+# bins = np.linspace(xmin, xmax, nbins + 1)
+
+# # -----------------------
+# # 3) Global color map for haplotype-pair columns
+# #    (same pair -> same color in every subplot)
+# # -----------------------
+# all_pair_cols = sorted({c for cols in pair_cols_per_df for c in cols})
+# palette = px.colors.qualitative.D3
+# if len(all_pair_cols) > len(palette):
+#     palette = (palette * (len(all_pair_cols) // len(palette) + 1))[: len(all_pair_cols)]
+# pair_color = {c: col for c, col in zip(all_pair_cols, palette)}
+
+# # -----------------------
+# # 4) Build figure
+# # -----------------------
+# fig = make_subplots(
+#     rows=nrows,
+#     cols=ncols,
+#     subplot_titles=gene_names,
+#     horizontal_spacing=0.06,
+#     vertical_spacing=0.18,
+# )
+
+# panel_legends = {}  # (r,c) -> list[(pair_col, color)]
+
+# for i, (d, gene) in enumerate(zip(dfs, gene_names)):
+#     r = i // ncols + 1
+#     c = i % ncols + 1
+
+#     pair_cols = pair_cols_per_df[i]
+#     panel_legends[(r, c)] = [(pc, pair_color[pc]) for pc in pair_cols]
+
+#     # Add one histogram trace per pair col
+#     # Use the SAME bins everywhere for comparability.
+#     for pc in pair_cols:
+#         x = d[pc].to_numpy()
+#         x = x[np.isfinite(x)]
+
+#         fig.add_trace(
+#             go.Histogram(
+#                 x=x,
+#                 xbins=dict(start=xmin, end=xmax, size=(xmax - xmin) / nbins),
+#                 histnorm="probability",   # comparable across genes
+#                 opacity=0.45,             # overlay
+#                 marker=dict(color=pair_color[pc]),
+#                 name=pc,
+#                 showlegend=False,         # we’ll do per-panel legend via annotation
+#             ),
+#             row=r,
+#             col=c,
+#         )
+
+#     # zero line
+#     fig.add_vline(
+#         x=0,
+#         line_width=1,
+#         line_dash="dot",
+#         line_color="rgba(0,0,0,0.35)",
+#         row=r,
+#         col=c,
+#     )
+
+#     # axis titles: only bottom row for X, only left col for Y
+#     fig.update_xaxes(
+#         title_text=("Δ mean editing" if r == nrows else None),
+#         range=[xmin, xmax],
+#         row=r,
+#         col=c,
+#     )
+#     fig.update_yaxes(
+#         title_text=("Probability" if c == 1 else None),
+#         row=r,
+#         col=c,
+#     )
+
+# # Overlay mode for histograms within each subplot
+# fig.update_layout(barmode="overlay")
+
+# # -----------------------
+# # 5) Per-panel legend via annotation (like your previous plot)
+# # -----------------------
+# layout = fig.layout
+
+# for i in range(n_panels):
+#     r = i // ncols + 1
+#     c = i % ncols + 1
+
+#     axis_index = i + 1
+#     xaxis_name = "xaxis" if axis_index == 1 else f"xaxis{axis_index}"
+#     yaxis_name = "yaxis" if axis_index == 1 else f"yaxis{axis_index}"
+
+#     xdom = getattr(layout, xaxis_name).domain
+#     ydom = getattr(layout, yaxis_name).domain
+
+#     items = panel_legends[(r, c)]
+#     legend_lines = ["<span style='font-size:12px;'><b>Pair</b></span>"]
+#     for label, colr in items:
+#         legend_lines.append(
+#             f"<span style='color:{colr};'>■</span> <span style='font-size:11px;'>{label}</span>"
+#         )
+#     legend_html = "<br>".join(legend_lines)
+
+#     fig.add_annotation(
+#         x=xdom[1] - 0.01,
+#         y=ydom[1] - 0.01,
+#         xref="paper",
+#         yref="paper",
+#         xanchor="right",
+#         yanchor="top",
+#         text=legend_html,
+#         showarrow=False,
+#         align="left",
+#         bgcolor="rgba(255,255,255,0.75)",
+#         bordercolor="rgba(0,0,0,0.15)",
+#         borderwidth=1,
+#         borderpad=4,
+#     )
+
+# # -----------------------
+# # 6) Layout polish
+# # -----------------------
+# fig.update_layout(
+#     width=width,
+#     height=height,
+#     margin=dict(l=80, r=20, t=70, b=70),
+#     # template="simple_white",
+# )
+
+# fig.update_annotations(font=dict(size=12))
+# fig.show()
+
+
+# %% [markdown]
+# ### Global enrichment with chi-square permutations
+
+# %%
+diverse_haplotypes_editing_and_snps_reads_dfs_for_fisher_tests = [
+    df
+    for df in editing_and_snps_reads_dfs
+    if validate_haplotypes_diversity(df, 2, 50)
+    # if validate_haplotypes_diversity(df, 2, 300) or validate_haplotypes_diversity(df, 3, 100)
+    # if validate_haplotypes_diversity(df, 3, 100)
+]
+ic(len(diverse_haplotypes_editing_and_snps_reads_dfs_for_fisher_tests));
+
+# %%
+with Pool(processes=6) as pool:
+    fisher_haplotypes_dfs = pool.map(
+        all_haplotypes_permutation_null,
+        diverse_haplotypes_editing_and_snps_reads_dfs_for_fisher_tests
+    )
+concat_fisher_haplotypes_df = pd.concat(fisher_haplotypes_dfs, ignore_index=True)
+concat_fisher_haplotypes_df
+
+# %%
+concat_fisher_haplotypes_df.sort_values("Chrom")
+
+# %%
+summarized_fisher_df = (
+    concat_fisher_haplotypes_df
+    .groupby("Chrom")["Reject H0 (FDR)"]
+    .agg(
+        NumHaplotypePairs=lambda x: x.size,
+        NumSignificantPairs=lambda x: x.sum(),
+        PrctSignificantPairs=lambda x: 100 * x.sum() / x.size
+    )
+    .reset_index()
+    .rename(columns={"PrctSignificantPairs": "%SignificantPairs"})
+)
+summarized_fisher_df
+
+# %%
+summarized_fisher_df.loc[
+    summarized_fisher_df["%SignificantPairs"].eq(0)
+]
+
+# %%
+summarized_fisher_df["NumHaplotypePairs"].max()
+
+# %%
+fig = px.histogram(
+    summarized_fisher_df,
+    x="NumHaplotypePairs",
+    # y="%SignificantPairs",
+    labels={
+        "NumHaplotypePairs": "Number of haplotype pairs",
+        # "%SignificantPairs": "% of haplotype pairs with<br>significant editing differences",
+        # "%SignificantPairs": "% of differentially edited haplotype pairs",
+    },
+    nbins=int(summarized_fisher_df["NumHaplotypePairs"].max()),
+    histnorm="percent",
+)
+fig.update_xaxes(dtick=1)
+fig.update_yaxes(title="% of tested genes")
+fig.update_layout(
+    width=600,
+    height=450,
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    summarized_fisher_df,
+    x="%SignificantPairs",
+    labels={
+        "%SignificantPairs": "% of differentially edited haplotype pairs",
+    },
+    nbins=20,
+    histnorm="percent",
+)
+fig.update_xaxes(dtick=10, range=[0, 100])
+fig.update_yaxes(title="% of tested genes")
+fig.update_layout(
+    width=600,
+    height=450,
+)
+fig.show()
+
+# %%
+fig = px.ecdf(
+    summarized_fisher_df,
+    x="%SignificantPairs",
+    labels={
+        "%SignificantPairs": "% of differentially edited haplotype pairs",
+    },
+    ecdfmode="reversed"
+)
+fig.update_xaxes(dtick=10, range=[0, 100])
+fig.update_yaxes(title="Fraction of tested genes")
+fig.update_layout(
+    width=600,
+    height=450,
+    # ti
+)
+fig.show()
+
+# %%
+fig = px.scatter(
+    summarized_fisher_df,
+    x="NumHaplotypePairs",
+    y="%SignificantPairs",
+    labels={
+        "NumHaplotypePairs": "Haplotype pairs",
+        # "%SignificantPairs": "% of haplotype pairs with<br>significant editing differences",
+        "%SignificantPairs": "% of differentially edited pairs",
+    },
+    trendline="ols"
+)
+fig.update_xaxes(dtick=1)
+# fig.update_yaxes(title="% of tested genes")
+fig.update_layout(
+    width=600,
+    height=450,
+)
+fig.show()
+
+# %%
+fig = px.scatter(
+    summarized_fisher_df.groupby(
+        "NumHaplotypePairs"
+    )["%SignificantPairs"].agg(["mean", "std"]).reset_index(),
+    x="NumHaplotypePairs",
+    y="mean",
+    error_y="std",
+    labels={
+        "NumHaplotypePairs": "Haplotype pairs",
+        # "%SignificantPairs": "% of haplotype pairs with<br>significant editing differences",
+        # "%SignificantPairs": "% of differentially edited pairs",
+        "mean": "Mean % of differentially edited pairs",
+    },
+    # trendline="ols"
+)
+fig.update_xaxes(dtick=1)
+# fig.update_yaxes(title="% of tested genes")
+fig.update_layout(
+    width=600,
+    height=450,
+)
+fig.show()
+
+# %%
+fig = px.box(
+    summarized_fisher_df,
+    x="NumHaplotypePairs",
+    y="%SignificantPairs",
+    labels={
+        "NumHaplotypePairs": "Haplotype pairs",
+        "%SignificantPairs": "% of differentially edited pairs",
+    },
+    category_orders={
+        "NumHaplotypePairs": summarized_fisher_df["NumHaplotypePairs"].sort_values().drop_duplicates().tolist()
+    },
+    points="all"
+    # opacity=0.5,
+    # markers=True, lines=False
+)
+fig.update_xaxes(dtick=1)
+# fig.update_yaxes(title="Fraction of tested genes")
+fig.update_layout(
+    width=600,
+    height=450,
+    # ti
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    summarized_fisher_df,
+    x="%SignificantPairs",
+    labels={
+        "%SignificantPairs": "% of differentially edited haplotype pairs",
+    },
+    # nbins=101,
+    histnorm="percent",
+    facet_col="NumHaplotypePairs",
+    category_orders={
+        "NumHaplotypePairs": summarized_fisher_df["NumHaplotypePairs"].sort_values().drop_duplicates().tolist()
+    }
+)
+fig.update_xaxes(dtick=20)
+# fig.update_yaxes(title="% of tested genes")
+fig.update_layout(
+    # width=600,
+    height=450,
+)
+fig.show()
+
+# %%
+fig = px.ecdf(
+    summarized_fisher_df,
+    x="%SignificantPairs",
+    labels={
+        "%SignificantPairs": "% of differentially edited haplotype pairs",
+    },
+    # ecdfmode="reversed",
+    facet_col="NumHaplotypePairs",
+    category_orders={
+        "NumHaplotypePairs": summarized_fisher_df["NumHaplotypePairs"].sort_values().drop_duplicates().tolist()
+    },
+    # markers=True, lines=False
+)
+fig.update_xaxes(dtick=10, range=[0, 100])
+# fig.update_yaxes(title="Fraction of tested genes")
+fig.update_layout(
+    # width=600,
+    height=450,
+    # ti
+)
+fig.show()
 
 # %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"}
 # ## Num of distinct proteins

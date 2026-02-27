@@ -867,6 +867,25 @@ Code/Simulations/expressionlevels.jl \
 ```bash
 INFILES=$(echo D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/*.unique_proteins.csv.gz)
 
+# julia \
+# --project=. \
+# --threads 40 --proc 6 \
+# Code/Simulations/maximal_independent_set_5.jl \
+# --infiles $INFILES \
+# --postfix_to_remove .C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+# --postfix_to_add .Fraction0_1 \
+# --idcol Protein \
+# --firstcolpos 15 \
+# --datatype Proteins \
+# --outdir D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30 \
+# --maxfrac 0.1 \
+# --fracstep 0.1 \
+# --fracrepetitions 4 \
+# --algrepetitions 2 \
+# --algs Ascending Descending \
+# --run_solve_threaded \
+# 2>&1 | tee D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/DistinctProteins.regular.Fraction0_1.log
+
 julia \
 --project=. \
 --threads 40 --proc 6 \
@@ -890,24 +909,22 @@ Code/Simulations/maximal_independent_set_5.jl \
 ##### Calculating expression levels
 
 ```bash
-# DISTINCTFILES="D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.Fraction0_1.<time-stamp>.csv \
-# D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.DistinctUniqueProteins.Fraction0_1.<time-stamp>.csv"
-# ALLROTSFILES="D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
-# D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz"
-# SAMPLESNAMES="GRIA PCLO"
+# WD="D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30"
 
 # nohup \
 # julia \
 # --project=. \
 # --threads 40 \
 # Code/Simulations/expressionlevels.jl \
-# --distinctfiles $DISTINCTFILES \
-# --allprotsfiles $ALLROTSFILES \
-# --samplenames $SAMPLESNAMES \
+# --distinctfiles $WD/GRIA-CNS-RESUB.DistinctUniqueProteins.Fraction0_1.*.csv $WD/PCLO-CNS-RESUB.DistinctUniqueProteins.Fraction0_1.*.csv \
+# --allprotsfiles $WD/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz $WD/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+# --allreadsfiles $WD/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz $WD/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz \
+# --samplenames GRIA PCLO \
 # --postfix_to_add .Fraction0_1 \
+# --firstcolpos 15 \
 # --fractions 0.1 \
-# --outdir D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30 \
-# > D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/expressionlevels.regular.fraction01.out &
+# --outdir $WD \
+# > $WD/expressionlevels.regular.fraction01.28.7.2025.out &
 
 
 WD="D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30"
@@ -915,20 +932,23 @@ WD="D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30"
 nohup \
 julia \
 --project=. \
---threads 40 \
+--threads 80 \
 Code/Simulations/expressionlevels.jl \
---distinctfiles $WD/GRIA-CNS-RESUB.DistinctUniqueProteins.Fraction0_1.*.csv $WD/PCLO-CNS-RESUB.DistinctUniqueProteins.Fraction0_1.*.csv \
+--distinctfiles $WD/GRIA-CNS-RESUB.DistinctUniqueProteins.Fraction0_1.06.02.2024-10:55:32.csv $WD/PCLO-CNS-RESUB.DistinctUniqueProteins.Fraction0_1.06.02.2024-11:05:02.csv \
 --allprotsfiles $WD/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz $WD/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
 --allreadsfiles $WD/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz $WD/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz \
 --samplenames GRIA PCLO \
---postfix_to_add .Fraction0_1 \
+--innerthreadedassignment \
+--considerentropy \
+--postfix_to_add .Fraction0_1.EntropyConsidered \
 --firstcolpos 15 \
 --fractions 0.1 \
 --outdir $WD \
-> $WD/expressionlevels.regular.fraction01.28.7.2025.out &
+> $WD/expressionlevels.regular.fraction01.entropy_considered.26.2.2026.out &
 ```
 * alu 17
-* 1405645
+* 1348008
+
 
 #### Distinct dissimilar: AA_groups_Miyata1979
 
@@ -959,7 +979,7 @@ Code/Simulations/maximal_independent_set_5.jl \
 
 ##### Calculating expression levels
 
-```bash
+<!-- ```bash
 
 DISTINCTFILES="""
 D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.AAgroupsMiyata1979.<time-stamp>.csv \
@@ -984,6 +1004,46 @@ Code/Simulations/expressionlevels.jl \
 --postfix_to_add .AAgroupsMiyata1979 \
 > D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/expressionlevels.AAgroupsMiyata1979.out &
 ```
+* alu 17
+* 1348008 -->
+
+Exp levels considering entropy:
+
+```bash
+
+DISTINCTFILES="""
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.AAgroupsMiyata1979.06.02.2024-13:43:37.csv \
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.DistinctUniqueProteins.AAgroupsMiyata1979.06.02.2024-14:14:55.csv
+"""
+ALLROTSFILES="""
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz
+"""
+ALLREADSFILES="""
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz \
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz
+"""
+SAMPLESNAMES="GRIA PCLO"
+
+nohup \
+julia \
+--project=. \
+--threads 80 \
+Code/Simulations/expressionlevels.jl \
+--distinctfiles $DISTINCTFILES \
+--allprotsfiles $ALLROTSFILES \
+--allreadsfiles $ALLREADSFILES \
+--samplenames $SAMPLESNAMES \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30 \
+--aagroups AA_groups_Miyata1979 \
+--innerthreadedassignment \
+--considerentropy \
+--postfix_to_add .AAgroupsMiyata1979.EntropyConsidered \
+> D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/expressionlevels.AAgroupsMiyata1979.EntropyConsidered.26.2.2026.out &
+```
+* alu17
+* 1369240
+
 
 #### Distinct dissimilar: GRANTHAM1974
 
@@ -1016,7 +1076,7 @@ Code/Simulations/maximal_independent_set_5.jl \
 
 ##### Calculating expression levels
 
-```bash
+<!-- ```bash
 DISTINCTFILES="""
 D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/GRIA-CNS-RESUB.DistinctUniqueProteins.GRANTHAM1974-100.<time-stamp>.csv \
 D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3/PCLO-CNS-RESUB.DistinctUniqueProteins.GRANTHAM1974-100.<time-stamp>.csv
@@ -1041,7 +1101,48 @@ Code/Simulations/expressionlevels.jl \
 --similarityvalidator "<" \
 --postfix_to_add .GRANTHAM1974-100 \
 > D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/expressionlevels.GRANTHAM1974-100.out &
+``` -->
+
+Exp levels considering entropy:
+
+```bash
+
+DISTINCTFILES="""
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.GRANTHAM1974-100.06.02.2024-14:27:55.csv \
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.DistinctUniqueProteins.GRANTHAM1974-100.06.02.2024-15:51:50.csv
+"""
+ALLROTSFILES="""
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_proteins.csv.gz
+"""
+ALLREADSFILES="""
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz \
+D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz
+"""
+SAMPLESNAMES="GRIA PCLO"
+
+nohup \
+julia \
+--project=. \
+--threads 50 \
+Code/Simulations/expressionlevels.jl \
+--distinctfiles $DISTINCTFILES \
+--allprotsfiles $ALLROTSFILES \
+--allreadsfiles $ALLREADSFILES \
+--samplenames $SAMPLESNAMES \
+--outdir D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30 \
+--substitutionmatrix GRANTHAM1974 \
+--similarityscorecutoff 100 \
+--similarityvalidator "<" \
+--postfix_to_add .GRANTHAM1974-100 \
+--innerthreadedassignment \
+--considerentropy \
+--postfix_to_add .GRANTHAM1974-100.EntropyConsidered \
+> D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/expressionlevels.GRANTHAM1974-100.EntropyConsidered.26.2.2026.out &
 ```
+* alu16
+* 120263
+  
 
 ## Illumina
 
@@ -2675,6 +2776,90 @@ Code/Simulations/expressionlevels.jl \
 ```
 * alu 18
 * 4017097
+
+###### Fraction 0.1
+
+Considering entropy:
+
+```bash
+UMI_DIR=D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples
+
+nohup \
+julia \
+--project=. \
+--threads 60 \
+Code/Simulations/expressionlevels.jl \
+--distinctfiles $UMI_DIR/ADAR1.Merged.DistinctUniqueProteins.26.03.2025-04:39:41.csv $UMI_DIR/IQEC.Merged.DistinctUniqueProteins.26.03.2025-00:27:18.csv \
+--allprotsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+--allreadsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz \
+--samplenames ADAR1 IQEC1 \
+--firstcolpos 15 \
+--onlymaxdistinct \
+--innerthreadedassignment \
+--considerentropy \
+--readssubsetfile D.pealeii/Alignment/UMILongReads.MergedSamples/ReadsWithRecognizableBarcodes.tsv \
+--outdir $UMI_DIR \
+--postfix_to_add .EntropyConsidered.ReadsWithRecognizableBarcodes \
+> $UMI_DIR/expressionlevels.EntropyConsidered.ReadsWithRecognizableBarcodes.10.11.25.out &
+```
+* alu 18
+* 4017097
+
+#### Regular - fraction 0.1 only
+
+##### Finding isoforms
+
+```bash
+tmux new -s COMB18
+
+COMB
+
+INFILES=$(echo D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/*.unique_proteins.csv.gz)
+
+julia \
+--project=. \
+--threads 80 --proc 6 \
+Code/Simulations/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove ".r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz" \
+--postfix_to_add .Fraction0_1 \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--outdir D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples \
+--maxfrac 0.1 \
+--fracstep 0.1 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/DistinctProteins.Regular.Fraction0_1.26.2.2026.log
+```
+
+##### Calculating expression levels
+
+```bash
+UMI_DIR=D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples
+
+nohup \
+julia \
+--project=. \
+--threads 80 \
+Code/Simulations/expressionlevels.jl \
+--distinctfiles $UMI_DIR/ADAR1.Merged.DistinctUniqueProteins.Fraction0_1.26.02.2026-16:24:27.csv $UMI_DIR/IQEC.Merged.DistinctUniqueProteins.Fraction0_1.26.02.2026-15:02:03.csv \
+--allprotsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+--allreadsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz \
+--samplenames ADAR1 IQEC1 \
+--outdir $UMI_DIR \
+--innerthreadedassignment \
+--considerentropy \
+--postfix_to_add .Fraction0_1.EntropyConsidered \
+--firstcolpos 15 \
+--fractions 0.1 \
+> $UMI_DIR/expressionlevels.regular.fraction01.entropy_considered.26.2.2026.out &
+```
+* alu 18
+* 1405645
 
 
 #### Distinct dissimilar: AA_groups_Miyata1979

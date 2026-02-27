@@ -25,10 +25,12 @@ out_dir = "/private7/projects/Combinatorics/Code/Notebooks"
 import sys
 from functools import reduce
 from itertools import chain, combinations, product
+import math
 from math import ceil, floor
 from multiprocessing import Pool
 from pathlib import Path
 import copy
+
 
 from scipy import interpolate  # todo unimport this later?
 import scipy.stats
@@ -38,6 +40,7 @@ from sklearn import linear_model
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.model_selection import train_test_split
 from Bio import SeqIO, motifs  # biopython
 from pybedtools import BedTool
 import matplotlib.pyplot as plt
@@ -364,7 +367,10 @@ px.colors
 # seed = 1892
 
 # %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"}
-# # Ploting utils
+# # Ploting utils & other settings
+
+# %%
+seed = 1892
 
 # %%
 facet_col_spacing = 0.05
@@ -396,6 +402,41 @@ pio.templates.default = template
 # # pattern_shape_map = {
 # #     condition: shape for condition, shape in zip(conditions, cycle(valid_shapes))
 # # }
+
+
+# %%
+def rgb_change(r, g, b, d_r, d_g, d_b, scale):
+    # todo: allow both changes to be in the same direction by modifying the given scale?
+    values = [r, g, b]
+    deltas = [int(d_v * scale) for d_v in (d_r, d_g, d_b)]
+    legitimate_changes = {
+        "+": [min(v + d_v, 255) for v, d_v in zip(values, deltas)],
+        "-": [max(v - d_v, 0) for v, d_v in zip(values, deltas)],
+    }
+    complete_changes = {
+        "+": sum(
+            v + d_v == new_v
+            for v, d_v, new_v in zip(values, deltas, legitimate_changes["+"])
+        ),
+        "-": sum(
+            v - d_v == new_v
+            for v, d_v, new_v in zip(values, deltas, legitimate_changes["-"])
+        ),
+    }
+    if complete_changes["+"] >= complete_changes["-"]:
+        r, g, b = legitimate_changes["+"]
+    else:
+        r, g, b = legitimate_changes["-"]
+    return r, g, b
+
+
+def two_subcolors_from_hex(hex_color, d_r=4, d_g=20, d_b=22, scale_1=1, scale_2=4):
+    r, g, b = pc.hex_to_rgb(hex_color)
+    subcolor_1 = rgb_change(r, g, b, d_r, d_g, d_b, scale_1)
+    subcolor_2 = rgb_change(r, g, b, d_r, d_g, d_b, scale_2)
+    subcolor_1 = pc.label_rgb(subcolor_1)
+    subcolor_2 = pc.label_rgb(subcolor_2)
+    return subcolor_1, subcolor_2
 
 
 # %% [markdown]
@@ -2662,16 +2703,6 @@ pacbio_merged_assignment_df[condition_col] = pacbio_merged_assignment_df[
 pacbio_merged_assignment_df
 
 # %%
-illumina_assignment_dfs = [
-    illumina_merged_assignment_df.loc[
-        illumina_merged_assignment_df[condition_col] == condition
-    ].reset_index(drop=True)
-    for condition in illumina_conditions
-]
-ic(len(illumina_assignment_dfs))
-illumina_assignment_dfs[0]
-
-# %%
 pacbio_assignment_dfs = [
     pacbio_merged_assignment_df.loc[
         pacbio_merged_assignment_df[condition_col] == condition
@@ -2680,6 +2711,16 @@ pacbio_assignment_dfs = [
 ]
 ic(len(pacbio_assignment_dfs))
 pacbio_assignment_dfs[0]
+
+# %%
+illumina_assignment_dfs = [
+    illumina_merged_assignment_df.loc[
+        illumina_merged_assignment_df[condition_col] == condition
+    ].reset_index(drop=True)
+    for condition in illumina_conditions
+]
+ic(len(illumina_assignment_dfs))
+illumina_assignment_dfs[0]
 
 # %%
 platforms_color_map = {
@@ -3412,6 +3453,797 @@ fig.write_image(
         out_dir,
         "Cumulative expression vs. distinct protein rank - PacBio - full data vs. deduped.svg",
     ),
+    width=width,
+    height=height,
+)
+
+fig.show()
+
+
+# %% [markdown]
+# ## Long-reads expression vs rank - w/ UMIs
+
+# %%
+def linear_to_log10(arr):
+    return np.log10(arr)
+
+
+def log10_to_linear(log10_arr):
+    return np.power([10] * len(log10_arr), log10_arr)
+
+
+def inverse(arr):
+    return 1 / arr
+
+
+def formulate_log10_equation(coef, intercept):
+    return f"y = x^{coef:.2f} * 10^{intercept:.2f}"
+
+
+def formulate_semilog10_equation(coef, intercept):
+    if intercept >= 0:
+        operator = "+"
+    else:
+        operator = "-"
+        intercept = np.abs(intercept)
+    return f"y = 1 / ({coef:.2f}*log(x) {operator} {intercept:.2f})"
+
+
+# %%
+
+# assignment_method = "Weighted"
+# y_col_name = "TotalWeightedSupportingReads"
+
+# cols = min(facet_col_wrap, len(pacbio_conditions), 3)
+cols = min(facet_col_wrap, len(pacbio_conditions), 4)
+rows = ceil(len(pacbio_conditions) / cols)
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(pacbio_conditions)]
+
+# (start, end) tuples for both x and y
+linear_spaces = [
+    (173, 8_402),
+    (615, 17_356),
+    (28, 8_402),
+    (53, 20_000),
+]
+
+forward_transforms = [
+    (linear_to_log10, linear_to_log10),
+    (linear_to_log10, linear_to_log10),
+    (linear_to_log10, linear_to_log10),
+    (linear_to_log10, linear_to_log10),
+]  # (x, y) tuples
+reverse_transforms = [
+    (log10_to_linear, log10_to_linear),
+    (log10_to_linear, log10_to_linear),
+    (log10_to_linear, log10_to_linear),
+    (log10_to_linear, log10_to_linear),
+]  # (x, y) tuples
+
+formulate_equations = [
+    formulate_log10_equation,
+    # formulate_semilog10_equation
+    formulate_log10_equation,
+    formulate_log10_equation,
+    formulate_log10_equation,
+]
+# fit_texts = ["    y ~ 1 / sqrt(x)", "    y ~ 1 / log(x)"]
+
+subplot_titles = pacbio_conditions
+x_axis_name = "Isoform rank"
+y_axis_name = "Relative expression [%]"
+# head_title = f"Relative expression of proteins considering a largest solution in each {str(condition_col).lower()}"
+head_title = "Relative expression vs. distinct protein rank"
+
+# data_marker_size = 2.5
+data_marker_size = 4
+data_opacity = 0.2
+# regression_line_width = 6
+regression_line_width = 8
+
+data_scatter_type = go.Scattergl
+fit_scatter_type = go.Scatter
+
+fig = make_subplots(
+    rows=rows,
+    cols=cols,
+    y_title=y_axis_name,
+    x_title=x_axis_name,
+    subplot_titles=subplot_titles,
+    shared_yaxes=True,
+    # shared_xaxes=True,
+    # # vertical_spacing=facet_row_spacing / 2.5,
+    # horizontal_spacing=facet_col_spacing * 1.5,
+    vertical_spacing=0.05,
+    horizontal_spacing=0.025,
+)
+
+for (
+    (row, col),
+    condition,
+    # maximal_df,
+    # maximal_solution,
+    assignment_df,
+    linear_space,
+    (forward_x_transform, forward_y_transform),
+    (reverse_x_transform, reverse_y_transform),
+    # fit_text,
+    formulate_equation,
+) in zip(
+    row_col_iter,
+    pacbio_conditions,
+    # maximal_dfs,
+    # maximal_solutions,
+    pacbio_assignment_dfs,
+    linear_spaces,
+    forward_transforms,
+    reverse_transforms,
+    # fit_texts,
+    formulate_equations,
+):
+    x = assignment_df["#Protein"]
+    y = assignment_df["%RelativeExpression"]
+
+    fig.add_trace(
+        data_scatter_type(
+            x=x,
+            y=y,
+            # legendgrouptitle_text=condition,
+            # legendgroup=condition,
+            # name=assignment_method,
+            mode="markers",
+            marker_color=pacbio_color_discrete_map[condition],
+            marker_size=data_marker_size,
+            marker=dict(
+                opacity=data_opacity,
+                line=dict(width=0),
+            ),
+        ),
+        row=row,
+        col=col,
+    )
+
+    train_logspace = [
+        int(i)
+        for i in np.logspace(
+            np.log10(linear_space[0]), np.log10(linear_space[1]), num=1000
+        )
+    ]
+    test_logspace = [
+        int(i)
+        for i in np.logspace(
+            np.log10(linear_space[0] + 20), np.log10(linear_space[1] - 20), num=1000
+        )
+        if int(i) not in train_logspace
+    ]
+
+    train_x = forward_x_transform(x[train_logspace])
+    train_y = forward_y_transform(y[train_logspace])
+
+    test_x = forward_x_transform(x[test_logspace])
+    test_y = forward_y_transform(y[test_logspace])
+
+    # Create linear regression object
+    regr = linear_model.LinearRegression(n_jobs=10)
+    # Train the model using the training sets
+    regr.fit(np.array(train_x).reshape(-1, 1), train_y)
+    # Make predictions using the testing set
+    pred_y = regr.predict(np.array(test_x).reshape(-1, 1))
+
+    # transform these variables back to original scale so that they can plotted
+    test_x = reverse_x_transform(test_x)  # should be equivalent to `test_x = x[test_logspace]`?
+    pred_y = reverse_y_transform(pred_y)
+
+    fig.add_trace(
+        fit_scatter_type(
+            x=test_x,
+            y=pred_y,
+            mode="lines",
+            marker_color="grey",
+            line=dict(
+                dash="dash",
+                width=regression_line_width,
+            ),
+            # legendgroup=condition,
+            # name=f"{assignment_method} - fitted",
+            showlegend=False,
+        ),
+        row=1,
+        col=col,
+    )
+
+    # text_x = 1000
+    # text_y = 0.05
+    i = int(len(test_x) / 10)
+    # text_x = test_x.iloc[i] + 3000
+    # text_y = pred_y[i] + 0.03
+    text_x = 300
+    text_y = 1
+    text_x = np.log10(text_x)
+    text_y = np.log10(text_y)
+
+    coef = regr.coef_[0]
+    intercept = regr.intercept_
+    # mse = mean_squared_error(test_y, pred_y)
+    # r2 = r2_score(test_y, pred_y)
+    # if intercept >= 0:
+    #     operator = "+"
+    # else:
+    #     operator = "-"
+    #     intercept = np.abs(intercept)
+    equation = formulate_equation(coef, intercept)
+
+    ic(condition)
+    ic(equation)
+
+    fit_text_new = (
+        # f"<b>{assignment_method}</b>"
+        # "<br>"
+        # f"<b>y = {coef:.2f}x {operator} {intercept:.2f}</b>"
+        # f"y = {coef:.2f}x {operator} {intercept:.2f}"
+        f"{equation}"
+        # "<br>"
+        # f"MSE = {mse:.2f}"  # 0 is perfect prediction
+        # "<br>"
+        # f"R2 = {r2:.2f}"  # 1 is perfect prediction
+    )
+
+    fig.add_annotation(
+        row=row,
+        col=col,
+        x=text_x,
+        y=text_y,
+        xref="x",
+        yref="y",
+        # text=fit_text,
+        text=fit_text_new,
+        align="center",
+        font=dict(size=12, color="grey"),
+        showarrow=False,
+    )
+
+height = max(400, 200 * rows)
+# width = max(900, 250 * cols)
+width = max(900, 300 * cols)
+
+fig.update_layout(
+    title_text="Long-reads",
+    title_x=0.11,
+    # title_y=0.95,
+    template=template,
+    showlegend=False,
+    # legend_itemsizing="constant",
+    height=height,
+    width=width,
+)
+fig.update_xaxes(type="log", nticks=6)
+fig.update_yaxes(type="log")
+
+fig.write_image(
+    Path(out_dir, f"Relative expression vs. distinct protein rank - PacBio w UMIs.svg"),
+    height=height,
+    width=width,
+)
+
+fig.show()
+# fig.show(config={'staticPlot': True, 'responsive': False})
+
+# %%
+def nice_rounded_distance(N, x):
+    raw_d = N / x
+    magnitude = 10 ** math.floor(math.log10(raw_d))
+    for multiplier in [1, 2, 5, 10]:
+    # for multiplier in range(1, 11):
+        d = multiplier * magnitude
+        if d >= raw_d:
+            return d
+    # If none found, go to next magnitude
+    return 10 * magnitude
+
+
+for n in [ 3056, 19053, 71000]:
+    ic(n, nice_rounded_distance(n, 4))
+
+# %%
+x_axis_name = "Isoform rank"
+y_axis_name = "Cumulative relative<br>expression [%]"
+head_title = "Weighted cumulative expression vs. distinct protein rank"
+
+cols = min(facet_col_wrap, len(pacbio_conditions), 5)
+rows = ceil(len(pacbio_conditions) / cols)
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(pacbio_conditions)]
+
+fig = make_subplots(
+    rows=rows,
+    cols=cols,
+    subplot_titles=pacbio_conditions,
+    # shared_yaxes=True,
+    # shared_xaxes="all",
+    shared_yaxes="all",
+    x_title=x_axis_name,
+    y_title=y_axis_name,
+    # vertical_spacing=facet_row_spacing / 1.5,
+    # horizontal_spacing=facet_col_spacing * 1.5,
+    vertical_spacing=0.05,
+    horizontal_spacing=0.025,
+)
+
+for (row, col), assignment_df, condition in zip(
+    row_col_iter, pacbio_assignment_dfs, pacbio_conditions
+):
+    x = assignment_df["#Protein"]
+    y = assignment_df["%CummulativeRelativeExpression"]
+
+    # plot the cummulative expression
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=y,
+            # mode="markers",
+            mode="lines",
+            marker=dict(
+                color=pacbio_color_discrete_map[condition],
+                size=1.5,
+                opacity=0.7,
+            ),
+        ),
+        row=row,
+        col=col,
+    )
+
+    top_x = [10, 100, 1000]
+    # top_y = [assignment_df["%CummulativeRelativeExpression"][x].sum() for x in top_x]
+    top_y = [y.iloc[x] for x in top_x]
+
+    # plot top 10/100/1000 expressed proteins
+    fig.add_trace(
+        go.Scatter(
+            x=top_x,
+            y=top_y,
+            mode="markers+text",
+            marker=dict(
+                size=6,
+                symbol="square",
+                opacity=0.5,
+                color="black",
+            ),
+            text=[
+                f"  (10, {top_y[0]:.1f})",
+                f"   (100, {top_y[1]:.1f})",
+                f"    (1000, {top_y[2]:.1f})",
+            ],
+            # ways to get better text positioning:
+            # https://community.plotly.com/t/solving-the-problem-of-overlapping-text-labels-in-a-scatterplot-by-manually-assigning-the-position-of-each-label/66159/2
+            # https://github.com/plotly/plotly.py/issues/925
+            textposition="middle right",
+            textfont=dict(size=8),
+        ),
+        row=row,
+        col=col,
+    )
+    max_x = x.shape[0]
+    dtick = nice_rounded_distance(max_x, 6)
+    tickvals = list(range(0, max_x+dtick, dtick))
+    # ic(max_x, dtick, tickvals)
+    fig.update_xaxes(
+        row=row,
+        col=col,
+        # range=[0, x.shape[0]*1.05],
+        tick0=0,
+        dtick=dtick,
+        # tickvals=tickvals
+    )
+
+# fig.update_xaxes(
+#     tick0=0, 
+#     # dtick=5_000, 
+#     matches="x",
+#     # type="log"
+#     nticks=5,
+#     )
+
+width = max(650, 250 * cols)
+height = max(400, 200 * rows)
+
+fig.update_layout(
+    title="Long-reads",
+    title_x=0.15,
+    showlegend=False,
+    template=template,
+    width=width,
+    height=height,
+)
+
+fig.write_image(
+    Path(out_dir, f"Cumulative relative expression vs. distinct protein rank - PacBio w UMIs.svg"),
+    height=height,
+    width=width,
+)
+
+fig.show()
+
+# %% [markdown]
+# ## Relative expression of isoforms - 0.1 vs 1 - long-reads
+
+# %%
+pacbio_subcolors_discrete_map = {
+    condition: two_subcolors_from_hex(pacbio_color_discrete_map[condition])
+    for condition in pacbio_conditions
+}
+pacbio_subcolors_discrete_map
+
+# %%
+fraction01_assignment_files = [
+    "/private6/projects/Combinatorics/Code/Notebooks/AssignedExpression.Fraction01.PacBio.tsv",
+    "/private6/projects/Combinatorics/Code/Notebooks/AssignedExpression.Fraction01.PacBio.UMIs.tsv"
+]
+frac_1_merged_to_frac_01_files = [
+    "/private6/projects/Combinatorics/Code/Notebooks/AssignedExpression.Fractions1Vs01.PacBio.tsv",
+    "/private6/projects/Combinatorics/Code/Notebooks/AssignedExpression.Fractions1Vs01.PacBio.UMIs.tsv"
+]
+frac_01_merged_to_frac_1_files = [
+    "/private6/projects/Combinatorics/Code/Notebooks/AssignedExpression.Fractions01Vs1.PacBio.tsv",
+    "/private6/projects/Combinatorics/Code/Notebooks/AssignedExpression.Fractions01Vs1.PacBio.UMIs.tsv"
+]
+
+# %%
+concat_fraction01_assignment_df = pd.concat(
+    [
+        pd.read_table(f) for f in fraction01_assignment_files
+    ]
+)
+concat_fraction01_assignment_df[condition_col] = concat_fraction01_assignment_df[condition_col].apply(
+    lambda x: "GRIA2" if x == "GRIA" else x
+)
+concat_frac_1_merged_to_frac_01_assignment_df = pd.concat(
+    [
+        pd.read_table(f) for f in frac_1_merged_to_frac_01_files
+    ]
+)
+concat_frac_01_merged_to_frac_1_assignment_df = pd.concat(
+    [
+        pd.read_table(f) for f in frac_01_merged_to_frac_1_files
+    ]
+)
+
+# %%
+fraction01_assignment_dfs = [
+    concat_fraction01_assignment_df.loc[concat_fraction01_assignment_df["Gene"] == condition]
+    for condition in pacbio_conditions
+]
+frac_1_merged_to_frac_01_assignment_dfs = [
+    concat_frac_1_merged_to_frac_01_assignment_df.loc[concat_frac_1_merged_to_frac_01_assignment_df["Gene"] == condition]
+    for condition in pacbio_conditions
+]
+frac_01_merged_to_frac_1_assignment_dfs = [
+    concat_frac_01_merged_to_frac_1_assignment_df.loc[concat_frac_01_merged_to_frac_1_assignment_df["Gene"] == condition]
+    for condition in pacbio_conditions
+]
+
+# %%
+pacbio_assignment_dfs[0]
+
+# %%
+fraction01_assignment_dfs[0]
+
+# %%
+frac_1_merged_to_frac_01_assignment_dfs
+frac_01_merged_to_frac_1_assignment_dfs
+
+# %%
+frac_1_merged_to_frac_01_assignment_dfs[0]
+
+# %%
+frac_01_merged_to_frac_1_assignment_dfs[0]
+
+# %%
+
+# %%
+x_axis_name = "Isoform rank"
+y_axis_name = "Cumulative relative<br>expression [%]"
+head_title = "Cumulative expression vs. distinct unique proteins"
+
+cols = min(facet_col_wrap, len(pacbio_conditions), 4)
+rows = ceil(len(pacbio_conditions) / cols)
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(pacbio_conditions)]
+
+# assignment_method = "Weighted"
+percentile_fractions = [0.1, 1.0]
+
+fig = make_subplots(
+    rows=rows,
+    cols=cols,
+    subplot_titles=pacbio_conditions,
+    # shared_xaxes=True,
+    # shared_yaxes=True,
+    shared_xaxes="all",
+    shared_yaxes="all",
+    x_title=x_axis_name,
+    y_title=y_axis_name,
+    # vertical_spacing=0.01,
+    horizontal_spacing=facet_col_spacing,
+)
+
+# legend_x = [5]
+# legend_x = [2]
+legend_x = [1.4]
+# legend_ys = [[75], [65]]
+# legend_ys = [[95], [85]]
+# legend_ys = [[90], [70]]
+legend_ys = [[88], [72]]
+
+
+for (row, col), assignment_df, fraction01_assignment_df, condition in zip(
+    row_col_iter, pacbio_assignment_dfs, fraction01_assignment_dfs, pacbio_conditions
+):
+    
+
+    for color, df, percentile_fraction, legend_y in zip(
+        pacbio_subcolors_discrete_map[condition],
+        [fraction01_assignment_df, assignment_df],
+        percentile_fractions,
+        legend_ys,
+    ):
+        # df = df.loc[df["AssignmentMethod"] == assignment_method]
+
+        x = df["#Protein"]
+        y = df["%CummulativeRelativeExpression"]
+
+        # x_mean = df.groupby("Percentile")["RequiredProteins"].apply(np.mean)
+        # y_unique = x_mean.index
+
+        fig.add_trace(
+            go.Scattergl(
+                x=x,
+                y=y,
+                mode="markers",
+                # mode="lines+markers",
+                marker=dict(
+                    color=color,
+                    size=3,
+                    opacity=0.7,
+                    # symbol=symbol,
+                    # line=dict(width=0),
+                ),
+            ),
+            row=row,
+            col=col,
+        )
+
+        # text = f"  Fraction = {percentile_fraction}"
+        # text = "Subsampled data (10%)" if percentile_fraction == 0.1 else "Full data"
+        text = "Subsampled data<br>(10%)" if percentile_fraction == 0.1 else "Full data"
+        
+        fig.add_trace(
+            go.Scatter(
+                x=legend_x,
+                y=legend_y,
+                mode="markers+text",
+                marker=dict(
+                    color=color,
+                    size=7,
+                    opacity=0.7,
+                    # symbol=symbol,
+                    # line=dict(width=0),
+                ),
+                text=text,
+                textposition="middle right",
+                # textfont=dict(size=14),
+                textfont=dict(size=12),
+            ),
+            row=row,
+            col=col,
+        )
+
+fig.update_xaxes(
+    # tick0 = -1,
+    # dtick = 5_000,
+    matches="x",
+    type="log",
+    nticks=6,
+)
+
+# width = 900
+# height = 450
+width = 1200
+height = 450
+
+fig.update_layout(
+    # title="Squid's Long-reads",
+    # title_x=0.11,
+    showlegend=False,
+    template=template,
+    width=width,
+    height=height,
+)
+
+fig.write_image(
+    Path(out_dir, f"Cumulative expression vs. distinct protein rank: fractions 0.1 and 1 - PacBio w UMIs.svg"),
+    width=width,
+    height=height,
+)
+
+fig.show()
+
+# %%
+# x_axis_name = "Subsampled data (10%)"
+# y_axis_name = "Full data"
+x_axis_name = "Subsampled data (10%) relative expression [%]"
+y_axis_name = "Full data relative expression [%]"
+
+cols = len(pacbio_conditions)
+rows = 1
+
+relative_assignment_dfs = [
+    frac_1_merged_to_frac_01_assignment_dfs,
+    frac_01_merged_to_frac_1_assignment_dfs,
+]
+
+fig = make_subplots(
+    rows=rows,
+    cols=cols,
+    # column_titles=["Fraction 1 relative to 0.1", "Fraction 0.1 relative to 1"],
+    # row_titles=conditions,
+    subplot_titles=pacbio_conditions,
+    # shared_xaxes=True,
+    # shared_yaxes=True,
+    shared_xaxes="all",
+    shared_yaxes="all",
+    x_title=x_axis_name,
+    y_title=y_axis_name,
+    # vertical_spacing=0.01,
+    horizontal_spacing=facet_col_spacing,
+)
+
+equations = []
+
+max_x = max_y = 0
+
+for (
+        col, 
+        condition,
+        frac_1_relative_to_frac_01_df,
+        # frac_01_relative_to_frac_1_df
+    ) in zip(
+        range(cols), 
+        pacbio_conditions,
+        frac_1_merged_to_frac_01_assignment_dfs,
+        # frac_01_merged_to_frac_1_assignment_dfs
+):
+    # frac_1_relative_to_frac_01_df = relative_assignment_dfs[0][col]
+    # frac_01_relative_to_frac_1_df = relative_assignment_dfs[1][col]
+    
+    # drop rows where either of the two relevant columns is NaN, since we need both to plot a point
+    # and we dont want it to affect max_x and max_y if either is missing
+    frac_1_relative_to_frac_01_df = frac_1_relative_to_frac_01_df.loc[
+        :,
+        ["%RelativeExpression0.1", "%RelativeExpression1.0"]
+    ].dropna()
+
+    frac_1_relative_to_frac_01_x = frac_1_relative_to_frac_01_df[
+        "%RelativeExpression0.1"
+    ]
+    frac_1_relative_to_frac_01_y = frac_1_relative_to_frac_01_df[
+        "%RelativeExpression1.0"
+    ]
+    
+    max_x = max(frac_1_relative_to_frac_01_x.max(), max_x)
+    max_y = max(frac_1_relative_to_frac_01_y.max(), max_y)
+    
+    ic(max_x, max_y)
+
+    # frac_01_relative_to_frac_1_x = frac_01_relative_to_frac_1_df[
+    #     "%RelativeExpression0.1"
+    # ]
+    # frac_01_relative_to_frac_1_y = frac_01_relative_to_frac_1_df[
+    #     "%RelativeExpression1.0"
+    # ]
+
+    fig.add_trace(
+        go.Scattergl(
+            x=frac_1_relative_to_frac_01_x,
+            y=frac_1_relative_to_frac_01_y,
+            mode="markers",
+            marker=dict(
+                color=pacbio_color_discrete_map[condition],
+                size=4,
+                # opacity=0.7,
+                # symbol=symbol,
+            ),
+        ),
+        row=1,
+        col=col + 1,
+    )
+    
+    # Split into train and test sets (80% train, 20% test)
+    x_train, x_test, y_train, y_test = train_test_split(frac_1_relative_to_frac_01_x, frac_1_relative_to_frac_01_y, test_size=0.2, random_state=seed)
+    # Create linear regression object
+    regr = linear_model.LinearRegression(n_jobs=10)
+    # Train the model using the training sets
+    regr.fit(np.array(x_train).reshape(-1, 1), y_train)
+    # Make predictions using the testing set
+    pred_y = regr.predict(np.array(x_test).reshape(-1, 1))
+
+    fig.add_trace(
+        go.Scatter(
+            x=x_test,
+            y=pred_y,
+            mode="lines",
+            marker_color="grey",
+            line=dict(
+                dash="dash",
+                width=3,
+                
+            ),
+            # legendgroup=condition,
+            # name=f"{assignment_method} - fitted",
+            opacity=0.5,
+            showlegend=False,
+        ),
+        row=1,
+        col=col+1,
+    )
+    
+    coef = regr.coef_[0]
+    intercept = regr.intercept_
+        
+    coef = f"{coef:.2f}"
+    if np.round(intercept, 2) == 0:
+        equation = f"y = {coef}x"
+    else:
+        if intercept > 0:
+            operator = "+"
+        else:
+            operator = "-"
+            intercept = np.abs(intercept)
+        intercept = f"{intercept:.2f}"
+        equation = f"y = {coef}x {operator} {intercept}"
+    # ic(equation)
+    
+    equations.append(equation)
+    
+
+# ic(max_x, max_y)
+
+for col, equation in enumerate(equations, start=1):
+    fig.add_annotation(
+        row=1,
+        col=col,
+        # x=0.5,
+        # y=max_y,
+        x=0.4,
+        y=0.625,
+        xref="x",
+        yref="y",
+        # text=fit_text,
+        text=equation,
+        align="center",
+        font=dict(size=15, color="grey"),
+        showarrow=False,
+    )
+
+# fig.update_xaxes(range=[0, max_x*1.1], tick0=0, dtick=0.25)
+# fig.update_yaxes(scaleanchor="x", scaleratio=1, range=[0, max_y*1.1], tick0=0, dtick=0.25)
+
+max_x_y = max(max_x, max_y)
+
+fig.update_xaxes(range=[0, max_x_y*1.1], tick0=0, dtick=0.25)
+fig.update_yaxes(scaleanchor="x", scaleratio=1, range=[0, max_x_y*1.1], tick0=0, dtick=0.25)
+
+width = 1200
+height = 450
+
+fig.update_layout(
+    # title="Relative expression [%]",
+    # title_x=0.12,
+    showlegend=False,
+    template=template,
+    width=width,
+    height=height,
+)
+
+fig.write_image(
+    Path(out_dir, "Fraction 0.1 expression vs. fraction 1 expression - PacBio w UMIs.svg"),
     width=width,
     height=height,
 )
@@ -6654,6 +7486,316 @@ fig.update_layout(
 
 fig.write_image(
     Path(out_dir, "12 mismatches distribution - relative - combined.svg"),
+    width=width,
+    height=height,
+)
+
+fig.show()
+
+# %% [markdown]
+# # Combined long reads raw stats plots for squid
+
+# %%
+condition_col = "Gene"
+
+pacbio_conditions = ["GRIA2", "PCLO", "ADAR1", "IQEC1"]
+
+pacbio_color_sequence = px.colors.qualitative.G10
+pacbio_color_discrete_map = {
+    condition: color
+    for condition, color in zip(pacbio_conditions, pacbio_color_sequence)
+}
+
+# %%
+in_dir = Path("/private7/projects/Combinatorics/Code/Notebooks")
+
+raw_reads_stats_files = [
+    Path(in_dir, "RawReadsStats.Squid.PacBio.csv"),
+    Path(in_dir, "RawReadsStats.Squid.PacBio.UMIs.csv")
+]
+
+# %%
+raw_reads_stats_df = pd.concat(
+    [
+        pd.read_table(f)
+        for f in raw_reads_stats_files
+    ]
+)
+raw_reads_stats_df
+
+# %%
+fig = px.histogram(
+    raw_reads_stats_df,
+    x="ReadLen",
+    facet_col=condition_col,
+    facet_col_spacing=facet_col_spacing,
+    histnorm="percent",
+    cumulative=True,
+    # marginal="histogram",
+    # opacity=0.75,
+    # barmode="group",
+    labels={
+    "ReadLen": "Read length", 
+            # "Gene": "Transcript"
+           },
+    # title="Squid's PacBio",
+    # title="Squid's Long-reads",
+    title="Long-reads coverage",
+    color=condition_col,
+    color_discrete_map=pacbio_color_discrete_map,
+    category_orders={
+        condition_col: pacbio_conditions
+    },
+    # template=template,
+)
+
+# https://stackoverflow.com/questions/58167028/single-axis-caption-in-plotly-express-facet-plot
+for axis in fig.layout:
+    if type(fig.layout[axis]) == go.layout.YAxis:
+        fig.layout[axis].title.text = ""
+
+fig.for_each_annotation(lambda a: a.update(text=a.text.replace("Gene=", "")))
+
+width=800
+height=350
+
+fig.update_xaxes(tick0=0, dtick=2000, rangemode="tozero", tickangle=35)
+fig.update_yaxes(dtick=25)
+
+fig.update_layout(
+    showlegend=False, 
+    # yaxis_title="Accumulated <br>% of reads", 
+    # yaxis_title="Accumulated <br>reads [%]", 
+    yaxis_title="Reads [%]",
+    width=width, height=height, title_x=0.13,
+)
+
+# fig.write_image(
+#     "Accumulated % of reads length - PacBio.svg",
+#     width=width, height=height,
+# )
+
+fig.show()
+
+# %%
+fig = px.histogram(
+    raw_reads_stats_df,
+    x="ReadLen",
+    # facet_col=condition_col,
+    # facet_col_spacing=facet_col_spacing,
+    histnorm="percent",
+    cumulative=True,
+    # marginal="histogram",
+    # opacity=0.75,
+    # barmode="group",
+    labels={
+    "ReadLen": "Read length", 
+            # "Gene": "Transcript"
+           },
+    # title="Squid's PacBio",
+    # title="Squid's Long-reads",
+    title="Long-reads coverage",
+    color=condition_col,
+    color_discrete_map=pacbio_color_discrete_map,
+    category_orders={
+        condition_col: pacbio_conditions
+    },
+    # template=template,
+)
+
+# https://stackoverflow.com/questions/58167028/single-axis-caption-in-plotly-express-facet-plot
+for axis in fig.layout:
+    if type(fig.layout[axis]) == go.layout.YAxis:
+        fig.layout[axis].title.text = ""
+
+fig.for_each_annotation(lambda a: a.update(text=a.text.replace("Gene=", "")))
+
+width=600
+height=350
+
+fig.update_xaxes(tick0=0, dtick=2000, rangemode="tozero", tickangle=35)
+fig.update_yaxes(dtick=25)
+
+# Reduce opacity to see both histograms
+fig.update_traces(opacity=0.5)
+
+fig.update_layout(
+    # showlegend=False, 
+    # yaxis_title="Accumulated <br>% of reads", 
+    # yaxis_title="Accumulated <br>reads [%]", 
+    yaxis_title="Reads [%]",
+    width=width, height=height, title_x=0.13,
+    barmode='overlay' # Overlay both histograms
+)
+
+# fig.write_image(
+#     "Accumulated % of reads length - PacBio.svg",
+#     width=width, height=height,
+# )
+
+fig.show()
+
+# %%
+fig = px.ecdf(
+    raw_reads_stats_df,
+    x="ReadLen",
+    # facet_col=condition_col,
+    # facet_col_spacing=facet_col_spacing,
+    # histnorm="percent",
+    # cumulative=True,
+    # marginal="histogram",
+    # opacity=0.75,
+    # barmode="group",
+    labels={
+    "ReadLen": "Read length", 
+            # "Gene": "Transcript"
+           },
+    # title="Squid's PacBio",
+    # title="Squid's Long-reads",
+    title="Long-reads coverage",
+    color=condition_col,
+    color_discrete_map=pacbio_color_discrete_map,
+    category_orders={
+        condition_col: pacbio_conditions
+    },
+    ecdfnorm='percent'
+    # template=template,
+)
+
+# # https://stackoverflow.com/questions/58167028/single-axis-caption-in-plotly-express-facet-plot
+# for axis in fig.layout:
+#     if type(fig.layout[axis]) == go.layout.YAxis:
+#         fig.layout[axis].title.text = ""
+
+# fig.for_each_annotation(lambda a: a.update(text=a.text.replace("Gene=", "")))
+
+width = 600
+# height = 350
+height = 400
+
+fig.update_xaxes(tick0=0, dtick=1000)
+fig.update_yaxes(dtick=25, title="Reads [%]")
+
+# Reduce opacity to see both histograms
+fig.update_traces(opacity=0.75)
+
+fig.update_layout(
+    # showlegend=False, 
+    # yaxis_title="Accumulated <br>% of reads", 
+    # yaxis_title="Accumulated <br>reads [%]", 
+    # yaxis_title="Reads [%]",
+    width=width, height=height, title_x=0.13,
+    # barmode='overlay' # Overlay both histograms
+)
+
+fig.write_image(
+    Path(out_dir, "Accumulated % of reads length - PacBio w UMIs.svg"),
+    width=width, height=height,
+)
+
+fig.show()
+
+# %%
+# fig = make_subplots(
+#     rows=1,
+#     cols=2,
+#     subplot_titles=conditions,
+#     shared_yaxes="all",
+#     x_title="Read quality",
+#     y_title="Deletion events (avg)",
+# )
+
+df = raw_reads_stats_df
+
+# fig = go.Figure()
+fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+for condition in pacbio_conditions:
+    
+    x = df.loc[df[condition_col] == condition, "ReadQuality"]
+    y = df.loc[df[condition_col] == condition, "Deletions"]
+    
+    fig.add_trace(
+            go.Histogram(
+                x=x,
+                y=y,
+                marker_color=pacbio_color_discrete_map[condition],
+                name=condition,
+                bingroup=1,
+                histfunc="avg",
+            ),
+        )
+    
+    cum_reads_df = (
+        df.loc[df[condition_col] == condition, ["ReadQuality"]]
+        .sort_values("ReadQuality", ascending=False)
+        .reset_index(drop=True)
+    )
+    cum_reads_df["%CummulativeReads"] = 100 * (cum_reads_df.index + 1) / len(cum_reads_df)
+    # cum_reads_df["%CummulativeReads"] = cum_reads_df["%CummulativeReads"][::-1].values
+    # cum_reads_df["%CummulativeReads"] = 100 - cum_reads_df["%CummulativeReads"]
+    x = cum_reads_df["ReadQuality"]
+    y = cum_reads_df["%CummulativeReads"]
+    
+    fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=y,
+                mode="lines",
+                # mode="markers",
+                marker_color=pacbio_color_discrete_map[condition],
+                # name=condition,
+                # bingroup=1,
+                # histfunc="avg",
+                 # histnorm='percent',
+                showlegend=False,
+            ),
+        secondary_y=True,
+        )
+
+
+fig.update_xaxes(title="Read quality")
+fig.update_yaxes(title="Deletion events<br>(avg)", gridcolor='black',linewidth=5
+                 # tick0=0, dtick=1
+                )
+fig.update_yaxes(
+    title_text="Reads [%]", 
+                 secondary_y=True, 
+                 # tickmode="sync", 
+                 range=[0, 100], 
+                 tick0=0, dtick=25,
+                 showgrid=True, 
+                 gridcolor='LightPink',
+                 griddash='dash',
+                #  linewidth=5
+                 linewidth=10
+                )
+
+fig.update_traces(opacity=0.5)
+
+width = 550
+# height = 350
+height = 400
+
+fig.update_layout(
+    template=template,
+    width=width,
+    height=height,
+    barmode="overlay",
+    bargap=0.1,
+    title="Long-reads quality",
+    title_x=0.17,
+    legend=dict(
+        orientation="h", 
+        x=0.85,
+        y=0.7,
+        xref="container",
+        yref="container",
+        xanchor="right",)
+)
+
+fig.write_image(
+    Path(out_dir, "Avg deletion events vs read quality - PacBio w UMIs.svg"),
     width=width,
     height=height,
 )
