@@ -5,6 +5,58 @@ import Base.Threads.@spawn
 using Distributed
 
 
+"Non-distributed version, w/o algrepetitions, so threads are only needed for subgraph sampling"
+function run_fracrepetition(
+	df::DataFrame,
+	idcol::String,
+	ArrG,
+	fraction::Float64,
+	nsamplerows::Int64,
+	fracrepetition::Int64,
+	consistentfracsampling::Bool,
+	samplerows::Vector{Int64},
+	# randseed::Int,
+	algrepetitions::Int64,
+	run_solve_threaded::Bool,
+	sortresults::Bool,
+	algs::Vector{String},
+)
+	@info "$(loggingtime())\trun_fracrepetition" fraction nsamplerows fracrepetition consistentfracsampling algrepetitions run_solve_threaded sortresults algs myid()
+	# assemble sub neighborhood lists of indistinguishable sampled rows by using the pre-computed complete graph
+
+	# print(df)
+
+	G = ArrG[1]  # retrive G which is the single element in the array ArrG
+
+	if consistentfracsampling
+		# sampleG, availablereads = get_graph_sample_and_available_reads(G, fraction, nsamplerows, df, idcol, randseed)
+		sampleG, availablereads = get_graph_sample_and_available_reads(G, fraction, samplerows, df, idcol)
+	else
+		sampleG, availablereads = get_graph_sample_and_available_reads(G, fraction, nsamplerows, df, idcol)
+	end
+
+	# obtain sets of distinct rows
+	# results = @timeit to "solve" solve(
+	results = solve(
+		sampleG,
+		fraction,
+		fracrepetition,
+		algrepetitions,
+		run_solve_threaded,
+		sortresults,
+		algs,
+	)
+
+	results[!, "AvailableReads"] .= join(availablereads, ",")
+
+	# garbage collection
+	sampleG = nothing # todo check if not assigning nothing to sampleG helps prevent "ArgumentError: array must be non-empty"
+	GC.gc()
+	return results
+end
+
+
+
 "Distributed version, w/o algrepetitions, so threads are only needed for subgraph sampling"
 function run_fracrepetition(
 	df::DataFrame,

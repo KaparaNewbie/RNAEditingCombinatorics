@@ -2,8 +2,7 @@ import argparse
 import subprocess
 from multiprocessing import Pool
 from pathlib import Path
-from typing import Sequence
-from typing import Union
+from typing import Sequence, Union
 
 import pysam
 import pandas as pd
@@ -23,6 +22,8 @@ from General.os_utils import (
 from General.argparse_utils import abs_path_from_str, expanded_path_from_str
 from Alignment.alignment_utils import count_reads
 from EditingUtils.gff3 import read_gff
+from General.consts import configure_ic
+
 # from General.pandas_utils import reorder_df_by_wanted_cols
 
 # from Alignment.alignment_utils import samtools_statistics
@@ -302,6 +303,27 @@ def pacbio_align(
     separate_by_chrom: bool = False,
     seperate_by_gene: bool = False,
 ):
+    # ic(
+    #     base_conda_env_dir,
+    #     pb_conda_env_name,
+    #     pbmm2_path,
+    #     preset,
+    #     best_n_alignments_per_read,
+    #     threads,
+    #     genome_index_file,
+    #     in_file,
+    #     out_file,
+    #     samtools_path,
+    #     out_dir,
+    #     sample_name,
+    #     interfix,
+    #     gene_regions,
+    #     include_flags,
+    #     exclude_flags,
+    #     separate_by_chrom,
+    #     seperate_by_gene,
+    # )
+
     # align
     align_cmd = (
         f". {Path(base_conda_env_dir, 'etc/profile.d/conda.sh')} && "
@@ -316,6 +338,9 @@ def pacbio_align(
         f"{in_file} "
         f"{out_file} "
     )
+
+    ic(align_cmd)
+
     subprocess.run(align_cmd, shell=True, executable="/bin/bash")
     # generate statistics per whole sample
     samtools_statistics(samtools_path, out_file)
@@ -829,6 +854,7 @@ def gather_by_chrom_bams_and_collect_stats(
     threads: int,
     include_flags: Union[int, str, None],
     exclude_flags: Union[int, str, None],
+    merge_by_chrom_bams: bool = False,
 ):
     # stats containers
     _samples_names = []
@@ -873,6 +899,20 @@ def gather_by_chrom_bams_and_collect_stats(
                     threads,
                 )
             )
+
+    if merge_by_chrom_bams and chrom_dir_created:
+        merged_bam = Path(main_by_chrom_dir, f"{chrom}.merged.bam")
+        bam_files_to_merge = [
+            Path(chrom_dir, f"{sample_name}{interfix}.{chrom}.bam")
+            for sample_name in _samples_names
+        ]
+        merge_cmd = f"{samtools_path} merge -@ {threads} -o {merged_bam} " + " ".join(
+            str(bam) for bam in bam_files_to_merge
+        )
+        subprocess.run(merge_cmd, shell=True)
+        index_cmd = f"{samtools_path} index {merged_bam}"
+        subprocess.run(index_cmd, shell=True, cwd=main_by_chrom_dir)
+
     df = pd.DataFrame(
         {"Chrom": chrom, "Sample": _samples_names, "MappedReads": _mapped_reads}
     )
@@ -896,6 +936,9 @@ def pacbio_main(
     multiqc_path: Path,
     include_flags: Union[int, str, None],
     exclude_flags: Union[int, str, None],
+    separate_by_chrom: bool = False,
+    merge_by_chrom_bams: bool,
+    known_sites_bed_file: Path,
     **kwargs,
 ):
     preset = "CCS"
@@ -903,8 +946,11 @@ def pacbio_main(
     out_dir.mkdir(exist_ok=True)
 
     in_files = find_files(in_dir, postfix, recursive)
+    ic(in_files)
     samples_names = [extract_sample_name(in_file, postfix) for in_file in in_files]
+    ic(samples_names)
     final_postfix = postfix.split(".")[-1]
+    ic(final_postfix)
     assert final_postfix in ["fastq", "fq", "bam"]
     if final_postfix in ["fastq", "fq"]:
         raise NotImplementedError  # todo: 1 - implement, 2 - add directly to arg parser
@@ -923,7 +969,7 @@ def pacbio_main(
 
     interfix = ".aligned.sorted"
     gene_regions = None
-    separate_by_chrom = False
+    # separate_by_chrom = False
     seperate_by_gene = False
 
     with Pool(processes=processes) as pool:
@@ -953,6 +999,87 @@ def pacbio_main(
                 for in_file, sample_name in zip(in_files, samples_names)
             ],
         )
+
+    if not separate_by_chrom:
+        # run MultiQC on the reports created for each aligned file
+        multiqc(multiqc_path=multiqc_path, data_dir=out_dir)
+        return
+
+    # gather separated-by-chrom bams
+    # first to main sub-dir
+    # and then subdir for chrom, containing bams from different samples
+    by_chrom_samples_dirs = [
+        Path(out_dir, f"{sample_name}.ByChrom") for sample_name in samples_names
+    ]
+    chroms = {
+        f.suffixes[-2].removeprefix(".")
+        for by_chrom_sample_dir in by_chrom_samples_dirs
+        for f in by_chrom_sample_dir.iterdir()
+        if f.suffix.endswith("bam")
+    }
+
+    main_by_chrom_dir = Path(out_dir, "ByChrom")
+    main_by_chrom_dir.mkdir(exist_ok=True)
+
+    with Pool(processes=processes) as pool:
+        by_chrom_dfs = pool.starmap(
+            func=gather_by_chrom_bams_and_collect_stats,
+            iterable=[
+                (
+                    samtools_path,
+                    main_by_chrom_dir,
+                    chrom,
+                    samples_names,
+                    by_chrom_samples_dirs,
+                    interfix,
+                    threads,
+                    include_flags,
+                    exclude_flags,
+                    merge_by_chrom_bams,
+                )
+                for chrom in chroms
+            ],
+        )
+
+    # write mapping stats
+    df = pd.concat(by_chrom_dfs, ignore_index=True)
+
+    agg_df = (
+        df.groupby("Chrom")
+        .agg({"MappedReads": sum, "Sample": len})
+        .reset_index()
+        .rename(columns={"Sample": "Samples"})
+    )
+    agg_df["MappedReadsPerSample"] = agg_df["MappedReads"] / agg_df["Samples"]
+
+    # known_sites_bed_file = "/private7/projects/Combinatorics/O.vulgaris/Annotations/O.vul.EditingSites.bed"
+    # min_known_sites = 5
+    known_sites_df = pd.read_csv(
+        known_sites_bed_file,
+        sep="\t",
+        names="Chrom Start End Name Score Strand".split(),
+        comment="#",
+    )
+    known_sites_per_chrom_df = (
+        known_sites_df.groupby("Chrom")
+        .size()
+        .reset_index()
+        .rename(columns={0: "KnownSites"})
+        .sort_values("KnownSites", ascending=False)
+    )
+
+    agg_df = agg_df.merge(known_sites_per_chrom_df, how="left")
+    agg_df["KnownSites"] = agg_df["KnownSites"].fillna(0)
+
+    agg_df = agg_df.sort_values(
+        ["KnownSites", "MappedReadsPerSample", "MappedReads", "Samples"],
+        ascending=False,
+    ).reset_index(drop=True)
+
+    df.to_csv(Path(out_dir, "ByChromBySampleSummary.tsv"), sep="\t", index=False)
+    agg_df.to_csv(
+        Path(out_dir, "AggregatedByChromBySampleSummary.tsv"), sep="\t", index=False
+    )
 
     # run MultiQC on the reports created for each aligned file
     multiqc(multiqc_path=multiqc_path, data_dir=out_dir)
@@ -1013,6 +1140,11 @@ def define_args() -> argparse.Namespace:
     parser.add_argument(
         "--threads", type=int, default=25, help="Threads used in each process."
     )
+    parser.add_argument(
+        "--ansi_color",
+        action="store_true",
+        help="Enable ANSI-colored debug output from icecream (ic). Default: disabled for clean log files.",
+    )
 
     # pacbio args
 
@@ -1058,6 +1190,28 @@ def define_args() -> argparse.Namespace:
         default=None,
         type=int,
         help="Exclude reads with this flag.",
+    )
+    pacbio_parser.add_argument(
+        "--separate_by_chrom",
+        action="store_true",
+        help="Separate aligned reads by the chromosome they were mapped to.",
+    )
+    pacbio_parser.add_argument(
+        "--separate_by_chrom",
+        action="store_true",
+        help=(
+            "Merge BAM files for each sample by chromosome. Only relevant if `--separate_by_chrom` is set. "
+            "Creates a BAM file for each chrom containing all reads from all samples mapped to that chrom.",
+        ),
+    )
+
+    pacbio_parser.add_argument(
+        "--known_sites_bed_file",
+        required=True,
+        type=abs_path_from_str,
+        help=(
+            "BED file of known editing sites used for by-chrom separation of BAM files."
+        ),
     )
 
     # whole-transcriptome pacbio isoseq args
@@ -1268,6 +1422,10 @@ if __name__ == "__main__":
     # )  # https://stackoverflow.com/a/35824590/10249633 argparse.Namespace -> Dict
     parser = define_args()
     args = parser.parse_args()
+
+    # Configure ic BEFORE any ic(...) calls
+    configure_ic(ansi_color=args.ansi_color)
+
     ic(args)
     args.func(**vars(args))
 

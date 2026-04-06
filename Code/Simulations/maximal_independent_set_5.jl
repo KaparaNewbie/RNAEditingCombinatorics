@@ -14,7 +14,7 @@ if n_workers > 1
 	rmprocs(workers())
 	# add new one, but with limited number of threads
 	addprocs(
-		# n_workers  = 2
+		# n_workers  = 2 
 		n_workers,
 		exeflags = [
 			"--threads=$(Int(round(Threads.nthreads() / n_workers)))",
@@ -74,6 +74,18 @@ include(joinpath(@__DIR__, "indistinguishable_rows.jl"))
 	# include(joinpath(@__DIR__, "setlogger.jl"))
 end
 
+# Print full exception + backtrace even when running on workers.
+function log_exception(context::AbstractString, e)
+    bt = catch_backtrace()
+    @error context exception = (e, bt)
+    return nothing
+end
+
+@everywhere function log_exception_worker(context::AbstractString, e)
+    bt = catch_backtrace()
+    @error "worker=$(myid()) $context" exception = (e, bt)
+    return nothing
+end
 
 
 
@@ -427,7 +439,14 @@ function run_sample(
 		# println("after indistinguishable_rows")
 		# println(df[1:5, 1:5])
 
-		ArrG = @DArray [G for _ ∈ 1:1]  # move G across processes on a distributed array in order to save memory
+		# ArrG = @DArray [G for _ ∈ 1:1]  # move G across processes on a distributed array in order to save memory
+
+		if n_workers > 1
+			ArrG = @DArray [G for _ ∈ 1:1]  # move G across processes on a distributed array in order to save memory
+		else
+			ArrG = [G]  # if only 1 worker, no need to move G across processes
+		end
+
 
 		# having built G, we only need to keep the reads and unique reads/proteins they support
 		# select!(df, idcol)
@@ -460,13 +479,11 @@ function run_sample(
 			retry_delays = ExponentialBackOff(n = 3, first_delay = 5, max_delay = 1000),
 		) do (fraction, nsamplerows, fracrepetition)
 			try
-				
+
 				# these exact samplerows will in fact only be used if consistentfracsampling is true,
 				# otherwise nsamplerows will be used to sample other rows
 				samplerows = samplerowsdict[(fraction, nsamplerows)]
 
-
-		
 				run_fracrepetition(
 					df,
 					idcol,
@@ -499,10 +516,16 @@ function run_sample(
 				# 	outdir,
 				# 	samplename)
 			catch e
-				@warn "$(loggingtime())\trun_fracrepetition failed" infile fraction fracrepetition e
+				# @warn "$(loggingtime())\trun_fracrepetition failed" infile fraction fracrepetition e
+				@error "$(loggingtime())\trun_fracrepetition failed (worker=$(myid()))" infile fraction fracrepetition exception = (e, catch_backtrace())
 				missing
 			end
 		end
+
+		# NEW: fail fast (or skip writing) if everything failed
+        if all(ismissing, fracrepetitions_results)
+            error("All fracrepetitions failed for sample=$samplename infile=$infile. Last failures were ProcessExitedException/worker crash.")
+        end
 
 		# @timeit to "`fracrepetitions_results` -> sorted `results`" begin
 		#     results::DataFrame = vcat(skipmissing(fracrepetitions_results)...)

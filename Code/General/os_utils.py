@@ -7,6 +7,7 @@ from General.type_hints import StrOrPath
 
 
 def find_files(in_dir: Path, postfix: str, recursive: bool) -> list[Path]:
+    # ic(in_dir, postfix, recursive)
     if recursive:
         files = list(in_dir.glob(f"**/*{postfix}"))
     else:
