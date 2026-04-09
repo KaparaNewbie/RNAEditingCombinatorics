@@ -75,7 +75,7 @@ from EditingUtils.seq import make_fasta_dict
 # %%
 pd.set_option("display.max_columns", 500)
 
-# %% papermill={"duration": 0.071769, "end_time": "2022-02-01T09:42:43.049672", "exception": false, "start_time": "2022-02-01T09:42:42.977903", "status": "completed"} tags=["parameters"]
+# %% papermill={"duration": 0.071769, "end_time": "2022-02-01T09:42:43.049672", "exception": false, "start_time": "2022-02-01T09:42:42.977903", "status": "completed"}
 condition_col = "Gene"
 conditions = ["GRIA", "PCLO"]
 fixed_conditions = ["GRIA2", "PCLO"]
@@ -167,8 +167,8 @@ distinct_dissimilar_miyata_proteins_files = [
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.DistinctUniqueProteins.AAgroupsMiyata1979.06.02.2024-14:14:55.csv",
 ]
 miyata_expression_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA.DistinctUniqueProteins.ExpressionLevels.AAgroupsMiyata1979.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO.DistinctUniqueProteins.ExpressionLevels.AAgroupsMiyata1979.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA.DistinctUniqueProteins.ExpressionLevels.AAgroupsMiyata1979.EntropyConsidered.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO.DistinctUniqueProteins.ExpressionLevels.AAgroupsMiyata1979.EntropyConsidered.csv",
 ]
 grantham_cutoff_scores = [
     # 50, 75,
@@ -192,8 +192,8 @@ distinct_dissimilar_grantham_proteins_files = [
 #     ],
 # ]
 grantham_expression_files = [
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA.DistinctUniqueProteins.ExpressionLevels.GRANTHAM1974-100.csv",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO.DistinctUniqueProteins.ExpressionLevels.GRANTHAM1974-100.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA.DistinctUniqueProteins.ExpressionLevels.GRANTHAM1974-100.EntropyConsidered.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO.DistinctUniqueProteins.ExpressionLevels.GRANTHAM1974-100.EntropyConsidered.csv",
 ]
 alg_repetitions = 5
 known_sites_file = (
@@ -4911,6 +4911,35 @@ for df, out_file in zip(dfs, out_files):
         lambda x: "GRIA2" if x == "GRIA" else x
     )
     df.to_csv(out_file, sep="\t", index=False)
+
+# %%
+_distinctions = ["Miyata", "Grantham 100"]
+_distinct_dissimilar_dfs = {
+    # "Regular": distinct_unique_proteins_df,
+    "Miyata": distinct_dissimilar_miyata_proteins_df,
+    "Grantham 100": distinct_dissimilar_grantham_proteins_df.loc[
+        distinct_dissimilar_grantham_proteins_df["CutoffScore"] == 100
+    ],
+}
+concat_distinct_dissimilar_df = pd.concat(
+    [
+        _distinct_dissimilar_dfs[distinction].assign(Dissimilarity=distinction)
+        for distinction in _distinctions
+    ],
+    ignore_index=True
+)
+
+concat_distinct_dissimilar_df[condition_col] = concat_distinct_dissimilar_df[condition_col].apply(
+    lambda x: "GRIA2" if x == "GRIA" else x
+)
+
+concat_distinct_dissimilar_df.to_csv(
+    Path(out_dir, "DistinctDissimilarProteins.PacBio.tsv"),
+    sep="\t",
+    index=False
+)
+
+concat_distinct_dissimilar_df
 
 # %%
 fig = make_subplots(
@@ -11210,42 +11239,43 @@ for condition, unique_proteins_df in zip(conditions, unique_proteins_dfs):
 dissimilar_weighted_exp_clustering_input_dfs[("Miyata", "GRIA")]
 
 # %%
-X = (
-    dissimilar_weighted_exp_clustering_input_dfs[("Miyata", "GRIA")]
-    .iloc[:, ML_INPUT_FIRST_COL_POS_NEW:]
-    .values
-)
-X
+# X = (
+#     dissimilar_weighted_exp_clustering_input_dfs[("Miyata", "GRIA")]
+#     .iloc[:, ML_INPUT_FIRST_COL_POS_NEW:]
+#     .values
+# )
+# X
 
 # %%
-X.shape
+# X.shape
 
 # %%
-X.shape[0]
+# X.shape[0]
 
 # %%
-kmeans = [
-    MiniBatchKMeans(
-        n_clusters=n_clusters,
-        init="k-means++",
-        n_init=5,
-        verbose=0,
-        random_state=rng,
-    ).fit(X)
-    for n_clusters in cluster_sizes
-]
-kmeans[0]
+# kmeans = [
+#     MiniBatchKMeans(
+#         n_clusters=n_clusters,
+#         init="k-means++",
+#         n_init=5,
+#         verbose=0,
+#         random_state=rng,
+#     ).fit(X)
+#     for n_clusters in cluster_sizes
+# ]
+# kmeans[0]
 
 # %%
-print(kmeans[0])
+# print(kmeans[0])
 
 # %%
-len(kmeans)
+# len(kmeans)
 
 # %%
 # dissimilar_cluster_sizes = list(range(10, 510, 10))  # 10, 20, ..., 500
 # dissimilar_cluster_sizes = list(range(10, 260, 10))  # 10, 20, ..., 260
-dissimilar_cluster_sizes = list(range(3, 51, 1))  # 10, 20, ..., 260
+# dissimilar_cluster_sizes = list(range(3, 51, 1))  # 10, 20, ..., 260
+dissimilar_cluster_sizes = list(range(3, 41, 1))  # 10, 20, ..., 260
 
 # %%
 dissimilarity_condition_Xs = {
@@ -11329,6 +11359,44 @@ for (
     )
 
 # dissimilarity_condition_kmeans_silhouette_scores[("Miyata", "GRIA")]
+
+# %%
+n_unique_ks = len(dissimilar_cluster_sizes)
+dissimilarity_condition_kmeans_silhouette_scores_dfs = []
+for (dissimilarity, condition), kmeans_silhouette_scores in dissimilarity_condition_kmeans_silhouette_scores.items():
+    df = pd.DataFrame(
+        {
+            condition_col: [condition] * n_unique_ks,
+            "ClusterSize": dissimilar_cluster_sizes,
+            "Dissimilarity": [dissimilarity] * n_unique_ks,
+            "MeanSilhouetteScore": kmeans_silhouette_scores,
+        }
+    )
+    dissimilarity_condition_kmeans_silhouette_scores_dfs.append(df)
+dissimilarity_condition_kmeans_silhouette_scores_concat_df = pd.concat(
+    dissimilarity_condition_kmeans_silhouette_scores_dfs,
+    ignore_index=True
+)
+
+dissimilarity_condition_kmeans_silhouette_scores_concat_df[condition_col] = (
+    dissimilarity_condition_kmeans_silhouette_scores_concat_df[condition_col].apply(
+        lambda x: "GRIA2" if x == "GRIA" else x
+    )
+)
+
+dissimilarity_condition_kmeans_silhouette_scores_concat_df.insert(
+    0,
+    "Platform",
+    "Long-reads"
+)
+
+dissimilarity_condition_kmeans_silhouette_scores_concat_df.to_csv(
+    Path(out_dir, "KMeansMeanSilhouetteScores.Dissimilar.PacBio.tsv"),
+    sep="\t",
+    index=False
+)
+
+dissimilarity_condition_kmeans_silhouette_scores_concat_df
 
 # %%
 assert (
@@ -11509,11 +11577,11 @@ fig.update_layout(
 #     width=width,
 # )
 
-fig.write_image(
-    "Mean silhouette score of MiniBatchKMeans vs. K size - PacBio - dissimilar.svg",
-    height=height,
-    width=width,
-)
+# fig.write_image(
+#     "Mean silhouette score of MiniBatchKMeans vs. K size - PacBio - dissimilar.svg",
+#     height=height,
+#     width=width,
+# )
 
 fig.show()
 

@@ -162,35 +162,31 @@ fraction01_expression_files = [
     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC1.DistinctUniqueProteins.ExpressionLevels.Fraction0_1.EntropyConsidered.csv"
 ]
 
-# distinct_dissimilar_miyata_proteins_files = [
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.AAgroupsMiyata1979.06.02.2024-13:43:37.csv",
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.DistinctUniqueProteins.AAgroupsMiyata1979.06.02.2024-14:14:55.csv",
-# ]
-# miyata_expression_files = [
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA.DistinctUniqueProteins.ExpressionLevels.AAgroupsMiyata1979.csv",
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO.DistinctUniqueProteins.ExpressionLevels.AAgroupsMiyata1979.csv",
-# ]
-# grantham_cutoff_scores = [
-#     # 50, 75,
-#     100,
-#     # 125, 150
-# ]
-# distinct_dissimilar_grantham_proteins_files = [
-#     [
-#         "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.GRANTHAM1974-100.06.02.2024-14:27:55.csv",
-#     ],
-#     [
-#         "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.DistinctUniqueProteins.GRANTHAM1974-100.06.02.2024-15:51:50.csv",
-#     ],
-# ]
-# grantham_expression_files = [
-#     [
-#         "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA.DistinctUniqueProteins.ExpressionLevels.GRANTHAM1974-100.csv",
-#     ],
-#     [
-#         "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO.DistinctUniqueProteins.ExpressionLevels.GRANTHAM1974-100.csv",
-#     ],
-# ]
+distinct_dissimilar_miyata_proteins_files = [
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.DistinctUniqueProteins.AAgroupsMiyata1979.01.03.2026-13:53:53.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.DistinctUniqueProteins.AAgroupsMiyata1979.28.02.2026-11:43:07.csv"
+]
+miyata_expression_files = [
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.DistinctUniqueProteins.ExpressionLevels.AAgroupsMiyata1979.EntropyConsidered.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC1.DistinctUniqueProteins.ExpressionLevels.AAgroupsMiyata1979.EntropyConsidered.csv"
+]
+grantham_cutoff_scores = [
+    # 50, 75,
+    100,
+    # 125, 150
+]
+distinct_dissimilar_grantham_proteins_files = [
+    [
+        "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.DistinctUniqueProteins.GRANTHAM1974-100.08.03.2026-00:47:41.csv",
+    ],
+    [
+        "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.DistinctUniqueProteins.GRANTHAM1974-100.05.03.2026-14:50:19.csv",
+    ],
+]
+grantham_expression_files = [
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.DistinctUniqueProteins.ExpressionLevels.GRANTHAM1974-100.EntropyConsidered.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC1.DistinctUniqueProteins.ExpressionLevels.GRANTHAM1974-100.EntropyConsidered.csv",
+]
 # alg_repetitions = 5
 known_sites_file = "/private7/projects/Combinatorics/D.pealeii/Annotations/Jan2025/D.pea.EditingSites.csv"
 samtools_path = "/home/alu/kobish/anaconda3/envs/combinatorics/bin/samtools"
@@ -1618,101 +1614,101 @@ expanded_distinct_unique_proteins_df_2["NumOfReads"].describe()
 # #### Distinct dissimilar
 
 # %%
-# distinct_dissimilar_miyata_proteins_dfs = []
-# for condition, distinct_dissimilar_miyata_file, unique_reads_df in zip(
-#     conditions, distinct_dissimilar_miyata_proteins_files, unique_reads_dfs
-# ):
-#     distinct_dissimilar_miyata_proteins_df = pd.read_csv(
-#         distinct_dissimilar_miyata_file, sep=sep
-#     )
-#     distinct_dissimilar_miyata_proteins_df.insert(0, condition_col, condition)
-#     distinct_dissimilar_miyata_proteins_df.insert(
-#         1,
-#         "NumOfReads",
-#         (
-#             distinct_dissimilar_miyata_proteins_df["Fraction"]
-#             * unique_reads_df["NumOfReads"].sum()
-#         ).astype(int),
-#     )
-#     distinct_dissimilar_miyata_proteins_dfs.append(
-#         distinct_dissimilar_miyata_proteins_df
-#     )
+distinct_dissimilar_miyata_proteins_dfs = []
+for condition, distinct_dissimilar_miyata_file, unique_reads_df in zip(
+    conditions, distinct_dissimilar_miyata_proteins_files, unique_reads_dfs
+):
+    distinct_dissimilar_miyata_proteins_df = pd.read_csv(
+        distinct_dissimilar_miyata_file, sep=sep
+    )
+    distinct_dissimilar_miyata_proteins_df.insert(0, condition_col, condition)
+    distinct_dissimilar_miyata_proteins_df.insert(
+        1,
+        "NumOfReads",
+        (
+            distinct_dissimilar_miyata_proteins_df["Fraction"]
+            * unique_reads_df["NumOfReads"].sum()
+        ).astype(int),
+    )
+    distinct_dissimilar_miyata_proteins_dfs.append(
+        distinct_dissimilar_miyata_proteins_df
+    )
 
-# distinct_dissimilar_miyata_proteins_df = (
-#     pd.concat(distinct_dissimilar_miyata_proteins_dfs)
-#     .reset_index(drop=True)
-#     .rename(columns={"NumUniqueSamples": "NumOfProteins", "UniqueSamples": "Proteins"})
-# )
+distinct_dissimilar_miyata_proteins_df = (
+    pd.concat(distinct_dissimilar_miyata_proteins_dfs)
+    .reset_index(drop=True)
+    .rename(columns={"NumUniqueSamples": "NumOfProteins", "UniqueSamples": "Proteins"})
+)
 
-# distinct_dissimilar_miyata_proteins_df = (
-#     distinct_dissimilar_miyata_proteins_df.sort_values(
-#         [
-#             condition_col,
-#             "Fraction",
-#             "FractionRepetition",
-#             "Algorithm",
-#             "AlgorithmRepetition",
-#         ]
-#     ).reset_index(drop=True)
-# )
+distinct_dissimilar_miyata_proteins_df = (
+    distinct_dissimilar_miyata_proteins_df.sort_values(
+        [
+            condition_col,
+            "Fraction",
+            "FractionRepetition",
+            "Algorithm",
+            "AlgorithmRepetition",
+        ]
+    ).reset_index(drop=True)
+)
 
-# distinct_dissimilar_miyata_proteins_df
-
-# %%
-# distinct_dissimilar_miyata_proteins_df.groupby(condition_col)["NumOfProteins"].max()
+distinct_dissimilar_miyata_proteins_df
 
 # %%
-# distinct_dissimilar_grantham_proteins_dfs = []
-# for (
-#     condition,
-#     condition_distinct_dissimilar_grantham_proteins_files,
-#     unique_reads_df,
-# ) in zip(conditions, distinct_dissimilar_grantham_proteins_files, unique_reads_dfs):
-#     for cutoff_score, distinct_dissimilar_grantham_file in zip(
-#         grantham_cutoff_scores, condition_distinct_dissimilar_grantham_proteins_files
-#     ):
-#         distinct_dissimilar_grantham_proteins_df = pd.read_csv(
-#             distinct_dissimilar_grantham_file, sep=sep
-#         )
-#         distinct_dissimilar_grantham_proteins_df.insert(0, condition_col, condition)
-#         distinct_dissimilar_grantham_proteins_df.insert(1, "CutoffScore", cutoff_score)
-#         distinct_dissimilar_grantham_proteins_df.insert(
-#             2,
-#             "NumOfReads",
-#             (
-#                 distinct_dissimilar_grantham_proteins_df["Fraction"]
-#                 * unique_reads_df["NumOfReads"].sum()
-#             ).astype(int),
-#         )
-#         distinct_dissimilar_grantham_proteins_dfs.append(
-#             distinct_dissimilar_grantham_proteins_df
-#         )
-
-# distinct_dissimilar_grantham_proteins_df = (
-#     pd.concat(distinct_dissimilar_grantham_proteins_dfs)
-#     .reset_index(drop=True)
-#     .rename(columns={"NumUniqueSamples": "NumOfProteins", "UniqueSamples": "Proteins"})
-# )
-
-# distinct_dissimilar_grantham_proteins_df = (
-#     distinct_dissimilar_grantham_proteins_df.sort_values(
-#         [
-#             condition_col,
-#             "CutoffScore",
-#             "Fraction",
-#             "FractionRepetition",
-#             "Algorithm",
-#             "AlgorithmRepetition",
-#         ]
-#     ).reset_index(drop=True)
-# )
-
-# distinct_dissimilar_grantham_proteins_df
+distinct_dissimilar_miyata_proteins_df.groupby(condition_col)["NumOfProteins"].max()
 
 # %%
-# distinct_dissimilar_grantham_proteins_df.groupby([condition_col, "CutoffScore"])[
-#     "NumOfProteins"
-# ].max()
+distinct_dissimilar_grantham_proteins_dfs = []
+for (
+    condition,
+    condition_distinct_dissimilar_grantham_proteins_files,
+    unique_reads_df,
+) in zip(conditions, distinct_dissimilar_grantham_proteins_files, unique_reads_dfs):
+    for cutoff_score, distinct_dissimilar_grantham_file in zip(
+        grantham_cutoff_scores, condition_distinct_dissimilar_grantham_proteins_files
+    ):
+        distinct_dissimilar_grantham_proteins_df = pd.read_csv(
+            distinct_dissimilar_grantham_file, sep=sep
+        )
+        distinct_dissimilar_grantham_proteins_df.insert(0, condition_col, condition)
+        distinct_dissimilar_grantham_proteins_df.insert(1, "CutoffScore", cutoff_score)
+        distinct_dissimilar_grantham_proteins_df.insert(
+            2,
+            "NumOfReads",
+            (
+                distinct_dissimilar_grantham_proteins_df["Fraction"]
+                * unique_reads_df["NumOfReads"].sum()
+            ).astype(int),
+        )
+        distinct_dissimilar_grantham_proteins_dfs.append(
+            distinct_dissimilar_grantham_proteins_df
+        )
+
+distinct_dissimilar_grantham_proteins_df = (
+    pd.concat(distinct_dissimilar_grantham_proteins_dfs)
+    .reset_index(drop=True)
+    .rename(columns={"NumUniqueSamples": "NumOfProteins", "UniqueSamples": "Proteins"})
+)
+
+distinct_dissimilar_grantham_proteins_df = (
+    distinct_dissimilar_grantham_proteins_df.sort_values(
+        [
+            condition_col,
+            "CutoffScore",
+            "Fraction",
+            "FractionRepetition",
+            "Algorithm",
+            "AlgorithmRepetition",
+        ]
+    ).reset_index(drop=True)
+)
+
+distinct_dissimilar_grantham_proteins_df
+
+# %%
+distinct_dissimilar_grantham_proteins_df.groupby([condition_col, "CutoffScore"])[
+    "NumOfProteins"
+].max()
 
 # %% [markdown]
 # #### Max distinct per fraction
@@ -5664,6 +5660,7 @@ for df, out_file in zip(dfs, out_files):
     )
     df.to_csv(out_file, sep="\t", index=False)
 
+
 # %%
 # fig = make_subplots(
 #     rows=1,
@@ -5811,6 +5808,373 @@ for df, out_file in zip(dfs, out_files):
 #     width=width,
 # )
 # fig.show()
+
+# %%
+def round_to_natural_new(number, expected_result=None):
+    """
+    Rounds a number to the nearest 'natural' value based on multiples of 1, 2, or 5
+    at the same order of magnitude.
+
+    Args:
+        number (int): The input number to be rounded
+
+    Returns:
+        int: The rounded 'natural' value
+    """
+    if number == 0:
+        return 0
+
+    # Calculate the order of magnitude
+    magnitude = 10 ** math.floor(math.log10(abs(number)))
+
+    sorted_targets = sorted(
+        [1 * magnitude, 2 * magnitude, 5 * magnitude, magnitude * (number // magnitude)]
+    )
+    if number > sorted_targets[-1]:
+        sorted_targets.append(magnitude**2)
+
+    sorted_targets_df = pd.DataFrame(
+        {
+            "Result": sorted_targets,
+            "AbsDist": pd.Series(sorted_targets).sub(number).abs(),
+        }
+    )
+    result = (
+        sorted_targets_df.loc[
+            sorted_targets_df["AbsDist"].eq(sorted_targets_df["AbsDist"].min()),
+            "Result",
+        ]
+        .sample(n=1)
+        .values[0]
+    )
+
+    if expected_result is not None and result != expected_result:
+        ic(number, result, expected_result, result == expected_result)
+
+    return result
+
+
+# Test cases to demonstrate the function
+test_cases = [
+    (100, 100),  # Should return 100
+    (103, 100),  # Should return 100
+    (4020, 4000),  # Should return 4000
+    (4350, 4350),  # Should return 4500
+    (4600, 5000),  # Should return 5000
+    (50, 50),  # Should return 50
+    (53, 50),  # Should return 50
+    (75, 100),  # Should return 100
+    (120, 100),  # Should return 100
+    (180, 200),  # Should return 200
+    (1234, 1200),  # Should return 1000
+    (6789, 7000),  # Should return 7000
+]
+
+
+# # Run and print test cases
+# # print("Testing round_to_natural function:")
+# for num, expected_result in test_cases[:]:
+#     # rounded = round_to_natural(num)
+#     # print(f"{num} -> {rounded}")
+#     round_to_natural_new(num, expected_result)
+
+# # round_to_natural_new(*test_cases[5])
+
+# %%
+_distinct_dissimilar_dfs = {
+    "Miyata": distinct_dissimilar_miyata_proteins_df,
+    "Grantham 100": distinct_dissimilar_grantham_proteins_df,
+}
+
+# %%
+_distinct_dissimilar_dfs["Miyata"]
+
+# %%
+_distinct_dissimilar_dfs["Grantham 100"]
+
+# %%
+_distinctions = ["Miyata", "Grantham 100"]
+_distinct_dissimilar_dfs = {
+    "Miyata": distinct_dissimilar_miyata_proteins_df,
+    "Grantham 100": distinct_dissimilar_grantham_proteins_df,
+}
+concat_distinct_dissimilar_df = pd.concat(
+    [
+        _distinct_dissimilar_dfs[distinction].assign(Dissimilarity=distinction)
+        for distinction in _distinctions
+    ],
+    ignore_index=True
+)
+
+concat_distinct_dissimilar_df.to_csv(
+    Path(out_dir, "DistinctDissimilarProteins.PacBio.UMI.tsv"),
+    sep="\t",
+    index=False
+)
+
+concat_distinct_dissimilar_df
+
+
+# %%
+def round_to_natural_new(number, expected_result=None):
+    """
+    Rounds a number to the nearest 'natural' value based on multiples of 1, 2, or 5
+    at the same order of magnitude.
+
+    Args:
+        number (int): The input number to be rounded
+
+    Returns:
+        int: The rounded 'natural' value
+    """
+    if number == 0:
+        return 0
+
+    # Calculate the order of magnitude
+    magnitude = 10 ** math.floor(math.log10(abs(number)))
+
+    sorted_targets = sorted(
+        [1 * magnitude, 2 * magnitude, 5 * magnitude, magnitude * (number // magnitude)]
+    )
+    if number > sorted_targets[-1]:
+        sorted_targets.append(magnitude**2)
+
+    sorted_targets_df = pd.DataFrame(
+        {
+            "Result": sorted_targets,
+            "AbsDist": pd.Series(sorted_targets).sub(number).abs(),
+        }
+    )
+    result = (
+        sorted_targets_df.loc[
+            sorted_targets_df["AbsDist"].eq(sorted_targets_df["AbsDist"].min()),
+            "Result",
+        ]
+        .sample(n=1)
+        .values[0]
+    )
+
+    if expected_result is not None and result != expected_result:
+        ic(number, result, expected_result, result == expected_result)
+
+    return result
+
+
+# Test cases to demonstrate the function
+test_cases = [
+    (100, 100),  # Should return 100
+    (103, 100),  # Should return 100
+    (4020, 4000),  # Should return 4000
+    (4350, 4350),  # Should return 4500
+    (4600, 5000),  # Should return 5000
+    (50, 50),  # Should return 50
+    (53, 50),  # Should return 50
+    (75, 100),  # Should return 100
+    (120, 100),  # Should return 100
+    (180, 200),  # Should return 200
+    (1234, 1200),  # Should return 1000
+    (6789, 7000),  # Should return 7000
+]
+
+
+# # Run and print test cases
+# # print("Testing round_to_natural function:")
+# for num, expected_result in test_cases[:]:
+#     # rounded = round_to_natural(num)
+#     # print(f"{num} -> {rounded}")
+#     round_to_natural_new(num, expected_result)
+
+# # round_to_natural_new(*test_cases[5])
+
+# %%
+assert (
+    distinct_dissimilar_grantham_proteins_df["CutoffScore"].value_counts()[100]
+    == distinct_dissimilar_grantham_proteins_df.shape[0]
+)
+
+_distinct_dissimilar_dfs = {
+    "Miyata": distinct_dissimilar_miyata_proteins_df,
+    "Grantham 100": distinct_dissimilar_grantham_proteins_df,
+}
+
+# _distinctions = {"Miyata": 1, "Grantham": 2}
+_distinctions = ["Miyata", "Grantham 100"]
+_dissimilar_colormaps = {
+    condition: n_repetitions_colormap(
+        subcolors_discrete_map, condition, len(_distinct_dissimilar_dfs)
+    )
+    for condition in conditions
+}
+symbol_per_distinction = {"Miyata": "square-dot", "Grantham 100": "diamond"}
+same_fill_color_per_distinction = {"Miyata": True, "Grantham 100": False}
+# n_similarities = 2
+# fill_color_similarities = [True] * n_similarities + [False] * (
+#     len(symbols) - n_similarities
+# )
+_marker_size = 5
+marker_line_width = 2
+nticks = 6
+
+# maximal_x = 0
+# maximal_y = 0
+
+fig = make_subplots(
+    rows=1,
+    cols=len(_distinctions),
+    print_grid=False,
+    subplot_titles=_distinctions,
+    x_title="Coverage",
+    y_title="Dissimilar protein isoforms observed",
+)
+
+
+for col, (_distinction, _distinct_df) in enumerate(
+    _distinct_dissimilar_dfs.items(), start=1
+):
+    for condition in conditions:
+
+        color = color_discrete_map[condition]
+
+        # name = f"{condition} - {_distinction}"
+        # legendgroup = condition if condition != "GRIA" else "GRIA2"
+        # name = _distinction
+
+        df = _distinct_df.loc[
+            (_distinct_df[condition_col] == condition)
+            # & (_distinct_df["Algorithm"] == "Descending")
+        ]
+        df = df.sort_values(
+            ["Fraction", "NumOfProteins"], ascending=False
+        ).drop_duplicates("Fraction", ignore_index=True)
+        x_measured = df["NumOfReads"]
+        y_measured = df["NumOfProteins"]
+
+        fig.add_trace(
+            go.Scatter(
+                x=x_measured,
+                y=y_measured,
+                mode="markers",
+                marker=dict(
+                    color=color,
+                    size=_marker_size,
+                    # symbol=symbol,
+                    line=dict(width=marker_line_width, color=color),
+                ),
+                # name=name,
+                # legendgroup=legendgroup,  # this can be any string
+                # legendgrouptitle_text=legendgroup,
+                showlegend=False,
+            ),
+            row=1,
+            col=col,
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=x_measured,
+                y=y_measured,
+                mode="lines",
+                line=dict(
+                    color=color,
+                    width=_marker_size * 0.2,
+                ),
+                # name=name,
+                showlegend=False,
+            ),
+            row=1,
+            col=col,
+        )
+
+        # maximal_x = max(maximal_x, x_measured.max())
+        # maximal_y = max(maximal_y, y_measured.max())
+
+    distinction_max_y = _distinct_df["NumOfProteins"].max()
+    # distinction_max_y_rounded = round_to_natural_new(distinction_max_y)
+    dtick = round_to_natural_new(distinction_max_y / nticks)
+
+    fig.update_yaxes(
+        row=1,
+        col=col,
+        #  range=[0, None],
+        range=[0, None],
+        dtick=dtick,
+        nticks=nticks,
+    )
+
+    # distinction_max_y = _distinct_df["NumOfProteins"].max()
+    # distinction_max_y_rounded = round_to_natural_new(distinction_max_y)
+    # dtick = int(round_to_natural_new(distinction_max_y / nticks))
+    # tickvals = list(range(0, distinction_max_y_rounded + dtick, dtick))
+    # ic(distinction_max_y, distinction_max_y_rounded, dtick, tickvals)
+
+    # fig.update_yaxes(
+    #     row=1,
+    #     col=col,
+    #     #  range=[0, None],
+    #     range=[0, distinction_max_y_rounded],
+    #     tickvals=tickvals,
+    #     # dtick=dtick,
+    #     # nticks=nticks,
+    # )
+
+
+# add empty traces for legend
+for fixed_condition, condition in zip(fixed_conditions, conditions):
+    color = color_discrete_map[condition]
+    fig.add_trace(
+        go.Scatter(
+            x=[None],
+            y=[None],
+            mode="markers",
+            marker=dict(
+                color=color,
+                size=_marker_size,
+                # symbol=symbol,
+                line=dict(width=marker_line_width, color=color),
+            ),
+            name=fixed_condition,
+        ),
+        row=1,
+        col=1,
+    )
+
+width = 800
+height = 470
+
+fig.update_layout(
+    template=template,
+    # title="Squid's Long-reads",
+    title="Long-reads",
+    title_x=0.15,
+    #     autosize=False,
+    #     # margin_r=200,
+    # legend=dict(
+    #     orientation="h",
+    #     entrywidth=90,
+    #     yanchor="bottom",
+    #     # y=1.02,
+    #     y=0.15,
+    #     xanchor="right",
+    #     x=0.8,
+    #     # # orientation="h",
+    #     # yanchor="bottom",
+    #     # y=0.1,
+    #     # xanchor="left",
+    #     # # x=0.95,
+    #     # x=0.1,
+    #     # # itemsizing='constant'
+    # ),
+    # # legend_grouptitlefont_size=12,
+    # # legend_font=dict(size=12),
+    # legend_tracegroupgap=0,
+    height=height,
+    width=width,
+)
+fig.write_image(
+    "Distinct dissimilar proteins vs. sequencing depth - PacBio w UMIs.svg",
+    height=height,
+    width=width,
+)
+fig.show()
 
 # %%
 
@@ -11664,6 +12028,405 @@ fig.show()
 merged_assignment_df.loc[
     merged_assignment_df[condition_col] == "GRIA", "Abundancy"
 ].str.replace(" ", "<br>")
+
+# %% [markdown]
+# ### Dissimilar distinct proteins
+
+# %% [markdown]
+# #### Expression levels
+
+# %% [markdown]
+# ##### Relative expression of isoforms
+
+# %%
+miyata_expression_files
+
+# %%
+grantham_expression_files
+
+# %%
+dissimilarities = ["Miyata", "Grantham 100"]
+
+# %%
+dissimilar_expression_dfs = []
+for dissimilarity, dissimilarity_expression_files in zip(
+    dissimilarities, [miyata_expression_files, grantham_expression_files]
+):
+    for expression_file in dissimilarity_expression_files:
+        expression_df = pd.read_csv(expression_file, sep=sep)
+        expression_df.insert(0, "Dissimilarity", dissimilarity)
+        expression_df["#Solution"] = expression_df["#Solution"].astype(str)
+        expression_df["AdditionalSupportingReadsIDs"] = expression_df[
+            "AdditionalSupportingReadsIDs"
+        ].apply(lambda x: "" if pd.isna(x) else [y.split(",") for y in x.split(";")])
+        expression_df["AdditionalSupportingProteinsIDs"] = expression_df[
+            "AdditionalSupportingProteinsIDs"
+        ].apply(lambda x: "" if pd.isna(x) else x.split(","))
+
+        dissimilar_expression_dfs.append(expression_df)
+dissimilar_expression_dfs[0]
+
+
+# %%
+def find_rand_maximal_solution(
+    expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
+):
+    df = (
+        expression_df.loc[expression_df["Algorithm"].isin(allowed_algorithms)]
+        .groupby("#Solution")
+        .agg("size")
+        .reset_index()
+        .rename(columns={0: "Size"})
+    )
+    # rand_maximal_solution = df.loc[df["Size"] == df["Size"].max(), "#Solution"].sample(random_state=seed).reset_index(drop=True)
+    rand_maximal_solution = (
+        df.loc[df["Size"] == df["Size"].max(), "#Solution"]
+        .sample(random_state=seed)
+        .values[0]
+    )
+    return rand_maximal_solution
+
+
+# %%
+maximal_dissimilar_solutions = [
+    find_rand_maximal_solution(
+        expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
+    )
+    for expression_df in dissimilar_expression_dfs
+]
+maximal_dissimilar_solutions
+
+# %%
+maximal_dissimilar_dfs = [
+    expression_df.loc[expression_df["#Solution"] == maximal_solution].reset_index(
+        drop=True
+    )
+    for expression_df, maximal_solution in zip(
+        dissimilar_expression_dfs, maximal_dissimilar_solutions
+    )
+]
+
+assignment_dissimilar_dfs = [
+    (
+        maximal_df.sort_values("TotalWeightedSupportingReads", ascending=False)
+        .reset_index(drop=True)
+        .assign(ProteinRank=list(range(1, len(maximal_df) + 1)))
+        .rename(columns={"ProteinRank": "#Protein"})
+    )
+    for maximal_df in maximal_dissimilar_dfs
+]
+
+
+for assignment_df in assignment_dissimilar_dfs:
+    assignment_df["%RelativeExpression"] = (
+        100
+        * assignment_df["TotalWeightedSupportingReads"]
+        / assignment_df["TotalWeightedSupportingReads"].sum()
+    )
+    assignment_df["%CummulativeRelativeExpression"] = assignment_df[
+        "%RelativeExpression"
+    ].cumsum()
+
+assignment_dissimilar_dfs[0]
+
+# %%
+# assignment_dissimilar_dfs[1]
+
+# %%
+# for dissimilarity in dissimilarities:
+#     for condition in conditions:
+#         ic(dissimilarity, condition)
+
+# %%
+list(product(dissimilarities, conditions))
+
+# %%
+assignment_dissimilar_dfs_by_dissimilarity_and_condition = {
+    (dissimilarity, condition): df
+    for (dissimilarity, condition), df in zip(
+        product(dissimilarities, conditions), assignment_dissimilar_dfs
+    )
+}
+assignment_dissimilar_dfs_by_dissimilarity_and_condition[("Miyata", conditions[0])]
+
+# %% [markdown]
+# ##### Clustering: kmeans
+
+# %%
+dissimilar_weighted_exp_clustering_input_dfs = {}
+
+for condition, unique_proteins_df in zip(conditions, unique_proteins_dfs):
+    for dissimilarity in dissimilarities:
+        assignment_df = assignment_dissimilar_dfs_by_dissimilarity_and_condition[
+            (dissimilarity, condition)
+        ]
+        dissimilar_weighted_exp_clustering_input_df = prepare_ml_input_df_new(
+            assignment_df,
+            unique_proteins_df,
+            unique_proteins_first_col_pos,
+        )
+        dissimilar_weighted_exp_clustering_input_dfs[(dissimilarity, condition)] = (
+            dissimilar_weighted_exp_clustering_input_df
+        )
+
+
+dissimilar_weighted_exp_clustering_input_dfs[("Miyata", conditions[0])]
+
+# %%
+# dissimilar_cluster_sizes = list(range(10, 510, 10))  # 10, 20, ..., 500
+# dissimilar_cluster_sizes = list(range(10, 260, 10))  # 10, 20, ..., 260
+# dissimilar_cluster_sizes = list(range(3, 51, 1))  # 10, 20, ..., 260
+dissimilar_cluster_sizes = list(range(3, 41, 1))  # 10, 20, ..., 260
+
+# %%
+dissimilarity_condition_Xs = {
+    (dissimilarity, condition): df.iloc[:, ML_INPUT_FIRST_COL_POS_NEW:].values
+    for (
+        dissimilarity,
+        condition,
+    ), df in dissimilar_weighted_exp_clustering_input_dfs.items()
+}
+
+dissimilarity_condition_Xs[("Miyata", conditions[0])]
+
+# %%
+rng = np.random.RandomState(seed)
+
+dissimilarity_condition_kmeans = {
+    (dissimilarity, condition): [
+        MiniBatchKMeans(
+            n_clusters=n_clusters,
+            init="k-means++",
+            n_init=5,
+            verbose=0,
+            random_state=rng,
+        ).fit(X)
+        for n_clusters in dissimilar_cluster_sizes
+    ]
+    for (
+        dissimilarity,
+        condition,
+    ), X in dissimilarity_condition_Xs.items()
+}
+
+# dissimilarity_condition_kmeans[("Miyata", "GRIA")]
+
+# %%
+dissimilarity_condition_kmeans_silhouette_scores = {}
+
+for (
+    dissimilarity,
+    condition,
+), X in dissimilarity_condition_Xs.items():
+    kms = dissimilarity_condition_kmeans[(dissimilarity, condition)]
+    silhouette_scores = [silhouette_score(X, km.labels_) for km in kms]
+    dissimilarity_condition_kmeans_silhouette_scores[(dissimilarity, condition)] = (
+        silhouette_scores
+    )
+
+# dissimilarity_condition_kmeans_silhouette_scores[("Miyata", "GRIA")]
+
+# %%
+len(dissimilarity_condition_kmeans_silhouette_scores)
+
+# %%
+dissimilarity_condition_kmeans_silhouette_scores.keys()
+
+# %%
+len(dissimilarity_condition_kmeans_silhouette_scores[("Miyata", conditions[0])])
+
+# %%
+len(dissimilar_cluster_sizes)
+
+# %%
+n_unique_ks = len(dissimilar_cluster_sizes)
+dissimilarity_condition_kmeans_silhouette_scores_dfs = []
+for (dissimilarity, condition), kmeans_silhouette_scores in dissimilarity_condition_kmeans_silhouette_scores.items():
+    df = pd.DataFrame(
+        {
+            condition_col: [condition] * n_unique_ks,
+            "ClusterSize": dissimilar_cluster_sizes,
+            "Dissimilarity": [dissimilarity] * n_unique_ks,
+            "MeanSilhouetteScore": kmeans_silhouette_scores,
+        }
+    )
+    dissimilarity_condition_kmeans_silhouette_scores_dfs.append(df)
+dissimilarity_condition_kmeans_silhouette_scores_concat_df = pd.concat(
+    dissimilarity_condition_kmeans_silhouette_scores_dfs,
+    ignore_index=True
+)
+
+dissimilarity_condition_kmeans_silhouette_scores_concat_df.insert(
+    0,
+    "Platform",
+    "Long-reads"
+)
+
+dissimilarity_condition_kmeans_silhouette_scores_concat_df.to_csv(
+    Path(out_dir, "KMeansMeanSilhouetteScores.Dissimilar.PacBio.UMIs.tsv"),
+    sep="\t",
+    index=False
+)
+
+dissimilarity_condition_kmeans_silhouette_scores_concat_df
+
+# %%
+dissimilarities
+
+# %%
+assert (
+    distinct_dissimilar_grantham_proteins_df["CutoffScore"].value_counts()[100]
+    == distinct_dissimilar_grantham_proteins_df.shape[0]
+)
+
+_distinct_dissimilar_dfs = {
+    "Miyata": distinct_dissimilar_miyata_proteins_df,
+    "Grantham 100": distinct_dissimilar_grantham_proteins_df,
+}
+
+# _distinctions = {"Miyata": 1, "Grantham": 2}
+_distinctions = ["Miyata", "Grantham 100"]
+_dissimilar_colormaps = {
+    condition: n_repetitions_colormap(
+        subcolors_discrete_map, condition, len(_distinct_dissimilar_dfs)
+    )
+    for condition in conditions
+}
+symbol_per_distinction = {"Miyata": "square-dot", "Grantham 100": "diamond"}
+same_fill_color_per_distinction = {"Miyata": True, "Grantham 100": False}
+# n_similarities = 2
+# fill_color_similarities = [True] * n_similarities + [False] * (
+#     len(symbols) - n_similarities
+# )
+# marker_size = 5
+# marker_line_width = 2
+marker_size = 4
+marker_line_width = 0.5
+nticks = 6
+
+# maximal_x = 0
+# maximal_y = 0
+
+fig = make_subplots(
+    rows=1,
+    cols=len(dissimilarities),
+    print_grid=False,
+    subplot_titles=dissimilarities,
+    shared_xaxes=True,
+    shared_yaxes=True,
+    x_title="Number of dissimilar clusters (k)",
+    y_title="Mean silhouette score<br>of MiniBatchKMeans",
+)
+
+
+for col, dissimilarity in enumerate(dissimilarities, start=1):
+    for condition in conditions:
+
+        color = color_discrete_map[condition]
+
+        kmeans_silhouette_scores = dissimilarity_condition_kmeans_silhouette_scores[
+            (dissimilarity, condition)
+        ]
+
+        fig.add_trace(
+            go.Scattergl(
+                # go.Scatter(
+                x=dissimilar_cluster_sizes,
+                y=kmeans_silhouette_scores,
+                mode="markers",
+                marker=dict(
+                    color=color,
+                    # color=labels[clustered],
+                    # colorscale="Blackbody",
+                    # line_width=line_width,
+                    size=marker_size,
+                    line=dict(width=marker_line_width, color=color),
+                ),
+                showlegend=False,
+            ),
+            row=1,
+            col=col,
+        )
+
+
+# add empty traces for legend
+for fixed_condition, condition in zip(fixed_conditions, conditions):
+    color = color_discrete_map[condition]
+    fig.add_trace(
+        go.Scatter(
+            x=[None],
+            y=[None],
+            mode="markers",
+            marker=dict(
+                color=color,
+                size=6,
+                # symbol=symbol,
+                line=dict(width=marker_line_width, color=color),
+            ),
+            name=fixed_condition,
+        ),
+        row=1,
+        col=1,
+    )
+
+fig.update_xaxes(
+    rangemode="tozero",
+    range=[0, None],
+    #  tick0=0.0,
+    dtick=10,
+)
+
+fig.update_yaxes(
+    rangemode="tozero",
+    range=[0, None],
+    #  tick0=0.0, dtick=0.01
+)
+
+width = 800
+height = 470
+
+fig.update_layout(
+    template=template,
+    # title="Squid's Long-reads",
+    title="Long-reads",
+    title_x=0.15,
+    #     autosize=False,
+    #     # margin_r=200,
+    # legend=dict(
+    #     orientation="h",
+    #     entrywidth=90,
+    #     yanchor="bottom",
+    #     # y=1.02,
+    #     y=0.15,
+    #     xanchor="right",
+    #     x=0.8,
+    #     # # orientation="h",
+    #     # yanchor="bottom",
+    #     # y=0.1,
+    #     # xanchor="left",
+    #     # # x=0.95,
+    #     # x=0.1,
+    #     # # itemsizing='constant'
+    # ),
+    # # legend_grouptitlefont_size=12,
+    # # legend_font=dict(size=12),
+    # legend_tracegroupgap=0,
+    height=height,
+    width=width,
+)
+# fig.write_image(
+#     "Distinct dissimilar proteins vs. sequencing depth - PacBio.svg",
+#     height=height,
+#     width=width,
+# )
+
+# fig.write_image(
+#     "Mean silhouette score of MiniBatchKMeans vs. K size - PacBio - dissimilar.svg",
+#     height=height,
+#     width=width,
+# )
+
+fig.show()
 
 # %% [markdown] toc-hr-collapsed=true
 # ## Editing in reads

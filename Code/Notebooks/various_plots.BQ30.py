@@ -4795,6 +4795,9 @@ fig.show()
 # %% [markdown]
 # ## All fractions
 
+# %% [markdown]
+# ### Regular
+
 # %%
 # illumina_merged_distinct_proteins_file = "DistinctProteins.Illumina.tsv"
 # pacbio_merged_distinct_proteins_file = "DistinctProteins.PacBio.tsv"
@@ -5077,6 +5080,287 @@ fig.show()
 
 # %%
 height
+
+# %% [markdown]
+# ### Distinct dissimlar
+
+# %%
+distinct_dissimlar_files = [
+    "/private6/projects/Combinatorics/Code/Notebooks/DistinctDissimilarProteins.PacBio.tsv",
+    "/private6/projects/Combinatorics/Code/Notebooks/DistinctDissimilarProteins.PacBio.UMI.tsv"
+]
+
+# %%
+concat_dissimilar_df = pd.concat(
+    [pd.read_table(f) for f in distinct_dissimlar_files]
+)
+concat_dissimilar_df
+
+
+# %%
+def round_to_natural_new(number, expected_result=None):
+    """
+    Rounds a number to the nearest 'natural' value based on multiples of 1, 2, or 5
+    at the same order of magnitude.
+
+    Args:
+        number (int): The input number to be rounded
+
+    Returns:
+        int: The rounded 'natural' value
+    """
+    if number == 0:
+        return 0
+
+    # Calculate the order of magnitude
+    magnitude = 10 ** math.floor(math.log10(abs(number)))
+
+    sorted_targets = sorted(
+        [1 * magnitude, 2 * magnitude, 5 * magnitude, magnitude * (number // magnitude)]
+    )
+    if number > sorted_targets[-1]:
+        sorted_targets.append(magnitude**2)
+
+    sorted_targets_df = pd.DataFrame(
+        {
+            "Result": sorted_targets,
+            "AbsDist": pd.Series(sorted_targets).sub(number).abs(),
+        }
+    )
+    result = (
+        sorted_targets_df.loc[
+            sorted_targets_df["AbsDist"].eq(sorted_targets_df["AbsDist"].min()),
+            "Result",
+        ]
+        .sample(n=1)
+        .values[0]
+    )
+
+    if expected_result is not None and result != expected_result:
+        ic(number, result, expected_result, result == expected_result)
+
+    return result
+
+
+# Test cases to demonstrate the function
+test_cases = [
+    (100, 100),  # Should return 100
+    (103, 100),  # Should return 100
+    (4020, 4000),  # Should return 4000
+    (4350, 4350),  # Should return 4500
+    (4600, 5000),  # Should return 5000
+    (50, 50),  # Should return 50
+    (53, 50),  # Should return 50
+    (75, 100),  # Should return 100
+    (120, 100),  # Should return 100
+    (180, 200),  # Should return 200
+    (1234, 1200),  # Should return 1000
+    (6789, 7000),  # Should return 7000
+]
+
+
+# # Run and print test cases
+# # print("Testing round_to_natural function:")
+# for num, expected_result in test_cases[:]:
+#     # rounded = round_to_natural(num)
+#     # print(f"{num} -> {rounded}")
+#     round_to_natural_new(num, expected_result)
+
+# # round_to_natural_new(*test_cases[5])
+
+# %%
+# assert (
+#     distinct_dissimilar_grantham_proteins_df["CutoffScore"].value_counts()[100]
+#     == distinct_dissimilar_grantham_proteins_df.shape[0]
+# )
+
+# _distinct_dissimilar_dfs = {
+#     "Miyata": distinct_dissimilar_miyata_proteins_df,
+#     "Grantham 100": distinct_dissimilar_grantham_proteins_df,
+# }
+
+# # _distinctions = {"Miyata": 1, "Grantham": 2}
+# _distinctions = ["Miyata", "Grantham 100"]
+# _dissimilar_colormaps = {
+#     condition: n_repetitions_colormap(
+#         subcolors_discrete_map, condition, len(_distinct_dissimilar_dfs)
+#     )
+#     for condition in conditions
+# }
+# symbol_per_distinction = {"Miyata": "square-dot", "Grantham 100": "diamond"}
+# same_fill_color_per_distinction = {"Miyata": True, "Grantham 100": False}
+# n_similarities = 2
+# fill_color_similarities = [True] * n_similarities + [False] * (
+#     len(symbols) - n_similarities
+# )
+_marker_size = 5
+marker_line_width = 2
+nticks = 6
+
+dissimilarities = ['Miyata', 'Grantham 100']
+
+# maximal_x = 0
+# maximal_y = 0
+
+fig = make_subplots(
+    rows=1,
+    cols=len(dissimilarities),
+    print_grid=False,
+    subplot_titles=dissimilarities,
+    x_title="Coverage",
+    y_title="Dissimilar protein isoforms observed",
+)
+
+
+for col, dissimilarity in enumerate(
+    dissimilarities, start=1
+):
+    for condition in pacbio_conditions:
+
+        color = pacbio_color_discrete_map[condition]
+
+        # name = f"{condition} - {_distinction}"
+        # legendgroup = condition if condition != "GRIA" else "GRIA2"
+        # name = _distinction
+
+        df = concat_dissimilar_df.loc[
+            (concat_dissimilar_df[condition_col] == condition)
+            & (concat_dissimilar_df["Dissimilarity"] == "dissimilarity")
+        ]
+        df = df.sort_values(
+            ["Fraction", "NumOfProteins"], ascending=False
+        ).drop_duplicates("Fraction", ignore_index=True)
+        x_measured = df["NumOfReads"]
+        y_measured = df["NumOfProteins"]
+
+        fig.add_trace(
+            go.Scatter(
+                x=x_measured,
+                y=y_measured,
+                mode="markers",
+                marker=dict(
+                    color=color,
+                    size=_marker_size,
+                    # symbol=symbol,
+                    line=dict(width=marker_line_width, color=color),
+                ),
+                # name=name,
+                # legendgroup=legendgroup,  # this can be any string
+                # legendgrouptitle_text=legendgroup,
+                showlegend=False,
+            ),
+            row=1,
+            col=col,
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=x_measured,
+                y=y_measured,
+                mode="lines",
+                line=dict(
+                    color=color,
+                    width=_marker_size * 0.2,
+                ),
+                # name=name,
+                showlegend=False,
+            ),
+            row=1,
+            col=col,
+        )
+
+        # maximal_x = max(maximal_x, x_measured.max())
+        # maximal_y = max(maximal_y, y_measured.max())
+
+    distinction_max_y = concat_dissimilar_df["NumOfProteins"].max()
+    # distinction_max_y_rounded = round_to_natural_new(distinction_max_y)
+    dtick = round_to_natural_new(distinction_max_y / nticks)
+
+    fig.update_yaxes(
+        row=1,
+        col=col,
+        #  range=[0, None],
+        range=[0, None],
+        dtick=dtick,
+        nticks=nticks,
+    )
+
+    # distinction_max_y = _distinct_df["NumOfProteins"].max()
+    # distinction_max_y_rounded = round_to_natural_new(distinction_max_y)
+    # dtick = int(round_to_natural_new(distinction_max_y / nticks))
+    # tickvals = list(range(0, distinction_max_y_rounded + dtick, dtick))
+    # ic(distinction_max_y, distinction_max_y_rounded, dtick, tickvals)
+
+    # fig.update_yaxes(
+    #     row=1,
+    #     col=col,
+    #     #  range=[0, None],
+    #     range=[0, distinction_max_y_rounded],
+    #     tickvals=tickvals,
+    #     # dtick=dtick,
+    #     # nticks=nticks,
+    # )
+
+
+# add empty traces for legend
+for condition in pacbio_conditions:
+    color = pacbio_color_discrete_map[condition]
+    fig.add_trace(
+        go.Scatter(
+            x=[None],
+            y=[None],
+            mode="markers",
+            marker=dict(
+                color=color,
+                size=_marker_size,
+                # symbol=symbol,
+                line=dict(width=marker_line_width, color=color),
+            ),
+            name=condition,
+        ),
+        row=1,
+        col=1,
+    )
+
+width = 800
+height = 470
+
+fig.update_layout(
+    template=template,
+    # title="Squid's Long-reads",
+    title="Long-reads",
+    title_x=0.15,
+    #     autosize=False,
+    #     # margin_r=200,
+    # legend=dict(
+    #     orientation="h",
+    #     entrywidth=90,
+    #     yanchor="bottom",
+    #     # y=1.02,
+    #     y=0.15,
+    #     xanchor="right",
+    #     x=0.8,
+    #     # # orientation="h",
+    #     # yanchor="bottom",
+    #     # y=0.1,
+    #     # xanchor="left",
+    #     # # x=0.95,
+    #     # x=0.1,
+    #     # # itemsizing='constant'
+    # ),
+    # # legend_grouptitlefont_size=12,
+    # # legend_font=dict(size=12),
+    # legend_tracegroupgap=0,
+    height=height,
+    width=width,
+)
+# fig.write_image(
+#     "Distinct dissimilar proteins vs. sequencing depth - PacBio.svg",
+#     height=height,
+#     width=width,
+# )
+fig.show()
+
+# %%
 
 # %% [markdown]
 # # Combined editing in motifs plots for squid long-reads
@@ -6405,20 +6689,6 @@ pacbio_color_discrete_map = {
 }
 
 # %%
-in_dir = Path("/private7/projects/Combinatorics/Code/Notebooks")
-
-# illumina_merged_distinct_proteins_file = Path(in_dir, "DistinctProteins.Illumina.tsv")
-pacbio_kmeans_silhouette_scores_file = Path(in_dir, "KMeansMeanSilhouetteScores.PacBio.tsv")
-pacbio_umi_kmeans_silhouette_scores_file = Path(
-    in_dir,
-    "KMeansMeanSilhouetteScores.PacBio.WithUMIs.tsv",
-)
-
-# illumina_merged_max_distinct_proteins_file = Path(
-#     in_dir, "MaxDistinctProteinsF1.Illumina.tsv"
-# )
-
-# %%
 platforms_color_map = {
     platform: color_map
     for platform, color_map in zip(
@@ -6436,6 +6706,23 @@ platforms_conditions = [
     pacbio_conditions,
     # illumina_conditions
 ]
+
+# %% [markdown]
+# ## Regular
+
+# %%
+in_dir = Path("/private7/projects/Combinatorics/Code/Notebooks")
+
+# illumina_merged_distinct_proteins_file = Path(in_dir, "DistinctProteins.Illumina.tsv")
+pacbio_kmeans_silhouette_scores_file = Path(in_dir, "KMeansMeanSilhouetteScores.PacBio.tsv")
+pacbio_umi_kmeans_silhouette_scores_file = Path(
+    in_dir,
+    "KMeansMeanSilhouetteScores.PacBio.WithUMIs.tsv",
+)
+
+# illumina_merged_max_distinct_proteins_file = Path(
+#     in_dir, "MaxDistinctProteinsF1.Illumina.tsv"
+# )
 
 # %%
 # pacbio_max_distinct_proteins_df = pd.read_table(pacbio_merged_max_distinct_proteins_file)
@@ -6614,6 +6901,339 @@ fig = make_subplots(
     rows=rows,
     cols=cols,
     subplot_titles=fixed_conditions,
+    shared_xaxes=True,
+    shared_yaxes=True,
+    # x_title="Number of clusters (k)",
+    # y_title="Mean silhouette score<br>of MiniBatchKMeans",
+    x_title="Number of MiniBatchKMeans clusters (k)",
+    y_title="Mean silhouette score",
+    # column_titles=["Mean silhouette score", "Inertia score"],
+    # row_titles=conditions
+)
+
+# min_x = None
+# max_x = 0
+# max_y = 0
+
+marker_size = 3
+line_width = 0.5
+
+x = cluster_sizes
+
+for (
+    (row, col),
+    condition,
+    kmeans,
+    kmeans_silhouette_scores,
+) in zip(
+    row_col_iter,
+    conditions,
+    conditions_kmeans,
+    conditions_kmeans_silhouette_scores,
+):
+    color = color_discrete_map[condition]
+
+    fig.add_trace(
+        go.Scattergl(
+            # go.Scatter(
+            x=x,
+            y=kmeans_silhouette_scores,
+            mode="markers",
+            marker=dict(
+                color=color,
+                # color=labels[clustered],
+                # colorscale="Blackbody",
+                line_width=line_width,
+                size=marker_size,
+            ),
+        ),
+        row=row,
+        col=col,
+    )
+
+fig.update_yaxes(rangemode="tozero", tick0=0.0, dtick=0.01)
+
+fig.update_layout(
+    title_text="Long-reads",
+    title_x=0.15,
+    # title_y=0.95,
+    template=template,
+    showlegend=False,
+    width=600,
+    height=350,
+)
+
+# fig.write_image(
+#     "Mean silhouette score of MiniBatchKMeans vs. K size - PacBio.svg",
+#     width=600,
+#     height=350,
+# )
+
+fig.show()
+
+# %% [markdown]
+# ## Dissimilar
+
+# %%
+in_dir = Path("/private7/projects/Combinatorics/Code/Notebooks")
+
+pacbio_dissimilar_kmeans_silhouette_scores_file = Path(in_dir, "KMeansMeanSilhouetteScores.Dissimilar.PacBio.tsv")
+pacbio_dissimilar_umi_kmeans_silhouette_scores_file = Path(
+    in_dir,
+    "KMeansMeanSilhouetteScores.Dissimilar.PacBio.UMIs.tsv",
+)
+
+# %%
+# pacbio_max_distinct_proteins_df = pd.read_table(pacbio_merged_max_distinct_proteins_file)
+pacbio_concat_dissimilar_kmeans_silhouette_scores_df = pd.concat(
+    [
+        pd.read_table(
+            pacbio_dissimilar_kmeans_silhouette_scores_file,
+            # dtype={"Edited": bool, "PositionInSignature": str},
+            # na_filter=False,
+        ),
+        pd.read_table(
+            pacbio_dissimilar_umi_kmeans_silhouette_scores_file,
+            # dtype={"Edited": bool, "PositionInSignature": str},
+            # na_filter=False,
+        ),
+    ]
+)
+
+pacbio_concat_dissimilar_kmeans_silhouette_scores_df[condition_col] = pacbio_concat_dissimilar_kmeans_silhouette_scores_df[condition_col].apply(
+    lambda x: x if x != "GRIA" else "GRIA2"
+)
+
+pacbio_concat_dissimilar_kmeans_silhouette_scores_df["Color"] = (
+    pacbio_concat_dissimilar_kmeans_silhouette_scores_df.apply(
+        lambda x: platforms_color_map[x["Platform"]][x[condition_col]],
+        axis=1,
+    )
+)
+
+pacbio_concat_dissimilar_kmeans_silhouette_scores_df
+
+# %%
+pacbio_concat_dissimilar_kmeans_silhouette_scores_df.groupby("Gene")["MeanSilhouetteScore"].describe()
+
+# %%
+dissimilarities = ['Miyata', 'Grantham 100']
+# dissimilar_cluster_sizes = list(range(3, 41, 1))
+
+# %%
+marker_size = 4
+marker_line_width = 0.5
+nticks = 6
+
+# maximal_x = 0
+# maximal_y = 0
+
+fig = make_subplots(
+    rows=1,
+    cols=len(dissimilarities),
+    print_grid=False,
+    subplot_titles=dissimilarities,
+    shared_xaxes=True,
+    shared_yaxes=True,
+    x_title="Number of dissimilar clusters (k)",
+    y_title="Mean silhouette score<br>of MiniBatchKMeans",
+)
+
+
+for col, dissimilarity in enumerate(dissimilarities, start=1):
+    
+    x = pacbio_concat_dissimilar_kmeans_silhouette_scores_df.loc[
+        pacbio_concat_dissimilar_kmeans_silhouette_scores_df["Dissimilarity"].eq(dissimilarity),
+        "ClusterSize"   
+    ]
+    y = pacbio_concat_dissimilar_kmeans_silhouette_scores_df.loc[
+        pacbio_concat_dissimilar_kmeans_silhouette_scores_df["Dissimilarity"].eq(dissimilarity),
+        "MeanSilhouetteScore"   
+    ]
+    color = pacbio_concat_dissimilar_kmeans_silhouette_scores_df.loc[
+        pacbio_concat_dissimilar_kmeans_silhouette_scores_df["Dissimilarity"].eq(dissimilarity),
+        "Color"   
+    ]
+    
+    fig.add_trace(
+        go.Scattergl(
+            # go.Scatter(
+            x=x,
+            y=y,
+            mode="markers",
+            marker=dict(
+                color=color,
+                # color=labels[clustered],
+                # colorscale="Blackbody",
+                # line_width=line_width,
+                size=marker_size,
+                line=dict(width=marker_line_width, color=color),
+            ),
+            showlegend=False,
+        ),
+        row=1,
+        col=col,
+    )
+
+
+# add empty traces for legend
+for condition in pacbio_conditions:
+    color = pacbio_color_discrete_map[condition]
+    fig.add_trace(
+        go.Scatter(
+            x=[None],
+            y=[None],
+            mode="markers",
+            # mode="lines+markers",
+            marker=dict(
+                color=color,
+                size=6,
+                # symbol=symbol,
+                line=dict(width=marker_line_width, color=color),
+            ),
+            name=condition,
+        ),
+        row=1,
+        col=1,
+    )
+
+fig.update_xaxes(
+    rangemode="tozero",
+    # range=[0, None],
+    #  tick0=0.0,
+    dtick=10,
+)
+
+fig.update_yaxes(
+    rangemode="tozero",
+    # range=[0, None],
+    #  tick0=0.0, dtick=0.01
+)
+
+width = 800
+height = 470
+
+fig.update_layout(
+    template=template,
+    # title="Squid's Long-reads",
+    title="Long-reads",
+    title_x=0.15,
+    #     autosize=False,
+    #     # margin_r=200,
+    # legend=dict(
+    #     orientation="h",
+    #     entrywidth=90,
+    #     yanchor="bottom",
+    #     # y=1.02,
+    #     y=0.15,
+    #     xanchor="right",
+    #     x=0.8,
+    #     # # orientation="h",
+    #     # yanchor="bottom",
+    #     # y=0.1,
+    #     # xanchor="left",
+    #     # # x=0.95,
+    #     # x=0.1,
+    #     # # itemsizing='constant'
+    # ),
+    # # legend_grouptitlefont_size=12,
+    # # legend_font=dict(size=12),
+    # legend_tracegroupgap=0,
+    height=height,
+    width=width,
+)
+# fig.write_image(
+#     "Distinct dissimilar proteins vs. sequencing depth - PacBio.svg",
+#     height=height,
+#     width=width,
+# )
+
+fig.write_image(
+    Path(out_dir, "Mean silhouette score of MiniBatchKMeans vs. K size - PacBio w UMIs - dissimilar.svg"),
+    height=height,
+    width=width,
+)
+
+fig.show()
+
+# %%
+pacbio_concat_dissimilar_kmeans_silhouette_scores_df
+
+# %%
+title_font_size = 24
+
+fig = px.line(
+    pacbio_concat_dissimilar_kmeans_silhouette_scores_df,
+    x="ClusterSize",
+    y="MeanSilhouetteScore",
+    color=condition_col,
+    color_discrete_map=platforms_color_map[platforms[0]],
+    # opacity=0.7,
+    labels={
+        # "ClusterSize": "Number of clusters (k)",
+        # "MeanSilhouetteScore": "Mean silhouette score<br>of MiniBatchKMeans"
+        "ClusterSize": "Number of MiniBatchKMeans clusters (k)",
+        "MeanSilhouetteScore": "Mean silhouette score"
+    },
+    markers=True
+)
+
+# fig.update_xaxes(dtick=100, title_font=dict(size=title_font_size))
+# fig.update_yaxes(rangemode="tozero", tick0=0.0, dtick=0.01, title_font=dict(size=title_font_size))
+
+fig.update_xaxes(
+    dtick=100, 
+    # title_font=dict(size=title_font_size)
+)
+fig.update_yaxes(
+    rangemode="tozero", 
+    tick0=0.0, 
+    # dtick=0.01
+    # dtick=0.05,
+    dtick=0.025,
+    # title_font=dict(size=title_font_size)
+)
+
+# width = 500
+# width = 700
+width = 1000
+# height = 350
+# height = 300
+height = 0.6 * width
+
+# fig.update_annotations(font_size=title_font_size)
+
+fig.update_layout(
+    title_text="Long-reads",
+    title_x=0.15,
+    # title_y=0.95,
+    template=template,
+    # showlegend=False,
+    width=width,
+    height=height,
+    # title_font=dict(size=title_font_size+4)
+    # legend_font=dict(size=18),
+    # legend_grouptitlefont=dict(size=22),
+)
+
+
+fig.write_image(
+    Path(out_dir, "Mean silhouette score of dissimilar MiniBatchKMeans vs. K size - PacBio - dense.svg",),
+    width=width,
+    height=height,
+)
+
+fig.show()
+
+# %%
+cols = min(facet_col_wrap, len(pacbio_conditions), 5)
+rows = ceil(len(pacbio_conditions) / cols)
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(pacbio_conditions)]
+
+fig = make_subplots(
+    rows=rows,
+    cols=cols,
+    subplot_titles=pacbio_conditions,
     shared_xaxes=True,
     shared_yaxes=True,
     # x_title="Number of clusters (k)",
@@ -7801,3 +8421,25 @@ fig.write_image(
 )
 
 fig.show()
+
+# %% [markdown]
+# # Combined squid long reads distinct dissimlar vs coverage
+
+# %%
+condition_col = "Gene"
+
+pacbio_conditions = ["GRIA2", "PCLO", "ADAR1", "IQEC1"]
+
+pacbio_color_sequence = px.colors.qualitative.G10
+pacbio_color_discrete_map = {
+    condition: color
+    for condition, color in zip(pacbio_conditions, pacbio_color_sequence)
+}
+
+# %%
+in_dir = Path("/private7/projects/Combinatorics/Code/Notebooks")
+
+raw_reads_stats_files = [
+    Path(in_dir, "RawReadsStats.Squid.PacBio.csv"),
+    Path(in_dir, "RawReadsStats.Squid.PacBio.UMIs.csv")
+]
