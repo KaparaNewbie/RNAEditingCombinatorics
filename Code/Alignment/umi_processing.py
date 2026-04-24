@@ -582,6 +582,154 @@ def compare_u_v_editing_statuses_light(
     return result
 
 
+def compare_u_v_editing_statuses_light_2(
+    gene: str,
+    repeat: str,
+    num_of_editing_sites_in_gene: int,
+    u: str,
+    v: str,
+    minimal_errors: int,
+    used_reads_df: pd.DataFrame,
+    expected_disagreements_per_position_series: pd.Series,
+    used_reads_first_col_pos: int = 6,
+):
+    """
+    Compare editing statuses of two reads u and v.
+
+    Parameters:
+    - u, v: read identifiers
+    - minimal_errors: minimal number of alignment errors between u and v UMIs
+    - used_reads_df: DataFrame containing editing status information for reads
+    - used_reads_first_col_pos: position of the first editing status column (0-based index)
+
+    Returns:
+    A series with counts of various editing status comparisons.
+    """
+    u_v_reads_df = (
+        used_reads_df.loc[used_reads_df["Read"].isin([u, v])]
+        .set_index("Read")
+        .rename(columns={"AmbigousPositions": "AmbiguousPositions"})
+        .iloc[:, used_reads_first_col_pos - 1 :]
+    )
+    u_v_reads_df.columns = u_v_reads_df.columns.astype(int)
+
+    u_ambiguous_positions = u_v_reads_df.loc[u, :].eq(-1)
+    v_ambiguous_positions = u_v_reads_df.loc[v, :].eq(-1)
+
+    all_ambiguous_positions = u_ambiguous_positions | v_ambiguous_positions
+    shared_ambiguous_positions = u_ambiguous_positions & v_ambiguous_positions
+    u_unique_ambiguous_positions = u_ambiguous_positions & ~v_ambiguous_positions
+    v_unique_ambiguous_positions = ~u_ambiguous_positions & v_ambiguous_positions
+
+    shared_unambiguous_positions = ~all_ambiguous_positions
+
+    all_ambiguous_positions_count = all_ambiguous_positions.sum()
+    shared_ambiguous_positions_count = shared_ambiguous_positions.sum()
+    u_unique_ambiguous_positions_count = u_unique_ambiguous_positions.sum()
+    v_unique_ambiguous_positions_count = v_unique_ambiguous_positions.sum()
+
+    total_u_unique_ambiguous_positions_prct = (
+        100 * u_unique_ambiguous_positions_count / num_of_editing_sites_in_gene
+    )
+    total_v_unique_ambiguous_positions_prct = (
+        100 * v_unique_ambiguous_positions_count / num_of_editing_sites_in_gene
+    )
+
+    # import warnings
+    # # Promote RuntimeWarning to an exception
+    # warnings.simplefilter('error', RuntimeWarning)
+
+    # try:
+    #     relative_u_unique_ambiguous_positions_prct = (
+    #         100 * u_unique_ambiguous_positions_count / all_ambiguous_positions_count
+    #     )
+    # except RuntimeWarning as e:
+    #     raise RuntimeWarning(
+    #         f"Warning when calculating relative_u_unique_ambiguous_positions_prct for {u} and {v} in gene {gene} repeat {repeat}: {e}"
+    #     )
+    # try:
+    #     relative_v_unique_ambiguous_positions_prct = (
+    #         100 * v_unique_ambiguous_positions_count / all_ambiguous_positions_count
+    #     )
+    # except RuntimeWarning as e:
+    #     raise RuntimeWarning(
+    #         f"Warning when calculating relative_v_unique_ambiguous_positions_prct for {u} and {v} in gene {gene} repeat {repeat}: {e}"
+    #     )
+
+    if all_ambiguous_positions_count > 0:
+        relative_u_unique_ambiguous_positions_prct = (
+            100 * u_unique_ambiguous_positions_count / all_ambiguous_positions_count
+        )
+        relative_v_unique_ambiguous_positions_prct = (
+            100 * v_unique_ambiguous_positions_count / all_ambiguous_positions_count
+        )
+    else:
+        relative_u_unique_ambiguous_positions_prct = np.nan
+        relative_v_unique_ambiguous_positions_prct = np.nan
+
+    shared_unambiguous_positions_count = shared_unambiguous_positions.sum()
+
+    strongly_disagreeing_positions_count = (
+        u_v_reads_df.loc[:, shared_unambiguous_positions]
+        .apply(lambda x: x.nunique() == 2)
+        .sum()
+    )
+    expected_strongly_disagreeing_positions = (
+        expected_disagreements_per_position_series.loc[
+            shared_unambiguous_positions
+        ].sum()
+    )
+
+    weakly_disagreeing_positions_count = (
+        strongly_disagreeing_positions_count
+        + u_v_reads_df.loc[:, all_ambiguous_positions]
+        .apply(lambda x: x.nunique() == 2)
+        .sum()
+    )
+
+    total_strongly_disagreeing_positions_prct = (
+        100 * strongly_disagreeing_positions_count / num_of_editing_sites_in_gene
+    )
+    total_weakly_disagreeing_positions_prct = (
+        100 * weakly_disagreeing_positions_count / num_of_editing_sites_in_gene
+    )
+    # % of strongly disagreeing positions out of unambiguous positions in u-v
+    if shared_unambiguous_positions_count > 0:
+        relative_strongly_disagreeing_positions_prct = (
+            100
+            * strongly_disagreeing_positions_count
+            / shared_unambiguous_positions_count
+        )
+    else:
+        relative_strongly_disagreeing_positions_prct = np.nan
+
+    result = pd.Series(
+        {
+            "Gene": gene,
+            "Repeat": repeat,
+            "EditingSitesInGene": num_of_editing_sites_in_gene,
+            "U": u,
+            "V": v,
+            "MinimalErrors": minimal_errors,
+            "AllAmbiguousPositions": all_ambiguous_positions_count,
+            "SharedAmbiguousPositions": shared_ambiguous_positions_count,
+            "UUniqueAmbiguousPositions": u_unique_ambiguous_positions_count,
+            "VUniqueAmbiguousPositions": v_unique_ambiguous_positions_count,
+            "%TotalUUniqueAmbiguousPositions": total_u_unique_ambiguous_positions_prct,
+            "%TotalVUniqueAmbiguousPositions": total_v_unique_ambiguous_positions_prct,
+            "%RelativeUUniqueAmbiguousPositions": relative_u_unique_ambiguous_positions_prct,
+            "%RelativeVUniqueAmbiguousPositions": relative_v_unique_ambiguous_positions_prct,
+            "SharedUnambiguousPositions": shared_unambiguous_positions_count,
+            "StronglyDisagreeingPositions": strongly_disagreeing_positions_count,
+            "ExpectedStronglyDisagreeingPositions": expected_strongly_disagreeing_positions,
+            "WeaklyDisagreeingPositions": weakly_disagreeing_positions_count,
+            "%TotalStronglyDisagreeingPositions": total_strongly_disagreeing_positions_prct,
+            "%TotalWeaklyDisagreeingPositions": total_weakly_disagreeing_positions_prct,
+            "%RelativeStronglyDisagreeingPositions": relative_strongly_disagreeing_positions_prct,
+        }
+    )
+    return result
+
 
 def compare_u_v_noise_statuses_light(
     gene: str,

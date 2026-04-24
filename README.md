@@ -3688,6 +3688,136 @@ Code/Simulations/expressionlevels.jl \
 * alu 18
 * 1567258
 
+## Additional squid long reads w/ UMIs - reads w/ recognizable barcodes
+
+Using the reads with recognizable barcodes found by the notebook `additional_umi_long_read_2b.ipynb` by finding reads where
+the gene-specific barcode is there and also at least some part of the PCR barcode.
+
+### Pileup
+
+
+
+```bash
+OUT_DIR=D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.ReadsWithRecognizableBarcodes
+
+nohup python Code/pileup_with_subparsers.py \
+--transcriptome D.pealeii/Annotations/Jan2025/orfs_squ.fa \
+--known_editing_sites D.pealeii/Annotations/Jan2025/D.pea.EditingSites.bed \
+--exclude_flags 2304 \
+--parity SE \
+--min_rq 0.998 \
+--min_bq 30 \
+--out_dir $OUT_DIR \
+--processes 3 \
+--threads 20 \
+--gz_compression \
+directed_sequencing_data \
+--data_table $OUT_DIR/DataTable.Squid.MergedAdditionalUMILongReads.csv \
+--cds_regions D.pealeii/Annotations/Jan2025/orfs_squ.bed \
+> $OUT_DIR/pileup.16.4.2026.out &
+```
+* alu 13
+* 1192803
+
+<!-- zcat /private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.ReadsWithRecognizableBarcodes/comp141565_c6_seq3.merged.MinRQ998.unique_proteins.csv.gz | wc -l
+12793 -->
+
+
+### Distinct proteins
+
+#### Regular
+
+##### Distinct isoforms
+
+```bash
+tmux new -s COMB17
+
+COMB
+
+INFILES=$(echo D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.ReadsWithRecognizableBarcodes/*.unique_proteins.csv.gz)
+
+julia \
+--project=. \
+--threads 80 --proc 6 \
+Code/Simulations/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove ".merged.MinRQ998.unique_proteins.csv.gz" \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--outdir D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.ReadsWithRecognizableBarcodes \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.ReadsWithRecognizableBarcodes/DistinctProteins.Regular.16.4.2026.log
+```
+* alu 17
+
+cut -f 5 /private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.ReadsWithRecognizableBarcodes/comp141693_c0_seq1.DistinctUniqueProteins.16.04.2026-15:54:38.csv | sort -nr | head
+> 1737
+cut -f 5 /private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.ReadsWithRecognizableBarcodes/comp134400_c0_seq1_extended.DistinctUniqueProteins.16.04.2026-15:54:27.csv | sort -nr | head
+> 922 
+cut -f 5 /private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.ReadsWithRecognizableBarcodes/comp141565_c6_seq3.DistinctUniqueProteins.16.04.2026-15:57:32.csv | sort -nr | head
+> 8377
+
+##### Expression levels
+
+```bash
+UMI_DIR=D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.ReadsWithRecognizableBarcodes
+
+
+nohup \
+julia \
+--project=. \
+--threads 60 \
+Code/Simulations/expressionlevels.jl \
+--distinctfiles $UMI_DIR/comp141693_c0_seq1.DistinctUniqueProteins.*.csv \
+$UMI_DIR/comp134400_c0_seq1_extended.DistinctUniqueProteins.*.csv \
+$UMI_DIR/comp141565_c6_seq3.DistinctUniqueProteins.*.csv \
+--allprotsfiles $UMI_DIR/comp141693_c0_seq1.Merged.MinRQ998.unique_proteins.csv.gz \
+$UMI_DIR/comp134400_c0_seq1_extended.Merged.MinRQ998.unique_proteins.csv.gz \
+$UMI_DIR/comp141565_c6_seq3.Merged.MinRQ998.unique_proteins.csv.gz \
+--allreadsfiles $UMI_DIR/comp141693_c0_seq1.Merged.MinRQ998.reads.csv.gz \
+$UMI_DIR/comp134400_c0_seq1_extended.Merged.MinRQ998.reads.csv.gz \
+$UMI_DIR/comp141565_c6_seq3.Merged.MinRQ998.reads.csv.gz \
+--samplenames GRIA2 ADAR1 IQEC1 \
+--firstcolpos 15 \
+--onlymaxdistinct \
+--innerthreadedassignment \
+--outdir $UMI_DIR \
+> $UMI_DIR/expressionlevels.16.4.2026.out &
+```
+- alu 17
+- 2902140
+
+Considering entropy:
+
+```bash
+UMI_DIR=D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMISubSeq.MergedSamples
+
+nohup \
+julia \
+--project=. \
+--threads 60 \
+Code/Simulations/expressionlevels.jl \
+--distinctfiles $UMI_DIR/ADAR1.Merged.DistinctUniqueProteins.04.07.2025-15:59:37.csv $UMI_DIR/IQEC.Merged.DistinctUniqueProteins.04.07.2025-15:34:47.csv \
+--allprotsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
+--allreadsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz \
+--samplenames ADAR1 IQEC1 \
+--firstcolpos 15 \
+--onlymaxdistinct \
+--innerthreadedassignment \
+--considerentropy \
+--outdir $UMI_DIR \
+--postfix_to_add .EntropyConsidered \
+> $UMI_DIR/expressionlevels.EntropyConsidered.14.8.25.out &
+```
+* alu 17
+* 1220256
+
+
 ## O.vul single-cell data
 
 ### total_mapped_reads 50
@@ -5125,6 +5255,320 @@ Code/Simulations/chimeric_reads_origin_octopus.jl \
 * alu17
 * 17:05
 * 226328
+
+
+
+
+
+```bash
+# Finished / Partial / Missing report for chimeric_reads_origin_octopus.jl outputs
+# - Partial includes which analysis is missing (SoftComparison vs StrictComparison)
+# - Includes % of inputs for each category
+BASE=O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.PooledSamples
+READS_DIR="$BASE/ReadsFiles"
+OUT_DIR="$BASE/ChimericReadsFiles"
+
+tmp=$(mktemp -d)
+
+# Input IDs
+ls -1 "$READS_DIR"/*.reads.snps.csv.gz 2>/dev/null \
+| xargs -n1 basename \
+| sed 's/\.reads\.snps\.csv\.gz$//' \
+| sort -u > "$tmp/inputs.ids"
+
+# Output IDs
+ls -1 "$OUT_DIR"/*.chimeric_reads.SoftComparison.csv.gz 2>/dev/null \
+| xargs -n1 basename \
+| sed 's/\.chimeric_reads\.SoftComparison\.csv\.gz$//' \
+| sort -u > "$tmp/soft.ids"
+
+ls -1 "$OUT_DIR"/*.chimeric_reads.StrictComparison.csv.gz 2>/dev/null \
+| xargs -n1 basename \
+| sed 's/\.chimeric_reads\.StrictComparison\.csv\.gz$//' \
+| sort -u > "$tmp/strict.ids"
+
+# Counts
+n_inputs=$(wc -l < "$tmp/inputs.ids")
+n_soft=$(wc -l < "$tmp/soft.ids")
+n_strict=$(wc -l < "$tmp/strict.ids")
+
+# Categories
+comm -12 "$tmp/soft.ids" "$tmp/strict.ids" > "$tmp/finished.ids"            # in both
+comm -23 "$tmp/soft.ids" "$tmp/strict.ids" > "$tmp/only_soft.ids"          # soft only
+comm -13 "$tmp/soft.ids" "$tmp/strict.ids" > "$tmp/only_strict.ids"        # strict only
+
+cat "$tmp/soft.ids" "$tmp/strict.ids" 2>/dev/null | sort -u > "$tmp/any.ids"
+comm -23 "$tmp/inputs.ids" "$tmp/any.ids" > "$tmp/missing.ids"             # input but neither output
+
+n_finished=$(wc -l < "$tmp/finished.ids")
+n_only_soft=$(wc -l < "$tmp/only_soft.ids")
+n_only_strict=$(wc -l < "$tmp/only_strict.ids")
+n_partial=$((n_only_soft + n_only_strict))
+n_missing=$(wc -l < "$tmp/missing.ids")
+
+# Percent helper (2 decimals)
+pct() { awk -v n="$1" -v d="$2" 'BEGIN{ if(d==0) printf "NA"; else printf "%.2f", 100.0*n/d }'; }
+
+echo "inputs=$n_inputs soft_outputs=$n_soft strict_outputs=$n_strict"
+echo
+echo "Finished (both outputs): $n_finished ($(pct "$n_finished" "$n_inputs")% of inputs)"
+echo "Partial (exactly one output): $n_partial ($(pct "$n_partial" "$n_inputs")% of inputs)"
+echo "Missing (no outputs at all): $n_missing ($(pct "$n_missing" "$n_inputs")% of inputs)"
+echo
+echo "=== PARTIAL (id -> missing analysis) ==="
+# list partials with missing analysis label
+if [ "$n_only_soft" -gt 0 ]; then
+  awk '{print $0 " -> missing StrictComparison"}' "$tmp/only_soft.ids"
+fi
+if [ "$n_only_strict" -gt 0 ]; then
+  awk '{print $0 " -> missing SoftComparison"}' "$tmp/only_strict.ids"
+fi
+echo
+echo "=== MISSING (ids) ==="
+cat "$tmp/missing.ids"
+
+rm -rf "$tmp"
+```
+
+Finished (both outputs): 3533 (94.04% of inputs)
+Partial (exactly one output): 1 (0.03% of inputs)
+Missing (no outputs at all): 223 (5.94% of inputs)
+
+=== PARTIAL (id -> missing analysis) ===
+comp178222_c0_seq2 -> missing StrictComparison
+
+=== MISSING (ids) ===
+comp143597_c0_seq1
+comp143722_c0_seq1
+comp143834_c0_seq2
+comp143840_c0_seq4
+comp143866_c0_seq1
+comp143867_c0_seq1
+comp143875_c0_seq1
+comp143905_c0_seq1
+comp143934_c0_seq1
+comp143937_c0_seq2
+comp143943_c0_seq1
+comp143965_c0_seq1
+comp143979_c0_seq1
+comp143989_c1_seq1
+comp144014_c0_seq1
+comp144057_c0_seq2
+comp144109_c0_seq1
+comp144117_c0_seq2
+comp144126_c0_seq1
+comp144130_c1_seq3
+comp144143_c0_seq1
+comp144147_c1_seq1
+comp144164_c0_seq1
+comp159552_c0_seq4
+comp159592_c0_seq1
+comp159682_c0_seq1
+comp159694_c0_seq1
+comp159699_c0_seq1
+comp159711_c0_seq1
+comp159741_c0_seq1
+comp159747_c0_seq1
+comp159761_c0_seq1
+comp159763_c0_seq2
+comp159776_c0_seq1
+comp159779_c0_seq1
+comp159828_c0_seq1
+comp159843_c0_seq1
+comp160218_c0_seq1
+comp160228_c0_seq2
+comp160254_c0_seq1
+comp160303_c1_seq1
+comp160326_c0_seq1
+comp160334_c0_seq1
+comp160335_c0_seq1
+comp160427_c0_seq2
+comp160444_c0_seq2
+comp160566_c0_seq2
+comp160588_c0_seq2
+comp160717_c1_seq1
+comp160723_c0_seq1
+comp160731_c0_seq1
+comp160740_c0_seq1
+comp160745_c0_seq1
+comp160761_c0_seq1
+comp160774_c0_seq2
+comp160785_c0_seq1
+comp160826_c0_seq1
+comp160841_c0_seq1
+comp160858_c0_seq2
+comp160871_c0_seq1
+comp160872_c0_seq1
+comp160939_c0_seq1
+comp160990_c0_seq1
+comp160996_c0_seq3
+comp160998_c0_seq1
+comp161022_c1_seq2
+comp161040_c0_seq1
+comp161056_c0_seq1
+comp161108_c0_seq1
+comp161110_c0_seq3
+comp161129_c0_seq1
+comp161170_c0_seq1
+comp161172_c0_seq2
+comp161283_c0_seq2
+comp161286_c0_seq1
+comp161297_c0_seq1
+comp161348_c0_seq2
+comp161356_c0_seq1
+comp161371_c0_seq1
+comp161400_c1_seq1
+comp161408_c0_seq1
+comp161439_c0_seq1
+comp161442_c0_seq1
+comp161452_c0_seq1
+comp161507_c0_seq1
+comp178223_c1_seq1
+comp178238_c0_seq2
+comp178239_c3_seq1
+comp178244_c0_seq1
+comp178244_c2_seq1
+comp178244_c4_seq1
+comp178246_c0_seq4
+comp178248_c0_seq1
+comp178264_c0_seq1
+comp178266_c0_seq26
+comp178267_c0_seq1
+comp178274_c1_seq1
+comp178290_c0_seq3
+comp178291_c0_seq1
+comp178292_c0_seq1
+comp178306_c1_seq1
+comp178310_c0_seq1
+comp178322_c0_seq1
+comp178324_c0_seq2
+comp178329_c0_seq2
+comp178331_c0_seq8
+comp178334_c0_seq1
+comp178355_c0_seq1
+comp178370_c0_seq1
+comp178381_c0_seq1
+comp178389_c0_seq2
+comp178413_c0_seq1
+comp178419_c0_seq1
+comp178419_c1_seq1
+comp178421_c0_seq3
+comp178427_c1_seq13
+comp178450_c0_seq3
+comp178451_c0_seq1
+comp178457_c0_seq2
+comp178478_c0_seq6
+comp178483_c0_seq2
+comp178485_c0_seq2
+comp178489_c0_seq1
+comp179461_c1_seq5
+comp179463_c1_seq4
+comp179463_c2_seq2
+comp179466_c8_seq1
+comp179469_c0_seq6
+comp179470_c3_seq1
+comp179475_c0_seq5
+comp179478_c0_seq2
+comp179480_c0_seq1
+comp179480_c1_seq1
+comp179486_c0_seq1
+comp179489_c1_seq1
+comp179490_c0_seq11
+comp179495_c2_seq1
+comp179497_c2_seq1
+comp179498_c0_seq1
+comp179510_c3_seq4
+comp179510_c5_seq8
+comp179511_c2_seq1
+comp179515_c4_seq1
+comp179520_c1_seq1
+comp179527_c1_seq2
+comp179531_c2_seq1
+comp179569_c0_seq2
+comp179572_c0_seq1
+comp179575_c1_seq2
+comp179579_c1_seq1
+comp179581_c0_seq1
+comp179582_c0_seq2
+comp179591_c0_seq6
+comp179595_c3_seq1
+comp179596_c4_seq1
+comp179600_c0_seq1
+comp179604_c0_seq1
+comp179615_c0_seq2
+comp181659_c1_seq4
+comp181663_c0_seq1
+comp181664_c0_seq1
+comp181664_c1_seq3
+comp181665_c3_seq1
+comp181669_c0_seq2
+comp181672_c0_seq2
+comp181673_c0_seq1
+comp181677_c0_seq5
+comp181679_c0_seq1
+comp181686_c0_seq2
+comp181687_c0_seq7
+comp181689_c0_seq1
+comp181691_c0_seq8
+comp181694_c0_seq1
+comp181697_c0_seq2
+comp181698_c0_seq2
+comp181700_c0_seq4
+comp181704_c0_seq3
+comp181711_c1_seq3
+comp181711_c6_seq1
+comp181711_c7_seq1
+comp181713_c11_seq1
+comp181713_c4_seq1
+comp181713_c9_seq1
+comp181718_c0_seq1
+comp181719_c0_seq1
+comp181723_c2_seq2
+comp181723_c3_seq1
+comp181728_c1_seq1
+comp181734_c0_seq1
+comp181734_c2_seq8
+comp181739_c2_seq14
+comp181744_c0_seq1
+comp181748_c0_seq4
+comp181754_c0_seq4
+comp181757_c0_seq23
+comp181764_c0_seq1
+comp181765_c0_seq2
+comp181766_c0_seq2
+comp181769_c0_seq1
+comp181775_c3_seq2
+comp181776_c0_seq20
+comp181792_c0_seq2
+comp181810_c0_seq1
+comp181820_c2_seq1
+comp181822_c1_seq1
+comp1818282_c0_seq1
+comp181832_c0_seq1
+comp181833_c0_seq2
+comp181838_c0_seq1
+comp181838_c1_seq1
+comp181844_c1_seq1
+comp181844_c7_seq5
+comp72309_c0_seq1
+comp72317_c1_seq1
+comp72326_c0_seq1
+comp72330_c0_seq1
+comp72344_c0_seq1
+comp72348_c0_seq1
+comp72358_c0_seq1
+comp72368_c0_seq1
+comp72374_c0_seq1
+comp72375_c0_seq1
+comp72376_c0_seq1
+
+```bash
+OUT_DIR=O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.PooledSamples/ChimericReadsFiles
+find "$OUT_DIR" -name '*.gz' -print0 | xargs -0 -n1 -P8 gzip -t
+```
+
+gzip: O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.PooledSamples/ChimericReadsFiles/comp178222_c0_seq2.chimeric_reads.SoftComparison.csv.gz: unexpected end of file
+
 
 
 # Notebooks

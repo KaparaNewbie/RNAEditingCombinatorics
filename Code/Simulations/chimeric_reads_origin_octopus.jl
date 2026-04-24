@@ -6,6 +6,7 @@ using CairoMakie
 using Format
 using Transducers
 using Base.Threads
+using Dates
 
 
 function find_B_and_E_for_M(M)
@@ -191,10 +192,24 @@ function save_results_df(
 		v -> join(string.(first.(v), "-", last.(v)), ";"),
 		results_df.ChimericUniqueReadsCombinations
 	)
+
+	mkpath(out_dir)  # make absolutely sure it exists (good under threads)
+	
 	soft_comparison_interfix_str = soft_comparison ? "SoftComparison" : "StrictComparison"
 	out_file = out_dir * "/" * basename(replace(original_in_file, ".reads.snps.csv.gz" => ".chimeric_reads.$soft_comparison_interfix_str.csv.gz"))
+	
+	# Atomic write: write to temp then move into place.
+    tmp_file = out_file * ".tmp." * string(getpid()) * "." * string(threadid())
+	
+	# # bump buffer to handle very long rows (large joined string)
+	# CSV.write(out_file, results_df, delim = "\t"; compress = true, bufsize = 64 * 1024 * 1024)
+
 	# bump buffer to handle very long rows (large joined string)
-    CSV.write(out_file, results_df, delim = "\t"; compress = true, bufsize = 64 * 1024 * 1024)
+	# Write to temp first, then move into place (atomic within same filesystem).
+    CSV.write(tmp_file, results_df, delim = "\t"; compress = true, bufsize = 64 * 1024 * 1024)
+	mv(tmp_file, out_file; force = true)
+    
+	return out_file
 end
 
 
@@ -227,7 +242,6 @@ function process_one_sample(
 
 	gdf = groupby(reads_df, Not("Platform", "Chrom", "Read"))
 
-
 	reads_df = combine(
 		gdf,
 		"Platform" => unique => "Platform",
@@ -246,7 +260,9 @@ function process_one_sample(
 	platform = reads_df.Platform[1]
 	chrom = reads_df.Chrom[1]
 
-	results = []
+	# TODO 19.4 chat change
+	# results = []
+	results = Vector{NamedTuple}(undef, 0)
 
 	for x in 1:nrow(reads_df)
 
@@ -288,7 +304,6 @@ function process_one_sample(
 	end
 
 	results_df = DataFrame(results)
-
 
 	save_results_df(
 		results_df,
@@ -333,43 +348,351 @@ function process_samples(
 	snps_reads_files,
 	out_dir,
 )	
+	# TODO 19.4 chat change
+	mkpath(out_dir)
+
 	Threads.@threads for snps_reads_file in snps_reads_files
 		for soft_comparison in [true, false]
-			process_one_sample(
-				snps_reads_file,
-				out_dir,
-				soft_comparison,
-			)
+			# TODO 19.4 chat change
+			# process_one_sample(
+			# 	snps_reads_file,
+			# 	out_dir,
+			# 	soft_comparison,
+			# )
+			try
+                process_one_sample(snps_reads_file, out_dir, soft_comparison)
+            catch err
+                # log and continue
+                mode = soft_comparison ? "SoftComparison" : "StrictComparison"
+                log_file = joinpath(out_dir, basename(snps_reads_file) * "." * mode * ".error.log")
+                open(log_file, "w") do io
+                    println(io, "time\t", Dates.now())
+                    println(io, "thread\t", threadid())
+                    println(io, "input\t", snps_reads_file)
+                    println(io, "mode\t", mode)
+                    println(io, "error\t", sprint(showerror, err))
+                    println(io, "backtrace:")
+                    show(io, Base.catch_backtrace())
+				end
+            end
 		end 
 	end
 end
+# end
 
 
 
 
+# ---- runner ----
 base_dir = "O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.PooledSamples"
 reads_dir = base_dir * "/ReadsFiles"
 out_dir = base_dir * "/ChimericReadsFiles"
 
-try
-	rm(out_dir, recursive=true)
-catch IOError
-	# do nothing if the directory does not exist
-end
+# IMPORTANT: don't wipe outputs while debugging.
+# try
+# 	rm(out_dir, recursive=true)
+# catch IOError
+# 	# do nothing if the directory does not exist
+# end
+# mkdir(out_dir)
 
-mkdir(out_dir)
+mkpath(out_dir)
 
 snps_reads_files = filter(
 	f -> endswith(f, ".reads.snps.csv.gz"),
 	readdir(reads_dir; join = true),
 )
 
-# snps_reads_files = snps_reads_files[1:5]
+# For debugging, start small:
+# snps_reads_files = snps_reads_files[1:10]
+
+
+# process_samples(
+# 	snps_reads_files,
+# 	out_dir,
+# )
+
+
+
+
+
+
+
+# corrupt_chroms = ["comp178222_c0_seq2"]
+
+# just a few of them, not all 223 of them
+missing_chroms = [
+	"comp143597_c0_seq1",
+	"comp143722_c0_seq1",
+	# "comp143834_c0_seq2",
+	# "comp143840_c0_seq4",
+	# "comp143866_c0_seq1",
+]
+
+all_chroms = [
+	split(split(snps_reads_file, "/")[end], ".")[1]
+	for snps_reads_file in snps_reads_files
+]
+
+good_chroms = setdiff(all_chroms, union(corrupt_chroms, missing_chroms))
+
+
+test_chroms = vcat(
+	good_chroms[1:2],
+	corrupt_chroms,
+	missing_chroms[1:2]
+) 
+
+snps_reads_files = [
+	snps_reads_file
+	for snps_reads_file in snps_reads_files
+		for chrom in test_chroms
+			if occursin(chrom, snps_reads_file)
+]
+
 
 process_samples(
 	snps_reads_files,
 	out_dir,
 )
+
+
+
+
+
+
+
+missing_chroms = """comp143597_c0_seq1
+comp143722_c0_seq1
+comp143834_c0_seq2
+comp143840_c0_seq4
+comp143866_c0_seq1
+comp143867_c0_seq1
+comp143875_c0_seq1
+comp143905_c0_seq1
+comp143934_c0_seq1
+comp143937_c0_seq2
+comp143943_c0_seq1
+comp143965_c0_seq1
+comp143979_c0_seq1
+comp143989_c1_seq1
+comp144014_c0_seq1
+comp144057_c0_seq2
+comp144109_c0_seq1
+comp144117_c0_seq2
+comp144126_c0_seq1
+comp144130_c1_seq3
+comp144143_c0_seq1
+comp144147_c1_seq1
+comp144164_c0_seq1
+comp159552_c0_seq4
+comp159592_c0_seq1
+comp159682_c0_seq1
+comp159694_c0_seq1
+comp159699_c0_seq1
+comp159711_c0_seq1
+comp159741_c0_seq1
+comp159747_c0_seq1
+comp159761_c0_seq1
+comp159763_c0_seq2
+comp159776_c0_seq1
+comp159779_c0_seq1
+comp159828_c0_seq1
+comp159843_c0_seq1
+comp160218_c0_seq1
+comp160228_c0_seq2
+comp160254_c0_seq1
+comp160303_c1_seq1
+comp160326_c0_seq1
+comp160334_c0_seq1
+comp160335_c0_seq1
+comp160427_c0_seq2
+comp160444_c0_seq2
+comp160566_c0_seq2
+comp160588_c0_seq2
+comp160717_c1_seq1
+comp160723_c0_seq1
+comp160731_c0_seq1
+comp160740_c0_seq1
+comp160745_c0_seq1
+comp160761_c0_seq1
+comp160774_c0_seq2
+comp160785_c0_seq1
+comp160826_c0_seq1
+comp160841_c0_seq1
+comp160858_c0_seq2
+comp160871_c0_seq1
+comp160872_c0_seq1
+comp160939_c0_seq1
+comp160990_c0_seq1
+comp160996_c0_seq3
+comp160998_c0_seq1
+comp161022_c1_seq2
+comp161040_c0_seq1
+comp161056_c0_seq1
+comp161108_c0_seq1
+comp161110_c0_seq3
+comp161129_c0_seq1
+comp161170_c0_seq1
+comp161172_c0_seq2
+comp161283_c0_seq2
+comp161286_c0_seq1
+comp161297_c0_seq1
+comp161348_c0_seq2
+comp161356_c0_seq1
+comp161371_c0_seq1
+comp161400_c1_seq1
+comp161408_c0_seq1
+comp161439_c0_seq1
+comp161442_c0_seq1
+comp161452_c0_seq1
+comp161507_c0_seq1
+comp178223_c1_seq1
+comp178238_c0_seq2
+comp178239_c3_seq1
+comp178244_c0_seq1
+comp178244_c2_seq1
+comp178244_c4_seq1
+comp178246_c0_seq4
+comp178248_c0_seq1
+comp178264_c0_seq1
+comp178266_c0_seq26
+comp178267_c0_seq1
+comp178274_c1_seq1
+comp178290_c0_seq3
+comp178291_c0_seq1
+comp178292_c0_seq1
+comp178306_c1_seq1
+comp178310_c0_seq1
+comp178322_c0_seq1
+comp178324_c0_seq2
+comp178329_c0_seq2
+comp178331_c0_seq8
+comp178334_c0_seq1
+comp178355_c0_seq1
+comp178370_c0_seq1
+comp178381_c0_seq1
+comp178389_c0_seq2
+comp178413_c0_seq1
+comp178419_c0_seq1
+comp178419_c1_seq1
+comp178421_c0_seq3
+comp178427_c1_seq13
+comp178450_c0_seq3
+comp178451_c0_seq1
+comp178457_c0_seq2
+comp178478_c0_seq6
+comp178483_c0_seq2
+comp178485_c0_seq2
+comp178489_c0_seq1
+comp179461_c1_seq5
+comp179463_c1_seq4
+comp179463_c2_seq2
+comp179466_c8_seq1
+comp179469_c0_seq6
+comp179470_c3_seq1
+comp179475_c0_seq5
+comp179478_c0_seq2
+comp179480_c0_seq1
+comp179480_c1_seq1
+comp179486_c0_seq1
+comp179489_c1_seq1
+comp179490_c0_seq11
+comp179495_c2_seq1
+comp179497_c2_seq1
+comp179498_c0_seq1
+comp179510_c3_seq4
+comp179510_c5_seq8
+comp179511_c2_seq1
+comp179515_c4_seq1
+comp179520_c1_seq1
+comp179527_c1_seq2
+comp179531_c2_seq1
+comp179569_c0_seq2
+comp179572_c0_seq1
+comp179575_c1_seq2
+comp179579_c1_seq1
+comp179581_c0_seq1
+comp179582_c0_seq2
+comp179591_c0_seq6
+comp179595_c3_seq1
+comp179596_c4_seq1
+comp179600_c0_seq1
+comp179604_c0_seq1
+comp179615_c0_seq2
+comp181659_c1_seq4
+comp181663_c0_seq1
+comp181664_c0_seq1
+comp181664_c1_seq3
+comp181665_c3_seq1
+comp181669_c0_seq2
+comp181672_c0_seq2
+comp181673_c0_seq1
+comp181677_c0_seq5
+comp181679_c0_seq1
+comp181686_c0_seq2
+comp181687_c0_seq7
+comp181689_c0_seq1
+comp181691_c0_seq8
+comp181694_c0_seq1
+comp181697_c0_seq2
+comp181698_c0_seq2
+comp181700_c0_seq4
+comp181704_c0_seq3
+comp181711_c1_seq3
+comp181711_c6_seq1
+comp181711_c7_seq1
+comp181713_c11_seq1
+comp181713_c4_seq1
+comp181713_c9_seq1
+comp181718_c0_seq1
+comp181719_c0_seq1
+comp181723_c2_seq2
+comp181723_c3_seq1
+comp181728_c1_seq1
+comp181734_c0_seq1
+comp181734_c2_seq8
+comp181739_c2_seq14
+comp181744_c0_seq1
+comp181748_c0_seq4
+comp181754_c0_seq4
+comp181757_c0_seq23
+comp181764_c0_seq1
+comp181765_c0_seq2
+comp181766_c0_seq2
+comp181769_c0_seq1
+comp181775_c3_seq2
+comp181776_c0_seq20
+comp181792_c0_seq2
+comp181810_c0_seq1
+comp181820_c2_seq1
+comp181822_c1_seq1
+comp1818282_c0_seq1
+comp181832_c0_seq1
+comp181833_c0_seq2
+comp181838_c0_seq1
+comp181838_c1_seq1
+comp181844_c1_seq1
+comp181844_c7_seq5
+comp72309_c0_seq1
+comp72317_c1_seq1
+comp72326_c0_seq1
+comp72330_c0_seq1
+comp72344_c0_seq1
+comp72348_c0_seq1
+comp72358_c0_seq1
+comp72368_c0_seq1
+comp72374_c0_seq1
+comp72375_c0_seq1
+comp72376_c0_seq1"""
+missing_chroms = split(missing_chroms, "\n")
+
+
+
+
+
+
+# 
 
 
 
