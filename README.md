@@ -5242,6 +5242,69 @@ directed_sequencing_data \
 
 # Chimeric reads
 
+## Squid
+
+```bash
+nohup \
+julia \
+--project=. \
+--threads 10 \
+Code/Simulations/chimeric_reads_origin_squid_3.jl \
+> /private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/JointChimericReadsAnalysis/chimeric_reads_origin_squid_3.28.4.2026.out &
+```
+* alu 17
+* 17:57
+* 2448748
+
+Terminated, cause it was too slow with the number of threads I was using.
+Added a flag `overwrite_existing_out_file` which is `true` by default, but now I set it to `false` to avoid redoing the analysis for already processed files, and I will run it with more threads.
+
+```bash
+nohup \
+julia \
+--project=. \
+--threads 40 \
+Code/Simulations/chimeric_reads_origin_squid_3.jl \
+> /private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/JointChimericReadsAnalysis/chimeric_reads_origin_squid_3.29.4.2026.out &
+```
+* alu 17
+* 11:26
+* 1142879
+
+I think it failed at around 11:03, 30.4.2026.
+Trying again:
+
+```bash
+nohup \
+julia \
+--project=. \
+--threads 40 \
+Code/Simulations/chimeric_reads_origin_squid_3.jl \
+> /private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/JointChimericReadsAnalysis/chimeric_reads_origin_squid_3.30.4.2026.out &
+```
+* alu 17
+* 17:49
+* 2120133
+
+
+Killed it on 1.5.26 because alu17 was overcrowded. 
+Moving to alu16 before Shabat enters and I'll see how it did on 2.4.2026 eve.
+
+
+```bash
+nohup \
+julia \
+--project=. \
+--threads 40 \
+Code/Simulations/chimeric_reads_origin_squid_3.jl \
+> /private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/JointChimericReadsAnalysis/chimeric_reads_origin_squid_3.1.5.2026.out &
+```
+* alu 16
+* 17:19
+* 93329
+
+
+
 ## Octopus
 
 ```bash

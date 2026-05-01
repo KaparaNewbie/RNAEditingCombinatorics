@@ -4,7 +4,14 @@ using Random # for MersenneTwister
 using StatsBase  # for StatsBase.sample
 using CairoMakie
 using Format
+using BioSequences # for BioSequences.toAAset
+# using BioAlignments
+include(joinpath(@__DIR__, "consts.jl")) # for ∅ & AA_groups
+# include(joinpath(@__DIR__, "issimilar.jl")) # for anysimilarity
 
+
+
+toAAset(x) = Set(map(aa -> convert(AminoAcid, only(aa)), split(x, ",")))
 
 function find_B_and_E_for_M(M)
 	# For each row i, we earlier defined M, which compares one rare read to all common reads.
@@ -112,6 +119,12 @@ function find_all_chimeric_reads(M)
 end
 
 
+extract_chimerizing_pairs(common_unique_proteins, all_chimeric_prots_indices) = [
+	(common_unique_proteins[i], common_unique_proteins[j])
+	for (i, j) ∈ all_chimeric_prots_indices
+]
+
+
 extract_chimeric_reads_sites_intersection(all_chimeric_reads_indices, B, E) = [(B[i], E[j]) for (i, j) ∈ all_chimeric_reads_indices]
 
 
@@ -184,14 +197,65 @@ s4 = [1, -1, 1]
 
 
 
+function validate_chimerizing_pairs_are_made_of_different_elements(input_file, chimerizing_pairs)
+	for (i, (r1, r2)) in enumerate(chimerizing_pairs)
+		r1 == r2 && error(
+			"Found a chimeric pair which is identical to one another, which should not happen. 
+			Please check the input file: $input_file. The first such pair is: ($r1, $r2) (#$i pair)"
+		)
+	end
+end
+
+
+x = Set(AminoAcid[AA_R, AA_G])
+y = Set(AminoAcid[AA_E, AA_G])
+@assert x ∩ y != ∅
+
+x = Set(AminoAcid[AA_R, AA_K])
+y = Set(AminoAcid[AA_D])
+@assert x ∩ y == ∅
+
+
+"""
+Return a boolean vector of the same size as `r1` and `r2`, where each element is `true` if the corresponding sets of AAs 
+in `r1` and `r2` have a non-empty intersection, and `false` otherwise.
+"""
+function AAs_comparison(r1, r2)
+	(size(r1) == size(r2) && length(size(r1)) == length(size(r2)) == 1) || error("r1 and r2 must have the same size")
+
+	result = [
+		x ∩ y != ∅
+		for (x, y) ∈ zip(r1, r2)
+	]
+
+	return result
+end
+
+
+# function softcomparison(r1, r2)
+# 	(size(r1) == size(r2) && length(size(r1)) == length(size(r2)) == 1) || error("r1 and r2 must have the same size")
+
+# 	# initialize a boolean array of the same size as r1 and r2 with all true values
+# 	result = trues(size(r1))
+
+# 	# only a strong disagreement (0 vs 1) makes a difference, 
+# 	# while a missing value (-1) is compatible with both 0 and 1
+# 	for i ∈ eachindex(result)
+# 		if r1[i] != -1 && r2[i] != -1 && r1[i] != r2[i]
+# 			result[i] = false
+# 		end
+# 	end
+
+# 	return result
+# end
+
 
 
 function prepare_expression_df(
 	expression_file, 
-	x_common_proteins = 300, 
-	y_rare_proteins = 1000, 
-	discard_reassigned_reads::Bool = true, 
-	x_and_y_proteins_denote_fractions::Bool = false
+	x_common_proteins, 
+	y_rare_proteins, 
+	x_and_y_proteins_denote_fractions::Bool = true
 )
 
 	# TODO use an input largest solutuon rather than randomly selecting one
@@ -225,14 +289,14 @@ function prepare_expression_df(
 		actual_y_rare_proteins = convert(Int, round(y_rare_proteins * num_of_rows))
 
 		if actual_x_common_proteins == 0 || actual_y_rare_proteins == 0
-		throw(
-			"converting the x_common_proteins and y_rare_proteins fractions into integers failed - they must be greater than 0 "
-			* "(expression_file: $expression_file "
-			* "x_common_proteins: $x_common_proteins, y_rare_proteins: $y_rare_proteins "
-			* "num_of_rows: $num_of_rows "
-			* "actual_x_common_proteins: $actual_x_common_proteins, actual_y_rare_proteins: $actual_y_rare_proteins)"
-		)
-	end
+			throw(
+				"converting the x_common_proteins and y_rare_proteins fractions into integers failed - they must be greater than 0 "
+				* "(expression_file: $expression_file "
+				* "x_common_proteins: $x_common_proteins, y_rare_proteins: $y_rare_proteins "
+				* "num_of_rows: $num_of_rows "
+				* "actual_x_common_proteins: $actual_x_common_proteins, actual_y_rare_proteins: $actual_y_rare_proteins)"
+			)
+		end
 	
 	else
 
@@ -263,270 +327,351 @@ function prepare_expression_df(
 	insertcols!(common_expression_df, "ExpressionStatus" => "Common")
 	expression_df = vcat(rare_expression_df, common_expression_df)
 
+	# # filter out the columns we don't need
+	# select!(
+	# 	expression_df,
+	# 	["Gene", "Protein", "AdditionalSupportingProteinsIDs", "TotalWeightedSupportingReads", "ExpressionStatus"]
+	# )
+
+	# # replace missing values in "AdditionalSupportingProteinsIDs" with empty strings
+	# expression_df[!, "AdditionalSupportingProteinsIDs"] = coalesce.(expression_df[!, "AdditionalSupportingProteinsIDs"], "")
+
+	# # split the "AdditionalSupportingProteinsIDs" column into arrays
+	# expression_df[!, "AdditionalSupportingProteinsIDs"] = split.(expression_df[!, "AdditionalSupportingProteinsIDs"], ",")
+
+	# proteins = expression_df[:, "Protein"]
+	# additional_supporting_proteins = expression_df[:, "AdditionalSupportingProteinsIDs"]
+
+	# push!.(additional_supporting_proteins, proteins)
+	# # when pushing the protein to the additional_supporting_proteins, 
+	# # after replacing some missing values with empty strings,
+	# # we have some arrays with empty values (which are the result of pushing the original protein to the 
+	# # missing supporting proteins), e.g.:
+	# # 1300-element Vector{Vector{SubString{String}}}:
+	# # ["", "vz"]
+	# # ["", "wr"]
+	# additional_supporting_proteins = filter.(!isempty, additional_supporting_proteins)
+
+	# insertcols!(expression_df, "OriginalAndAdditionalSupportingProteinsIDs" => additional_supporting_proteins)
+	# select!(expression_df, Not("AdditionalSupportingProteinsIDs"))
+
+	# expression_df = flatten(expression_df, "OriginalAndAdditionalSupportingProteinsIDs")
+	# transform!(expression_df, "OriginalAndAdditionalSupportingProteinsIDs" => "OriginalOrAdditionalSupportingProtein")
+	# select!(expression_df, Not("OriginalAndAdditionalSupportingProteinsIDs"))
+
+	# # if we want to discard the reassigned reads, we filter out the rows where "Protein" != "OriginalOrAdditionalSupportingProtein"
+	# if discard_reassigned_reads
+	# 	expression_df = expression_df[expression_df.Protein.==expression_df.OriginalOrAdditionalSupportingProtein, :]
+	# end
 
 
 	# filter out the columns we don't need
-	cols_to_keep = split("""Gene
-	Protein
-	AdditionalSupportingProteinsIDs
-	TotalWeightedSupportingReads
-	ExpressionStatus""", "\n")
-	expression_df = expression_df[:, cols_to_keep]
-
-	# replace missing values in "AdditionalSupportingProteinsIDs" with empty strings
-	expression_df[!, "AdditionalSupportingProteinsIDs"] = coalesce.(expression_df[!, "AdditionalSupportingProteinsIDs"], "")
-
-	# split the "AdditionalSupportingProteinsIDs" column into arrays
-	expression_df[!, "AdditionalSupportingProteinsIDs"] = split.(expression_df[!, "AdditionalSupportingProteinsIDs"], ",")
-
-	proteins = expression_df[:, "Protein"]
-	additional_supporting_proteins = expression_df[:, "AdditionalSupportingProteinsIDs"]
-
-	push!.(additional_supporting_proteins, proteins)
-	# when pushing the protein to the additional_supporting_proteins, 
-	# after replacing some missing values with empty strings,
-	# we have some arrays with empty values (which are the result of pushing the original protein to the 
-	# missing supporting proteins), e.g.:
-	# 1300-element Vector{Vector{SubString{String}}}:
-	# ["", "vz"]
-	# ["", "wr"]
-	additional_supporting_proteins = filter.(!isempty, additional_supporting_proteins)
-
-	insertcols!(expression_df, "OriginalAndAdditionalSupportingProteinsIDs" => additional_supporting_proteins)
-	select!(expression_df, Not("AdditionalSupportingProteinsIDs"))
-
-	expression_df = flatten(expression_df, "OriginalAndAdditionalSupportingProteinsIDs")
-	transform!(expression_df, "OriginalAndAdditionalSupportingProteinsIDs" => "OriginalOrAdditionalSupportingProtein")
-	select!(expression_df, Not("OriginalAndAdditionalSupportingProteinsIDs"))
-
-	# if we want to discard the reassigned reads, we filter out the rows where "Protein" != "OriginalOrAdditionalSupportingProtein"
-	if discard_reassigned_reads
-		expression_df = expression_df[expression_df.Protein.==expression_df.OriginalOrAdditionalSupportingProtein, :]
-	end
+	select!(
+		expression_df,
+		["Gene", "Protein", "TotalWeightedSupportingReads", "ExpressionStatus"]
+	)
 
 	return expression_df, actual_x_common_proteins, actual_y_rare_proteins
 end
 
 
-function softcomparison(r1, r2)
-	(size(r1) == size(r2) && length(size(r1)) == length(size(r2)) == 1) || error("r1 and r2 must have the same size")
-
-	# initialize a boolean array of the same size as r1 and r2 with all true values
-	result = trues(size(r1))
-
-	# only a strong disagreement (0 vs 1) makes a difference, 
-	# while a missing value (-1) is compatible with both 0 and 1
-	for i ∈ eachindex(result)
-		if r1[i] != -1 && r2[i] != -1 && r1[i] != r2[i]
-			result[i] = false
-		end
-	end
-
-	return result
-end
 
 
-function prepare_unique_proteins_df(unique_proteins_file, firstcolpos)
-	unique_proteins_df = DataFrame(CSV.File(unique_proteins_file, delim = "\t", select = collect(1:firstcolpos-1), types = Dict("Protein" => String, "Reads" => String)))
-	select!(unique_proteins_df, ["Gene", "Protein", "Transcripts"])
-	unique_proteins_df[!, "Protein"] = InlineString.(unique_proteins_df[!, :Protein])
-	transform!(unique_proteins_df, :Transcripts => (x -> split.(x, ",")) => :Transcripts)
-	unique_proteins_df = flatten(unique_proteins_df, "Transcripts")
-	transform!(unique_proteins_df, "Transcripts" => "UniqueRead")
-	select!(unique_proteins_df, Not("Transcripts"))
-	return unique_proteins_df
+function prepare_unique_proteins_df(unique_proteins_file, unique_proteins_first_col_pos)
+
+	df_a = DataFrame(
+		CSV.File(
+			unique_proteins_file, 
+			delim = "\t", 
+			select=["Gene", "Protein", "Transcripts"],
+			types = Dict("Protein" => String, "Transcripts" => String)
+		)
+	)
+
+	df_b = DataFrame(
+		CSV.File(
+			unique_proteins_file, 
+			delim = "\t", 
+			drop = collect(1:unique_proteins_first_col_pos-1),
+			types = String
+		)
+	)
+
+	df_a[!, "Protein"] = InlineString.(df_a[!, :Protein])
+	transform!(df_a, :Transcripts => (x -> split.(x, ",")) => :UniqueReads)
+	select!(df_a, Not("Transcripts"))
+
+	df_b = toAAset.(df_b)
+	
+	unique_proteins_df = hcat(df_a, df_b)
+	
+	flattened_unique_proteins_df = flatten(unique_proteins_df, "UniqueReads")
+	rename!(flattened_unique_proteins_df, "UniqueReads" => "UniqueRead")
+
+	new_unique_proteins_first_col_pos = 4
+
+	return unique_proteins_df, flattened_unique_proteins_df, new_unique_proteins_first_col_pos
 end
 
 
 function prepare_unique_reads_df(unique_reads_file, unique_reads_first_col_pos)
 	unique_reads_df = DataFrame(CSV.File(unique_reads_file, delim = "\t", types = Dict("Reads" => String)))
-	# select!(unique_reads_df, vcat(["Gene", "Transcript"], names(unique_reads_df)[unique_reads_first_col_pos:end]))
-	select!(unique_reads_df, vcat(["Gene", "Transcript", "NumOfReads"], names(unique_reads_df)[unique_reads_first_col_pos:end]))
 	rename!(unique_reads_df, "Transcript" => "UniqueRead")
-	return unique_reads_df
+	select!(unique_reads_df, vcat(["Gene", "UniqueRead", "NumOfReads"], names(unique_reads_df)[unique_reads_first_col_pos:end]))
+	new_unique_reads_first_col_pos = 4
+	return unique_reads_df, new_unique_reads_first_col_pos
 end
 
 
-struct ReassignmentMetadata
-	Protein::Any
-	OriginalOrAdditionalSupportingProtein::Any
-	TotalWeightedSupportingReads::Any
+# struct ReassignmentMetadata
+# 	Protein::Any
+# 	OriginalOrAdditionalSupportingProtein::Any
+# 	TotalWeightedSupportingReads::Any
+# end
+
+function define_out_file(out_dir, platform, sample_name, x_common_proteins, y_rare_proteins)
+	return (
+		out_dir 
+		* "/" 
+		* "$(platform).$(sample_name).X_$(x_common_proteins).Y_$(y_rare_proteins).csv.gz"
+	)
+end
+
+
+function save_results_df(
+	out_dir,
+	results_df,
+	platform,
+	sample_name,
+	x_common_proteins,
+	y_rare_proteins,
+)
+	results_df = deepcopy(results_df)
+
+	# results_df.ChimericUniqueReadsCombinations = map(
+	# 	v -> join(string.(first.(v), ",", last.(v)), ";"),
+	# 	results_df.ChimericUniqueReadsCombinations
+	# )
+	# results_df.ChimerizingSitesIntersections = map(
+	# 	v -> join(string.(first.(v), ",", last.(v)), ";"),
+	# 	results_df.ChimerizingSitesIntersections
+	# )
+	for col in [:ChimericProtsIndices, :ChimericUniqueProteinsCombinations, :ChimericProtsIntersectingAAsIndices]
+		results_df[!, col] = map(
+			v -> join(string.(first.(v), ",", last.(v)), ";"),
+			results_df[!, col]
+		)
+	end
+
+	mkpath(out_dir)  # make absolutely sure it exists (good under threads)
+	
+	# soft_comparison_interfix_str = soft_comparison ? "soft_comparison" : "strict_comparison"
+	# out_file = out_dir * "/" * basename(replace(original_in_file, ".unique_reads.csv.gz" => ".chimeric_reads.$soft_comparison_interfix_str.csv.gz"))
+	out_file = define_out_file(out_dir, platform, sample_name, x_common_proteins, y_rare_proteins)
+	
+	# Atomic write: write to temp then move into place.
+	# tmp_file = out_file * ".tmp." * string(getpid()) * "." * string(threadid())
+	tmp_file = try
+		out_file * ".tmp." * string(getpid()) * "." * string(threadid())
+	catch e
+		out_file * ".tmp." * string(getpid()) # if threadid not defined
+	end
+
+	# bump buffer to handle very long rows (large joined string)
+	# Write to temp first, then move into place (atomic within same filesystem).
+    CSV.write(tmp_file, results_df, delim = "\t"; compress = true, bufsize = 64 * 1024 * 1024)
+	mv(tmp_file, out_file; force = true)
+    
+	return out_file
 end
 
 
 
 function process_one_sample(
+	out_dir,
 	platform,
 	sample_name,
 	expression_file,
-	unique_proteins_file, unique_proteins_first_col_pos,
-	unique_reads_file, unique_reads_first_col_pos,
-	x_common_proteins = 300, y_rare_proteins = 1000,
-	discard_reassigned_reads::Bool = true,
-	soft_comparison::Bool = false,
-	x_and_y_proteins_denote_fractions::Bool = false,
+	unique_proteins_file, 
+	unique_proteins_first_col_pos,
+	unique_reads_file, 
+	unique_reads_first_col_pos,
+	x_common_proteins, 
+	y_rare_proteins,
+	x_and_y_proteins_denote_fractions::Bool = true,
+	overwrite_existing_out_file::Bool = true,
 )
+	# by default, we overwrite the existing out file if it exists, but if `overwrite_existing_out_file` is false, 
+	# we skip the processing and return early if the out file already exists, 
+	# to save time and resources where some perfectly fine out files exist
+	if !overwrite_existing_out_file
+		out_file = define_out_file(out_dir, platform, sample_name, x_common_proteins, y_rare_proteins)
+		isfile(out_file) && return
+	end
 
 	expression_df, actual_x_common_proteins, actual_y_rare_proteins = prepare_expression_df(
-		expression_file, x_common_proteins, y_rare_proteins, discard_reassigned_reads, x_and_y_proteins_denote_fractions
+		expression_file, x_common_proteins, y_rare_proteins, x_and_y_proteins_denote_fractions
 	)
-	unique_proteins_df = prepare_unique_proteins_df(unique_proteins_file, unique_proteins_first_col_pos)
-	unique_reads_df = prepare_unique_reads_df(unique_reads_file, unique_reads_first_col_pos)
-
-	unique_reads_statuses_df = unique_reads_df[:, 4:end]
-	nrow(unique(unique_reads_statuses_df)) == nrow(unique_reads_statuses_df) || error(
-		"There are duplicate rows in the unique reads editing statuses, which should not happen. Please check the input file: $unique_reads_file"
+	unique_proteins_df, flattened_unique_proteins_df, new_unique_proteins_first_col_pos = prepare_unique_proteins_df(
+		unique_proteins_file, unique_proteins_first_col_pos
 	)
-	editing_sites = parse.(Int, names(unique_reads_statuses_df))
-	editing_percents = [
-		100 * count(==(1), col) / count(!=(-1), col)
-		for col ∈ eachcol(unique_reads_statuses_df)
-	]
+	unique_reads_df, new_unique_reads_first_col_pos = prepare_unique_reads_df(
+		unique_reads_file, unique_reads_first_col_pos
+	)
 
-	unique_reads_and_proteins_df = innerjoin(unique_proteins_df, unique_reads_df, on = ["Gene", "UniqueRead"])
+	# update new_unique_proteins_first_col_pos s.t. it'll still be the position of the first editing sites 
+	# in the unique_reads_df after merging it with the id cols of flattened_unique_proteins_df
+	flattened_unique_proteins_id_cols = names(flattened_unique_proteins_df[:, 1:new_unique_proteins_first_col_pos-1])
+	unique_reads_id_cols = names(unique_reads_df)[1:new_unique_reads_first_col_pos-1]
+	num_of_id_cols_shared_by_flattened_unique_proteins_and_unique_reads_df = length(
+		intersect(flattened_unique_proteins_id_cols, unique_reads_id_cols)
+	)
+	new_unique_reads_first_col_pos += (
+		length(flattened_unique_proteins_id_cols) 
+		- num_of_id_cols_shared_by_flattened_unique_proteins_and_unique_reads_df
+	)
+	
+	unique_reads_df = innerjoin(
+		flattened_unique_proteins_df[:, 1:new_unique_proteins_first_col_pos-1],
+		unique_reads_df, 
+		on = ["Gene", "UniqueRead"]
+	)
 
-	expression_df = leftjoin(expression_df, unique_reads_and_proteins_df, on = ["Gene", "OriginalOrAdditionalSupportingProtein" => "Protein"])
+	num_of_reads_per_unique_protein_df = combine(
+		groupby(
+			unique_reads_df[:, 1:new_unique_reads_first_col_pos-1], 
+			["Gene", "Protein"]
+		),
+		:NumOfReads => sum => :NumOfReads
+	)
+	
+	unique_proteins_df = innerjoin(
+		num_of_reads_per_unique_protein_df,
+		unique_proteins_df,
+		on = ["Gene", "Protein"]
+	)
+	insertcols!(
+		unique_proteins_df, 
+		"UniqueReads", 
+		"NumOfUniqueReads" => length.(unique_proteins_df[:, "UniqueReads"]),
+		after = true
+	)
+	new_unique_proteins_first_col_pos += 2
 
-	# now we have a dataframe with the original distinct proteins (300 most common and 1000 rarest) and their expression levels,
-	# as well as the indistinguishable proteins supporting them,
-	# and the unique reads supporting them, in turn
+	# unique_reads_statuses_df = unique_reads_df[:, 4:end]
+	# nrow(unique(unique_reads_statuses_df)) == nrow(unique_reads_statuses_df) || error(
+	# 	"There are duplicate rows in the unique reads editing statuses, which should not happen. Please check the input file: $unique_reads_file"
+	# )
+	# editing_sites = parse.(Int, names(unique_reads_statuses_df))
+	# editing_percents = [
+	# 	100 * count(==(1), col) / count(!=(-1), col)
+	# 	for col ∈ eachcol(unique_reads_statuses_df)
+	# ]
+
+	# new_expression_first_col_pos will be the position of the first AA in the expression_df after
+	# merging it with the unique_proteins_df
+	expression_id_cols = names(expression_df)
+	prots_id_cols = names(unique_proteins_df)[1:new_unique_proteins_first_col_pos-1]
+	num_of_id_cols_shared_by_expression_and_prots_df = length(intersect(expression_id_cols, prots_id_cols))
+	new_expression_first_col_pos = (
+		size(expression_df)[2] + new_unique_proteins_first_col_pos - num_of_id_cols_shared_by_expression_and_prots_df
+	)
+
+	expression_df = leftjoin(expression_df, unique_proteins_df, on = ["Gene", "Protein"])
+
+	# now we have a dataframe with the original distinct proteins (x most common and y rarest) and their expression levels,
+	# as well as the original unique reads supporting them,
+	# and the unique reads supporting them, in turn 
 	# (each row is a single unique read supporting a unique protein, wether it is a distinct or indistinguishable one which underwent reasignment)
 
 	common_expression_df = expression_df[expression_df.ExpressionStatus.=="Common", :]
 	rare_expression_df = expression_df[expression_df.ExpressionStatus.=="Rare", :]
 
-	total_common_unique_reads = nrow(common_expression_df)
-	total_rare_unique_reads = nrow(rare_expression_df)
+	total_common_unique_reads = sum(common_expression_df.NumOfUniqueReads)
+	total_rare_unique_reads = sum(rare_expression_df.NumOfUniqueReads)
 	total_common_reads = sum(common_expression_df.NumOfReads)
 	total_rare_reads = sum(rare_expression_df.NumOfReads)
 
-	# new_first_reads_col_pos = 7
-	new_first_reads_col_pos = 8  # since adding the number of reads comprising each unique read
-
-	# common_expression_df[:, begin:new_first_reads_col_pos-1]
-
-	# gdf = groupby(common_expression_df[:, ["Gene", "ExpressionStatus", "UniqueRead", "Protein", "OriginalOrAdditionalSupportingProtein", "TotalWeightedSupportingReads"]], ["Gene", "ExpressionStatus", "UniqueRead"])
-	gdf = groupby(
-		common_expression_df[
-			:,
-			["Gene", "ExpressionStatus", "UniqueRead", "Protein", "OriginalOrAdditionalSupportingProtein", "TotalWeightedSupportingReads"]
-		],
-		["Gene", "ExpressionStatus", "UniqueRead"]
-	)
-
-	# unique(common_expression_df[!, "UniqueRead"])
-	# length(gdf)
-
-	compact_common_expression_df = combine(gdf) do subdf
-		(; Metadata = hcat(collect(ReassignmentMetadata.(subdf.Protein, subdf.OriginalOrAdditionalSupportingProtein, subdf.TotalWeightedSupportingReads))))
-	end
-
-	# compact_common_expression_df[!, "Metadata"][1]
-	# compact_common_expression_df[!, "Metadata"][1][1]
-
-	compact_common_expression_df = leftjoin(
-		compact_common_expression_df,
-		# unique(common_expression_df[!, new_first_reads_col_pos-1:end], "UniqueRead"),
-		unique(common_expression_df[!, new_first_reads_col_pos-2:end], "UniqueRead"), # -2 instead of -1 since we added the "NumOfReads" col
-		on = ["UniqueRead"],
-	)
-
-	# compact_common_expression_first_reads_col_pos = 5
-	compact_common_expression_first_reads_col_pos = 6 # since adding the number of reads comprising each unique read
-
-	# common_unique_reads_editing_status = compact_common_expression_df[:, compact_common_expression_first_reads_col_pos:end]
+	
+	# finally we get to the main part of the code, 
+	# where we want to see if any of the rare proteins can be explained as chimeras of the common proteins.
+	# iterate over each rare protein and its unique reads, 
+	# 1st, try to see if a rare protein C is a chimera of common prots A,B w.r.t. their amino acids
+	# 2nd, which is not implemented right now, also try to see if a pair of unique reads (a, b) ∈ (A, B)
+	# also creates a chimera that can explain a unique read c ∈ C
 
 	results = []
 
-	# iterate over each rare protein and its unique reads, 
-	# and compare their editing status to those of the common proteins' unique reads, 
-	# to find chimeric reads
+	common_unique_proteins_aa_status = common_expression_df[!, new_expression_first_col_pos:end]
+	common_unique_proteins_aa_status_array = Array(common_unique_proteins_aa_status)
+	common_unique_proteins = common_expression_df[:, "Protein"]
 
-	original_rare_proteins = unique(rare_expression_df[!, :Protein])
+	rare_proteins = rare_expression_df[!, :Protein]
 
-	# TODO uncomment - this is for testing
-	# one_original_rare_protein = original_rare_proteins[1]
+	# rare_protein = rare_proteins[1]
 
-	for one_original_rare_protein ∈ original_rare_proteins
+	for rare_protein ∈ rare_proteins
 
-		unique_reads_of_one_original_rare_protein_expression_df = rare_expression_df[rare_expression_df.Protein.==one_original_rare_protein, :]
-		unique_reads_of_one_original_rare_protein_expression = unique(unique_reads_of_one_original_rare_protein_expression_df[!, "UniqueRead"])
+		rare_protein_df = rare_expression_df[rare_expression_df.Protein.==rare_protein, :]
+		rare_protein_aa_status = rare_protein_df[1, new_expression_first_col_pos:end] # we simply take the 1st row as there is only 1 such row in rare_protein_df
+		rare_protein_aa_status_array = Array(rare_protein_aa_status)
 
-		# TODO uncomment - this is for testing
-		# one_unique_read_of_one_original_rare_protein = unique_reads_of_one_original_rare_protein_expression[1]
-
-		for one_unique_read_of_one_original_rare_protein ∈ unique_reads_of_one_original_rare_protein_expression
-			
-			one_unique_read_of_one_original_rare_protein_df = unique_reads_of_one_original_rare_protein_expression_df[unique_reads_of_one_original_rare_protein_expression_df.UniqueRead.==one_unique_read_of_one_original_rare_protein, :][1, :] # take the first row of the unique reads of the original rare protein
-
-			one_unique_read_of_one_original_rare_protein_editing_status = one_unique_read_of_one_original_rare_protein_df[new_first_reads_col_pos:end]
-
-
-			common_unique_reads_editing_status = compact_common_expression_df[compact_common_expression_df.UniqueRead.!==one_unique_read_of_one_original_rare_protein, compact_common_expression_first_reads_col_pos:end]
-
-			# one_unique_read_of_one_original_rare_protein_editing_status .== common_unique_reads_editing_status
-
-			# common_unique_reads_editing_status .== one_unique_read_of_one_original_rare_protein_editing_status'
-
-			one_unique_read_of_one_original_rare_protein_editing_status_array = Array(one_unique_read_of_one_original_rare_protein_editing_status)
-			common_unique_reads_editing_status_array = Array(common_unique_reads_editing_status)
-
-			# Compare the rare read to all common reads (row-wise)
-			if soft_comparison
-				# r1 = common_unique_reads_editing_status_array[1, end-9:end-2]
-				# r2 = one_unique_read_of_one_original_rare_protein_editing_status_array[end-9:end-2]
-
-				# r1 = collect(eachrow(common_unique_reads_editing_status_array))[1]
-				# r2 = one_unique_read_of_one_original_rare_protein_editing_status_array
-
-				M = softcomparison.(eachrow(common_unique_reads_editing_status_array), Ref(one_unique_read_of_one_original_rare_protein_editing_status_array))
-				# M2 = softcomparison.(eachrow(common_unique_reads_editing_status_array[1:3, end-9:end-2]), Ref(one_unique_read_of_one_original_rare_protein_editing_status_array[end-9:end-2]))
-				M = hcat(M...)'
-			else
-				M = common_unique_reads_editing_status_array .== one_unique_read_of_one_original_rare_protein_editing_status_array'
-			end
+		# Compare the rare protein isoform to all common ones, w.r.t. their amino acid statuses, 
+		# and save the results in a boolean matrix M of size (num of common unique proteins) x (num of editing sites), 
+		# where M[i, j] is true if the set of AAs at site j in the rare protein has a non-empty intersection with the 
+		# set of AAs at site j in the common protein i, and false otherwise.
+		M = AAs_comparison.(
+			eachrow(common_unique_proteins_aa_status_array), 
+			Ref(rare_protein_aa_status_array)
+		)
+		M = hcat(M...)'
 
 
-			# size(M)[2]
+		B, E = find_B_and_E_for_M(M)
+		# is_chimeric = are_there_chimeric_reads(B, E)
+		all_chimeric_prots_indices = find_all_chimeric_reads(B, E)
+		is_chimeric = length(all_chimeric_prots_indices) > 0
+		chimerizing_pairs = extract_chimerizing_pairs(common_unique_proteins, all_chimeric_prots_indices)
+		chimeric_prots_sites_intersection = extract_chimeric_reads_sites_intersection(all_chimeric_prots_indices, B, E)
 
-			# sum(sum(row) == size(M)[2] for row ∈ eachrow(M)) # count the number of common reads that are identical to the rare read
-			# sum(M, dims=2)
+		# validate_chimerizing_pairs_are_made_of_different_elements(
+		# 	unique_proteins_file, chimerizing_pairs
+		# )
 
-			B, E = find_B_and_E_for_M(M)
-			is_chimeric = are_there_chimeric_reads(B, E)
-			all_chimeric_reads_indices = find_all_chimeric_reads(B, E)
-			chimeric_reads_sites_intersection = extract_chimeric_reads_sites_intersection(all_chimeric_reads_indices, B, E)
-
-			result = (
-				Platform = platform,
-				Sample = sample_name,
-				EditingSites = editing_sites,
-				EditingPercents = editing_percents,
-				IsSoftComparison = soft_comparison,
-				XCommonProteins = x_common_proteins,
-				YRareProteins = y_rare_proteins,
-				XYProteinsDenoteFractions = x_and_y_proteins_denote_fractions,
-				ActualXCommonProteins = actual_x_common_proteins,
-				ActualYRareProteins = actual_y_rare_proteins,
-				TotalCommonUniqueReads = total_common_unique_reads,
-				TotalRareUniqueReads = total_rare_unique_reads,
-				TotalCommonReads = total_common_reads,
-				TotalRareReads = total_rare_reads,
-				ReassignendReadsDiscarded = discard_reassigned_reads,
-				Protein = one_original_rare_protein,
-				UniqueRead = one_unique_read_of_one_original_rare_protein,
-				IsChimeric = is_chimeric,
-				ChimericReadsIndices = all_chimeric_reads_indices,
-				NumOfChimericCombinations = length(all_chimeric_reads_indices),
-				ChimericReadsIntersectingSitesIndices = chimeric_reads_sites_intersection,
-			)
-			push!(results, result)
-
-		end
+		result = (
+			Platform = platform,
+			Sample = sample_name,
+			# EditingSites = editing_sites,
+			# EditingPercents = editing_percents,
+			# IsSoftComparison = soft_comparison,
+			XCommonProteins = x_common_proteins,
+			YRareProteins = y_rare_proteins,
+			XYProteinsDenoteFractions = x_and_y_proteins_denote_fractions,
+			ActualXCommonProteins = actual_x_common_proteins,
+			ActualYRareProteins = actual_y_rare_proteins,
+			TotalCommonUniqueReads = total_common_unique_reads,
+			TotalRareUniqueReads = total_rare_unique_reads,
+			TotalCommonReads = total_common_reads,
+			TotalRareReads = total_rare_reads,
+			# ReassignendReadsDiscarded = discard_reassigned_reads,
+			Protein = rare_protein,
+			# UniqueRead = one_unique_read_of_one_original_rare_protein,
+			# IsChimeric = is_chimeric,
+			IsChimericOnAALevel = is_chimeric,
+			ChimericProtsIndices = all_chimeric_prots_indices,
+			NumOfChimericCombinations = length(all_chimeric_prots_indices),
+			ChimericUniqueProteinsCombinations = chimerizing_pairs,
+			ChimericProtsIntersectingAAsIndices = chimeric_prots_sites_intersection,
+		)
+		push!(results, result)
 
 	end
 
 	results_df = DataFrame(results)
+
+	save_results_df(
+		out_dir, results_df, platform, sample_name, x_common_proteins, y_rare_proteins
+	)
 
 	return results_df
 
@@ -535,105 +680,8 @@ end
 
 
 
-
 function per_platform_stats_df(
-	X_common_proteins,
-	Y_rare_proteins,
-	platforms,
-	samples,
-	unique_reads_files,
-	unique_proteins_files,
-	expression_files,
-	unique_reads_first_col_pos,
-	unique_proteins_first_col_pos,
-	discard_reassigned_reads::Bool = true,
-	x_and_y_proteins_denote_fractions::Bool = false,
-)
-	x_and_y_common_and_rare_proteins = [(x, y) for x in X_common_proteins for y in Y_rare_proteins]
-
-	results_dfs = []
-
-	for soft_comparison in [true, false]
-
-		for (x_common_proteins, y_rare_proteins) ∈ x_and_y_common_and_rare_proteins
-
-			for (platform, sample_name, expression_file, unique_reads_file, unique_proteins_file) ∈ zip(
-				platforms, samples, expression_files, unique_reads_files, unique_proteins_files)
-
-				if x_and_y_proteins_denote_fractions
-					println(
-						"Processing $sample_name ($platform) with soft_comparison = $soft_comparison, "
-						* "using $(x_common_proteins * 100)% common proteins and $(y_rare_proteins * 100)% rare proteins..."
-					)
-				else
-					println(
-						"Processing $sample_name ($platform) with soft_comparison = $soft_comparison, "
-						* "using $x_common_proteins common proteins and $y_rare_proteins rare proteins..."
-					)
-				end
-				
-				results_df = try
-                    process_one_sample(
-						platform,
-                        sample_name,
-                        expression_file,
-                        unique_proteins_file, unique_proteins_first_col_pos,
-                        unique_reads_file, unique_reads_first_col_pos,
-                        x_common_proteins, y_rare_proteins,
-                        discard_reassigned_reads,
-                        soft_comparison,
-						x_and_y_proteins_denote_fractions
-                    )
-                catch e
-                    if e isa BoundsError
-                        @warn "Skipping sample due to BoundsError" platform sample_name soft_comparison x_common_proteins y_rare_proteins exception = (e, catch_backtrace())
-                        continue
-                    end
-                    rethrow()
-                end
-
-				chimeric_results_df = results_df[results_df.IsChimeric.==true, :]
-				println("Number of chimeric reads in $sample_name: $(nrow(chimeric_results_df))")
-				# println(chimeric_results_df)
-				push!(results_dfs, results_df)
-			end
-		end
-
-	end
-
-	results_df = vcat(results_dfs...)
-
-	stats_df = combine(
-		groupby(
-			results_df,
-			[:Platform, :IsSoftComparison, :XYProteinsDenoteFractions, :XCommonProteins, :YRareProteins, :Sample],
-		),
-		:ActualXCommonProteins => first => :ActualXCommonProteins,
-		:ActualYRareProteins => first => :ActualYRareProteins,
-		:EditingSites => unique => :EditingSites,
-		:EditingPercents => unique => :EditingPercents,
-		:IsChimeric => sum => :NumOfChimericReads,
-		:TotalCommonUniqueReads => first => :TotalCommonUniqueReads,
-		:TotalRareUniqueReads => first => :TotalRareUniqueReads,
-		:TotalCommonReads => first => :TotalCommonReads,
-		:TotalRareReads => first => :TotalRareReads,
-	)
-	insertcols!(
-		stats_df, 
-		"NumOfChimericReads", 
-		# "%OfChimericReads" => 100 .* stats_df.NumOfChimericReads ./ stats_df.YRareProteins, 
-		"%OfChimericReads" => 100 .* stats_df.NumOfChimericReads ./ stats_df.ActualYRareProteins, 
-		after=true
-	)
-
-	return stats_df, results_df
-end
-
-
-
-function threaded_per_platform_stats_df(
-    X_common_proteins,
-    Y_rare_proteins,
+	out_dir,
     platforms,
     samples,
     unique_reads_files,
@@ -641,36 +689,37 @@ function threaded_per_platform_stats_df(
     expression_files,
     unique_reads_first_col_pos,
     unique_proteins_first_col_pos,
-    discard_reassigned_reads::Bool = true,
-    x_and_y_proteins_denote_fractions::Bool = false,
+	X_common_proteins,
+    Y_rare_proteins,
+    x_and_y_proteins_denote_fractions::Bool = true,
+	overwrite_existing_out_file::Bool = true,
 )
     x_and_y_common_and_rare_proteins = [(x, y) for x in X_common_proteins for y in Y_rare_proteins]
 
     # Build a flat job list so we can thread over it safely
     jobs = Tuple[]
-    for soft_comparison in (true, false)
-        for (x_common_proteins, y_rare_proteins) in x_and_y_common_and_rare_proteins
-            for (platform, sample_name, expression_file, unique_reads_file, unique_proteins_file) in zip(
-                platforms, samples, expression_files, unique_reads_files, unique_proteins_files
-            )
-                push!(jobs, (
-                    soft_comparison,
-                    x_common_proteins,
-                    y_rare_proteins,
-                    platform,
-                    sample_name,
-                    expression_file,
-                    unique_reads_file,
-                    unique_proteins_file,
-                ))
-            end
-        end
-    end
+	for (x_common_proteins, y_rare_proteins) in x_and_y_common_and_rare_proteins
+		for (platform, sample_name, expression_file, unique_reads_file, unique_proteins_file) in zip(
+			platforms, samples, expression_files, unique_reads_files, unique_proteins_files
+		)
+			push!(
+				jobs, 
+				(
+					x_common_proteins,
+					y_rare_proteins,
+					platform,
+					sample_name,
+					expression_file,
+					unique_reads_file,
+					unique_proteins_file,
+				)
+			)
+		end
+	end
 
     out = Vector{Union{Nothing, DataFrame}}(undef, length(jobs))
 
     Threads.@threads for idx in eachindex(jobs)
-        soft_comparison,
         x_common_proteins,
         y_rare_proteins,
         platform,
@@ -679,19 +728,20 @@ function threaded_per_platform_stats_df(
         unique_reads_file,
         unique_proteins_file = jobs[idx]
 
-        # (Optional) avoid println here; it will interleave across threads.
-
         results_df = try
             process_one_sample(
+				out_dir,
                 platform,
                 sample_name,
                 expression_file,
-                unique_proteins_file, unique_proteins_first_col_pos,
-                unique_reads_file, unique_reads_first_col_pos,
-                x_common_proteins, y_rare_proteins,
-                discard_reassigned_reads,
-                soft_comparison,
+                unique_proteins_file, 
+				unique_proteins_first_col_pos,
+                unique_reads_file,
+				unique_reads_first_col_pos,
+                x_common_proteins, 
+				y_rare_proteins,
                 x_and_y_proteins_denote_fractions,
+				overwrite_existing_out_file
             )
         catch e
             if e isa BoundsError
@@ -717,13 +767,13 @@ function threaded_per_platform_stats_df(
     stats_df = combine(
         groupby(
             results_df,
-            [:Platform, :IsSoftComparison, :XYProteinsDenoteFractions, :XCommonProteins, :YRareProteins, :Sample],
+            [:Platform, :Sample, :XYProteinsDenoteFractions, :XCommonProteins, :YRareProteins,],
         ),
         :ActualXCommonProteins => first => :ActualXCommonProteins,
         :ActualYRareProteins => first => :ActualYRareProteins,
-        :EditingSites => unique => :EditingSites,
-        :EditingPercents => unique => :EditingPercents,
-        :IsChimeric => sum => :NumOfChimericReads,
+        # :EditingSites => unique => :EditingSites,
+        # :EditingPercents => unique => :EditingPercents,
+        :IsChimericOnAALevel => sum => :NumOfChimericProteinsOnAALevel,
         :TotalCommonUniqueReads => first => :TotalCommonUniqueReads,
         :TotalRareUniqueReads => first => :TotalRareUniqueReads,
         :TotalCommonReads => first => :TotalCommonReads,
@@ -731,12 +781,102 @@ function threaded_per_platform_stats_df(
     )
     insertcols!(
         stats_df,
-        "NumOfChimericReads",
-        "%OfChimericReads" => 100 .* stats_df.NumOfChimericReads ./ stats_df.ActualYRareProteins,
+        "NumOfChimericProteinsOnAALevel",
+        "%OfChimericProteinsOnAALevel" => 100 .* stats_df.NumOfChimericProteinsOnAALevel ./ stats_df.ActualYRareProteins,
         after = true,
     )
 
+	stats_outfile = joinpath(abspath(out_dir), "Xs_$(join(X_common_proteins, "_")).Ys_$(join(Y_rare_proteins, "_")).stats.csv")
+	CSV.write(stats_outfile, stats_df; delim)
+
     return stats_df, results_df
+end
+
+
+
+#  Parse back the serialized pair-lists:
+#   "a,b;c,d"  -> [(a,b), (c,d)]
+# Empty string / missing -> empty Vector{Tuple{String,String}}
+parse_pairs_str(s) = begin
+    if s === missing
+        return Tuple{String,String}[]
+    end
+    str = String(s)
+    isempty(str) && return Tuple{String,String}[]
+
+    parts = split(str, ';'; keepempty=false)
+    out = Tuple{String,String}[]
+
+    for p in parts
+        isempty(p) && continue
+        ab = split(p, ','; limit=2)
+        if length(ab) != 2 || isempty(ab[1]) || isempty(ab[2])
+            # If you prefer hard-fail instead of skipping, replace with `error(...)`
+            @warn "Bad pair token while parsing pairs" token=p raw=str
+            continue
+        end
+        push!(out, (String(ab[1]), String(ab[2])))
+    end
+
+    return out
+end
+
+# If you want these as Tuple{Int,Int} instead of strings, use this:
+parse_int_pairs_str(s) = begin
+    if s === missing
+        return Tuple{Int,Int}[]
+    end
+    str = String(s)
+    isempty(str) && return Tuple{Int,Int}[]
+
+    parts = split(str, ';'; keepempty=false)
+    out = Tuple{Int,Int}[]
+
+    for p in parts
+        isempty(p) && continue
+        ab = split(p, ','; limit=2)
+        if length(ab) != 2 || isempty(ab[1]) || isempty(ab[2])
+            @warn "Bad int-pair token while parsing pairs" token=p raw=str
+            continue
+        end
+        try
+            push!(out, (parse(Int, ab[1]), parse(Int, ab[2])))
+        catch
+            @warn "Non-integer token while parsing int pairs" token=p raw=str
+        end
+    end
+
+    return out
+end
+
+
+function read_results_file(results_file)
+	results_df = DataFrame(
+		CSV.File(
+			results_file, 
+			delim = "\t", 
+			# types = Dict(
+			# 	"Platform" => String,
+			# 	"Chrom" => String,
+			# 	"UniqueRead" => String,
+			# 	"IsChimeric" => Bool,
+			# 	"NumOfChimericCombinations" => Int,
+			# 	"ChimericUniqueReadsCombinations" => String,
+			# 	"ChimerizingSitesIntersections" => String,
+			# 	"IsSoftComparison" => Bool,
+			# )
+		)
+	)
+	try
+		results_df.ChimericProtsIndices = map(parse_int_pairs_str, results_df.ChimericProtsIndices)
+		results_df.ChimericUniqueProteinsCombinations = map(parse_pairs_str, results_df.ChimericUniqueProteinsCombinations)
+		results_df.ChimericProtsIntersectingAAsIndices = map(parse_int_pairs_str, results_df.ChimericProtsIntersectingAAsIndices)
+	catch err
+		# @warn "Error parsing pairs in results file" file=results_file error=sprint
+		error("Failed parsing $results_file: $(sprint(showerror, err))")
+	end
+	
+	return results_df
 end
 
 
@@ -862,7 +1002,6 @@ expression_files = vcat(pacbio_expression_files, illumina_expression_files)
 unique_reads_first_col_pos = 9
 unique_proteins_first_col_pos = 15
 
-discard_reassigned_reads = true
 
 # X_common_proteins = [300, 500, 1_000]
 # Y_rare_proteins = [1_000, 5_000, 10_000]
@@ -876,11 +1015,30 @@ Y_rare_proteins = [0.1, 0.2, 0.3]
 
 x_and_y_proteins_denote_fractions = true
 
+# overwrite_existing_out_file = true
+overwrite_existing_out_file = false
 
 
-stats_df, results_df = threaded_per_platform_stats_df(
-	X_common_proteins,
-	Y_rare_proteins,
+out_dir = "D.pealeii/MpileupAndTranscripts/JointChimericReadsAnalysis"
+
+
+
+
+
+
+# # selected test files and (x, y) prots for testing
+# X_common_proteins = [0.01]
+# Y_rare_proteins = [0.1]
+# Is = [1, 3, 5, 10, 12]
+# platforms = platforms[Is]
+# samples = samples[Is]
+# unique_reads_files = unique_reads_files[Is]
+# unique_proteins_files = unique_proteins_files[Is]
+# expression_files = expression_files[Is]
+
+
+stats_df, results_df = per_platform_stats_df(
+	out_dir,
 	platforms,
 	samples,
 	unique_reads_files,
@@ -888,16 +1046,48 @@ stats_df, results_df = threaded_per_platform_stats_df(
 	expression_files,
 	unique_reads_first_col_pos,
 	unique_proteins_first_col_pos,
-	discard_reassigned_reads,
-	x_and_y_proteins_denote_fractions
+	X_common_proteins,
+	Y_rare_proteins,
+	x_and_y_proteins_denote_fractions,
+	overwrite_existing_out_file
 )
 
 
+if abspath(PROGRAM_FILE) == @__FILE__
+	# don't run the plotting code when this file is included or run interactively, only when it's run directly
+	return
+end
 
 
 
 
 
+
+results_files = [
+	define_out_file(
+		out_dir, platform, sample_name, x_common_proteins, y_rare_proteins
+	)
+	for (platform, sample_name) in zip(platforms, samples)
+	for x in X_common_proteins, y in Y_rare_proteins
+]
+
+reread_results_dfs = [
+	read_results_file(results_file)
+	for results_file in results_files
+]
+reread_results_df = vcat(reread_results_dfs...)
+
+
+
+
+# results_df[20:30, 14:end]
+# reread_results_df[20:30, 14:end]
+
+# for row in eachrow(results_df .== reread_results_df)
+# 	# println("Row matches: ", all(row))
+# 	@assert all(row)
+# 	# break
+# end
 
 
 
@@ -939,34 +1129,38 @@ stats_df, results_df = threaded_per_platform_stats_df(
 
 
 
-# # # TODO uncomment to test one sample
-# i = 1
-# # i = 5
-# sample_name = samples[i]
-# expression_file = expression_files[i]
-# unique_reads_file = unique_reads_files[i]
-# unique_proteins_file = unique_proteins_files[i]
-# # x_common_proteins = 300
-# # y_rare_proteins = 1000
-# discard_reassigned_reads = true
-# # soft_comparison = false
+# TODO uncomment to test one sample
+i = 1
+platform = platforms[i]
+sample_name = samples[i]
+expression_file = expression_files[i]
+unique_proteins_file = unique_proteins_files[i]
+unique_reads_file = unique_reads_files[i]
 # soft_comparison = true
-# # x_common_proteins = 0.5
-# # y_rare_proteins = 0.1
-# x_common_proteins = 0.01
-# y_rare_proteins = 0.1
-# x_and_y_proteins_denote_fractions = true
+x_common_proteins = X_common_proteins[1]
+y_rare_proteins = Y_rare_proteins[1]
+x_and_y_proteins_denote_fractions = true
 
-# results_df = process_one_sample(
-#     sample_name,    
-#     expression_file, 
-#     unique_proteins_file, unique_proteins_first_col_pos,
-#     unique_reads_file, unique_reads_first_col_pos,
-# 	x_common_proteins, y_rare_proteins,
-# 	discard_reassigned_reads,
-# 	soft_comparison,
-# 	x_and_y_proteins_denote_fractions,
-# )
+
+results_df = process_one_sample(
+	out_dir,
+	platform,
+	sample_name,
+	expression_file,
+	unique_proteins_file, 
+	unique_proteins_first_col_pos,
+	unique_reads_file,
+	unique_reads_first_col_pos,
+	x_common_proteins, 
+	y_rare_proteins,
+	x_and_y_proteins_denote_fractions,
+)
+
+
+# results_df[:, 13:end]
+
+
+
 
 
 
