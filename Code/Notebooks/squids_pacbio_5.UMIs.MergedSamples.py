@@ -2087,7 +2087,7 @@ def get_f1_max_expression_df(chrom, expression_file, max_distinct_per_fraction_d
             "Transcripts",
             "NumOfTranscripts",
             "Index",
-            "#Solution",
+            # "#Solution",
         ],
     )
     filtered_expression_chunks = [
@@ -2229,6 +2229,24 @@ max_expression_dfs[0]
 max_expression_df = pd.concat(max_expression_dfs, ignore_index=True)
 
 max_expression_df
+
+# %%
+max_solution_id_df = (
+    max_expression_df
+    .groupby(condition_col)
+    ["#Solution"].unique().explode()
+)
+max_solution_id_df
+
+# %%
+for expression_file, condition in zip(expression_files, conditions):
+    maximal_solution = max_solution_id_df.loc[condition]
+    expression_file = Path(expression_file)
+    max_sol_file = Path(
+        expression_file.parent,
+        f"{expression_file.name}.MaxSolution_{maximal_solution}"
+    )
+    max_sol_file.touch()
 
 # %%
 assert max_expression_df.loc[
@@ -2656,17 +2674,21 @@ reads_w_nan_dfs = [reads_df.replace({-1: np.nan}) for reads_df in reads_dfs]
 reads_w_nan_dfs[0]
 
 # %%
-# def two_sites_pearson(site_1, site_2, two_sites_df):
+# def two_sites_pearson(site_1, site_2, two_sites_df, min_n=3):
 #     two_sites_df = two_sites_df.dropna(axis=0)
-    
-#     # x = two_sites_df.iloc[:, 0].to_numpy()
-#     # y = two_sites_df.iloc[:, 1].to_numpy()
-#     # if np.nanstd(x) == 0 or np.nanstd(y) == 0:
-#     #     print("constant input", site_1, site_2, np.unique(x), np.unique(y), len(x))
-    
-#     r, pv = scipy.stats.pearsonr(two_sites_df.iloc[:, 0], two_sites_df.iloc[:, 1])
-#     # return {"Site1": site_1, "Site2": site_2, "r": r, "pv": pv}
-#     return {"Site1": int(site_1), "Site2": int(site_2), "r": r, "pv": pv}
+#     x = two_sites_df.iloc[:, 0].to_numpy()
+#     y = two_sites_df.iloc[:, 1].to_numpy()
+
+#     n = len(x)
+#     if n < min_n:
+#         return {"Site1": int(site_1), "Site2": int(site_2), "n": n, "r": np.nan, "pv": np.nan}
+
+#     if np.nanstd(x) == 0 or np.nanstd(y) == 0:
+#         # constant -> undefined Pearson
+#         return {"Site1": int(site_1), "Site2": int(site_2), "n": n, "r": np.nan, "pv": np.nan}
+
+#     r, pv = scipy.stats.pearsonr(x, y)
+#     return {"Site1": int(site_1), "Site2": int(site_2), "n": n, "r": r, "pv": pv}
 
 
 def two_sites_pearson(site_1, site_2, two_sites_df, min_n=3):
@@ -2674,41 +2696,53 @@ def two_sites_pearson(site_1, site_2, two_sites_df, min_n=3):
     x = two_sites_df.iloc[:, 0].to_numpy()
     y = two_sites_df.iloc[:, 1].to_numpy()
 
-    n = len(x)
-    if n < min_n:
-        return {"Site1": int(site_1), "Site2": int(site_2), "n": n, "r": np.nan, "pv": np.nan}
-
-    if np.nanstd(x) == 0 or np.nanstd(y) == 0:
-        # constant -> undefined Pearson
-        return {"Site1": int(site_1), "Site2": int(site_2), "n": n, "r": np.nan, "pv": np.nan}
-
-    r, pv = scipy.stats.pearsonr(x, y)
-    return {"Site1": int(site_1), "Site2": int(site_2), "n": n, "r": r, "pv": pv}
-
-# %%
-# def make_corrected_corrs_df(sites_df):
-#     sites = sites_df.columns.to_list()
-
-#     corrected_corrs_df = pd.DataFrame(
-#         [
-#             two_sites_pearson(site_1, site_2, sites_df.loc[:, [site_1, site_2]])
-#             for i, site_1 in enumerate(sites[:-1])
-#             for site_2 in sites[i + 1 :]
-#         ]
-#     )
-
-#     # df["bonferroni_rejection"], df["bonferroni_corrected_pv"], *_ = multipletests(df["pv"], method="bonferroni")
-#     # df["fdr_by_rejection"], df["fdr_by_corrected_pv"], *_ = multipletests(df["pv"], method="fdr_by")
-
-#     corrected_corrs_df["bonferroni_rejection"], *_ = multipletests(
-#         corrected_corrs_df["pv"], method="bonferroni"
-#     )
-#     corrected_corrs_df["fdr_by_rejection"], *_ = multipletests(
-#         corrected_corrs_df["pv"], method="fdr_by"
-#     )
-
-#     return corrected_corrs_df
-
+    # n = len(x)
+    n = two_sites_df.shape[0] # same as n = len(x), just more informative
+    
+    both_edited = two_sites_df.eq(1).all(axis=1).sum()
+    both_unedited = two_sites_df.eq(0).all(axis=1).sum()
+    only_site_1_edited = two_sites_df.apply(
+        lambda x: x.iloc[0] == 1 and x.iloc[1] == 0,
+        axis=1
+    ).sum()
+    only_site_2_edited = two_sites_df.apply(
+        lambda x: x.iloc[0] == 0 and x.iloc[1] == 1,
+        axis=1
+    ).sum()
+    assert sum(
+        [
+            both_edited,
+            both_unedited,
+            only_site_1_edited,
+            only_site_2_edited,
+        ]
+    ) == n
+    
+    # base result
+    result = {
+        "Site1": int(site_1), 
+        "Site2": int(site_2), 
+        "n": n, 
+        "BothEdited": both_edited, 
+        "BothUnedited": both_unedited, 
+        "OnlySite1Edited": only_site_1_edited, 
+        "OnlySite2Edited": only_site_2_edited, 
+        # "r": np.nan, 
+        # "pv": np.nan
+    }
+    
+    if (n < min_n) or (np.nanstd(x) == 0 or np.nanstd(y) == 0):
+        # undefined Pearson
+        r = np.nan
+        pv = np.nan
+    else:
+        r, pv = scipy.stats.pearsonr(x, y)
+    
+    result["r"] = r
+    result["pv"] = pv
+    
+    return result
+        
 
 def make_corrected_corrs_df(sites_df):
     sites = sites_df.columns.to_list()
@@ -2725,7 +2759,11 @@ def make_corrected_corrs_df(sites_df):
 
     valid = out["pv"].notna()
     out.loc[valid, "bonferroni_rejection"] = multipletests(out.loc[valid, "pv"], method="bonferroni")[0]
-    out.loc[valid, "fdr_by_rejection"] = multipletests(out.loc[valid, "pv"], method="fdr_by")[0]
+    # out.loc[valid, "fdr_by_rejection"] = multipletests(out.loc[valid, "pv"], method="fdr_by")[0]
+    rejection, corrected_pv, *_ = multipletests(out.loc[valid, "pv"], method="fdr_by")
+    out.loc[valid, "fdr_by_rejection"] = rejection
+    out.loc[valid, "fdr_by_corrected_pv"] = corrected_pv
+
 
     return out
 
@@ -2803,12 +2841,377 @@ def symmetric_acceptions_matrices_after_multipletests_correction(
 
 
 # %%
-corrected_corrs_dfs = [
-    make_corrected_corrs_df(reads_w_nan_df.iloc[:, reads_first_col_pos:])
-    for reads_w_nan_df in reads_w_nan_dfs
-]
+# corrected_corrs_dfs = [
+#     make_corrected_corrs_df(reads_w_nan_df.iloc[:, reads_first_col_pos:])
+#     for reads_w_nan_df in reads_w_nan_dfs
+# ]
 
+# corrected_corrs_dfs[0]
+
+# %%
+with Pool() as pool:
+    corrected_corrs_dfs = pool.map(
+        make_corrected_corrs_df,
+        [
+            reads_w_nan_df.iloc[:, reads_first_col_pos:]
+            for reads_w_nan_df in reads_w_nan_dfs
+        ]
+    )
 corrected_corrs_dfs[0]
+
+# %%
+concat_corrected_corrs_df = pd.concat(
+    [
+        df.assign(TempCondCol=condition)
+        for df, condition in zip(corrected_corrs_dfs, fixed_conditions)
+    ],
+    ignore_index=True
+)
+
+concat_corrected_corrs_df.insert(
+    0,
+    condition_col,
+    concat_corrected_corrs_df["TempCondCol"]
+)
+del concat_corrected_corrs_df["TempCondCol"]
+
+concat_corrected_corrs_df.insert(
+    3,
+    "AbsDistance",
+    concat_corrected_corrs_df.apply(lambda x: np.abs(x["Site1"] - x["Site2"]), axis=1)
+)
+concat_corrected_corrs_df.insert(
+    4,
+    "AbsDistance500BPsBin",
+    concat_corrected_corrs_df["AbsDistance"].apply(
+        lambda x: int((int(x / 500) * 500)) + 500
+    )
+)
+concat_corrected_corrs_df.insert(
+    4,
+    "AbsDistance100BPsBin",
+    concat_corrected_corrs_df["AbsDistance"].apply(
+        lambda x: int((int(x / 100) * 100)) + 100
+    )
+)
+
+for col in ['BothEdited', 'BothUnedited', 'OnlySite1Edited', 'OnlySite2Edited']:
+    concat_corrected_corrs_df[f"%{col}"] = concat_corrected_corrs_df.apply(
+        lambda x: 100 * x[col] / x["n"],
+        axis=1
+    )
+
+concat_corrected_corrs_df
+
+# %%
+sig_concat_corrected_corrs_df = concat_corrected_corrs_df.loc[
+    (concat_corrected_corrs_df["fdr_by_rejection"])
+].reset_index(drop=True)
+
+sig_concat_corrected_corrs_df.insert(
+    sig_concat_corrected_corrs_df.columns.get_loc("r") + 1,
+    "r_1_digit_bins",
+    sig_concat_corrected_corrs_df["r"].round(1)
+)
+sig_concat_corrected_corrs_df.insert(
+    sig_concat_corrected_corrs_df.columns.get_loc("r") + 2,
+    "r_2_digit_bins",
+    sig_concat_corrected_corrs_df["r"].round(2)
+)
+
+sig_concat_corrected_corrs_df
+
+# %%
+(
+    sig_concat_corrected_corrs_df
+    .groupby(condition_col)['n'].describe().round(2)
+)
+
+# %%
+(
+    sig_concat_corrected_corrs_df
+    .groupby(condition_col)['%BothEdited'].describe().round(2)
+)
+
+# %%
+(
+    sig_concat_corrected_corrs_df
+    .groupby(condition_col)['%BothUnedited'].describe().round(2)
+)
+
+# %%
+(
+    sig_concat_corrected_corrs_df
+    .groupby(condition_col)['%OnlySite1Edited'].describe().round(2)
+)
+
+# %%
+(
+    sig_concat_corrected_corrs_df
+    .groupby(condition_col)['%OnlySite2Edited'].describe().round(2)
+)
+
+# %%
+(
+    sig_concat_corrected_corrs_df
+    .groupby(condition_col)["AbsDistance"].describe().round(2)
+)
+
+# %%
+(
+    sig_concat_corrected_corrs_df
+    .groupby([condition_col, "AbsDistance500BPsBin"])["r"].describe().round(2)
+    .reset_index()
+)
+
+# %%
+(
+    sig_concat_corrected_corrs_df.loc[
+        sig_concat_corrected_corrs_df["AbsDistance"].ge(1000)
+    ]
+    .groupby(condition_col)["r"].describe().round(2)
+    .reset_index()
+)
+
+# %%
+(
+    sig_concat_corrected_corrs_df.loc[
+        (sig_concat_corrected_corrs_df["AbsDistance"].ge(1000))
+        & (sig_concat_corrected_corrs_df["r"].ge(0.5))
+    ]
+    # .groupby(condition_col)["r"].describe().round(2)
+    # .reset_index()
+)
+
+# %%
+(
+    sig_concat_corrected_corrs_df.loc[
+        (sig_concat_corrected_corrs_df["r"].ge(0.5))
+    ]
+    .sort_values("AbsDistance", ascending=False)
+    # .to_csv(
+    #     Path(
+    #         out_dir,
+    #         f"Significant site pairs with r>=0.5 - sorted by distance.PacBio2.tsv"
+    #     ),
+    #     sep="\t",
+    #     index=False
+    # )
+)
+
+# %%
+(
+    sig_concat_corrected_corrs_df.loc[
+        (sig_concat_corrected_corrs_df["fdr_by_corrected_pv"].le(1e-10))
+    ]
+    # .sort_values("AbsDistance", ascending=False)
+    .sort_values("AbsDistance", ascending=False)
+    # .to_csv(
+    #     Path(
+    #         out_dir,
+    #         f"Significant site pairs with pv <= 1e-10 - sorted by distance.PacBio2.tsv"
+    #     ),
+    #     sep="\t",
+    #     index=False
+    # )
+)
+
+# %%
+(
+    sig_concat_corrected_corrs_df.loc[
+        (sig_concat_corrected_corrs_df["fdr_by_corrected_pv"].le(1e-10))
+        & (sig_concat_corrected_corrs_df["r"].abs() >= 0.3)
+    ]
+    # .groupby(condition_col)
+    # ["r"].describe().round(2)
+)
+
+# %%
+(
+    sig_concat_corrected_corrs_df.loc[
+        (sig_concat_corrected_corrs_df["r"].ge(0.5)),
+        "AbsDistance"
+    ]
+    # .sort_values("AbsDistance", ascending=False)
+).describe()
+
+# %%
+(
+    sig_concat_corrected_corrs_df.loc[
+        (sig_concat_corrected_corrs_df["r"].ge(0.5))
+    ]
+    .sort_values("AbsDistance", ascending=False)
+    .groupby(condition_col).size()
+    .reset_index()
+)
+
+# %%
+# fig = px.density_heatmap(df, x="total_bill", y="tip", nbinsx=20, nbinsy=20, color_continuous_scale="Viridis")
+
+fig = px.scatter(
+    # (
+    #     sig_concat_corrected_corrs_df
+    #     .groupby([condition_col, "AbsDistance100BPsBin", "r_2_digit_bins"]).size()
+    #     .reset_index(name="SitePairs")
+    # ), 
+    sig_concat_corrected_corrs_df,
+    x="AbsDistance", 
+    y="r",
+    # size="SitePairs",
+    color=condition_col,
+    # color_discrete_map=color_discrete_map,
+    facet_col=condition_col,
+    trendline="ols", trendline_color_override="black"
+)
+# fig.update_traces(contours_coloring="fill", contours_showlabels = True)
+fig.update_layout(
+    template=template,
+    width=800,
+    height=400,
+    showlegend=False
+)
+fig.show()
+
+# %%
+fig = px.box(
+    sig_concat_corrected_corrs_df, 
+    x="AbsDistance500BPsBin", 
+    # y="r_1_digit_bins",
+    y="r",
+    facet_col=condition_col,
+    color=condition_col
+    # marginal_x="histogram", marginal_y="histogram"
+)
+# fig.update_traces(contours_coloring="fill", contours_showlabels = True)
+fig.update_layout(
+    template=template,
+    width=800,
+    height=400,
+    showlegend=False
+)
+fig.show()
+
+# %%
+fig = px.box(
+    sig_concat_corrected_corrs_df, 
+    x="AbsDistance100BPsBin", 
+    # y="r_1_digit_bins",
+    y="r",
+    facet_col=condition_col,
+    color=condition_col
+    # marginal_x="histogram", marginal_y="histogram"
+)
+# fig.update_traces(contours_coloring="fill", contours_showlabels = True)
+fig.update_layout(
+    template=template,
+    width=800,
+    height=400,
+    showlegend=False
+)
+fig.show()
+
+# %%
+# 0. Create df with num of site pairs per 100 bps bin
+df = pd.concat(
+    [
+            sig_concat_corrected_corrs_df,
+            (
+                sig_concat_corrected_corrs_df
+                # .groupby([condition_col])["AbsDistance100BPsBin"].transform("size")
+                .groupby([condition_col, "AbsDistance100BPsBin"]).transform("size")
+                .reset_index(name="SitePairsInAbsDistance100BPsBin")
+                .drop(columns="index")
+            )
+    ],
+    axis=1
+)
+# 1. Create the binning logic
+# bin_size = 30
+bin_size = 50
+# bin_size = 25
+# 'bin_start' represents the floor of the 30-unit range (0, 30, 60, etc.)
+df['bin_start'] = (df['SitePairsInAbsDistance100BPsBin'] // bin_size) * bin_size
+# 2. Create string labels for the boxes (e.g., "0 - 30")
+df['bin_label'] = (df['bin_start'].astype(int).astype(str) + " - " + 
+                   (df['bin_start'] + bin_size).astype(int).astype(str))
+# 3. Sort by 'bin_start' so the x-axis and colors follow a numerical order
+df = df.sort_values('bin_start')
+unique_labels = df['bin_label'].unique()
+# 4. Map the bins to a colorscale (e.g., 'Viridis' or 'Plasma')
+# We sample hex codes based on the number of unique bins
+colors = px.colors.sample_colorscale("Viridis", [i/(max(1, len(unique_labels)-1)) for i in range(len(unique_labels))])
+color_map = dict(zip(unique_labels, colors))
+# 5. Create the box plot
+fig = px.box(
+    df, 
+    x="AbsDistance100BPsBin", 
+    y="r",
+    facet_col=condition_col,
+    color="bin_label",
+    color_discrete_map=color_map,
+    category_orders={"bin_label": list(unique_labels)}, # Keeps 0-30 before 30-60
+    labels={
+        "bin_label": "Pairs",
+    }
+)
+fig.update_xaxes(dtick=500)
+fig.update_layout(
+    template=template,
+    width=1000,
+    height=500,
+)
+fig.show()
+
+# %%
+# sig_concat_corrected_corrs_df.loc[
+#     (
+#         (sig_concat_corrected_corrs_df[condition_col].eq("GRIA2"))
+#         & (sig_concat_corrected_corrs_df["AbsDistance100BPsBin"].eq(2700))
+#     )
+#     | (
+#         (sig_concat_corrected_corrs_df[condition_col].eq("PCLO"))
+#         & (sig_concat_corrected_corrs_df["AbsDistance100BPsBin"].eq(3000))
+#     )
+# ]
+
+# %%
+min_abs_r = 0.5
+# min_abs_r = 0.7
+
+df = (
+    sig_concat_corrected_corrs_df
+    .loc[sig_concat_corrected_corrs_df["r_1_digit_bins"].ge(min_abs_r)]
+    # .loc[sig_concat_corrected_corrs_df["r_1_digit_bins"].abs().ge(min_abs_r)]
+    .groupby([condition_col, "AbsDistance500BPsBin", "r_1_digit_bins"]).size()
+    .reset_index(name="SitePairs")
+)
+
+fig = px.bar(
+    df, 
+    x="r_1_digit_bins",
+    y="SitePairs",
+    color=condition_col,
+    facet_col="AbsDistance500BPsBin",
+    facet_row=condition_col,
+    facet_col_spacing=0.02,
+    facet_row_spacing=0.1,
+    # log_y=True
+)
+fig.update_xaxes(
+    dtick=0.1,
+    range=[min_abs_r, None]
+)
+fig.update_yaxes(dtick=5)
+fig.update_layout(
+    template=template,
+    width=1100,
+    height=500,
+    showlegend=False
+)
+fig.show()
+
+# %%
+df
 
 # %%
 # corrected_corrs_dfs[0]["fdr_by_rejection"].value_counts()

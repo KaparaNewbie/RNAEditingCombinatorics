@@ -1240,9 +1240,9 @@ concat_bams_df["Gene"].value_counts()
 # %%
 concat_bams_df.groupby(["Gene", "Repeat"]).size().reset_index(name="NumOfReads")
 
-# %%
-concat_bams_df 
 
+# %%
+# concat_bams_df 
 
 # %%
 
@@ -3088,7 +3088,7 @@ best_gene_specific_pcr_amplified_concat_alignments_df = (
 best_gene_specific_pcr_amplified_concat_alignments_df
 
 # %%
-best_gene_specific_pcr_amplified_concat_alignments_df
+# best_gene_specific_pcr_amplified_concat_alignments_df
 
 # %%
 best_gene_specific_pcr_amplified_concat_alignments_df.groupby("Gene").size().reset_index()
@@ -3178,6 +3178,78 @@ best_gene_specific_pcr_amplified_concat_alignments_df.groupby("Sample").size()
 best_gene_specific_pcr_amplified_concat_alignments_df.loc[
     best_gene_specific_pcr_amplified_concat_alignments_df["Read"].eq("1yU")
 ]
+
+# %%
+best_gene_specific_pcr_amplified_concat_alignments_df.duplicated(
+    ["Gene", "Repeat", "SpanningUMISeq"], keep=False
+).sum()
+
+# %%
+# print all reads for which their UMI seq appear in 2+ reads of the same gene and sample
+
+duplicated_umis_best_gene_specific_pcr_amplified_concat_alignments_df = best_gene_specific_pcr_amplified_concat_alignments_df.loc[
+    best_gene_specific_pcr_amplified_concat_alignments_df.duplicated(
+        ["Gene", "Repeat", "SpanningUMISeq"], keep=False
+    )
+].sort_values(["Gene", "Repeat", "SpanningUMISeq"]).reset_index(drop=True)
+
+duplicated_umis_best_gene_specific_pcr_amplified_concat_alignments_df
+
+# %%
+duplicated_umis_best_gene_specific_pcr_amplified_concat_alignments_df.groupby(["Gene", "Repeat"], dropna=False)["SpanningUMISeq"].value_counts(dropna=False)
+
+# %%
+duplicated_umis_best_gene_specific_pcr_amplified_concat_alignments_df.groupby(["Gene", "Repeat", "SpanningUMISeq"]).size()
+
+# %%
+duplicated_umis_best_gene_specific_pcr_amplified_concat_alignments_df.groupby(["Gene", "Repeat"], dropna=False)["SpanningUMISeq"].value_counts(dropna=False).value_counts(dropna=False)
+
+# %%
+duplicated_umis_best_gene_specific_pcr_amplified_concat_alignments_df.groupby(
+    ["Gene", "SpanningUMISeq"]
+)["RTGGeneStart"].describe().round(2)
+
+# %%
+duplicated_umis_best_gene_specific_pcr_amplified_concat_alignments_df.groupby(
+    ["Gene", "SpanningUMISeq"]
+)["RTGGeneStart"].apply(
+    lambda x: x.max() - x.min()
+).reset_index().rename(columns={"RTGGeneStart": "MaxMinDifferenceInRTGGeneStart"})["MaxMinDifferenceInRTGGeneStart"].describe().round(2)
+
+# %%
+duplicated_umis_best_gene_specific_pcr_amplified_concat_alignments_df.groupby(
+    ["Gene", "SpanningUMISeq"]
+)["RTGGeneStart"].apply(
+    lambda x: x.max() - x.min()
+).reset_index().rename(columns={"RTGGeneStart": "MaxMinDifferenceInRTGGeneStart"}).drop(
+    columns=["SpanningUMISeq"]
+).groupby("Gene")["MaxMinDifferenceInRTGGeneStart"].describe().round(2)
+
+# %%
+fig = px.histogram(
+    duplicated_umis_best_gene_specific_pcr_amplified_concat_alignments_df.groupby(
+    ["Gene", "SpanningUMISeq"]
+)["RTGGeneStart"].apply(
+    lambda x: x.max() - x.min()
+).reset_index().rename(columns={"RTGGeneStart": "MaxMinDifferenceInRTGGeneStart"}),
+x="MaxMinDifferenceInRTGGeneStart",
+facet_col="Gene",
+labels={"MaxMinDifferenceInRTGGeneStart": "Difference in RTGGeneStart among<br>reads with same UMI"},
+category_orders={"Gene": genes},
+)
+# fig.update_xaxes(dtick=1)
+fig.update_layout(
+    width=1200,
+    height=500,
+)
+fig.show()
+
+# %%
+duplicated_umis_best_gene_specific_pcr_amplified_concat_alignments_df.groupby(
+    ["Gene", "SpanningUMISeq"]
+)["RTGGeneEnd"].apply(
+    lambda x: x.max() - x.min()
+).describe()
 
 # %% [markdown]
 # ### Save reads with recognized barcodes, before de-duplication
@@ -4978,20 +5050,20 @@ def make_reads_noise_df(
 merged_positions_files
 
 # %%
-zcat /private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz | \
-    tail -n +2 | lesss
+# zcat /private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz | \
+#     tail -n +2 | lesss
 
 # %%
-zcat /private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz | \
-    tail -n +2 | cut -f 16 | less
+# zcat /private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz | \
+#     tail -n +2 | cut -f 16 | less
 
 # %%
-zcat /private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz | \
-    tail -n +2 | cut -f 16 | awk '$1 != "nan"' | less
+# zcat /private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz | \
+#     tail -n +2 | cut -f 16 | awk '$1 != "nan"' | less
 
 # %%
-zcat /private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz | \
-    tail -n +2 | cut -f 16 | awk '$1 != "nan"' | sort -k1nr | less
+# zcat /private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz | \
+#     tail -n +2 | cut -f 16 | awk '$1 != "nan"' | sort -k1nr | less
 
 # %%
 reads_noise_dfs = [
@@ -7147,7 +7219,7 @@ df.rolling(
 ).mean()
 
 # %%
-concat_reads_ends_diversity.
+# concat_reads_ends_diversity.
 
 # %%
 concat_reads_ends_diversity.to_csv(
@@ -10582,6 +10654,12 @@ def retain_unique_us_and_vs(df, seed):
     return df
 
 
+# %%
+reads_noise_dfs = [
+    make_reads_noise_df(positions_file, seed)
+    for positions_file in merged_positions_files
+]
+
 # %% [markdown]
 # ###### Control tests
 
@@ -10592,11 +10670,6 @@ def retain_unique_us_and_vs(df, seed):
 merged_positions_files
 
 # %%
-reads_noise_dfs = [
-    make_reads_noise_df(positions_file, seed)
-    for positions_file in merged_positions_files
-]
-
 reads_noise_dfs[0]
 
 # %%
@@ -12298,7 +12371,7 @@ def make_new_crude_control_editing_statuses_df(
     return editing_statuses_df
 
 # %%
-min_shared_umi_sub_seq_len = 5
+# min_shared_umi_sub_seq_len = 5
 # max_errors = 1
 # processes = 30
 # sample_fraction = 0.01
@@ -12309,7 +12382,9 @@ min_shared_umi_sub_seq_len = 5
 # main_mapping_boundary_diff = 300
 # max_dist_between_two_reads_start_or_end = 100
 # max_dist_between_two_reads_start_or_end = 50
+max_dist_between_two_reads_start_or_end = 10_000
 
+# %%
 concat_new_crude_control_editing_statuses_df = pd.concat(
     (
         make_new_crude_control_editing_statuses_df(
@@ -12326,9 +12401,10 @@ concat_new_crude_control_editing_statuses_df = pd.concat(
             # max_error_to_take_all=max_error_to_take_all,
             # max_error_to_check=max_error_to_check,
             # sample_control_edges_with_no_shared_sub_seq=sample_control_edges_with_no_shared_sub_seq,
+            # main_mapping_boundaries=main_mapping_boundaries,
             main_mapping_boundaries=main_mapping_boundaries,
             # main_mapping_boundary_diff=main_mapping_boundary_diff,
-            # max_dist_between_two_reads_start_or_end=max_dist_between_two_reads_start_or_end,
+            max_dist_between_two_reads_start_or_end=max_dist_between_two_reads_start_or_end,
         )
         for (
             reads_file, 
@@ -12344,20 +12420,6 @@ concat_new_crude_control_editing_statuses_df = pd.concat(
             reads_noise_dfs,
         )
         for repeat in list("123")
-        # for (
-        #     reads_file, 
-        #     gene, 
-        #     main_mapping_boundaries, 
-        #     expected_disagreements_per_position_series,
-        #     reads_noise_df
-        # ) in zip(
-        #     merged_annotated_reads_files[1:],
-        #     genes[1:],
-        #     main_mapping_boundaries_per_gene[1:],
-        #     per_gene_expected_disagreements_per_position_series[1:],
-        #     reads_noise_dfs[1:],
-        # )
-        # for repeat in list("123")
     ),
     ignore_index=True
 )
@@ -12671,130 +12733,255 @@ def make_one_gene_reads_ends_diversity_df(
 
     return reads_ends_diversity_df
 
+
+# %%
+def calc_weighted_avg_disagreement_prct(
+    strongly_disagreeing_edges: pd.Series, 
+    unambiguously_covering_edges: pd.Series
+):
+    if unambiguously_covering_edges.sum() == 0:
+        return np.nan
+    return 100 * strongly_disagreeing_edges.sum() / unambiguously_covering_edges.sum()
+
+
+def add_weighted_avg_disagreement_prct_by_positions_bins(
+    concat_reads_ends_diversity, 
+    bin_sizes=[300, 600]
+):
+    for distance in bin_sizes:
+        
+        # position_bin_col_name = f"Position{distance}BPs"
+        position_bin_col_name = f"AmplificationEndDistance{distance}BPsBin"
+        
+        ic(distance, position_bin_col_name)
+        
+        # concat_reads_ends_diversity[position_bin_col_name] = concat_reads_ends_diversity["Position"].div(distance).astype(int).mul(distance)
+        concat_reads_ends_diversity[position_bin_col_name] = concat_reads_ends_diversity["AmplificationEndDistance"].apply(
+            lambda x: int((int(x / distance) * distance) + (distance * np.sign(x)))
+        )
+        
+        for edge_type in ["Identical", "Control"]:
+            concat_reads_ends_diversity = concat_reads_ends_diversity.merge(
+                concat_reads_ends_diversity.groupby(["Gene", position_bin_col_name]).apply(
+                    lambda df: calc_weighted_avg_disagreement_prct(
+                        df[f"StronglyDisagreeing{edge_type}Edges"], 
+                        df[f"UnambiguouslyCovering{edge_type}Edges"]
+                    ),
+                    include_groups=False
+                ).reset_index(name=f'%StronglyDisagreeing{edge_type}EdgesBy{distance}BPsBin'),
+                how="left"
+            )
+    return concat_reads_ends_diversity
+
+
+# %%
+def add_weighted_avg_disagreement_prct_by_sliding_window(
+    concat_reads_ends_diversity, 
+    window_size=5
+):
+    # save original index to restore that sorting after sorting by gene (see next)
+    concat_reads_ends_diversity.reset_index(
+        inplace=True, 
+        names="OriginalIndex"
+    )
+
+    # this sorting is crucial as the result of rolling function doesn't retain the information of the "Position" 
+    # col of each row, so in order to have the rolling window contain the correct positions, 
+    # the df needs to be sorted by "Gene" beforehand
+    concat_reads_ends_diversity.sort_values("Gene", ignore_index=True, inplace=True)
+
+    g = concat_reads_ends_diversity.groupby("Gene")
+
+    for edge_type in ["Identical", "Control"]:
+        
+        result_col = f"%StronglyDisagreeing{edge_type}EdgesBy{window_size}PositionsSlidingWindow"
+        
+        concat_reads_ends_diversity[result_col] = (
+            100
+            * g[f"StronglyDisagreeing{edge_type}Edges"].rolling(window_size).sum()
+            / g[f"UnambiguouslyCovering{edge_type}Edges"].rolling(window_size).sum()
+        ).values
+        
+    # reorder by original index and drop it
+    concat_reads_ends_diversity = (
+        concat_reads_ends_diversity
+        .sort_values("OriginalIndex", ignore_index=True)
+        .drop(columns="OriginalIndex")
+    )
+    
+    return concat_reads_ends_diversity
+
+
 # %%
 # test with ADAR first
 
 # %%
-gene = genes[0]
-reads_file = merged_annotated_reads_files[0]
-mapping_boundaries = main_mapping_boundaries_per_gene[0]
+# gene = genes[0]
+# reads_file = merged_annotated_reads_files[0]
+# mapping_boundaries = main_mapping_boundaries_per_gene[0]
 
-gene_edges_and_groups_df = concat_new_crude_control_editing_statuses_df.loc[
-    concat_new_crude_control_editing_statuses_df["Gene"] == gene,
-    ["U", "V", "Group"]
-]
+# gene_edges_and_groups_df = concat_new_crude_control_editing_statuses_df.loc[
+#     concat_new_crude_control_editing_statuses_df["Gene"] == gene,
+#     ["U", "V", "Group"]
+# ]
 
-adar_reads_ends_diversity_df = make_one_gene_reads_ends_diversity_df(
-    gene,
-    reads_file,
-    used_reads_first_col_pos,
-    mapping_boundaries,
-    gene_edges_and_groups_df, # a df with cols ["U", "V", "Group"]
-    processes=10
-)
-adar_reads_ends_diversity_df
-
-# %%
-gene = genes[1]
-reads_file = merged_annotated_reads_files[1]
-mapping_boundaries = main_mapping_boundaries_per_gene[1]
-
-gene_edges_and_groups_df = concat_new_crude_control_editing_statuses_df.loc[
-    concat_new_crude_control_editing_statuses_df["Gene"] == gene,
-    ["U", "V", "Group"]
-]
-
-iqec_reads_ends_diversity_df = make_one_gene_reads_ends_diversity_df(
-    gene,
-    reads_file,
-    used_reads_first_col_pos,
-    mapping_boundaries,
-    gene_edges_and_groups_df, # a df with cols ["U", "V", "Group"]
-    processes=10
-)
-iqec_reads_ends_diversity_df
+# adar_reads_ends_diversity_df = make_one_gene_reads_ends_diversity_df(
+#     gene,
+#     reads_file,
+#     used_reads_first_col_pos,
+#     mapping_boundaries,
+#     gene_edges_and_groups_df, # a df with cols ["U", "V", "Group"]
+#     processes=10
+# )
+# adar_reads_ends_diversity_df
 
 # %%
-iqec_reads_ends_diversity_df.loc[
-    :, ["Position", "%StronglyDisagreeingIdenticalEdges"]
-].set_index(
-    "Position"
-)
+# gene = genes[1]
+# reads_file = merged_annotated_reads_files[1]
+# mapping_boundaries = main_mapping_boundaries_per_gene[1]
+
+# gene_edges_and_groups_df = concat_new_crude_control_editing_statuses_df.loc[
+#     concat_new_crude_control_editing_statuses_df["Gene"] == gene,
+#     ["U", "V", "Group"]
+# ]
+
+# iqec_reads_ends_diversity_df = make_one_gene_reads_ends_diversity_df(
+#     gene,
+#     reads_file,
+#     used_reads_first_col_pos,
+#     mapping_boundaries,
+#     gene_edges_and_groups_df, # a df with cols ["U", "V", "Group"]
+#     processes=10
+# )
+# iqec_reads_ends_diversity_df
 
 # %%
-iqec_reads_ends_diversity_df.loc[
-    :, ["Position", "%StronglyDisagreeingIdenticalEdges"]
-].set_index(
-    "Position"
-).rolling(2).mean()
+# iqec_reads_ends_diversity_df.loc[
+#     :, ["Position", "%StronglyDisagreeingIdenticalEdges"]
+# ].set_index(
+#     "Position"
+# )
 
 # %%
+# iqec_reads_ends_diversity_df.loc[
+#     :, ["Position", "%StronglyDisagreeingIdenticalEdges"]
+# ].set_index(
+#     "Position"
+# ).rolling(2).mean()
+
+# %%
+# concat_reads_ends_diversity = pd.concat(
+#     [adar_reads_ends_diversity_df, iqec_reads_ends_diversity_df],
+#     ignore_index=True
+# )
+# concat_reads_ends_diversity
+
+# %%
+# window_size = 5
+# window_size = 10
+window_size = 30
+bins_distances = [300, 600]
+
 concat_reads_ends_diversity = pd.concat(
-    [adar_reads_ends_diversity_df, iqec_reads_ends_diversity_df],
+    [
+        make_one_gene_reads_ends_diversity_df(
+            gene,
+            reads_file,
+            used_reads_first_col_pos,
+            mapping_boundaries,
+            concat_new_crude_control_editing_statuses_df.loc[
+                concat_new_crude_control_editing_statuses_df["Gene"] == gene,
+                ["U", "V", "Group"]
+            ], # a df with cols ["U", "V", "Group"]
+            processes=10
+        )
+        for gene, reads_file, mapping_boundaries in zip(
+            genes,
+            merged_annotated_reads_files,
+            main_mapping_boundaries_per_gene,
+        )
+    ],
     ignore_index=True
 )
+
+# concat_reads_ends_diversity = concat_reads_ends_diversity.sort_values("Gene", ignore_index=True)
+
+concat_reads_ends_diversity = add_weighted_avg_disagreement_prct_by_positions_bins(
+    concat_reads_ends_diversity, 
+    bins_distances
+)
+
+concat_reads_ends_diversity = add_weighted_avg_disagreement_prct_by_sliding_window(
+    concat_reads_ends_diversity,
+    window_size,
+)
+
+concat_reads_ends_diversity
+
+
+# %%
+def x_div_y_or_nan_if_y_is_zero(x, y):
+    if y == 0:
+        return np.nan
+    return x / y
+
+
+# %%
+def log_x_div_y_or_nan_if_y_is_zero(x, y):
+    if x == 0 or y == 0:
+        return np.nan
+    return np.log10(x / y)
+
+
+# %%
+def directional_x_div_y_or_nan_if_any_are_zero(x, y):
+    if x == 0 or y == 0:
+        return np.nan
+    if x == y:
+        return np.nan
+    # if x == y:
+    #     return 1
+    if x < y:
+        return x / y
+    if x > y:
+        return -(y / x)
+
+
+# %%
+# bins_distance = bins_distances[0]
+concat_reads_ends_diversity["%StronglyDisagreeingIdentical/ControlEdges"] = concat_reads_ends_diversity.apply(
+    lambda x: log_x_div_y_or_nan_if_y_is_zero(
+        x["%StronglyDisagreeingIdenticalEdges"],
+        x["%StronglyDisagreeingControlEdges"]
+    ),
+    axis=1
+)
+for bins_distance in bins_distances:
+    concat_reads_ends_diversity[f'%StronglyDisagreeingIdentical/ControlEdgesBy{bins_distance}BPsBin'] = concat_reads_ends_diversity.apply(
+        lambda x: log_x_div_y_or_nan_if_y_is_zero(
+            x[f'%StronglyDisagreeingIdenticalEdgesBy{bins_distance}BPsBin'],
+            x[f'%StronglyDisagreeingControlEdgesBy{bins_distance}BPsBin']
+        ),
+        axis=1
+    )
 concat_reads_ends_diversity
 
 # %%
-df = pd.DataFrame(
-    {
-        "A": [1, 2, 3, 5, 1],
-        "B": [11, 3, 2, 1, 0]
-    }
-)
-df
+# for col in [
+#     "%StronglyDisagreeingIdentical/ControlEdges",
+#     "%StronglyDisagreeingIdentical/ControlEdgesBy300BPsBin",
+#     "%StronglyDisagreeingIdentical/ControlEdgesBy600BPsBin"
+# ]:
+#     ic(
+#         col,
+#         concat_reads_ends_diversity.loc[concat_reads_ends_diversity[col].eq(1)].shape[0]
+#     )
 
 # %%
-sum([1, 3, 2]) / 3
 
 # %%
-df.rolling(
-    3, 
-    center=True, 
-    # closed="both"
-).mean()
 
 # %%
-df.rolling(
-    3, 
-    center=True, 
-    # closed="both"
-).sum() / 3
-
-# %%
-df.rolling(
-    3, 
-    center=True, 
-    # closed="both"
-).sum()
-
-# %%
-df.rolling(
-    3, 
-    # center=True, 
-    # closed="both"
-).sum()
-
-# %%
-df.rolling(
-    3, 
-    # center=True, 
-    # closed="both"
-).sum()
-
-# %%
-df.rolling(
-    3, 
-    # center=True, 
-    # closed="both"
-).mean()
-
-# %%
-df.rolling(
-    3, 
-    center=True, 
-    closed="both"
-).mean()
 
 # %%
 concat_reads_ends_diversity.to_csv(
@@ -12804,10 +12991,134 @@ concat_reads_ends_diversity.to_csv(
 )
 
 # %%
-adar_reads_ends_diversity_df["%StronglyDisagreeingIdenticalEdges"].describe()
 
 # %%
-adar_reads_ends_diversity_df["%StronglyDisagreeingControlEdges"].describe()
+ydtick = 0.25
+# height = 600
+height = 700 * 0.66
+
+fig = px.area(
+    concat_reads_ends_diversity,
+    x="AmplificationEndDistance",
+    y="%StronglyDisagreeingIdentical/ControlEdges",
+    color="Gene",
+    facet_row="Gene",
+    facet_row_spacing=0.05,
+    labels={
+        "AmplificationEndDistance": f"Distance to amplification end",
+        # "%StronglyDisagreeingIdentical/ControlEdges": "Identical /<br>control edges [%]",
+        "%StronglyDisagreeingIdentical/ControlEdges": "log10(identical /<br>control edges [%])",
+    },
+)
+fig.update_xaxes(autorange="reversed", rangemode="tozero", dtick=300)
+fig.update_yaxes(dtick=ydtick, zerolinewidth=2, zerolinecolor='Black')
+fig.update_layout(
+    width=800, 
+    height=height, 
+    showlegend=False,
+    # title_text=f"Abs. distance between reads' beginnings/ends <= {max_dist_between_two_reads_start_or_end}"
+)
+fig.show()
+
+
+for distance in bins_distances:
+    fig = px.bar(
+        concat_reads_ends_diversity.drop_duplicates(
+            ["Gene", f"AmplificationEndDistance{distance}BPsBin"]
+        ),
+        x=f"AmplificationEndDistance{distance}BPsBin",
+        y=f"%StronglyDisagreeingIdentical/ControlEdgesBy{distance}BPsBin",
+        color="Gene",
+        facet_row="Gene",
+        facet_row_spacing=0.05,
+        labels={
+            f"AmplificationEndDistance{distance}BPsBin": f"Distance to amplification end - {distance}BPs bins",
+            # f"%StronglyDisagreeingIdentical/ControlEdgesBy{distance}BPsBin": "Identical /<br>control edges [%]",
+             f"%StronglyDisagreeingIdentical/ControlEdgesBy{distance}BPsBin": "log10(identical /<br>control edges [%])",
+        },
+    )
+    fig.update_xaxes(autorange="reversed", rangemode="tozero", dtick=distance)
+    fig.update_yaxes(dtick=ydtick, zerolinewidth=2, zerolinecolor='Black')
+    fig.update_layout(
+        width=800, 
+        height=height, 
+        showlegend=False,
+        # title_text=f"Abs. distance between reads' beginnings/ends <= {max_dist_between_two_reads_start_or_end}"
+    )
+    fig.show()
+
+# %%
+for gene in genes:
+    gene_reads_ends_diversity = concat_reads_ends_diversity.loc[
+        concat_reads_ends_diversity["Gene"] == gene
+    ]
+    fig = make_subplots(
+        rows=2, 
+        cols=1,
+        row_titles=["Identical UMIs", "Control"],
+        shared_xaxes="all",
+        shared_yaxes="all",
+        # x_title="Distance from amplification end [bp]",
+        x_title="Distance to amplification end [bp]",
+        y_title="% Strongly disagreeing edges /<br>unambiguous edges [%]",
+    )
+    
+
+    edge_types = ["Identical", "Control"]
+    nested_y_cols = [
+        [f"%StronglyDisagreeing{edge_type}Edges"] + [
+            f'%StronglyDisagreeing{edge_type}EdgesBy{bin}BPsBin' 
+            for bin in bins_distances
+        ] + [
+            f'%StronglyDisagreeing{edge_type}EdgesBy{window_size}PositionsSlidingWindow'
+        ]
+        for edge_type in edge_types
+    ]
+    legend_labels = ["All positions"] + [
+        f"{bin}bps bins" for bin in bins_distances
+    ] + [
+        f"{window_size} positions sliding window"
+    ]
+    colors = px.colors.qualitative.Plotly
+    
+    max_y = 0
+
+    for i, (y_col, edge_type) in enumerate(zip(nested_y_cols, edge_types), start=1):
+        for j, (color, nested_y_col, legend_label) in enumerate(zip(colors, y_col, legend_labels)):
+            # if j in [0, 3]:
+            #     continue
+            if j == 3:
+                continue
+            
+            y = gene_reads_ends_diversity[nested_y_col]
+            
+            fig.add_trace(
+                go.Scatter(
+                    # x=gene_reads_ends_diversity["AmplificationStartDistance"],
+                    x=gene_reads_ends_diversity["AmplificationEndDistance"],
+                    y=y,
+                    mode="markers",
+                    fill="tozeroy",
+                    marker_color=color,
+                    legendgroup=legend_label,
+                    name=legend_label,
+                    showlegend=(i == 1),   # show only for first row
+                ),
+                row=i,
+                col=1,
+            )
+            
+            max_y = max(max_y, y.max())
+    
+    fig.update_xaxes(autorange="reversed", rangemode="tozero", dtick=300)
+    fig.update_yaxes(dtick=10 if max_y >= 40 else 5)
+    fig.update_layout(
+        width=1000, 
+        height=550,
+        # showlegend=False,
+        title_text=f"{gene} - Abs. distance between reads' beginnings/ends <= {max_dist_between_two_reads_start_or_end} nts"
+        )
+    fig.show()
 
 # %%
 fig = px.scatter(

@@ -5305,6 +5305,22 @@ Code/Simulations/chimeric_reads_origin_squid_3.jl \
 
 
 
+
+### Back to unique reads-only chimerization analysis:
+
+```bash
+nohup \
+julia \
+--project=. \
+--threads 60 \
+Code/Simulations/chimeric_reads_origin_squid_2.jl \
+> /private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/JointChimericReadsAnalysis2/chimeric_reads_origin_squid_2.18.5.2026.out &
+```
+* alu 18
+* 18:13
+* 3100466
+
+
 ## Octopus
 
 ```bash

@@ -165,6 +165,29 @@ tmr50_alignment_stats_df = alignment_stats_df.loc[
 tmr50_alignment_stats_df
 
 # %%
+tmr50_alignment_stats_df.loc[
+    tmr50_alignment_stats_df["MappedReads"].ge(100)
+]
+
+# %%
+tmr50_alignment_stats_df.loc[
+    tmr50_alignment_stats_df["MappedReads"].ge(500)
+]
+
+# %%
+tmr50_alignment_stats_df.loc[
+    tmr50_alignment_stats_df["MappedReads"].ge(1000)
+]
+
+# %%
+fig = px.histogram(
+    tmr50_alignment_stats_df,
+    x="MappedReads"
+)
+
+fig.show()
+
+# %%
 # tmr1000_alignment_stats_df = alignment_stats_df.loc[
 #     alignment_stats_df["MappedReads"] >= 500
 # ]
@@ -6742,6 +6765,7 @@ max_distinct_proteins_df = (
 #     # how="left",
 #     how="right",
 # )
+
 max_distinct_proteins_df = max_distinct_proteins_df.merge(
     snps_and_coverage_per_gene_df.loc[
         (snps_and_coverage_per_gene_df["SNPs"].le(max_snps_per_gene_to_allow_editing_detection))
@@ -6785,6 +6809,19 @@ max_distinct_proteins_df = max_distinct_proteins_df.sort_values(
 # max_distinct_proteins_df["CummulativeTranscripts"] = max_distinct_proteins_df["CummulativeTranscripts"][::-1].values
 
 max_distinct_proteins_df
+
+# %%
+fig = px.scatter(
+    max_distinct_proteins_df,
+    x="NumOfReads",
+    y="NumOfProteins"
+    # log
+)
+fig.update_layout(
+    width=500,
+    height=500
+)
+fig.show()
 
 # %%
 max_distinct_proteins_df.loc[

@@ -111,6 +111,11 @@ function find_all_chimeric_reads(M)
 	return find_all_chimeric_reads(B, E)
 end
 
+extract_chimerizing_pairs(common_unique_proteins, all_chimeric_prots_indices) = [
+	(common_unique_proteins[i], common_unique_proteins[j])
+	for (i, j) ∈ all_chimeric_prots_indices
+]
+
 
 extract_chimeric_reads_sites_intersection(all_chimeric_reads_indices, B, E) = [(B[i], E[j]) for (i, j) ∈ all_chimeric_reads_indices]
 
@@ -185,127 +190,15 @@ s4 = [1, -1, 1]
 
 
 
-
-function prepare_expression_df(
-	expression_file, 
-	x_common_proteins = 300, 
-	y_rare_proteins = 1000, 
-	discard_reassigned_reads::Bool = true, 
-	x_and_y_proteins_denote_fractions::Bool = false
-)
-
-	# TODO use an input largest solutuon rather than randomly selecting one
-
-	expression_df = DataFrame(CSV.File(expression_file, delim = "\t"))
-
-	# count the number of distinct proteins per solution
-	expression_df = transform(groupby(expression_df, "#Solution"), nrow => "DistinctProteins")
-
-	# filter the DataFrame to keep only the rows with the maximum number of distinct proteins
-	expression_df = subset(expression_df, :DistinctProteins => x -> x .== maximum(x))
-
-	# if there are multiple solutions with the same maximum number of distinct proteins, keep only one
-	max_rand_solution = sample(MersenneTwister(1892), unique(expression_df[!, "#Solution"]), 1, replace = false)
-	expression_df = subset(expression_df, "#Solution" => x -> x .== max_rand_solution)
-
-	# sort the DataFrame by the total expression level, from the lowest to the highest
-	expression_df = sort(expression_df, "TotalWeightedSupportingReads")
-
-	num_of_rows = nrow(expression_df)
-	
-	if x_and_y_proteins_denote_fractions
-
-		if y_rare_proteins + x_common_proteins > 1
-			throw(BoundsError("when using `x_and_y_proteins_denote_fractions`, `y_rare_proteins + x_common_proteins` must be less than or equal to 1"))
-		end
-
-		# convert to ints, use them instead of `x_common_proteins` and `y_rare_proteins` and also return them to `process_one_sample`
-		# for further use downstream
-		actual_x_common_proteins = convert(Int, round(x_common_proteins * num_of_rows))
-		actual_y_rare_proteins = convert(Int, round(y_rare_proteins * num_of_rows))
-
-		if actual_x_common_proteins == 0 || actual_y_rare_proteins == 0
-		throw(
-			"converting the x_common_proteins and y_rare_proteins fractions into integers failed - they must be greater than 0 "
-			* "(expression_file: $expression_file "
-			* "x_common_proteins: $x_common_proteins, y_rare_proteins: $y_rare_proteins "
-			* "num_of_rows: $num_of_rows "
-			* "actual_x_common_proteins: $actual_x_common_proteins, actual_y_rare_proteins: $actual_y_rare_proteins)"
+function validate_chimerizing_pairs_are_made_of_different_elements(input_file, chimerizing_pairs)
+	for (i, (r1, r2)) in enumerate(chimerizing_pairs)
+		r1 == r2 && error(
+			"Found a chimeric pair which is identical to one another, which should not happen. 
+			Please check the input file: $input_file. The first such pair is: ($r1, $r2) (#$i pair)"
 		)
 	end
-	
-	else
-
-		if y_rare_proteins + x_common_proteins > num_of_rows
-			throw(BoundsError("y_rare_proteins + x_common_proteins must be less than or equal to the number of rows in the expression DataFrame"))
-		end
-
-		# for compatibility with the previous version of the code, if `x_and_y_proteins_denote_fractions` is false, we just return the input values of `x_common_proteins` and `y_rare_proteins` to `process_one_sample` for further use downstream
-		actual_x_common_proteins = x_common_proteins
-		actual_y_rare_proteins = y_rare_proteins
-
-	end
-
-	# if actual_x_common_proteins == 0 || actual_y_rare_proteins == 0
-	# 	throw(BoundsError("x_common_proteins and y_rare_proteins must be greater than 0"))
-	# end
-	
-	# keep only the y_rare_proteins rarest and x_common_proteins most common distinct proteins
-	# (the first y_rare_proteins rows and the last x_common_proteins rows)
-	# rare_expression_df = expression_df[1:y_rare_proteins, :]
-	# common_expression_df = expression_df[end-x_common_proteins+1:end, :]
-	rare_expression_df = expression_df[1:actual_y_rare_proteins, :]
-	common_expression_df = expression_df[end-actual_x_common_proteins+1:end, :]
-
-
-
-	insertcols!(rare_expression_df, "ExpressionStatus" => "Rare")
-	insertcols!(common_expression_df, "ExpressionStatus" => "Common")
-	expression_df = vcat(rare_expression_df, common_expression_df)
-
-
-
-	# filter out the columns we don't need
-	cols_to_keep = split("""Gene
-	Protein
-	AdditionalSupportingProteinsIDs
-	TotalWeightedSupportingReads
-	ExpressionStatus""", "\n")
-	expression_df = expression_df[:, cols_to_keep]
-
-	# replace missing values in "AdditionalSupportingProteinsIDs" with empty strings
-	expression_df[!, "AdditionalSupportingProteinsIDs"] = coalesce.(expression_df[!, "AdditionalSupportingProteinsIDs"], "")
-
-	# split the "AdditionalSupportingProteinsIDs" column into arrays
-	expression_df[!, "AdditionalSupportingProteinsIDs"] = split.(expression_df[!, "AdditionalSupportingProteinsIDs"], ",")
-
-	proteins = expression_df[:, "Protein"]
-	additional_supporting_proteins = expression_df[:, "AdditionalSupportingProteinsIDs"]
-
-	push!.(additional_supporting_proteins, proteins)
-	# when pushing the protein to the additional_supporting_proteins, 
-	# after replacing some missing values with empty strings,
-	# we have some arrays with empty values (which are the result of pushing the original protein to the 
-	# missing supporting proteins), e.g.:
-	# 1300-element Vector{Vector{SubString{String}}}:
-	# ["", "vz"]
-	# ["", "wr"]
-	additional_supporting_proteins = filter.(!isempty, additional_supporting_proteins)
-
-	insertcols!(expression_df, "OriginalAndAdditionalSupportingProteinsIDs" => additional_supporting_proteins)
-	select!(expression_df, Not("AdditionalSupportingProteinsIDs"))
-
-	expression_df = flatten(expression_df, "OriginalAndAdditionalSupportingProteinsIDs")
-	transform!(expression_df, "OriginalAndAdditionalSupportingProteinsIDs" => "OriginalOrAdditionalSupportingProtein")
-	select!(expression_df, Not("OriginalAndAdditionalSupportingProteinsIDs"))
-
-	# if we want to discard the reassigned reads, we filter out the rows where "Protein" != "OriginalOrAdditionalSupportingProtein"
-	if discard_reassigned_reads
-		expression_df = expression_df[expression_df.Protein.==expression_df.OriginalOrAdditionalSupportingProtein, :]
-	end
-
-	return expression_df, actual_x_common_proteins, actual_y_rare_proteins
 end
+
 
 
 function softcomparison(r1, r2)
@@ -326,6 +219,419 @@ function softcomparison(r1, r2)
 end
 
 
+# function prepare_expression_df_old(
+# 	expression_file, 
+# 	X_common_proteins, 
+# 	Y_rare_proteins,
+# 	x_and_y_proteins_denote_fractions::Bool = true
+# )
+
+# 	# TODO use an input largest solutuon rather than randomly selecting one
+
+# 	expression_df = DataFrame(CSV.File(expression_file, delim = "\t"))
+
+# 	# count the number of distinct proteins per solution
+# 	expression_df = transform(groupby(expression_df, "#Solution"), nrow => "DistinctProteins")
+
+# 	# filter the DataFrame to keep only the rows with the maximum number of distinct proteins
+# 	expression_df = subset(expression_df, :DistinctProteins => x -> x .== maximum(x))
+
+# 	# if there are multiple solutions with the same maximum number of distinct proteins, keep only one
+# 	max_rand_solution = sample(MersenneTwister(1892), unique(expression_df[!, "#Solution"]), 1, replace = false)
+# 	expression_df = subset(expression_df, "#Solution" => x -> x .== max_rand_solution)
+
+# 	# sort the DataFrame by the total expression level, from the lowest to the highest
+# 	expression_df = sort(expression_df, "TotalWeightedSupportingReads")
+
+# 	max_x_common_proteins = maximum(X_common_proteins)
+# 	max_y_rare_proteins = maximum(Y_rare_proteins)
+	
+# 	num_of_rows = nrow(expression_df)
+	
+# 	if x_and_y_proteins_denote_fractions
+
+# 		if max_y_rare_proteins + max_x_common_proteins > 1
+# 			throw(BoundsError("when using `x_and_y_proteins_denote_fractions`, `max_y_rare_proteins + max_x_common_proteins` must be less than or equal to 1"))
+# 		end
+
+# 		# convert to ints, use them instead of `x_common_proteins` and `y_rare_proteins` and also return them to `process_one_sample`
+# 		# for further use downstream
+# 		actual_X_common_proteins = convert.(Int, round.(X_common_proteins * num_of_rows))
+# 		actual_Y_rare_proteins = convert.(Int, round.(Y_rare_proteins * num_of_rows))
+
+# 		if minimum(actual_X_common_proteins) == 0 || minimum(actual_Y_rare_proteins) == 0
+# 			throw(
+# 				"converting the X_common_proteins and Y_rare_proteins fractions into integers failed - they must be greater than 0 each "
+# 				* "(expression_file: $expression_file, "
+# 				* "X_common_proteins: $X_common_proteins, Y_rare_proteins: $Y_rare_proteins, "
+# 				* "num_of_rows: $num_of_rows, "
+# 				* "actual_X_common_proteins: $actual_X_common_proteins, actual_Y_rare_proteins: $actual_Y_rare_proteins)"
+# 			)
+# 		end
+	
+# 	else
+
+# 		if max_y_rare_proteins + max_x_common_proteins > num_of_rows
+# 			throw(BoundsError("Any y of Y_rare_proteins + x of X_common_proteins must be less than or equal to the number of rows in the expression DataFrame"))
+# 		end
+
+# 		# for compatibility with the previous version of the code, if `x_and_y_proteins_denote_fractions` is false, we just return the input values of `x_common_proteins` and `y_rare_proteins` to `process_one_sample` for further use downstream
+# 		actual_X_common_proteins = X_common_proteins
+# 		actual_Y_rare_proteins = Y_rare_proteins
+
+# 	end
+
+# 	max_actual_x_common_proteins = maximum(actual_X_common_proteins)
+# 	max_actual_y_rare_proteins = maximum(actual_Y_rare_proteins)
+	
+# 	# keep only the y_rare_proteins rarest and x_common_proteins most common distinct proteins
+# 	# (the first y_rare_proteins rows and the last x_common_proteins rows)
+# 	# rare_expression_df = expression_df[1:y_rare_proteins, :]
+# 	# common_expression_df = expression_df[end-x_common_proteins+1:end, :]
+# 	common_expression_df = expression_df[end-max_actual_x_common_proteins+1:end, :]
+# 	insertcols!(
+# 		common_expression_df,
+# 		1,
+# 		"AscendingExpressionIndex" => 1:max_actual_x_common_proteins
+# 	)
+# 	# for the subsets of different common proteins, this col represents the index of the smallest subset of the most common proteins that contains each of the common proteins in the common_expression_df, e.g. if we have 5 common proteins and a certain common protein is in the subset of the 3 most common proteins, then its "SmallestXOrYSubset" value will be 3, as it's contained in the subset of the 3 most common proteins, but not in the subset of the 2 most common proteins.
+# 	insertcols!(
+# 		common_expression_df,
+# 		# 2,
+# 		"SmallestXOrYSubset" => [actual_X_common_proteins[searchsortedfirst(actual_X_common_proteins, a)] for a in common_expression_df[:, "AscendingExpressionIndex"]]
+# 	)
+# 	select!(
+# 		common_expression_df,
+# 		Not("AscendingExpressionIndex")
+# 	)
+# 	insertcols!(common_expression_df, "ExpressionStatus" => "Common")
+	
+
+# 	rare_expression_df = expression_df[1:max_actual_y_rare_proteins, :]
+# 	insertcols!(
+# 		rare_expression_df,
+# 		1,
+# 		"DescendingExpressionIndex" => max_actual_y_rare_proteins:-1:1
+# 	)
+# 	insertcols!(
+# 		rare_expression_df,
+# 		# 2,
+# 		"SmallestXOrYSubset" => [actual_Y_rare_proteins[searchsortedfirst(actual_Y_rare_proteins, a)] for a in rare_expression_df[:, "DescendingExpressionIndex"]]
+# 	)
+# 	select!(
+# 		rare_expression_df,
+# 		Not("DescendingExpressionIndex")
+# 	)
+# 	insertcols!(rare_expression_df, "ExpressionStatus" => "Rare")
+	
+
+# 	expression_df = vcat(rare_expression_df, common_expression_df)
+
+
+# 	# filter out the columns we don't need
+# 	select!(
+# 		expression_df,
+# 		["Gene", "Protein", "#Solution", "TotalWeightedSupportingReads", "ExpressionStatus", "SmallestXOrYSubset"]
+# 	)
+
+# 	# return expression_df, actual_X_common_proteins, actual_Y_rare_proteins, max_actual_x_common_proteins, max_actual_y_rare_proteins
+# 	return expression_df, actual_X_common_proteins, actual_Y_rare_proteins
+# end
+
+
+# function prepare_expression_df(
+# 	expression_file, 
+# 	expression_df::DataFrame,
+# 	X_common_proteins, 
+# 	Y_rare_proteins,
+# 	x_and_y_proteins_denote_fractions::Bool = true
+# )
+# 	# sort the DataFrame by the total expression level, from the lowest to the highest
+# 	expression_df = sort(expression_df, "TotalWeightedSupportingReads")
+
+# 	max_x_common_proteins = maximum(X_common_proteins)
+# 	max_y_rare_proteins = maximum(Y_rare_proteins)
+	
+# 	num_of_rows = nrow(expression_df)
+	
+# 	if x_and_y_proteins_denote_fractions
+
+# 		if max_y_rare_proteins + max_x_common_proteins > 1
+# 			throw(BoundsError("when using `x_and_y_proteins_denote_fractions`, `max_y_rare_proteins + max_x_common_proteins` must be less than or equal to 1"))
+# 		end
+
+# 		# convert to ints, use them instead of `x_common_proteins` and `y_rare_proteins` and also return them to `process_one_sample`
+# 		# for further use downstream
+# 		actual_X_common_proteins = convert.(Int, round.(X_common_proteins * num_of_rows))
+# 		actual_Y_rare_proteins = convert.(Int, round.(Y_rare_proteins * num_of_rows))
+
+# 		if minimum(actual_X_common_proteins) == 0 || minimum(actual_Y_rare_proteins) == 0
+# 			throw(
+# 				"converting the X_common_proteins and Y_rare_proteins fractions into integers failed - they must be greater than 0 each "
+# 				* "(expression_file: $expression_file, "
+# 				* "X_common_proteins: $X_common_proteins, Y_rare_proteins: $Y_rare_proteins, "
+# 				* "num_of_rows: $num_of_rows, "
+# 				* "actual_X_common_proteins: $actual_X_common_proteins, actual_Y_rare_proteins: $actual_Y_rare_proteins)"
+# 			)
+# 		end
+	
+# 	else
+
+# 		if max_y_rare_proteins + max_x_common_proteins > num_of_rows
+# 			throw(BoundsError("Any y of Y_rare_proteins + x of X_common_proteins must be less than or equal to the number of rows in the expression DataFrame"))
+# 		end
+
+# 		# for compatibility with the previous version of the code, if `x_and_y_proteins_denote_fractions` is false, we just return the input values of `x_common_proteins` and `y_rare_proteins` to `process_one_sample` for further use downstream
+# 		actual_X_common_proteins = X_common_proteins
+# 		actual_Y_rare_proteins = Y_rare_proteins
+
+# 	end
+
+# 	max_actual_x_common_proteins = maximum(actual_X_common_proteins)
+# 	max_actual_y_rare_proteins = maximum(actual_Y_rare_proteins)
+	
+# 	# keep only the y_rare_proteins rarest and x_common_proteins most common distinct proteins
+# 	# (the first y_rare_proteins rows and the last x_common_proteins rows)
+# 	# rare_expression_df = expression_df[1:y_rare_proteins, :]
+# 	# common_expression_df = expression_df[end-x_common_proteins+1:end, :]
+# 	common_expression_df = expression_df[end-max_actual_x_common_proteins+1:end, :]
+# 	insertcols!(
+# 		common_expression_df,
+# 		1,
+# 		"AscendingExpressionIndex" => 1:max_actual_x_common_proteins
+# 	)
+# 	# for the subsets of different common proteins, this col represents the index of the smallest subset of the most common proteins that contains each of the common proteins in the common_expression_df, e.g. if we have 5 common proteins and a certain common protein is in the subset of the 3 most common proteins, then its "SmallestXOrYSubset" value will be 3, as it's contained in the subset of the 3 most common proteins, but not in the subset of the 2 most common proteins.
+# 	insertcols!(
+# 		common_expression_df,
+# 		# 2,
+# 		"SmallestXOrYSubset" => [actual_X_common_proteins[searchsortedfirst(actual_X_common_proteins, a)] for a in common_expression_df[:, "AscendingExpressionIndex"]]
+# 	)
+# 	select!(
+# 		common_expression_df,
+# 		Not("AscendingExpressionIndex")
+# 	)
+# 	insertcols!(common_expression_df, "ExpressionStatus" => "Common")
+	
+
+# 	rare_expression_df = expression_df[1:max_actual_y_rare_proteins, :]
+# 	insertcols!(
+# 		rare_expression_df,
+# 		1,
+# 		"DescendingExpressionIndex" => max_actual_y_rare_proteins:-1:1
+# 	)
+# 	insertcols!(
+# 		rare_expression_df,
+# 		# 2,
+# 		"SmallestXOrYSubset" => [actual_Y_rare_proteins[searchsortedfirst(actual_Y_rare_proteins, a)] for a in rare_expression_df[:, "DescendingExpressionIndex"]]
+# 	)
+# 	select!(
+# 		rare_expression_df,
+# 		Not("DescendingExpressionIndex")
+# 	)
+# 	insertcols!(rare_expression_df, "ExpressionStatus" => "Rare")
+	
+
+# 	expression_df = vcat(rare_expression_df, common_expression_df)
+
+
+# 	# filter out the columns we don't need
+# 	select!(
+# 		expression_df,
+# 		["Gene", "Protein", "#Solution", "TotalWeightedSupportingReads", "ExpressionStatus", "SmallestXOrYSubset"]
+# 	)
+
+# 	# return expression_df, actual_X_common_proteins, actual_Y_rare_proteins, max_actual_x_common_proteins, max_actual_y_rare_proteins
+# 	return expression_df, actual_X_common_proteins, actual_Y_rare_proteins
+# end
+
+
+function prepare_expression_df(
+	expression_file, 
+	expression_df::DataFrame,
+	X_common_proteins, 
+	Y_rare_proteins,
+	x_and_y_proteins_denote_fractions::Bool = true
+)
+	max_x_common_proteins = maximum(X_common_proteins)
+	max_y_rare_proteins = maximum(Y_rare_proteins)
+	
+	num_of_rows = nrow(expression_df)
+	
+	if x_and_y_proteins_denote_fractions
+
+		if max_y_rare_proteins + max_x_common_proteins > 1
+			throw(BoundsError("when using `x_and_y_proteins_denote_fractions`, `max_y_rare_proteins + max_x_common_proteins` must be less than or equal to 1"))
+		end
+
+		# convert to ints, use them instead of `x_common_proteins` and `y_rare_proteins` and also return them to `process_one_sample`
+		# for further use downstream
+		actual_X_common_proteins = convert.(Int, round.(X_common_proteins * num_of_rows))
+		actual_Y_rare_proteins = convert.(Int, round.(Y_rare_proteins * num_of_rows))
+
+		@assert length(actual_X_common_proteins) == length(X_common_proteins)
+		@assert length(actual_Y_rare_proteins) == length(Y_rare_proteins)
+
+		if minimum(actual_X_common_proteins) == 0 || minimum(actual_Y_rare_proteins) == 0
+			throw(
+				"converting the X_common_proteins and Y_rare_proteins fractions into integers failed - they must be greater than 0 each "
+				* "(expression_file: $expression_file, "
+				* "X_common_proteins: $X_common_proteins, Y_rare_proteins: $Y_rare_proteins, "
+				* "num_of_rows: $num_of_rows, "
+				* "actual_X_common_proteins: $actual_X_common_proteins, actual_Y_rare_proteins: $actual_Y_rare_proteins)"
+			)
+		end
+	
+	else
+
+		if max_y_rare_proteins + max_x_common_proteins > num_of_rows
+			throw(BoundsError("Any y of Y_rare_proteins + x of X_common_proteins must be less than or equal to the number of rows in the expression DataFrame"))
+		end
+
+		# for compatibility with the previous version of the code, if `x_and_y_proteins_denote_fractions` is false, we just return the input values of `x_common_proteins` and `y_rare_proteins` to `process_one_sample` for further use downstream
+		actual_X_common_proteins = X_common_proteins
+		actual_Y_rare_proteins = Y_rare_proteins
+
+	end
+
+	max_actual_x_common_proteins = maximum(actual_X_common_proteins)
+	max_actual_y_rare_proteins = maximum(actual_Y_rare_proteins)
+
+	# retain only required columns
+	select!(
+		expression_df,
+		["Gene", "Protein", "#Solution", "TotalWeightedSupportingReads",]
+	)
+	
+	# sort the DataFrame by the total expression level, from the lowest to the highest
+	expression_df = sort(expression_df, "TotalWeightedSupportingReads")
+
+	insertcols!(
+		expression_df,
+		"DescendingRareIndex" => 1:num_of_rows,
+		"DescendingCommonIndex" => num_of_rows:-1:1
+	)
+
+	# expression_df = expression_df[
+	# 	(expression_df[!, "DescendingRareIndex"] .<= max_actual_y_rare_proteins
+	# 	.|| expression_df[!, "DescendingCommonIndex"] .<= max_actual_x_common_proteins),
+	# 	begin:end
+	# ]
+
+	expression_df = expression_df[
+		(expression_df[!, "DescendingRareIndex"] .<= max_actual_y_rare_proteins) .|
+    	(expression_df[!, "DescendingCommonIndex"] .<= max_actual_x_common_proteins),
+		begin:end
+	]
+
+
+
+	# # keep only the y_rare_proteins rarest and x_common_proteins most common distinct proteins
+	# # (the first y_rare_proteins rows and the last x_common_proteins rows)
+	# # rare_expression_df = expression_df[1:y_rare_proteins, :]
+	# # common_expression_df = expression_df[end-x_common_proteins+1:end, :]
+	# common_expression_df = expression_df[end-max_actual_x_common_proteins+1:end, :]
+	# insertcols!(
+	# 	common_expression_df,
+	# 	1,
+	# 	"AscendingExpressionIndex" => 1:max_actual_x_common_proteins
+	# )
+	# # for the subsets of different common proteins, this col represents the index of the smallest subset of the most common proteins that contains each of the common proteins in the common_expression_df, e.g. if we have 5 common proteins and a certain common protein is in the subset of the 3 most common proteins, then its "SmallestXOrYSubset" value will be 3, as it's contained in the subset of the 3 most common proteins, but not in the subset of the 2 most common proteins.
+	# insertcols!(
+	# 	common_expression_df,
+	# 	# 2,
+	# 	"SmallestXOrYSubset" => [actual_X_common_proteins[searchsortedfirst(actual_X_common_proteins, a)] for a in common_expression_df[:, "AscendingExpressionIndex"]]
+	# )
+	# select!(
+	# 	common_expression_df,
+	# 	Not("AscendingExpressionIndex")
+	# )
+	# insertcols!(common_expression_df, "ExpressionStatus" => "Common")
+	
+
+	# rare_expression_df = expression_df[1:max_actual_y_rare_proteins, :]
+	# insertcols!(
+	# 	rare_expression_df,
+	# 	1,
+	# 	"DescendingExpressionIndex" => max_actual_y_rare_proteins:-1:1
+	# )
+	# insertcols!(
+	# 	rare_expression_df,
+	# 	# 2,
+	# 	"SmallestXOrYSubset" => [actual_Y_rare_proteins[searchsortedfirst(actual_Y_rare_proteins, a)] for a in rare_expression_df[:, "DescendingExpressionIndex"]]
+	# )
+	# select!(
+	# 	rare_expression_df,
+	# 	Not("DescendingExpressionIndex")
+	# )
+	# insertcols!(rare_expression_df, "ExpressionStatus" => "Rare")
+	
+
+	# expression_df = vcat(rare_expression_df, common_expression_df)
+
+
+	# # filter out the columns we don't need
+	# select!(
+	# 	expression_df,
+	# 	["Gene", "Protein", "#Solution", "TotalWeightedSupportingReads", "ExpressionStatus", "SmallestXOrYSubset"]
+	# )
+
+	# return expression_df, actual_X_common_proteins, actual_Y_rare_proteins, max_actual_x_common_proteins, max_actual_y_rare_proteins
+	return expression_df, actual_X_common_proteins, actual_Y_rare_proteins
+end
+
+
+function prepare_expression_df(
+	expression_file,
+	max_solution::Int, 
+	X_common_proteins, 
+	Y_rare_proteins,
+	x_and_y_proteins_denote_fractions::Bool = true
+)
+	expression_df = DataFrame(CSV.File(expression_file, delim = "\t"))
+
+	# filter the DataFrame to keep only the rows with the maximum number of distinct proteins, as defined by the input `max_solution` argument
+	expression_df = subset(expression_df, "#Solution" => x -> x .== max_solution)
+
+	return prepare_expression_df(
+		expression_file, 
+		expression_df,
+		X_common_proteins, 
+		Y_rare_proteins,
+		x_and_y_proteins_denote_fractions
+	)
+
+end
+
+
+# function prepare_expression_df(
+# 	expression_file, 
+# 	X_common_proteins, 
+# 	Y_rare_proteins,
+# 	x_and_y_proteins_denote_fractions::Bool = true
+# )
+# 	expression_df = DataFrame(CSV.File(expression_file, delim = "\t"))
+
+# 	# count the number of distinct proteins per solution
+# 	expression_df = transform(groupby(expression_df, "#Solution"), nrow => "DistinctProteins")
+
+# 	# filter the DataFrame to keep only the rows with the maximum number of distinct proteins
+# 	expression_df = subset(expression_df, :DistinctProteins => x -> x .== maximum(x))
+
+# 	# if there are multiple solutions with the same maximum number of distinct proteins, keep only one
+# 	max_rand_solution = sample(MersenneTwister(1892), unique(expression_df[!, "#Solution"]), 1, replace = false)
+# 	expression_df = subset(expression_df, "#Solution" => x -> x .== max_rand_solution)
+
+# 	return prepare_expression_df(
+# 		expression_file, 
+# 		expression_df,
+# 		X_common_proteins, 
+# 		Y_rare_proteins,
+# 		x_and_y_proteins_denote_fractions
+# 	)
+# end
+
+
+
 function prepare_unique_proteins_df(unique_proteins_file, firstcolpos)
 	unique_proteins_df = DataFrame(CSV.File(unique_proteins_file, delim = "\t", select = collect(1:firstcolpos-1), types = Dict("Protein" => String, "Reads" => String)))
 	select!(unique_proteins_df, ["Gene", "Protein", "Transcripts"])
@@ -340,193 +646,555 @@ end
 
 function prepare_unique_reads_df(unique_reads_file, unique_reads_first_col_pos)
 	unique_reads_df = DataFrame(CSV.File(unique_reads_file, delim = "\t", types = Dict("Reads" => String)))
-	# select!(unique_reads_df, vcat(["Gene", "Transcript"], names(unique_reads_df)[unique_reads_first_col_pos:end]))
-	select!(unique_reads_df, vcat(["Gene", "Transcript", "NumOfReads"], names(unique_reads_df)[unique_reads_first_col_pos:end]))
 	rename!(unique_reads_df, "Transcript" => "UniqueRead")
-	return unique_reads_df
+	select!(unique_reads_df, vcat(["Gene", "UniqueRead", "NumOfReads"], names(unique_reads_df)[unique_reads_first_col_pos:end]))
+	new_unique_reads_first_col_pos = 4
+
+	# convert the editing status columns to Int8 to save memory, as they can only take values of 1, 0, or -1
+	df_1 = unique_reads_df[:, 1:new_unique_reads_first_col_pos-1]
+	df_2 = unique_reads_df[:, new_unique_reads_first_col_pos:end]
+	df_2 = convert.(
+		Int8,
+		df_2
+	)
+	unique_reads_df = hcat(df_1, df_2)
+
+	return unique_reads_df, new_unique_reads_first_col_pos
 end
 
 
-struct ReassignmentMetadata
-	Protein::Any
-	OriginalOrAdditionalSupportingProtein::Any
-	TotalWeightedSupportingReads::Any
+
+function compare_editing_statuses(common_status_array, rare_status_array, soft_comparison)
+	# Compare the rare read to all common reads (row-wise)
+	if soft_comparison
+		M = softcomparison.(
+			eachrow(common_status_array), 
+			Ref(rare_status_array)
+		)
+		M = hcat(M...)'
+	else
+		M = common_status_array .== rare_status_array'
+	end
+
+	return M
 end
 
+
+function define_out_file(out_dir, platform, sample_name, X_common_proteins::Vector, Y_rare_proteins::Vector)
+	return (
+		out_dir 
+		* "/" 
+		* "$(platform).$(sample_name).X_$(join(string.(X_common_proteins), "_")).Y_$(join(string.(Y_rare_proteins), "_")).csv.gz"
+	)
+end
+
+
+function save_results_df(
+	out_dir,
+	results_df,
+	platform,
+	sample_name,
+	X_common_proteins,
+	Y_rare_proteins,
+)
+	results_df = deepcopy(results_df)
+
+	for col in [
+		:ChimerizingProteinPairs, 
+		:ChimerizingReadPairs, 
+		:ChimerizingReadPairsIntersectingSitesIndices
+	]
+		results_df[!, col] = map(
+			v -> join(string.(first.(v), ",", last.(v)), ";"),
+			results_df[!, col]
+		)
+	end
+
+	mkpath(out_dir)  # make absolutely sure it exists (good under threads)
+	
+	# soft_comparison_interfix_str = soft_comparison ? "soft_comparison" : "strict_comparison"
+	# out_file = out_dir * "/" * basename(replace(original_in_file, ".unique_reads.csv.gz" => ".chimeric_reads.$soft_comparison_interfix_str.csv.gz"))
+	out_file = define_out_file(out_dir, platform, sample_name, X_common_proteins, Y_rare_proteins)
+	
+	# Atomic write: write to temp then move into place.
+	# tmp_file = out_file * ".tmp." * string(getpid()) * "." * string(threadid())
+	tmp_file = try
+		out_file * ".tmp." * string(getpid()) * "." * string(threadid())
+	catch e
+		out_file * ".tmp." * string(getpid()) # if threadid not defined
+	end
+
+	# bump buffer to handle very long rows (large joined string)
+	# Write to temp first, then move into place (atomic within same filesystem).
+    CSV.write(tmp_file, results_df, delim = "\t"; compress = true, bufsize = 64 * 1024 * 1024)
+	mv(tmp_file, out_file; force = true)
+    
+	return out_file
+end
+
+
+"""
+Return chimerizing tuples filtered to those where *both* proteins are in `allowed_common_proteins`.
+"""
+function filter_chimerizing_by_common(
+    chimerizing_protein_pairs,
+    chimerizing_read_pairs,
+    chimerizing_reads_sites_intersection,
+    allowed_common_proteins,
+)
+    # Use Set for O(1) membership
+    common_set = allowed_common_proteins isa Set ? allowed_common_proteins : Set(allowed_common_proteins)
+
+    filtered_protein_pairs = eltype(chimerizing_protein_pairs)[]
+    filtered_read_pairs = eltype(chimerizing_read_pairs)[]
+    filtered_sites_intersection = eltype(chimerizing_reads_sites_intersection)[]
+
+    for (protein_pair, read_pair, sites_intersection) ∈ zip(
+        chimerizing_protein_pairs, chimerizing_read_pairs, chimerizing_reads_sites_intersection
+    )
+        if (protein_pair[1] ∈ common_set) && (protein_pair[2] ∈ common_set)
+            push!(filtered_protein_pairs, protein_pair)
+            push!(filtered_read_pairs, read_pair)
+            push!(filtered_sites_intersection, sites_intersection)
+        end
+    end
+
+    return filtered_protein_pairs, filtered_read_pairs, filtered_sites_intersection
+end
+
+
+"""
+Build a NamedTuple result row (the schema you write to disk).
+"""
+function make_result_row(;
+    platform,
+    sample_name,
+    max_solution,
+    soft_comparison,
+    x_common,
+    y_rare,
+    x_and_y_proteins_denote_fractions,
+    actual_x_common,
+    actual_y_rare,
+    rare_protein,
+    one_unique_read_of_rare_protein,
+    filtered_protein_pairs,
+    filtered_read_pairs,
+    filtered_sites_intersection,
+)
+    num_chim = length(filtered_protein_pairs)
+    is_chim = num_chim > 0
+
+    return (
+        Platform = platform,
+        Sample = sample_name,
+        Solution = max_solution,
+        IsSoftComparison = soft_comparison,
+        XCommonProteins = x_common,
+        YRareProteins = y_rare,
+        XYProteinsDenoteFractions = x_and_y_proteins_denote_fractions,
+        ActualXCommonProteins = actual_x_common,
+        ActualYRareProteins = actual_y_rare,
+        Protein = rare_protein,
+        UniqueRead = one_unique_read_of_rare_protein,
+        IsChimeric = is_chim,
+        NumOfChimericCombinations = num_chim,
+        ChimerizingProteinPairs = filtered_protein_pairs,
+        ChimerizingReadPairs = filtered_read_pairs,
+        ChimerizingReadPairsIntersectingSitesIndices = filtered_sites_intersection,
+    )
+end
 
 
 function process_one_sample(
 	platform,
 	sample_name,
 	expression_file,
-	unique_proteins_file, unique_proteins_first_col_pos,
-	unique_reads_file, unique_reads_first_col_pos,
-	x_common_proteins = 300, y_rare_proteins = 1000,
-	discard_reassigned_reads::Bool = true,
-	soft_comparison::Bool = false,
-	x_and_y_proteins_denote_fractions::Bool = false,
+	max_solution,
+	unique_proteins_file, 
+	unique_proteins_first_col_pos,
+	unique_reads_file, 
+	unique_reads_first_col_pos,
+	X_common_proteins, 
+	Y_rare_proteins,
+	x_and_y_proteins_denote_fractions::Bool = true,
 )
 
-	expression_df, actual_x_common_proteins, actual_y_rare_proteins = prepare_expression_df(
-		expression_file, x_common_proteins, y_rare_proteins, discard_reassigned_reads, x_and_y_proteins_denote_fractions
+	expression_df, actual_X_common_proteins, actual_Y_rare_proteins = prepare_expression_df(
+		expression_file, 
+		max_solution,
+		X_common_proteins, 
+		Y_rare_proteins,
+		x_and_y_proteins_denote_fractions
 	)
 	unique_proteins_df = prepare_unique_proteins_df(unique_proteins_file, unique_proteins_first_col_pos)
-	unique_reads_df = prepare_unique_reads_df(unique_reads_file, unique_reads_first_col_pos)
+	unique_reads_df, new_unique_reads_first_col_pos = prepare_unique_reads_df(unique_reads_file, unique_reads_first_col_pos)
 
-	unique_reads_statuses_df = unique_reads_df[:, 4:end]
-	nrow(unique(unique_reads_statuses_df)) == nrow(unique_reads_statuses_df) || error(
-		"There are duplicate rows in the unique reads editing statuses, which should not happen. Please check the input file: $unique_reads_file"
+	# unique_reads_statuses_df = unique_reads_df[:, new_unique_reads_first_col_pos:end]
+	# nrow(unique(unique_reads_statuses_df)) == nrow(unique_reads_statuses_df) || error(
+	# 	"There are duplicate rows in the unique reads editing statuses, which should not happen. Please check the input file: $unique_reads_file"
+	# )
+	# editing_sites = parse.(Int, names(unique_reads_statuses_df))
+	# editing_percents = [
+	# 	100 * count(==(1), col) / count(!=(-1), col)
+	# 	for col ∈ eachcol(unique_reads_statuses_df)
+	# ]
+
+	unique_proteins_id_cols = names(unique_proteins_df) # all its cols are id cols
+	unique_reads_id_cols = names(unique_reads_df)[1:new_unique_reads_first_col_pos-1]
+	num_of_id_cols_in_prots_but_not_in_reads = length(
+		setdiff(unique_proteins_id_cols, unique_reads_id_cols)
 	)
-	editing_sites = parse.(Int, names(unique_reads_statuses_df))
-	editing_percents = [
-		100 * count(==(1), col) / count(!=(-1), col)
-		for col ∈ eachcol(unique_reads_statuses_df)
-	]
-
-	unique_reads_and_proteins_df = innerjoin(unique_proteins_df, unique_reads_df, on = ["Gene", "UniqueRead"])
-
-	expression_df = leftjoin(expression_df, unique_reads_and_proteins_df, on = ["Gene", "OriginalOrAdditionalSupportingProtein" => "Protein"])
-
-	# now we have a dataframe with the original distinct proteins (300 most common and 1000 rarest) and their expression levels,
-	# as well as the indistinguishable proteins supporting them,
-	# and the unique reads supporting them, in turn
-	# (each row is a single unique read supporting a unique protein, wether it is a distinct or indistinguishable one which underwent reasignment)
-
-	common_expression_df = expression_df[expression_df.ExpressionStatus.=="Common", :]
-	rare_expression_df = expression_df[expression_df.ExpressionStatus.=="Rare", :]
-
-	total_common_unique_reads = nrow(common_expression_df)
-	total_rare_unique_reads = nrow(rare_expression_df)
-	total_common_reads = sum(common_expression_df.NumOfReads)
-	total_rare_reads = sum(rare_expression_df.NumOfReads)
-
-	# new_first_reads_col_pos = 7
-	new_first_reads_col_pos = 8  # since adding the number of reads comprising each unique read
-
-	# common_expression_df[:, begin:new_first_reads_col_pos-1]
-
-	# gdf = groupby(common_expression_df[:, ["Gene", "ExpressionStatus", "UniqueRead", "Protein", "OriginalOrAdditionalSupportingProtein", "TotalWeightedSupportingReads"]], ["Gene", "ExpressionStatus", "UniqueRead"])
-	gdf = groupby(
-		common_expression_df[
-			:,
-			["Gene", "ExpressionStatus", "UniqueRead", "Protein", "OriginalOrAdditionalSupportingProtein", "TotalWeightedSupportingReads"]
-		],
-		["Gene", "ExpressionStatus", "UniqueRead"]
+	new_unique_reads_and_proteins_first_col_pos = (
+		new_unique_reads_first_col_pos + num_of_id_cols_in_prots_but_not_in_reads
+	)
+	
+	# a flat df where each row is a protein and one of its unique reads
+	unique_reads_and_proteins_df = innerjoin(
+		unique_proteins_df, 
+		unique_reads_df, 
+		on = ["Gene", "UniqueRead"]
 	)
 
-	# unique(common_expression_df[!, "UniqueRead"])
-	# length(gdf)
+	expression_id_cols = names(expression_df)
+	unique_reads_and_proteins_id_cols = names(unique_reads_and_proteins_df)[1:new_unique_reads_and_proteins_first_col_pos-1]
+	num_of_id_cols_in_prots_and_reads_df_but_not_in_expression_df = length(
+		setdiff(unique_reads_and_proteins_id_cols, expression_id_cols)
+	)
+	new_first_reads_col_pos = (
+		size(expression_df, 2) + num_of_id_cols_in_prots_and_reads_df_but_not_in_expression_df + 1
+	)
+	expression_df = leftjoin(
+		expression_df, 
+		unique_reads_and_proteins_df, 
+		on = ["Gene", "Protein"]
+	)
 
-	compact_common_expression_df = combine(gdf) do subdf
-		(; Metadata = hcat(collect(ReassignmentMetadata.(subdf.Protein, subdf.OriginalOrAdditionalSupportingProtein, subdf.TotalWeightedSupportingReads))))
+	max_X_common_proteins = maximum(X_common_proteins)
+	max_Y_rare_proteins = maximum(Y_rare_proteins)
+	max_actual_x_common_proteins = maximum(actual_X_common_proteins)
+	max_actual_y_rare_proteins = maximum(actual_Y_rare_proteins)
+
+	X_common_proteins_wo_max_x = setdiff(X_common_proteins, [max_X_common_proteins])
+	Y_rare_proteins_wo_max_y = setdiff(Y_rare_proteins, [max_Y_rare_proteins])
+	actual_X_common_proteins_wo_max_x = setdiff(actual_X_common_proteins, [max_actual_x_common_proteins])
+	actual_Y_rare_proteins_wo_max_y = setdiff(actual_Y_rare_proteins, [max_actual_y_rare_proteins])
+	
+	# sort in descending order, so that we start with the largest subset of common proteins first, which is more likely to explain the rare proteins and thus save time by skipping the smaller subsets of common proteins that are contained in it
+	sort!(X_common_proteins_wo_max_x, rev = true)
+	sort!(actual_X_common_proteins_wo_max_x, rev = true)
+	# sort in descending order, so that we start with the largest subset of rare proteins first, which is more likely to be explained by the common proteins and thus save time by skipping the smaller subsets of rare proteins that are contained in it
+	sort!(Y_rare_proteins_wo_max_y, rev = true)
+	sort!(actual_Y_rare_proteins_wo_max_y, rev = true)
+	
+	# now we have a dataframe with the original distinct proteins (x most common and y rarest) 
+	# and their expression levels,
+	# and the unique reads supporting them,
+	# (each row is a single unique read originally-supporting a unique protein)
+
+	# common_expression_df = expression_df[expression_df.ExpressionStatus.=="Common", :]
+	# rare_expression_df = expression_df[expression_df.ExpressionStatus.=="Rare", :]
+
+	common_expression_df = expression_df[expression_df.DescendingCommonIndex .<= max_actual_x_common_proteins, :]
+	rare_expression_df = expression_df[expression_df.DescendingRareIndex .<= max_actual_y_rare_proteins, :]
+
+	# total_common_unique_reads = nrow(common_expression_df)
+	# total_rare_unique_reads = nrow(rare_expression_df)
+	# total_common_reads = sum(common_expression_df.NumOfReads)
+	# total_rare_reads = sum(rare_expression_df.NumOfReads)
+
+	common_proteins = common_expression_df[!, :Protein]
+	common_unique_reads = common_expression_df[!, :UniqueRead]
+	common_unique_reads_editing_status_array = Matrix{Int8}(
+		common_expression_df[!, new_first_reads_col_pos:end]
+	)
+
+	rare_proteins = rare_expression_df[!, :Protein]
+	rare_unique_reads = rare_expression_df[!, :UniqueRead]
+
+	
+	# prepare subsets of metadata dfs for the different subsets of common and rare proteins, 
+	# to save time by not having to subset them repeatedly inside the loop over the unique reads of the rare proteins
+	subset_rare_expression_dfs = Dict(
+		y => rare_expression_df[
+			rare_expression_df.DescendingRareIndex .<= y, 
+			begin:new_first_reads_col_pos-1
+		]
+		for y in actual_Y_rare_proteins_wo_max_y
+	)
+	# Before:
+    # subset_common_expression_dfs = Dict(
+    # 	x => common_expression_df[
+    # 		common_expression_df.DescendingCommonIndex .<= x, 
+    # 		begin:new_first_reads_col_pos-1
+    # 	]
+    # 	for x in actual_X_common_proteins_wo_max_x
+    # )
+    # After: build for *all* X (including max X)
+    subset_common_expression_dfs = Dict(
+        x => common_expression_df[
+            common_expression_df.DescendingCommonIndex .<= x,
+            begin:new_first_reads_col_pos-1
+        ]
+        for x in actual_X_common_proteins
+    )
+	
+	for y in actual_Y_rare_proteins_wo_max_y
+		# println("$y, $(nrow(unique(subset_rare_expression_dfs[y], :Protein)))")
+		@assert nrow(unique(subset_rare_expression_dfs[y], :Protein)) == y
 	end
-
-	# compact_common_expression_df[!, "Metadata"][1]
-	# compact_common_expression_df[!, "Metadata"][1][1]
-
-	compact_common_expression_df = leftjoin(
-		compact_common_expression_df,
-		# unique(common_expression_df[!, new_first_reads_col_pos-1:end], "UniqueRead"),
-		unique(common_expression_df[!, new_first_reads_col_pos-2:end], "UniqueRead"), # -2 instead of -1 since we added the "NumOfReads" col
-		on = ["UniqueRead"],
-	)
-
-	# compact_common_expression_first_reads_col_pos = 5
-	compact_common_expression_first_reads_col_pos = 6 # since adding the number of reads comprising each unique read
-
-	# common_unique_reads_editing_status = compact_common_expression_df[:, compact_common_expression_first_reads_col_pos:end]
+	# for x in actual_X_common_proteins_wo_max_x
+	for x in actual_X_common_proteins
+		# println("$x, $(nrow(unique(subset_common_expression_dfs[x], :Protein)))")
+		@assert nrow(unique(subset_common_expression_dfs[x], :Protein)) == x
+	end
 
 	results = []
 
 	# iterate over each rare protein and its unique reads, 
 	# and compare their editing status to those of the common proteins' unique reads, 
-	# to find chimeric reads
+	# to find chimeric reads,
+	# using both soft and hard comparison, and save the results in a DataFrame
 
-	original_rare_proteins = unique(rare_expression_df[!, :Protein])
+	for (rare_protein, one_unique_read_of_rare_protein) ∈ zip(rare_proteins, rare_unique_reads)
 
-	# TODO uncomment - this is for testing
-	# one_original_rare_protein = original_rare_proteins[1]
+		# rare_protein = rare_proteins[1]
+		# one_unique_read_of_rare_protein = rare_unique_reads[1]
 
-	for one_original_rare_protein ∈ original_rare_proteins
+		# rare_protein = rare_proteins[2]
+		# one_unique_read_of_rare_protein = rare_unique_reads[2]
 
-		unique_reads_of_one_original_rare_protein_expression_df = rare_expression_df[rare_expression_df.Protein.==one_original_rare_protein, :]
-		unique_reads_of_one_original_rare_protein_expression = unique(unique_reads_of_one_original_rare_protein_expression_df[!, "UniqueRead"])
+		# take the one and only row of that unique read
+		one_unique_read_of_rare_protein_df = only(
+			rare_expression_df[rare_expression_df.UniqueRead.==one_unique_read_of_rare_protein, :]
+		)
 
-		# TODO uncomment - this is for testing
-		# one_unique_read_of_one_original_rare_protein = unique_reads_of_one_original_rare_protein_expression[1]
+		one_unique_read_of_rare_protein_editing_status_array = Vector{Int8}(
+			one_unique_read_of_rare_protein_df[new_first_reads_col_pos:end]
+		)
 
-		for one_unique_read_of_one_original_rare_protein ∈ unique_reads_of_one_original_rare_protein_expression
-			
-			one_unique_read_of_one_original_rare_protein_df = unique_reads_of_one_original_rare_protein_expression_df[unique_reads_of_one_original_rare_protein_expression_df.UniqueRead.==one_unique_read_of_one_original_rare_protein, :][1, :] # take the first row of the unique reads of the original rare protein
-
-			one_unique_read_of_one_original_rare_protein_editing_status = one_unique_read_of_one_original_rare_protein_df[new_first_reads_col_pos:end]
-
-
-			common_unique_reads_editing_status = compact_common_expression_df[compact_common_expression_df.UniqueRead.!==one_unique_read_of_one_original_rare_protein, compact_common_expression_first_reads_col_pos:end]
-
-			# one_unique_read_of_one_original_rare_protein_editing_status .== common_unique_reads_editing_status
-
-			# common_unique_reads_editing_status .== one_unique_read_of_one_original_rare_protein_editing_status'
-
-			one_unique_read_of_one_original_rare_protein_editing_status_array = Array(one_unique_read_of_one_original_rare_protein_editing_status)
-			common_unique_reads_editing_status_array = Array(common_unique_reads_editing_status)
+		for soft_comparison ∈ [true, false]
+		
+			# soft_comparison = true
+			# soft_comparison = false
 
 			# Compare the rare read to all common reads (row-wise)
-			if soft_comparison
-				# r1 = common_unique_reads_editing_status_array[1, end-9:end-2]
-				# r2 = one_unique_read_of_one_original_rare_protein_editing_status_array[end-9:end-2]
-
-				# r1 = collect(eachrow(common_unique_reads_editing_status_array))[1]
-				# r2 = one_unique_read_of_one_original_rare_protein_editing_status_array
-
-				M = softcomparison.(eachrow(common_unique_reads_editing_status_array), Ref(one_unique_read_of_one_original_rare_protein_editing_status_array))
-				# M2 = softcomparison.(eachrow(common_unique_reads_editing_status_array[1:3, end-9:end-2]), Ref(one_unique_read_of_one_original_rare_protein_editing_status_array[end-9:end-2]))
-				M = hcat(M...)'
-			else
-				M = common_unique_reads_editing_status_array .== one_unique_read_of_one_original_rare_protein_editing_status_array'
-			end
-
-
-			# size(M)[2]
-
-			# sum(sum(row) == size(M)[2] for row ∈ eachrow(M)) # count the number of common reads that are identical to the rare read
-			# sum(M, dims=2)
+			M = compare_editing_statuses(
+				common_unique_reads_editing_status_array, 
+				one_unique_read_of_rare_protein_editing_status_array, 
+				soft_comparison
+			)
 
 			B, E = find_B_and_E_for_M(M)
-			is_chimeric = are_there_chimeric_reads(B, E)
-			all_chimeric_reads_indices = find_all_chimeric_reads(B, E)
-			chimeric_reads_sites_intersection = extract_chimeric_reads_sites_intersection(all_chimeric_reads_indices, B, E)
+			# these are the indices of the max_actual_x_common_proteins that can chimerize to 
+			# form the rare protein which is included in the max_actual_y_rare_proteins.
+			indices_of_chimeric_read_pairs = find_all_chimeric_reads(B, E)
+			chimerizing_protein_pairs = extract_chimerizing_pairs(common_proteins, indices_of_chimeric_read_pairs)
+			chimerizing_read_pairs = extract_chimerizing_pairs(common_unique_reads, indices_of_chimeric_read_pairs)
+			chimerizing_reads_sites_intersection = extract_chimeric_reads_sites_intersection(indices_of_chimeric_read_pairs, B, E)
+			num_of_chimeric_combinations = length(chimerizing_protein_pairs)
+			is_chimeric = num_of_chimeric_combinations > 0
 
+			# this is the result for the max_actual_x_common_proteins and max_actual_y_rare_proteins
 			result = (
 				Platform = platform,
 				Sample = sample_name,
-				EditingSites = editing_sites,
-				EditingPercents = editing_percents,
+				Solution = max_solution,
 				IsSoftComparison = soft_comparison,
-				XCommonProteins = x_common_proteins,
-				YRareProteins = y_rare_proteins,
+				XCommonProteins = max_X_common_proteins,
+				YRareProteins = max_Y_rare_proteins,
 				XYProteinsDenoteFractions = x_and_y_proteins_denote_fractions,
-				ActualXCommonProteins = actual_x_common_proteins,
-				ActualYRareProteins = actual_y_rare_proteins,
-				TotalCommonUniqueReads = total_common_unique_reads,
-				TotalRareUniqueReads = total_rare_unique_reads,
-				TotalCommonReads = total_common_reads,
-				TotalRareReads = total_rare_reads,
-				ReassignendReadsDiscarded = discard_reassigned_reads,
-				Protein = one_original_rare_protein,
-				UniqueRead = one_unique_read_of_one_original_rare_protein,
+				ActualXCommonProteins = max_actual_x_common_proteins,
+				ActualYRareProteins = max_actual_y_rare_proteins,
+				Protein = rare_protein,
+				UniqueRead = one_unique_read_of_rare_protein,
 				IsChimeric = is_chimeric,
-				ChimericReadsIndices = all_chimeric_reads_indices,
-				NumOfChimericCombinations = length(all_chimeric_reads_indices),
-				ChimericReadsIntersectingSitesIndices = chimeric_reads_sites_intersection,
+				NumOfChimericCombinations = num_of_chimeric_combinations,
+				ChimerizingProteinPairs = chimerizing_protein_pairs,
+				ChimerizingReadPairs = chimerizing_read_pairs,
+				ChimerizingReadPairsIntersectingSitesIndices = chimerizing_reads_sites_intersection,
 			)
 			push!(results, result)
+
+			# now we should subset this result for the smaller subsets of common and rare proteins that are contained 
+			# in the max_actual_x_common_proteins and max_actual_y_rare_proteins, respectively
+
+			
+			# Emit subsets over X when Y is max (currently missing).
+            # This makes (x<max_x, y=max_y) exist in the output.
+            for (x_common, actual_x_common) ∈ zip(X_common_proteins_wo_max_x, actual_X_common_proteins_wo_max_x)
+
+                subset_common_expression_df = subset_common_expression_dfs[actual_x_common]
+                subset_common_proteins = subset_common_expression_df[!, :Protein]
+
+                # subset_chimerizing_protein_pairs = eltype(chimerizing_protein_pairs)[]
+                # subset_chimerizing_read_pairs = eltype(chimerizing_read_pairs)[]
+                # subset_chimerizing_reads_sites_intersection = eltype(chimerizing_reads_sites_intersection)[]
+
+                # for (protein_pair, read_pair, sites_intersection) ∈ zip(
+                #     chimerizing_protein_pairs, chimerizing_read_pairs, chimerizing_reads_sites_intersection
+                # )
+                #     if (protein_pair[1] ∈ subset_common_proteins) && (protein_pair[2] ∈ subset_common_proteins)
+                #         push!(subset_chimerizing_protein_pairs, protein_pair)
+                #         push!(subset_chimerizing_read_pairs, read_pair)
+                #         push!(subset_chimerizing_reads_sites_intersection, sites_intersection)
+                #     end
+                # end
+
+                # subset_num_of_chimeric_combinations = length(subset_chimerizing_protein_pairs)
+                # subset_is_chimeric = subset_num_of_chimeric_combinations > 0
+
+                # subset_result = (
+                #     Platform = platform,
+                #     Sample = sample_name,
+                #     Solution = max_solution,
+                #     IsSoftComparison = soft_comparison,
+                #     XCommonProteins = x_common,
+                #     YRareProteins = max_Y_rare_proteins,              # <-- key change
+                #     XYProteinsDenoteFractions = x_and_y_proteins_denote_fractions,
+                #     ActualXCommonProteins = actual_x_common,
+                #     ActualYRareProteins = max_actual_y_rare_proteins,  # <-- key change
+                #     Protein = rare_protein,
+                #     UniqueRead = one_unique_read_of_rare_protein,
+                #     IsChimeric = subset_is_chimeric,
+                #     NumOfChimericCombinations = subset_num_of_chimeric_combinations,
+                #     ChimerizingProteinPairs = subset_chimerizing_protein_pairs,
+                #     ChimerizingReadPairs = subset_chimerizing_read_pairs,
+                #     ChimerizingReadPairsIntersectingSitesIndices = subset_chimerizing_reads_sites_intersection,
+                # )
+
+				fpairs, freads, fsites = filter_chimerizing_by_common(
+					chimerizing_protein_pairs,
+					chimerizing_read_pairs,
+					chimerizing_reads_sites_intersection,
+					subset_common_proteins,
+				)
+
+				subset_result = make_result_row(
+					platform = platform,
+					sample_name = sample_name,
+					max_solution = max_solution,
+					soft_comparison = soft_comparison,
+					x_common = x_common,
+					y_rare = max_Y_rare_proteins,
+					x_and_y_proteins_denote_fractions = x_and_y_proteins_denote_fractions,
+					actual_x_common = actual_x_common,
+					actual_y_rare = max_actual_y_rare_proteins,
+					rare_protein = rare_protein,
+					one_unique_read_of_rare_protein = one_unique_read_of_rare_protein,
+					filtered_protein_pairs = fpairs,
+					filtered_read_pairs = freads,
+					filtered_sites_intersection = fsites,
+				)
+
+                push!(results, subset_result)
+				
+            end
+
+			
+			# now iterate over the subsets of rare proteins - if this rare protein isn't found in a subset of 
+			# rare proteins, we shouldn't check which subset of common proteins can chimerize it
+			for (y_rare, actual_y_rare) ∈ zip(Y_rare_proteins_wo_max_y, actual_Y_rare_proteins_wo_max_y)
+				
+				# y_rare, actual_y_rare = Y_rare_proteins_wo_max_y[1], actual_Y_rare_proteins_wo_max_y[1]
+				
+				subset_rare_expression_df = subset_rare_expression_dfs[actual_y_rare]
+				
+				subset_rare_proteins = subset_rare_expression_df[!, :Protein]
+				
+				if rare_protein ∉ subset_rare_proteins
+					continue
+				end
+
+				# Before:
+				# for (x_common, actual_x_common) ∈ zip(X_common_proteins_wo_max_x, actual_X_common_proteins_wo_max_x)
+				
+				# After (include x=max too):
+				for (x_common, actual_x_common) ∈ zip(X_common_proteins, actual_X_common_proteins)
+				
+					# x_common, actual_x_common = X_common_proteins_wo_max_x[1], actual_X_common_proteins_wo_max_x[1]
+								
+					subset_common_expression_df = subset_common_expression_dfs[actual_x_common]
+
+					subset_common_proteins = subset_common_expression_df[!, :Protein]
+
+					# subset_chimerizing_protein_pairs = eltype(chimerizing_protein_pairs)[]
+                    # subset_chimerizing_read_pairs = eltype(chimerizing_read_pairs)[]
+                    # subset_chimerizing_reads_sites_intersection = eltype(chimerizing_reads_sites_intersection)[]
+					
+					# for (protein_pair, read_pair, sites_intersection) ∈ zip(
+					# 	chimerizing_protein_pairs, chimerizing_read_pairs, chimerizing_reads_sites_intersection
+					# )
+					# 	if (protein_pair[1] ∈ subset_common_proteins) && (protein_pair[2] ∈ subset_common_proteins)
+					# 		push!(subset_chimerizing_protein_pairs, protein_pair)
+					# 		push!(subset_chimerizing_read_pairs, read_pair)
+					# 		push!(subset_chimerizing_reads_sites_intersection, sites_intersection)
+					# 	end
+					# end
+					
+					# subset_num_of_chimeric_combinations = length(subset_chimerizing_protein_pairs)
+					# subset_is_chimeric = subset_num_of_chimeric_combinations > 0
+
+					# # this is the result for the current subset of common and rare proteins
+					# result = (
+					# 	Platform = platform,
+					# 	Sample = sample_name,
+					# 	Solution = max_solution,
+					# 	IsSoftComparison = soft_comparison,
+					# 	XCommonProteins = x_common,
+					# 	YRareProteins = y_rare,
+					# 	XYProteinsDenoteFractions = x_and_y_proteins_denote_fractions,
+					# 	ActualXCommonProteins = actual_x_common,
+					# 	ActualYRareProteins = actual_y_rare,
+					# 	Protein = rare_protein,
+					# 	UniqueRead = one_unique_read_of_rare_protein,
+					# 	IsChimeric = subset_is_chimeric,
+					# 	NumOfChimericCombinations = subset_num_of_chimeric_combinations,
+					# 	ChimerizingProteinPairs = subset_chimerizing_protein_pairs,
+					# 	ChimerizingReadPairs = subset_chimerizing_read_pairs,
+					# 	ChimerizingReadPairsIntersectingSitesIndices = subset_chimerizing_reads_sites_intersection,
+					# )
+
+					# push!(results, result)
+
+					fpairs, freads, fsites = filter_chimerizing_by_common(
+						chimerizing_protein_pairs,
+						chimerizing_read_pairs,
+						chimerizing_reads_sites_intersection,
+						subset_common_proteins,
+					)
+
+					subset_result = make_result_row(
+						platform = platform,
+						sample_name = sample_name,
+						max_solution = max_solution,
+						soft_comparison = soft_comparison,
+						x_common = x_common,
+						y_rare = y_rare,
+						x_and_y_proteins_denote_fractions = x_and_y_proteins_denote_fractions,
+						actual_x_common = actual_x_common,
+						actual_y_rare = actual_y_rare,
+						rare_protein = rare_protein,
+						one_unique_read_of_rare_protein = one_unique_read_of_rare_protein,
+						filtered_protein_pairs = fpairs,
+						filtered_read_pairs = freads,
+						filtered_sites_intersection = fsites,
+					)
+
+					push!(results, subset_result)
+				end
+
+			end
 
 		end
 
 	end
 
 	results_df = DataFrame(results)
+
+	save_results_df(
+		out_dir, results_df, platform, sample_name, X_common_proteins, Y_rare_proteins
+	)
 
 	return results_df
 
@@ -535,103 +1203,7 @@ end
 
 
 
-
 function per_platform_stats_df(
-	X_common_proteins,
-	Y_rare_proteins,
-	platforms,
-	samples,
-	unique_reads_files,
-	unique_proteins_files,
-	expression_files,
-	unique_reads_first_col_pos,
-	unique_proteins_first_col_pos,
-	discard_reassigned_reads::Bool = true,
-	x_and_y_proteins_denote_fractions::Bool = false,
-)
-	x_and_y_common_and_rare_proteins = [(x, y) for x in X_common_proteins for y in Y_rare_proteins]
-
-	results_dfs = []
-
-	for soft_comparison in [true, false]
-
-		for (x_common_proteins, y_rare_proteins) ∈ x_and_y_common_and_rare_proteins
-
-			for (platform, sample_name, expression_file, unique_reads_file, unique_proteins_file) ∈ zip(
-				platforms, samples, expression_files, unique_reads_files, unique_proteins_files)
-
-				if x_and_y_proteins_denote_fractions
-					println(
-						"Processing $sample_name ($platform) with soft_comparison = $soft_comparison, "
-						* "using $(x_common_proteins * 100)% common proteins and $(y_rare_proteins * 100)% rare proteins..."
-					)
-				else
-					println(
-						"Processing $sample_name ($platform) with soft_comparison = $soft_comparison, "
-						* "using $x_common_proteins common proteins and $y_rare_proteins rare proteins..."
-					)
-				end
-				
-				results_df = try
-                    process_one_sample(
-						platform,
-                        sample_name,
-                        expression_file,
-                        unique_proteins_file, unique_proteins_first_col_pos,
-                        unique_reads_file, unique_reads_first_col_pos,
-                        x_common_proteins, y_rare_proteins,
-                        discard_reassigned_reads,
-                        soft_comparison,
-						x_and_y_proteins_denote_fractions
-                    )
-                catch e
-                    if e isa BoundsError
-                        @warn "Skipping sample due to BoundsError" platform sample_name soft_comparison x_common_proteins y_rare_proteins exception = (e, catch_backtrace())
-                        continue
-                    end
-                    rethrow()
-                end
-
-				chimeric_results_df = results_df[results_df.IsChimeric.==true, :]
-				println("Number of chimeric reads in $sample_name: $(nrow(chimeric_results_df))")
-				# println(chimeric_results_df)
-				push!(results_dfs, results_df)
-			end
-		end
-
-	end
-
-	results_df = vcat(results_dfs...)
-
-	stats_df = combine(
-		groupby(
-			results_df,
-			[:Platform, :IsSoftComparison, :XYProteinsDenoteFractions, :XCommonProteins, :YRareProteins, :Sample],
-		),
-		:ActualXCommonProteins => first => :ActualXCommonProteins,
-		:ActualYRareProteins => first => :ActualYRareProteins,
-		:EditingSites => unique => :EditingSites,
-		:EditingPercents => unique => :EditingPercents,
-		:IsChimeric => sum => :NumOfChimericReads,
-		:TotalCommonUniqueReads => first => :TotalCommonUniqueReads,
-		:TotalRareUniqueReads => first => :TotalRareUniqueReads,
-		:TotalCommonReads => first => :TotalCommonReads,
-		:TotalRareReads => first => :TotalRareReads,
-	)
-	insertcols!(
-		stats_df, 
-		"NumOfChimericReads", 
-		# "%OfChimericReads" => 100 .* stats_df.NumOfChimericReads ./ stats_df.YRareProteins, 
-		"%OfChimericReads" => 100 .* stats_df.NumOfChimericReads ./ stats_df.ActualYRareProteins, 
-		after=true
-	)
-
-	return stats_df, results_df
-end
-
-
-
-function threaded_per_platform_stats_df(
     X_common_proteins,
     Y_rare_proteins,
     platforms,
@@ -639,43 +1211,37 @@ function threaded_per_platform_stats_df(
     unique_reads_files,
     unique_proteins_files,
     expression_files,
+	max_solutions,
     unique_reads_first_col_pos,
     unique_proteins_first_col_pos,
-    discard_reassigned_reads::Bool = true,
     x_and_y_proteins_denote_fractions::Bool = false,
 )
-    x_and_y_common_and_rare_proteins = [(x, y) for x in X_common_proteins for y in Y_rare_proteins]
-
     # Build a flat job list so we can thread over it safely
     jobs = Tuple[]
-    for soft_comparison in (true, false)
-        for (x_common_proteins, y_rare_proteins) in x_and_y_common_and_rare_proteins
-            for (platform, sample_name, expression_file, unique_reads_file, unique_proteins_file) in zip(
-                platforms, samples, expression_files, unique_reads_files, unique_proteins_files
-            )
-                push!(jobs, (
-                    soft_comparison,
-                    x_common_proteins,
-                    y_rare_proteins,
-                    platform,
-                    sample_name,
-                    expression_file,
-                    unique_reads_file,
-                    unique_proteins_file,
-                ))
-            end
-        end
-    end
+    
+	for (platform, sample_name, expression_file, max_solution, unique_reads_file, unique_proteins_file) in zip(
+		platforms, samples, expression_files, max_solutions, unique_reads_files, unique_proteins_files
+	)
+		push!(
+			jobs, 
+			(
+				platform,
+				sample_name,
+				expression_file,
+				max_solution,
+				unique_reads_file,
+				unique_proteins_file,
+			)
+		)
+	end
 
     out = Vector{Union{Nothing, DataFrame}}(undef, length(jobs))
 
     Threads.@threads for idx in eachindex(jobs)
-        soft_comparison,
-        x_common_proteins,
-        y_rare_proteins,
         platform,
         sample_name,
         expression_file,
+        max_solution,
         unique_reads_file,
         unique_proteins_file = jobs[idx]
 
@@ -686,11 +1252,13 @@ function threaded_per_platform_stats_df(
                 platform,
                 sample_name,
                 expression_file,
-                unique_proteins_file, unique_proteins_first_col_pos,
-                unique_reads_file, unique_reads_first_col_pos,
-                x_common_proteins, y_rare_proteins,
-                discard_reassigned_reads,
-                soft_comparison,
+				max_solution,
+                unique_proteins_file, 
+				unique_proteins_first_col_pos,
+                unique_reads_file, 
+				unique_reads_first_col_pos,
+                X_common_proteins, 
+				Y_rare_proteins,
                 x_and_y_proteins_denote_fractions,
             )
         catch e
@@ -702,44 +1270,62 @@ function threaded_per_platform_stats_df(
             rethrow()
         end
 
-        # process_one_sample already includes :Platform and :IsSoftComparison in results_df
         out[idx] = results_df
     end
 
-    results_dfs = (df for df in out if df !== nothing)
-    results_df = isempty(results_dfs) ? DataFrame() : vcat(results_dfs...)
+    # results_dfs = (df for df in out if df !== nothing)
+    # results_df = isempty(results_dfs) ? DataFrame() : vcat(results_dfs...)
 
-    # If everything was skipped, return empty frames with a minimal schema
-    if nrow(results_df) == 0
-        return DataFrame(), results_df
-    end
+    # # If everything was skipped, return empty frames with a minimal schema
+    # if nrow(results_df) == 0
+    #     return DataFrame(), results_df
+    # end
 
-    stats_df = combine(
-        groupby(
-            results_df,
-            [:Platform, :IsSoftComparison, :XYProteinsDenoteFractions, :XCommonProteins, :YRareProteins, :Sample],
-        ),
-        :ActualXCommonProteins => first => :ActualXCommonProteins,
-        :ActualYRareProteins => first => :ActualYRareProteins,
-        :EditingSites => unique => :EditingSites,
-        :EditingPercents => unique => :EditingPercents,
-        :IsChimeric => sum => :NumOfChimericReads,
-        :TotalCommonUniqueReads => first => :TotalCommonUniqueReads,
-        :TotalRareUniqueReads => first => :TotalRareUniqueReads,
-        :TotalCommonReads => first => :TotalCommonReads,
-        :TotalRareReads => first => :TotalRareReads,
-    )
-    insertcols!(
-        stats_df,
-        "NumOfChimericReads",
-        "%OfChimericReads" => 100 .* stats_df.NumOfChimericReads ./ stats_df.ActualYRareProteins,
-        after = true,
-    )
+    # stats_df = combine(
+    #     groupby(
+    #         results_df,
+    #         [:Platform, :IsSoftComparison, :XYProteinsDenoteFractions, :XCommonProteins, :YRareProteins, :Sample],
+    #     ),
+    #     :ActualXCommonProteins => first => :ActualXCommonProteins,
+    #     :ActualYRareProteins => first => :ActualYRareProteins,
+    #     :EditingSites => unique => :EditingSites,
+    #     :EditingPercents => unique => :EditingPercents,
+    #     :IsChimeric => sum => :NumOfChimericReads,
+    #     :TotalCommonUniqueReads => first => :TotalCommonUniqueReads,
+    #     :TotalRareUniqueReads => first => :TotalRareUniqueReads,
+    #     :TotalCommonReads => first => :TotalCommonReads,
+    #     :TotalRareReads => first => :TotalRareReads,
+    # )
+    # insertcols!(
+    #     stats_df,
+    #     "NumOfChimericReads",
+    #     "%OfChimericReads" => 100 .* stats_df.NumOfChimericReads ./ stats_df.ActualYRareProteins,
+    #     after = true,
+    # )
 
-    return stats_df, results_df
+    # return stats_df, results_df
 end
 
 
+function find_max_solution_file(expression_file)
+	dir = dirname(expression_file)
+	prefix = basename(expression_file) * ".MaxSolution_" # e.g. "GRIA.DistinctUniqueProteins.ExpressionLevels.EntropyConsidered.csv.MaxSolution_79"
+
+	matches = filter(p -> isfile(p) && startswith(basename(p), prefix),
+					readdir(dir; join=true))
+
+	length(matches) == 1 || error("Expected exactly one matching file, found $(length(matches)) for expression file $expression_file with prefix $prefix: $(matches)")
+
+	max_solution_file = only(matches)
+end
+
+
+function find_max_solution(expression_file)
+	max_solution_file = find_max_solution_file(expression_file)
+	# max_solution_str = max_solution_file[end-1:end]
+	max_solution_str = rsplit(basename(max_solution_file), "_")[end]
+	max_solution = parse(Int, max_solution_str)
+end
 
 
 
@@ -858,115 +1444,93 @@ unique_reads_files = vcat(pacbio_unique_reads_files, illumina_unique_reads_files
 unique_proteins_files = vcat(pacbio_unique_proteins_files, illumina_unique_proteins_files)
 expression_files = vcat(pacbio_expression_files, illumina_expression_files)
 
+max_solutions = find_max_solution.(expression_files)
 
 unique_reads_first_col_pos = 9
 unique_proteins_first_col_pos = 15
 
-discard_reassigned_reads = true
-
-# X_common_proteins = [300, 500, 1_000]
-# Y_rare_proteins = [1_000, 5_000, 10_000]
-# x_and_y_proteins_denote_fractions = false
-
-# X_common_proteins = [0.01, 0.05, 0.1]
-# Y_rare_proteins = [0.1, 0.25, 0.5]
-
-X_common_proteins = [0.01, 0.03, 0.05]
+# X_common_proteins = [0.01, 0.03, 0.05]
+X_common_proteins = [0.001, 0.005, 0.01, 0.02, 0.03, 0.04, 0.05]
 Y_rare_proteins = [0.1, 0.2, 0.3]
 
 x_and_y_proteins_denote_fractions = true
 
+out_dir = "D.pealeii/MpileupAndTranscripts/JointChimericReadsAnalysis2"
+# out_dir = "D.pealeii/MpileupAndTranscripts/JointChimericReadsAnalysis2Fixed"
 
 
-stats_df, results_df = threaded_per_platform_stats_df(
-	X_common_proteins,
-	Y_rare_proteins,
-	platforms,
-	samples,
-	unique_reads_files,
-	unique_proteins_files,
-	expression_files,
-	unique_reads_first_col_pos,
-	unique_proteins_first_col_pos,
-	discard_reassigned_reads,
-	x_and_y_proteins_denote_fractions
+
+
+
+
+
+# # TODO uncomment to test one sample
+# i = 1
+# # i = 5
+# platform = platforms[i]
+# sample_name = samples[i]
+# expression_file = expression_files[i]
+# max_solution = max_solutions[i]
+# unique_reads_file = unique_reads_files[i]
+# unique_proteins_file = unique_proteins_files[i]
+
+
+# results_df = process_one_sample(
+# 	platform,
+# 	sample_name,
+#     expression_file,
+# 	max_solution,
+#     unique_proteins_file, 
+# 	unique_proteins_first_col_pos,
+#     unique_reads_file, 
+# 	unique_reads_first_col_pos,
+# 	X_common_proteins, 
+# 	Y_rare_proteins
+# )
+
+
+
+
+# stats_df, results_df = per_platform_stats_df(
+#     X_common_proteins,
+#     Y_rare_proteins,
+#     platforms,
+#     samples,
+#     unique_reads_files,
+#     unique_proteins_files,
+#     expression_files,
+# 	max_solutions,
+#     unique_reads_first_col_pos,
+#     unique_proteins_first_col_pos,
+#     x_and_y_proteins_denote_fractions::Bool = false,
+# )
+
+
+per_platform_stats_df(
+    X_common_proteins,
+    Y_rare_proteins,
+    platforms,
+    samples,
+    unique_reads_files,
+    unique_proteins_files,
+    expression_files,
+	max_solutions,
+    unique_reads_first_col_pos,
+    unique_proteins_first_col_pos,
+    x_and_y_proteins_denote_fractions,
 )
 
 
+if abspath(PROGRAM_FILE) == @__FILE__
+	# don't run the plotting code when this file is included or run interactively, only when it's run directly
+	exit(0)
+end
 
 
 
 
 
 
-
-
-# length(samples) * length(X_common_proteins) * length(Y_rare_proteins) * 2 # 2 for soft and strict comparison
-# nrow(pacbio_stats_df)
-
-
-# # Expected number of groups (one row per Platform/Sample/X/Y/Soft)
-# expected = length(samples) * length(X_common_proteins) * length(Y_rare_proteins) * 2
-
-# # Actual number of unique groups present
-# actual = nrow(unique(pacbio_stats_df, [:Platform, :Sample, :XCommonProteins, :YRareProteins, :IsSoftComparison]))
-
-# println("expected groups = ", expected)
-# println("actual groups   = ", actual)
-# println("raw nrow(df)    = ", nrow(pacbio_stats_df))
-
-
-# # Build expected key table
-# expected_keys = DataFrame(
-#     Platform = platforms,
-#     Sample = samples,
-# )
-# expected_keys = DataFrames.crossjoin(
-#     expected_keys,
-#     DataFrame(XCommonProteins = X_common_proteins),
-#     DataFrame(YRareProteins = Y_rare_proteins),
-#     DataFrame(IsSoftComparison = [true, false]),
-# )
-
-# have_keys = unique(pacbio_stats_df, [:Platform, :Sample, :XCommonProteins, :YRareProteins, :IsSoftComparison])
-
-# missing_keys = antijoin(expected_keys, have_keys, on = [:Platform, :Sample, :XCommonProteins, :YRareProteins, :IsSoftComparison])
-
-# println("missing rows = ", nrow(missing_keys))
-# show(missing_keys, allrows = true, allcols = true)
-
-
-
-
-
-# # # TODO uncomment to test one sample
-# i = 1
-# # i = 5
-# sample_name = samples[i]
-# expression_file = expression_files[i]
-# unique_reads_file = unique_reads_files[i]
-# unique_proteins_file = unique_proteins_files[i]
-# # x_common_proteins = 300
-# # y_rare_proteins = 1000
-# discard_reassigned_reads = true
-# # soft_comparison = false
-# soft_comparison = true
-# # x_common_proteins = 0.5
-# # y_rare_proteins = 0.1
-# x_common_proteins = 0.01
-# y_rare_proteins = 0.1
-# x_and_y_proteins_denote_fractions = true
-
-# results_df = process_one_sample(
-#     sample_name,    
-#     expression_file, 
-#     unique_proteins_file, unique_proteins_first_col_pos,
-#     unique_reads_file, unique_reads_first_col_pos,
-# 	x_common_proteins, y_rare_proteins,
-# 	discard_reassigned_reads,
-# 	soft_comparison,
-# 	x_and_y_proteins_denote_fractions,
-# )
 
 
 
