@@ -5,7 +5,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.18.1
+#       jupytext_version: 1.19.3
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -169,6 +169,54 @@ def find_max_solution(expression_file, interfix="MaxSolution_"):
 
 
 # %%
+expression_file = expression_files[0]
+
+assignment_df = pd.read_csv(
+        expression_file, 
+        sep="\t", 
+        dtype={
+            "#Solution": int,
+        },
+        usecols = [
+            'Gene', 'Protein', '#Solution', 'SufficientEntropy', 'TotalWeightedSupportingReads', "NumOfTranscripts"
+        ]
+    )
+assignment_df = assignment_df.rename(
+    columns={
+        "NumOfTranscripts": "NumOfUniqueReads"
+    }
+)
+
+max_sol = find_max_solution(expression_file)
+assignment_df = assignment_df.loc[
+    assignment_df["#Solution"].eq(max_sol)
+]
+
+assignment_df["%RelativeExpression"] = (
+    100
+    * assignment_df["TotalWeightedSupportingReads"]
+    / assignment_df["TotalWeightedSupportingReads"].sum()
+)
+
+assignment_df = (
+    assignment_df
+    .sort_values("TotalWeightedSupportingReads")
+    # .reset_index(drop=True)
+)
+assignment_df["RareToCommonProteinIndex"] = list(range(1, assignment_df.shape[0] + 1))
+
+
+assignment_df = (
+    assignment_df
+    .sort_values("TotalWeightedSupportingReads", ascending=False)
+    .reset_index(drop=True)
+)
+assignment_df["CommonToRareProteinIndex"] = list(range(1, assignment_df.shape[0] + 1))
+
+assignment_df
+
+
+# %%
 def make_expression_df(expression_file):
     assignment_df = pd.read_csv(
         expression_file, 
@@ -177,8 +225,13 @@ def make_expression_df(expression_file):
             "#Solution": int,
         },
         usecols = [
-            'Gene', 'Protein', '#Solution', 'SufficientEntropy', 'TotalWeightedSupportingReads'
+            'Gene', 'Protein', '#Solution', 'SufficientEntropy', 'TotalWeightedSupportingReads', "NumOfTranscripts"
         ]
+    )
+    assignment_df = assignment_df.rename(
+        columns={
+            "NumOfTranscripts": "NumOfUniqueReads"
+        }
     )
     
     max_sol = find_max_solution(expression_file)
@@ -339,6 +392,63 @@ result_df.insert(
 )
 
 result_df
+
+# %%
+chimerizing_read_pairs_series = (
+    result_df
+    .loc[
+        result_df["IsChimeric"],
+        "ChimerizingReadPairs"
+    ]
+    .squeeze()
+    .reset_index(drop=True)
+)
+chimerizing_read_pairs_series
+
+
+# %%
+def count_chimeric_pairs_made_from_the_same_element(pairs):
+    return sum(
+        [
+            x == y
+            for x, y in pairs
+        ]
+    )
+
+
+# %%
+# def validate_chimerizing_pairs_are_made_of_different_elements(pairs):
+#     for x, y in pairs:
+#         if x == y:
+#             raise ValueError(f"Found a pair with identical elements: {(x, y)}")
+
+# %%
+chimerizing_read_pairs_series.apply(count_chimeric_pairs_made_from_the_same_element)
+
+# %%
+chimerizing_read_pairs_series.apply(count_chimeric_pairs_made_from_the_same_element).describe()
+
+# %%
+nom_chimerizing_read_pairs_series = (
+    result_df
+    .loc[
+        ~result_df["IsChimeric"],
+        "ChimerizingReadPairs"
+    ]
+    .squeeze()
+    .reset_index(drop=True)
+)
+nom_chimerizing_read_pairs_series
+
+# %%
+nom_chimerizing_read_pairs_series.apply(count_chimeric_pairs_made_from_the_same_element)
+
+# %%
+nom_chimerizing_read_pairs_series.apply(count_chimeric_pairs_made_from_the_same_element).describe()
+
+# %%
+
+# %%
 
 # %%
 results_categories_df = (
@@ -592,13 +702,21 @@ def make_x_y_expression_df(
                 expression_df["RareToCommonProteinIndex"].le(actual_y_rare_proteins),
                 "%RelativeExpression"
             ].sum()
-        
-        
+            x_cumulative_unique_reads = expression_df.loc[
+                expression_df["CommonToRareProteinIndex"].le(actual_x_common_proteins),
+                "NumOfUniqueReads"
+            ].sum()
+            y_cumulative_unique_reads = expression_df.loc[
+                expression_df["RareToCommonProteinIndex"].le(actual_y_rare_proteins),
+                "NumOfUniqueReads"
+            ].sum()
+
             result = [
                 platform, sample, 
                 x_common_proteins, y_rare_proteins,
                 actual_x_common_proteins, actual_y_rare_proteins,
-                x_common_proteins_cumulative_expression, y_rare_proteins_cumulative_expression
+                x_common_proteins_cumulative_expression, y_rare_proteins_cumulative_expression,
+                x_cumulative_unique_reads, y_cumulative_unique_reads
             ]
         
             results.append(result)
@@ -610,7 +728,8 @@ def make_x_y_expression_df(
             "Platform", "Sample", 
             "XCommonProteins", "YRareProteins",
             "ActualXCommonProteins", "ActualYRareProteins",
-            "XCommonProteinsCumulativeExpression", "YRareProteinsCumulativeExpression"
+            "XCommonProteinsCumulativeExpression", "YRareProteinsCumulativeExpression",
+            "ActualXCommonUniqueReads", "ActualYRareUniqueReads"
         ]
     )
     
@@ -703,6 +822,20 @@ proteins_stats_df
 # %%
 assert proteins_stats_df.isna().sum().eq(0).all()
 
+
+# %%
+def update_common_and_rare_facet_titles(title):
+    parts = title.split("=")
+    if len(parts) == 2:
+        param, value = parts
+        if param.strip() == "XCommonProteins":
+            return f"Common: {float(value.strip()) * 100:.1f}%"
+        elif param.strip() == "YRareProteins":
+            return f"Rare: {float(value.strip()) * 100:.1f}%"
+    else:
+        return title
+
+
 # %% [markdown]
 # # % of chimeric proteins
 
@@ -717,6 +850,52 @@ platform_colormap = {
     )
 }
 platform_colormap
+
+# %%
+shortened_platform_names
+
+# %%
+shortened_platform_colormap = {
+    shortened_platform_names[platform]: platform_colormap[platform]
+    for platform in sorted(set(platforms))
+}
+shortened_platform_colormap
+
+# %%
+fig = px.scatter(
+    (
+        proteins_stats_df
+        .loc[
+            (proteins_stats_df["IsSoftComparison"]) 
+            & (proteins_stats_df["YRareProteins"].eq(0.3))
+        ]
+        .groupby(
+            ["XCommonProteins", "YRareProteins", "ShortPlatform"], 
+            as_index=False,
+        )["%OfChimericProteinsOnEditingSitesLevel"].describe().round(3)
+    ),
+    x="ShortPlatform",
+    y="mean",
+    error_y="std",
+    color="ShortPlatform",
+    color_discrete_map=shortened_platform_names,
+    facet_col="XCommonProteins",
+    facet_row="YRareProteins",
+    labels={
+        "ShortPlatform": "Platform",
+        "mean": "Mean chimeric rare proteins [%]"
+    }
+)
+# fig.update_traces(jitter=0)
+fig.update_layout(
+    template="plotly_white",
+    # title="Soft Comparison = True, YRareProteins = 0.3",
+    title="Soft Comparison = True",
+    width=1400,
+    height=350,
+    showlegend=False
+)
+fig.show()
 
 # %%
 # row_titles = [
@@ -803,6 +982,359 @@ for soft_comparison in [False, True]:
     )
             
     fig.show()
+
+# %%
+proteins_stats_df
+
+# %%
+(
+    proteins_stats_df
+    .loc[
+        proteins_stats_df["IsSoftComparison"]
+    ]
+    .groupby(
+        [
+            "XCommonProteins", "YRareProteins"
+        ],
+        as_index=False
+    )["%OfChimericProteinsOnEditingSitesLevel"].describe().round(3)
+)
+
+# %%
+(
+    proteins_stats_df
+    .loc[
+        (proteins_stats_df["IsSoftComparison"]) 
+        & (proteins_stats_df["YRareProteins"].eq(0.3))
+    ]
+    .groupby(
+        ["XCommonProteins", "Platform"], 
+        as_index=False
+    )["%OfChimericProteinsOnEditingSitesLevel"].describe().round(3)
+)
+
+# %%
+# fig = px.scatter(
+#     (
+#         proteins_stats_df
+#         .loc[
+#             (proteins_stats_df["IsSoftComparison"]) 
+#             & (proteins_stats_df["YRareProteins"].eq(0.3))
+#         ]
+#         .groupby(
+#             ["XCommonProteins", "YRareProteins", "ShortPlatform"], 
+#             as_index=False,
+#         )["%OfChimericProteinsOnEditingSitesLevel"].describe().round(3)
+#     ),
+#     x="ShortPlatform",
+#     y="mean",
+#     error_y="std",
+#     color="ShortPlatform",
+#     color_discrete_map=shortened_platform_colormap,
+#     facet_col="XCommonProteins",
+#     facet_row="YRareProteins",
+#     labels={
+#         "ShortPlatform": "Platform",
+#         "mean": "Mean chimeric rare proteins [%]"
+#     }
+# )
+# # fig.update_traces(jitter=0)
+# fig.update_layout(
+#     template="plotly_white",
+#     # title="Soft Comparison = True, YRareProteins = 0.3",
+#     title="Soft Comparison = True",
+#     width=1400,
+#     height=350,
+#     showlegend=False
+# )
+# fig.show()
+
+# %%
+(
+    proteins_stats_df
+    .loc[
+        (proteins_stats_df["IsSoftComparison"]) 
+        & (proteins_stats_df["YRareProteins"].eq(0.3))
+    ]
+    .groupby(
+        ["XCommonProteins", "YRareProteins", "ShortPlatform"], 
+        as_index=False,
+    )["%OfChimericProteinsOnEditingSitesLevel"].describe().round(3)
+)
+
+# %%
+fig = px.box(
+    (
+        proteins_stats_df
+        .loc[
+            (~proteins_stats_df["IsSoftComparison"]) 
+            & (proteins_stats_df["YRareProteins"].eq(0.3))
+        ]
+    ),
+    x="ShortPlatform",
+    y="%OfChimericProteinsOnEditingSitesLevel",
+    # points="all",
+    color="ShortPlatform",
+    color_discrete_map=shortened_platform_colormap,
+    facet_col="XCommonProteins",
+    facet_row="YRareProteins",
+    labels={
+        "ShortPlatform": "Platform",
+        "%OfChimericProteinsOnEditingSitesLevel": "Chimeric rare proteins [%]"
+    },
+    category_orders={
+        "ShortPlatform": sorted(shortened_platform_colormap.keys()),
+    }
+)
+# fig.update_traces(
+#     jitter=0.3,
+#     pointpos=-2
+# )
+fig.for_each_annotation(
+    lambda a: a.update(text=update_common_and_rare_facet_titles(a.text))
+)
+fig.update_yaxes(dtick=5)
+fig.update_layout(
+    template="plotly_white",
+    # title="Soft Comparison = True, YRareProteins = 0.3",
+    title="Soft Comparison = False",
+    width=1600,
+    height=350,
+    showlegend=False
+)
+fig.show()
+
+# %%
+fig = px.box(
+    (
+        proteins_stats_df
+        .loc[
+            (proteins_stats_df["IsSoftComparison"]) 
+            & (proteins_stats_df["YRareProteins"].eq(0.3))
+        ]
+    ),
+    x="ShortPlatform",
+    y="%OfChimericProteinsOnEditingSitesLevel",
+    points="all",
+    color="ShortPlatform",
+    color_discrete_map=shortened_platform_colormap,
+    facet_col="XCommonProteins",
+    facet_row="YRareProteins",
+    labels={
+        "ShortPlatform": "Platform",
+        "%OfChimericProteinsOnEditingSitesLevel": "Chimeric rare proteins [%]"
+    },
+    category_orders={
+        "ShortPlatform": sorted(shortened_platform_colormap.keys()),
+    }
+)
+fig.update_traces(
+    jitter=0.3,
+    pointpos=-2
+)
+fig.for_each_annotation(
+    lambda a: a.update(text=update_common_and_rare_facet_titles(a.text))
+)
+fig.update_yaxes(dtick=10)
+fig.update_layout(
+    template="plotly_white",
+    # title="Soft Comparison = True, YRareProteins = 0.3",
+    title="Soft Comparison = True",
+    width=1600,
+    height=350,
+    showlegend=False
+)
+fig.show()
+
+# %%
+fig = px.box(
+    x_y_expression_df,
+    x="Platform",
+    y="XCommonProteinsCumulativeExpression",
+    points="all",
+    color="Platform",
+    color_discrete_map=platform_colormap,
+    facet_col="XCommonProteins",
+    labels={
+        # "ShortPlatform": "Platform",
+        "XCommonProteinsCumulativeExpression": "Cumulative expression [%]"
+    },
+    category_orders={
+        "Platform": sorted(platform_colormap.keys()),
+    }
+)
+fig.update_traces(
+    jitter=0.3,
+    pointpos=-2
+)
+fig.for_each_annotation(
+    lambda a: a.update(text=update_common_and_rare_facet_titles(a.text))
+)
+fig.update_yaxes(dtick=10)
+fig.update_layout(
+    template="plotly_white",
+    # title="Soft Comparison = True, YRareProteins = 0.3",
+    width=1600,
+    # height=500,
+    height=350,
+    showlegend=False
+)
+fig.show()
+
+# %%
+proteins_stats_df
+
+# %%
+fig = px.scatter(
+    (
+        proteins_stats_df
+        .loc[
+            (proteins_stats_df["IsSoftComparison"]) 
+            & (proteins_stats_df["YRareProteins"].eq(0.3))
+        ]
+    ),
+    x="XCommonProteinsCumulativeExpression",
+    y="%OfChimericProteinsOnEditingSitesLevel",
+    # points="all",
+    color="ShortPlatform",
+    color_discrete_map=shortened_platform_colormap,
+    facet_col="XCommonProteins",
+    facet_row="YRareProteins",
+    labels={
+        "ShortPlatform": "Platform",
+        "XCommonProteinsCumulativeExpression": "Common cumulative<br>expression [%]",
+        "%OfChimericProteinsOnEditingSitesLevel": "Rare chimeric proteins [%]"
+    },
+    category_orders={
+        "ShortPlatform": sorted(shortened_platform_colormap.keys()),
+    },
+    hover_data=["Sample"]
+)
+fig.update_xaxes(dtick=20)
+fig.update_yaxes(dtick=20)
+fig.for_each_annotation(
+    lambda a: a.update(text=update_common_and_rare_facet_titles(a.text))
+)
+fig.update_layout(
+    template="plotly_white",
+    # title="Soft Comparison = True, YRareProteins = 0.3",
+    title="Soft Comparison = True",
+    width=1700,
+    height=350,
+    # showlegend=False
+)
+fig.show()
+
+# %%
+plot_df = (
+    proteins_stats_df
+    .loc[
+        proteins_stats_df["IsSoftComparison"]
+        & proteins_stats_df["YRareProteins"].eq(0.3)
+    ]
+    .copy()
+)
+
+plot_df["%CommonProteins"] = plot_df["XCommonProteins"].mul(100)
+
+platform_values = sorted(plot_df["ShortPlatform"].dropna().unique())
+symbol_values = sorted(plot_df["%CommonProteins"].dropna().unique())
+
+symbol_sequence = [
+    "circle",
+    "square",
+    "diamond",
+    "cross",
+    "x",
+    "triangle-up",
+    "triangle-down",
+    "star",
+]
+
+if len(symbol_values) > len(symbol_sequence):
+    raise ValueError(
+        f"Need at least {len(symbol_values)} marker symbols, "
+        f"but only {len(symbol_sequence)} were provided."
+    )
+
+common_proteins_symbol_map = dict(zip(symbol_values, symbol_sequence))
+
+fig = px.scatter(
+    plot_df,
+    x="XCommonProteinsCumulativeExpression",
+    y="%OfChimericProteinsOnEditingSitesLevel",
+    color="ShortPlatform",
+    color_discrete_map=shortened_platform_colormap,
+    symbol="%CommonProteins",
+    symbol_map=common_proteins_symbol_map,
+    labels={
+        "ShortPlatform": "Platform",
+        "%CommonProteins": "% common proteins",
+        "XCommonProteinsCumulativeExpression": "Common cumulative expression [%]",
+        "%OfChimericProteinsOnEditingSitesLevel": "Rare chimeric proteins [%]",
+    },
+    category_orders={
+        "ShortPlatform": platform_values,
+        "%CommonProteins": symbol_values,
+    },
+)
+
+# Hide Plotly Express's automatic combined legend:
+# ShortPlatform + %CommonProteins
+fig.update_traces(showlegend=False)
+
+# Manual color legend: one item per platform
+for platform in platform_values:
+    fig.add_trace(
+        go.Scatter(
+            x=[None],
+            y=[None],
+            mode="markers",
+            name=platform,
+            marker=dict(
+                color=shortened_platform_colormap[platform],
+                symbol="circle",
+                size=10,
+            ),
+            legendgroup="Platform",
+            legendgrouptitle_text="Platform",
+            showlegend=True,
+        )
+    )
+
+# Manual symbol legend: one item per %CommonProteins value
+for common_pct in symbol_values:
+    fig.add_trace(
+        go.Scatter(
+            x=[None],
+            y=[None],
+            mode="markers",
+            name=f"{common_pct:g}",
+            marker=dict(
+                color="black",
+                symbol=common_proteins_symbol_map[common_pct],
+                size=10,
+            ),
+            legendgroup="% common proteins",
+            legendgrouptitle_text="% common proteins",
+            showlegend=True,
+        )
+    )
+
+fig.update_xaxes(dtick=20)
+fig.update_yaxes(dtick=20)
+
+fig.update_layout(
+    template="plotly_white",
+    title="Soft Comparison = True",
+    width=850,
+    height=700,
+    legend=dict(
+        groupclick="toggleitem",
+    ),
+)
+
+fig.show()
 
 # %%
 metric_colors = {
@@ -898,9 +1430,11 @@ fig.update_yaxes(
 fig.update_layout(
     template="plotly_white",
     width=1700,
-    height=900,
+    # height=900,
+    height=850,
     barmode="group",
-    legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="left", x=0),
+    # legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="left", x=0),
+    legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="left", x=0),
     # title_text=f"Soft Comparison = {soft_comparison}"
 )
 fig.show()
@@ -1365,3 +1899,86 @@ for soft_comparison in [False, True]:
 
     # fig.show()
     fig.show(config={'staticPlot': True})
+
+# %% [markdown]
+# # Expected false positives
+
+# %%
+for z in [47, 125, 82, 127]:
+    p_z_soft = ((4 * z + 13) / 27) * (7/9)**(z-1)
+    # p_z_soft = np.round(p_z_soft, 6)
+    ic(p_z_soft)
+
+
+# %%
+def calc_p_z_soft(z, pe, pu, pn):
+    # a=p_E p_U (1+p_N ),  
+    # q=1-2p_E p_U
+    # p_Z^soft=q^(Z-1) [q+(Z-2)a]
+    assert pe + pu + pn == 1, "pe, pu and pn must sum to 1"
+    a = pe * pu * (1 + pn)
+    q = 1 - 2 * pe * pu
+    p_z_soft = (q ** (z - 1)) * (q + (z - 2) * a)
+    return p_z_soft
+
+
+# %%
+def calc_expected_false_chimeric_reads(
+    x_common_reads,
+    y_rare_reads,
+    z_editing_sites,
+    p_edited,
+    p_unedited,
+    p_na
+):
+    # prob of one pair of common reads to chimerize a rare read
+    p_z_soft = calc_p_z_soft(z_editing_sites, p_edited, p_unedited, p_na)
+    # the prob of a rare read to be chimeric by at least one common pair
+    m_common_pairs = x_common_reads * (x_common_reads - 1)  
+    prob_rare_read_is_chimeric = 1 - ((1 - p_z_soft) ** m_common_pairs)
+    # expected num of chimeric reads 
+    expected_false_chimeric_reads = y_rare_reads * prob_rare_read_is_chimeric
+    return expected_false_chimeric_reads
+
+
+# %%
+x_y_expression_df.loc[
+    (x_y_expression_df["XCommonProteins"].eq(0.01))
+    & (x_y_expression_df["YRareProteins"].eq(0.3))
+]
+
+# %%
+x_y_expression_df.loc[
+    (x_y_expression_df["XCommonProteins"].eq(0.01))
+    & (x_y_expression_df["YRareProteins"].eq(0.3))
+].groupby("Platform", as_index=False)[["ActualXCommonUniqueReads", "ActualYRareUniqueReads"]].describe().round(0).T
+
+# %%
+expected_false_chimeric_reads_inputs = [
+    [4879, 5873, 47, 0.14, 0.72, 0.14], # IL1
+    [173, 4359, 126, 0.1, 0.72, 0.18], # PB1
+    [392, 7978, 82, 0.05, 0.66, 0.29], # PB2
+    [86, 1339, 128, 0.03, 0.29, 0.68]  # PB3
+]
+
+# %%
+platforms = ["IL1", "PB1", "PB2", "PB3"]
+
+for platform, inputs in zip(platforms, expected_false_chimeric_reads_inputs):
+    x_common_reads = inputs[0]
+    y_rare_reads = inputs[1]
+    z_editing_sites = inputs[2]
+    p_edited = inputs[3]
+    p_unedited = inputs[4]
+    p_na = inputs[5]
+
+    expected_false_chimeric_reads = calc_expected_false_chimeric_reads(
+        x_common_reads,
+        y_rare_reads,
+        z_editing_sites,
+        p_edited,
+        p_unedited,
+        p_na
+    )
+    
+    ic(platform, expected_false_chimeric_reads);

@@ -576,6 +576,104 @@ pbindex D.pealeii/Data/RawWithUMIs/30-1097162729/CCSAsBulk/ADAR1.Merged.r64296e2
 pbindex D.pealeii/Data/RawWithUMIs/30-1097162729/CCSAsBulk/IQEC.Merged.r64296e203404D01.hifireads.bam
 ```
 
+## Expression levels of targeted squid long-reads genes
+
+### Download SG data
+
+```bash
+BIOPROJECT="PRJNA1216919"
+
+SRA_DIR="D.pealeii/Data/BulkRNA/${BIOPROJECT}/SRA"
+RAW_DIR="D.pealeii/Data/BulkRNA/${BIOPROJECT}/Raw"
+
+mkdir -p "$RAW_DIR" "$SRA_DIR"
+
+# Parallel prefetch
+cat "D.pealeii/Data/BulkRNA/${BIOPROJECT}/SRR_Acc_List.txt" | xargs -n 1 -P 4 -I {} \
+    prefetch --max-size u --output-directory "$SRA_DIR" {}
+
+# Parallel fasterq-dump
+find "$SRA_DIR" -mindepth 1 -maxdepth 1 -type d | xargs -n 1 -P 4 -I {} \
+    fasterq-dump --split-files --threads 4 --outdir "$RAW_DIR" {}
+
+rm -rf $SRA_DIR
+
+# Compression (6 FASTQ files in parallel, 6 threads per file)
+find "$RAW_DIR" -maxdepth 1 -type f -name "*.fastq" | xargs -n 1 -P 6 -I {} \
+    bgzip -@ 6 {}
+```
+
+### Prepare SG data
+
+```bash
+BIOPROJECT="PRJNA1216919"
+RAW_DIR="D.pealeii/Data/BulkRNA/${BIOPROJECT}/Raw"
+
+nohup \
+python Code/prepare_data.py \
+--in_dir "$RAW_DIR" \
+--out_dir "D.pealeii/Data/BulkRNA/${BIOPROJECT}" \
+--processes 6 \
+--threads 10 \
+illumina \
+--min_qual_mean 30 \
+--compress_cmd "bgzip -c --threads 10" \
+--prinseq_lite_path "~/anaconda3/envs/combinatorics2/bin/prinseq-lite.pl" \
+> D.pealeii/Data/BulkRNA/${BIOPROJECT}/prepare_data.7.6.26.out &
+```
+* alu 17
+* 17:59
+* 1340913
+
+
+### Download OG data
+
+```bash
+BIOPROJECT="PRJNA641326"
+RAW_DIR="D.pealeii/Data/BulkRNA/${BIOPROJECT}/Raw"
+SRA_DIR="D.pealeii/Data/BulkRNA/${BIOPROJECT}/SRA"
+
+mkdir -p "$RAW_DIR" "$SRA_DIR"
+
+# Parallel prefetch
+cat "D.pealeii/Data/BulkRNA/${BIOPROJECT}/SRR_Acc_List.txt" | xargs -n 1 -P 2 -I {} \
+    prefetch --max-size u --output-directory "$SRA_DIR" {}
+
+# Parallel fasterq-dump
+find "$SRA_DIR" -mindepth 1 -maxdepth 1 -type d | xargs -n 1 -P 2 -I {} \
+    fasterq-dump --split-files --threads 8 --outdir "$RAW_DIR" {}
+
+rm -rf $SRA_DIR
+
+# Compression (6 FASTQ files in parallel, 6 threads per file)
+find "$RAW_DIR" -maxdepth 1 -type f -name "*.fastq" | xargs -n 1 -P 2 -I {} \
+    bgzip -@ 10 {}
+```
+
+### Prepare OG data
+
+```bash
+BIOPROJECT="PRJNA641326"
+RAW_DIR="D.pealeii/Data/BulkRNA/${BIOPROJECT}/Raw"
+
+nohup \
+python Code/prepare_data.py \
+--in_dir "$RAW_DIR" \
+--out_dir "D.pealeii/Data/BulkRNA/${BIOPROJECT}" \
+--processes 2 \
+--threads 10 \
+illumina \
+--min_qual_mean 30 \
+--compress_cmd "bgzip -c --threads 10" \
+--prinseq_lite_path "~/anaconda3/envs/combinatorics2/bin/prinseq-lite.pl" \
+> D.pealeii/Data/BulkRNA/${BIOPROJECT}/prepare_data.7.6.26.out &
+```
+* alu 17
+* 17:59
+* 1341619
+
+
+
 # Alignment
 
 ### Squid long reads

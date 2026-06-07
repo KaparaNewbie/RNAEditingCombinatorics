@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.18.1
+#       jupytext_version: 1.19.3
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -14,19 +14,7 @@
 # ---
 
 # %%
-mapped_bams = [
-    "/private6/projects/Combinatorics/D.pealeii/Alignment/AdditionalUMILongReads/JR1.aligned.sorted.bam",
-    "/private6/projects/Combinatorics/D.pealeii/Alignment/AdditionalUMILongReads/JR2.aligned.sorted.bam",
-    "/private6/projects/Combinatorics/D.pealeii/Alignment/AdditionalUMILongReads/JR3.aligned.sorted.bam"
-]
-condition_col = "Gene"
-conditions = ["JR1", "JR2", "JR3"]
-
-# %%
-allowed_chroms = ["comp141693_c0_seq1", "comp134400_c0_seq1_extended", "comp141565_c6_seq3"]
-
-# %%
-# from pathlib import Path
+from pathlib import Path
 import pandas as pd
 import numpy as np
 import plotly.express as px
@@ -35,6 +23,28 @@ from plotly.subplots import make_subplots
 import pysam
 from icecream import ic
 import scipy.stats
+
+# %%
+# mapped_bams = [
+#     "/private6/projects/Combinatorics/D.pealeii/Alignment/AdditionalUMILongReads/JR1.aligned.sorted.bam",
+#     "/private6/projects/Combinatorics/D.pealeii/Alignment/AdditionalUMILongReads/JR2.aligned.sorted.bam",
+#     "/private6/projects/Combinatorics/D.pealeii/Alignment/AdditionalUMILongReads/JR3.aligned.sorted.bam"
+# ]
+# condition_col = "Gene"
+# conditions = ["JR1", "JR2", "JR3"]
+
+# %%
+allowed_chroms = ["comp141693_c0_seq1", "comp134400_c0_seq1_extended", "comp141565_c6_seq3"]
+
+# %%
+# mapped and filtered (final used reads)
+mapped_bams = [
+    Path('/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/',
+         f'{chrom}.merged.MinRQ998.bam')
+    for chrom in allowed_chroms
+]
+condition_col = "Gene"
+conditions = ["GRIA2", "ADAR1", "IQEC1"]
 
 # %%
 # plotly consts
@@ -581,35 +591,3 @@ fig.update_layout(
 # )
 
 fig.show()
-
-# %%
-healthy = 50
-sick = 6
-
-np.round(100 * sick / (sick + healthy), 2)
-
-# %%
-healthy = 60
-sick = 6
-
-np.round(100 * sick / (sick + healthy), 2)
-
-# %%
-healthy = 70
-sick = 6
-
-np.round(100 * sick / (sick + healthy), 2)
-
-# %%
-healthy = 80
-sick = 6
-
-np.round(100 * sick / (sick + healthy), 2)
-
-# %%
-healthy = 100
-sick = 6
-
-np.round(100 * sick / (sick + healthy), 2)
-
-# %%

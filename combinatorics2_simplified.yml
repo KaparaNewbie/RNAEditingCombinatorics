@@ -84,6 +84,7 @@ dependencies:
   - igv-reports
   - gsutil
   - google-cloud-sdk # also includes gsutil?
+  - sra-tools
   - pip
   - pip:
       - parasail

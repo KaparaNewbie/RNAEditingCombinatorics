@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.18.1
+#       jupytext_version: 1.19.3
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -54,6 +54,7 @@ import pysam
 from scipy import interpolate  # todo unimport this later?
 from scipy.spatial import ConvexHull, convex_hull_plot_2d
 from scipy.stats import iqr
+from scipy.stats import t as student_t  # for pvalues from r,n (vectorized)
 from sklearn import linear_model
 from sklearn.cluster import HDBSCAN, MiniBatchKMeans
 from sklearn.decomposition import PCA
@@ -219,9 +220,9 @@ transcriptome_file = (
 #     "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads"
 # )
 
-# merged_mapped_bams_dir = Path(
-#     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples"
-# )
+merged_mapped_bams_dir = Path(
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads"
+)
 
 merged_old_to_new_reads_files = [
     f"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/{chrom}.merged.MinRQ998.OldToNewReads.csv.gz"
@@ -269,9 +270,6 @@ def two_subcolors_from_hex(hex_color, d_r=4, d_g=20, d_b=22, scale_1=1, scale_2=
     return subcolor_1, subcolor_2
 
 
-# %%
-unique_reads_files
-
 # %% papermill={"duration": 0.054755, "end_time": "2022-02-01T09:42:46.304499", "exception": false, "start_time": "2022-02-01T09:42:46.249744", "status": "completed"}
 # plotly consts
 # color_sequence = px.colors.qualitative.Pastel
@@ -279,6 +277,10 @@ unique_reads_files
 color_sequence = px.colors.qualitative.G10[2:]
 color_discrete_map = {
     condition: color for condition, color in zip(conditions, color_sequence)
+}
+fixed_condition_color_discrete_map = {
+    fixed_condition_by_original_condition[condition]: color_discrete_map[condition] 
+    for condition in conditions
 }
 subcolors_discrete_map = {
     condition: two_subcolors_from_hex(color_discrete_map[condition])
@@ -338,6 +340,31 @@ def n_repetitions_colormap(subcolors_discrete_map, condition, n_repetitions):
 
 # %%
 # 25_000 / (750 * 1.17)
+
+# %%
+def tickfont_size_from_n_ticks(
+    n_ticks: int,
+    *,
+    max_size: int = 10,
+    min_size: int = 5,
+    # tune these two numbers to your aesthetics:
+    n_at_max: int = 12,   # <= this many ticks => max_size
+    n_at_min: int = 80,   # >= this many ticks => min_size
+) -> int:
+    """Map number of x ticks to a reasonable tick font size (linear clamp)."""
+    if n_ticks <= 0:
+        return max_size
+
+    if n_ticks <= n_at_max:
+        return max_size
+    if n_ticks >= n_at_min:
+        return min_size
+
+    # linear interpolation between (n_at_max -> max_size) and (n_at_min -> min_size)
+    t = (n_ticks - n_at_max) / (n_at_min - n_at_max)
+    size = np.round(max_size + t * (min_size - max_size))
+    return int(max(min_size, min(max_size, size)))
+
 
 # %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"}
 # # Data
@@ -763,19 +790,28 @@ merged_mapped_bam_files
 # %%
 merged_mapped_bam_files[0].name.split(".")[0]
 
+
+# %%
+def pacbio_rq_to_phred_scale(rq, max_phred_score=60):
+    if rq == 1:
+        return max_phred_score
+    else:
+        return -10 * np.log10(1 - rq)
+
+
 # %%
 merged_mapped_bam_dfs = []
 
-for bam_file in merged_mapped_bam_files:
+for bam_file, condition in zip(merged_mapped_bam_files, fixed_conditions):
 
     # sample = bam_file.name.split(".")[0]
     # gene = sample[3:]
     # repeat = sample[2]
 
-    gene = bam_file.name.split(".")[0]
+    # gene = bam_file.name.split(".")[0]
 
-    if gene == "IQEC":
-        gene = "IQEC1"
+    # if gene == "IQEC":
+    #     gene = "IQEC1"
 
     # expected_chrom = chrom_per_gene_dict[gene]
 
@@ -793,12 +829,19 @@ for bam_file in merged_mapped_bam_files:
         reads = [read for read in samfile]
         reads_names = [read.query_name for read in reads]
         reads_lengths = [len(read.get_forward_sequence()) for read in reads]
+        reads_tags = [dict(read.tags) for read in reads]
+        num_of_passes_per_read = [int(tags["np"]) for tags in reads_tags]
+        reads_qualities = [float(tags["rq"]) for tags in reads_tags]
+        reads_qualities_in_phred_scale = [pacbio_rq_to_phred_scale(rq) for rq in reads_qualities]
 
         df = pd.DataFrame(
             {
-                "Gene": gene,
+                condition_col: condition,
                 "Read": reads_names,
                 "ReadLength": reads_lengths,
+                "NumOfPasses": num_of_passes_per_read,
+                "ReadQuality": reads_qualities,
+                "ReadQualityPhredScale": reads_qualities_in_phred_scale
             }
         )
 
@@ -808,9 +851,9 @@ for bam_file in merged_mapped_bam_files:
 
 concat_merged_mapped_bam_df = pd.concat(merged_mapped_bam_dfs, ignore_index=True)
 
-concat_merged_mapped_bam_df = concat_individual_unmapped_bams_df.merge(
-    concat_merged_mapped_bam_df, how="right"
-)
+# concat_merged_mapped_bam_df = concat_individual_unmapped_bams_df.merge(
+#     concat_merged_mapped_bam_df, how="right"
+# )
 
 assert concat_merged_mapped_bam_df.loc[
     concat_merged_mapped_bam_df.isna().any(axis=1)
@@ -839,6 +882,454 @@ concat_merged_old_to_new_reads_df = pd.concat(
     merged_old_to_new_reads_dfs, ignore_index=True
 )
 concat_merged_old_to_new_reads_df
+
+# %%
+concat_merged_old_to_new_reads_df.isna().sum()
+
+# %%
+concat_merged_old_to_new_reads_df.loc[
+    concat_merged_old_to_new_reads_df.isna().any(axis=1)
+]
+
+# %%
+bam_file = merged_mapped_bam_files[0]
+condition = fixed_conditions[0]
+orf_start = starts[0]
+orf_end = ends[0]
+
+merged_old_to_new_reads_df = merged_old_to_new_reads_dfs[0]
+
+# %%
+pileup_rows = []
+
+with pysam.FastaFile(transcriptome_file) as fasta:
+
+    with pysam.AlignmentFile(bam_file, "rb", threads=10) as samfile:
+
+        for pileup_col in samfile.pileup(
+            stepper="nofilter",
+            min_base_quality=0,
+            max_depth=1_000_000,
+        ):
+            ref_pos = pileup_col.reference_pos  # 0-based
+            
+            if ref_pos < orf_start or orf_end <= ref_pos:
+                continue
+            
+            ref_name = samfile.get_reference_name(pileup_col.reference_id)
+
+            ref_base = fasta.fetch(ref_name, ref_pos, ref_pos + 1).upper()
+
+            for pileup_read in pileup_col.pileups:
+                read = pileup_read.alignment
+
+                if pileup_read.is_refskip:
+                    event = "Refskip"
+                    query_base = pd.NA
+                    base_phred = pd.NA
+                    query_pos = pd.NA
+
+                elif pileup_read.is_del:
+                    event = "Deletion"
+                    query_base = pd.NA
+                    base_phred = pd.NA
+                    query_pos = pd.NA
+
+                else:
+                    event = "Base"
+                    query_pos = pileup_read.query_position
+
+                    if query_pos is None:
+                        query_base = pd.NA
+                        base_phred = pd.NA
+                    else:
+                        query_base = read.query_sequence[query_pos]
+
+                        if read.query_qualities is None:
+                            base_phred = pd.NA
+                        else:
+                            base_phred = read.query_qualities[query_pos]
+
+                if event == "Base" and not pd.isna(query_base):
+                    mismatch = ref_base != query_base
+                else:
+                    mismatch = False
+                
+                pileup_rows.append(
+                    {
+                        condition_col: condition,
+                        # "BamFile": str(bam_file),
+                        # "Reference": ref_name,
+                        "RefPos": ref_pos,
+                        "Read": read.query_name,
+                        "RefBase": ref_base,
+                        "QueryBase": query_base,
+                        "BasePhred": base_phred,
+                        "Event": event,
+                        "QueryPos": query_pos,
+                        # "IsReverse": read.is_reverse,
+                        "Mismatch": mismatch,
+                    }
+                )
+
+# %%
+pileup_df = pd.DataFrame(pileup_rows)
+pileup_df = pileup_df.rename(columns={"Read": "OldRead"})
+pileup_df["BasePhred"] = pileup_df["BasePhred"].astype("Int16")
+pileup_df["QueryPos"] = pileup_df["QueryPos"].astype("Int64")
+pileup_df
+
+# %%
+pileup_df.isna().sum()
+
+# %%
+pileup_df.loc[
+    pileup_df.isna().any(axis=1),
+    "Event"
+].value_counts()
+
+# %%
+pileup_df.loc[
+    pileup_df.isna().any(axis=1),
+    "OldRead"
+].value_counts().describe()
+
+# %%
+merged_old_to_new_reads_df
+
+# %%
+assert merged_old_to_new_reads_df.isna().sum().eq(0).all()
+
+# %%
+rows_before_merge = pileup_df.shape[0]
+merged_pileup_df = (
+    pileup_df
+    .merge(
+        concat_merged_old_to_new_reads_df,
+        # how="left",
+        how="inner",
+        on=[condition_col, "OldRead"],
+        # validate="many_to_one",
+        # indicator=True,
+)
+)
+rows_after_merge = merged_pileup_df.shape[0]
+# assert rows_before_merge == rows_after_merge
+
+merged_pileup_df
+
+# %%
+merged_pileup_df["_merge"].value_counts()
+
+# %%
+merged_pileup_df.isna().sum()
+
+# %%
+old_reads_in_pileup_df = set(merged_pileup_df["OldRead"].values)
+old_reads_in_concat_merged_old_to_new_reads_df = set(concat_merged_old_to_new_reads_df["OldRead"].values)
+len(old_reads_in_pileup_df - old_reads_in_concat_merged_old_to_new_reads_df)
+
+# %%
+right_df = concat_merged_old_to_new_reads_df
+
+missing_oldreads = (
+    set(pileup_df["OldRead"])
+    - set(right_df["OldRead"])
+)
+
+missing_oldreads
+
+# %%
+pileup_df.loc[
+    pileup_df["OldRead"].isin(missing_oldreads),
+    "OldRead"
+].value_counts()
+
+# %%
+merged_pileup_df.loc[
+    merged_pileup_df.isna().any(axis=1),
+    "Event"
+].value_counts()
+
+# %%
+merged_pileup_df.loc[
+    merged_pileup_df["NewRead"].isna()
+]
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+pileup_df = pileup_df.loc[
+    :,
+    [
+        condition_col, 'RefPos', 
+        "OldRead", 'NewRead', "ReadLength", "NumOfPasses", "ReadQuality", "ReadQualityPhredScale",
+        'RefBase', 'QueryBase', 'BasePhred', 'Event', 'QueryPos', 'Mismatch', 
+    ]
+].rename(
+    columns={"NewRead": "Read"}
+)
+pileup_df
+
+# %%
+pileup_df.isna().sum()
+
+# %%
+pileup_df.loc[
+    pileup_df.isna().any(axis=1),
+    "Event"
+].value_counts()
+
+# %%
+
+
+
+# %%
+def get_pileup_df(
+    transcriptome_file,
+    bam_file,
+    condition_col,
+    condition,
+    orf_start,
+    orf_end,
+    concat_merged_old_to_new_reads_df
+):
+    pileup_rows = []
+
+    with pysam.FastaFile(transcriptome_file) as fasta:
+
+        with pysam.AlignmentFile(bam_file, "rb", threads=10) as samfile:
+
+            for pileup_col in samfile.pileup(
+                stepper="nofilter",
+                min_base_quality=0,
+                max_depth=1_000_000,
+            ):
+                ref_pos = pileup_col.reference_pos  # 0-based
+                
+                if ref_pos < orf_start or orf_end <= ref_pos:
+                    continue
+                
+                ref_name = samfile.get_reference_name(pileup_col.reference_id)
+
+                ref_base = fasta.fetch(ref_name, ref_pos, ref_pos + 1).upper()
+
+                for pileup_read in pileup_col.pileups:
+                    read = pileup_read.alignment
+
+                    if pileup_read.is_refskip:
+                        event = "Refskip"
+                        query_base = pd.NA
+                        base_phred = pd.NA
+                        query_pos = pd.NA
+
+                    elif pileup_read.is_del:
+                        event = "Deletion"
+                        query_base = pd.NA
+                        base_phred = pd.NA
+                        query_pos = pd.NA
+
+                    else:
+                        event = "Base"
+                        query_pos = pileup_read.query_position
+
+                        if query_pos is None:
+                            query_base = pd.NA
+                            base_phred = pd.NA
+                        else:
+                            query_base = read.query_sequence[query_pos]
+
+                            if read.query_qualities is None:
+                                base_phred = pd.NA
+                            else:
+                                base_phred = read.query_qualities[query_pos]
+
+                    if event == "Base" and not pd.isna(query_base):
+                        mismatch = ref_base != query_base
+                    else:
+                        mismatch = False
+                    
+                    pileup_rows.append(
+                        {
+                            condition_col: condition,
+                            # "BamFile": str(bam_file),
+                            # "Reference": ref_name,
+                            "RefPos": ref_pos,
+                            "OldRead": read.query_name,
+                            "RefBase": ref_base,
+                            "QueryBase": query_base,
+                            "BasePhred": base_phred,
+                            "Event": event,
+                            "QueryPos": query_pos,
+                            # "IsReverse": read.is_reverse,
+                            "Mismatch": mismatch,
+                        }
+                    )
+
+    pileup_df = pd.DataFrame(pileup_rows)
+
+    pileup_df["BasePhred"] = pileup_df["BasePhred"].astype("Int16")
+    pileup_df["QueryPos"] = pileup_df["QueryPos"].astype("Int64")
+    
+    # rows_before_merge = pileup_df.shape[0]
+    pileup_df = pileup_df.merge(
+        concat_merged_old_to_new_reads_df,
+        # how="left",
+        # left_on=[condition_col, "Read"],
+        # right_on=[condition_col, "OldRead"],
+        how="inner",
+        left_on=[condition_col, "OldRead"],
+    )
+    # rows_after_merge = pileup_df.shape[0]
+    # assert rows_before_merge == rows_after_merge
+    
+    pileup_df = pileup_df.loc[
+        :,
+        [
+            condition_col, 'RefPos', 
+            "OldRead", 'NewRead', "ReadLength", "NumOfPasses", "ReadQuality", "ReadQualityPhredScale",
+            'RefBase', 'QueryBase', 'BasePhred', 'Event', 'QueryPos', 'Mismatch', 
+        ]
+    ].rename(
+        columns={"NewRead": "Read"}
+    )
+    
+    return pileup_df
+
+
+# %%
+with Pool(processes=3) as pool:
+    pileup_dfs = pool.starmap(
+        func=get_pileup_df,
+        iterable=[
+            [
+                transcriptome_file,
+                bam_file,
+                condition_col,
+                condition,
+                orf_start,
+                orf_end,
+                concat_merged_old_to_new_reads_df
+            ]
+            for bam_file, condition, orf_start, orf_end in zip(
+                merged_mapped_bam_files, fixed_conditions, starts, ends
+            )
+        ]
+    )
+
+# concat_pileup_df = pd.concat(pileup_dfs, ignore_index=True)
+# del pileup_dfs
+# concat_pileup_df
+
+pileup_dfs[0]
+
+
+# %%
+def annotate_na_type(event, measured_phred_score, min_sufficent_phred_score=30):
+    if event == "Deletion":
+        return "Deletion"
+    elif event == "Base":
+        if measured_phred_score >= min_sufficent_phred_score:
+            return "NotNA"
+        else:
+            return "LowQuality"
+    else:
+        return np.nan
+
+
+# %%
+pileup_df = pileup_dfs[0].copy()
+pileup_df["NAType"] = pileup_df.apply(
+    lambda row: annotate_na_type(row["Event"], row["BasePhred"]), 
+    axis=1
+)
+pileup_df
+
+# %%
+pileup_df.isna().sum()
+
+# %%
+pileup_df.loc[
+    pileup_df["Read"].isna()
+]
+
+# %%
+pileup_df["RefPos"].isna().sum()
+
+# %%
+read_pos_counts_df = pileup_df.loc[:, ["Read", "RefPos"]].value_counts().reset_index()
+read_pos_counts_df
+
+# %%
+read_pos_counts_df.loc[read_pos_counts_df["count"].gt(1)]
+
+# %%
+na_types = list(sorted(pileup_df["NAType"].unique()))
+
+na_types_per_read_df = (
+    pileup_df
+    .groupby(
+        [condition_col, "Read", "ReadLength", "NumOfPasses", "ReadQuality", "ReadQualityPhredScale"]
+    )
+    ["NAType"].value_counts()
+    .reset_index()
+    .pivot(
+        index=[condition_col, "Read", "ReadLength", "NumOfPasses", "ReadQuality", "ReadQualityPhredScale"],
+        columns="NAType",
+        values="count",
+    )
+    .reset_index()
+)
+
+na_types_per_read_df.loc[:, na_types] = na_types_per_read_df.loc[:, na_types].fillna(0)
+
+for col in na_types + ["ReadLength", "NumOfPasses"]:
+    na_types_per_read_df[col] = na_types_per_read_df[col].astype(int)
+
+na_types_per_read_df
+
+# %%
+na_types_per_read_df["ReadLength"].ge(
+    na_types_per_read_df.loc[:, na_types].sum(axis=1)
+).all()
+
+# %%
+na_types_per_read_df.loc[
+    ~na_types_per_read_df["ReadLength"].ge(
+        na_types_per_read_df.loc[:, na_types].sum(axis=1)
+    )
+]
+
+# %% vscode={"languageId": "ruby"}
+
+# %% vscode={"languageId": "ruby"}
+
+# %% vscode={"languageId": "ruby"}
+# Pivot pileup_df so rows=reads and columns=RefPos, values=BasePhred
+# (keeps only actual bases; drops deletions/refskips)
+bases_df = pileup_df.loc[pileup_df["Event"].eq("base")].copy()
+
+# in case of multiple entries per (read, position) keep the first
+bases_df = bases_df.sort_values([condition_col, "Read", "RefPos"]).drop_duplicates(
+    subset=[condition_col, "Read", "RefPos"], keep="first"
+)
+
+# optional sanity: ensure numeric dtype
+bases_df["BasePhred"] = pd.to_numeric(bases_df["BasePhred"], errors="coerce").astype("Int16")
+
+pileup_phred_pivot_df = bases_df.pivot(
+    index=[condition_col, "Read", "ReadLength", "NumOfPasses", "ReadQuality", "ReadQualityPhredScale"],
+    columns="RefPos",
+    values="BasePhred",
+).sort_index(axis=1).reset_index()
+
+pileup_phred_pivot_df
+
+# %%
 
 # %%
 
@@ -2549,11 +3040,72 @@ def two_sites_pearson(site_1, site_2, two_sites_df, min_n=3):
     return result
         
 
-def make_corrected_corrs_df(sites_df):
+def two_sites_pearson_2_fast(site_1, site_2, two_sites_df, min_n=3):
+    """
+    Faster per-pair version: avoids per-row apply; still calls pearsonr-like logic.
+    Assumes binary values {0,1} with NaNs.
+    """
+    a = two_sites_df.iloc[:, 0].to_numpy()
+    b = two_sites_df.iloc[:, 1].to_numpy()
+
+    valid = ~np.isnan(a) & ~np.isnan(b)
+    a = a[valid]
+    b = b[valid]
+    n = a.size
+    
+    # contingency counts (vectorized)
+    a1 = (a == 1)
+    b1 = (b == 1)
+    both_edited = np.sum(a1 & b1)
+    both_unedited = np.sum(~a1 & ~b1)
+    only_site_1_edited = np.sum(a1 & ~b1)
+    only_site_2_edited = np.sum(~a1 & b1)
+    
+    # Pearson r (manual, avoids scipy call overhead)
+    if n < min_n:
+        r = np.nan
+        pv = np.nan
+    else:
+        am = a.mean()
+        bm = b.mean()
+        da = a - am
+        db = b - bm
+        denom = np.sqrt(np.sum(da * da) * np.sum(db * db))
+        if denom == 0:
+            r = np.nan
+            pv = np.nan
+        else:
+            r = float(np.sum(da * db) / denom)
+
+            # two-sided pvalue from t-statistic
+            # t = r * sqrt((n-2)/(1-r^2)), df=n-2
+            df = n - 2
+            if df <= 0 or abs(r) >= 1:
+                pv = 0.0 if abs(r) == 1 else np.nan
+            else:
+                t = r * np.sqrt(df / (1.0 - r * r))
+                pv = float(2.0 * student_t.sf(np.abs(t), df))
+    
+    result = {
+        "Site1": int(site_1), 
+        "Site2": int(site_2), 
+        "n": n, 
+        "BothEdited": int(both_edited),
+        "BothUnedited": int(both_unedited),
+        "OnlySite1Edited": int(only_site_1_edited),
+        "OnlySite2Edited": int(only_site_2_edited),
+        "r": r, 
+        "pv": pv
+    }
+    
+    return result
+
+
+def make_corrected_corrs_df(sites_df, func=two_sites_pearson_2_fast):
     sites = sites_df.columns.to_list()
     out = pd.DataFrame(
         [
-            two_sites_pearson(site_1, site_2, sites_df.loc[:, [site_1, site_2]])
+            func(site_1, site_2, sites_df.loc[:, [site_1, site_2]])
             for i, site_1 in enumerate(sites[:-1])
             for site_2 in sites[i + 1 :]
         ]
@@ -2568,7 +3120,6 @@ def make_corrected_corrs_df(sites_df):
     rejection, corrected_pv, *_ = multipletests(out.loc[valid, "pv"], method="fdr_by")
     out.loc[valid, "fdr_by_rejection"] = rejection
     out.loc[valid, "fdr_by_corrected_pv"] = corrected_pv
-
 
     return out
 
@@ -2665,6 +3216,106 @@ with Pool() as pool:
 corrected_corrs_dfs[0]
 
 # %%
+# first_site_per_condition = {}
+# last_site_per_condition = {}
+distance_between_first_and_last_sites_per_condition = {}
+for condition, reads_w_nan_df in zip(fixed_conditions, reads_w_nan_dfs):
+    sites = reads_w_nan_df.columns[reads_first_col_pos:]
+    first_site = int(sites[0])
+    last_site = int(sites[-1])
+    # first_site_per_condition[condition] = first_site
+    # last_site_per_condition[condition] = last_site
+    distance_between_first_and_last_sites_per_condition[condition] = last_site - first_site
+ic(
+    # first_site_per_condition,
+    # last_site_per_condition,
+    distance_between_first_and_last_sites_per_condition,
+);
+
+# %%
+# concat_corrected_corrs_df = pd.concat(
+#     [
+#         df.assign(TempCondCol=condition)
+#         for df, condition in zip(corrected_corrs_dfs, fixed_conditions)
+#     ],
+#     ignore_index=True
+# )
+
+# sig_concat_corrected_corrs_df = concat_corrected_corrs_df.loc[
+#     (concat_corrected_corrs_df["fdr_by_rejection"])
+# ].reset_index(drop=True)
+
+# sig_concat_corrected_corrs_df.insert(
+#     0,
+#     condition_col,
+#     sig_concat_corrected_corrs_df["TempCondCol"]
+# )
+# del sig_concat_corrected_corrs_df["TempCondCol"]
+
+# sig_concat_corrected_corrs_df.insert(
+#     3,
+#     "AbsDistance",
+#     sig_concat_corrected_corrs_df.apply(lambda x: np.abs(x["Site1"] - x["Site2"]), axis=1)
+# )
+# sig_concat_corrected_corrs_df.insert(
+#     4,
+#     "AbsDistance500BPsBin",
+#     sig_concat_corrected_corrs_df["AbsDistance"].apply(
+#         lambda x: int((int(x / 500) * 500)) + 500
+#     )
+# )
+# sig_concat_corrected_corrs_df.insert(
+#     4,
+#     "AbsDistance100BPsBin",
+#     sig_concat_corrected_corrs_df["AbsDistance"].apply(
+#         lambda x: int((int(x / 100) * 100)) + 100
+#     )
+# )
+
+# sig_concat_corrected_corrs_df.insert(
+#     sig_concat_corrected_corrs_df.columns.get_loc("AbsDistance500BPsBin") + 1,
+#     "EditingSitesSpan",
+#     sig_concat_corrected_corrs_df[condition_col].apply(
+#         lambda x: distance_between_first_and_last_sites_per_condition[x]
+#     )
+# )
+# sig_concat_corrected_corrs_df.insert(
+#     sig_concat_corrected_corrs_df.columns.get_loc("EditingSitesSpan") + 1,
+#     "%AbsDistance/EditingSitesSpan",
+#     sig_concat_corrected_corrs_df.apply(
+#         lambda x: 100 * x["AbsDistance"] / x["EditingSitesSpan"],
+#         axis=1 
+#     )
+# )
+# sig_concat_corrected_corrs_df.insert(
+#     sig_concat_corrected_corrs_df.columns.get_loc("%AbsDistance/EditingSitesSpan") + 1,
+#     "%AbsDistance/EditingSitesSpan10%Bins",
+#     # divide to 10% bins, 0-9, 10-19, ..., 90-100
+#     sig_concat_corrected_corrs_df["%AbsDistance/EditingSitesSpan"].apply(
+#         lambda x: int(x // 10) * 10 + 10
+#     ).replace(110, 100)
+# )
+
+# for col in ['BothEdited', 'BothUnedited', 'OnlySite1Edited', 'OnlySite2Edited']:
+#     sig_concat_corrected_corrs_df[f"%{col}"] = sig_concat_corrected_corrs_df.apply(
+#         lambda x: 100 * x[col] / x["n"],
+#         axis=1
+#     )
+
+# # sig_concat_corrected_corrs_df.insert(
+# #     sig_concat_corrected_corrs_df.columns.get_loc("r") + 1,
+# #     "r_1_digit_bins",
+# #     sig_concat_corrected_corrs_df["r"].round(1)
+# # )
+# # sig_concat_corrected_corrs_df.insert(
+# #     sig_concat_corrected_corrs_df.columns.get_loc("r") + 2,
+# #     "r_2_digit_bins",
+# #     sig_concat_corrected_corrs_df["r"].round(2)
+# # )
+
+# sig_concat_corrected_corrs_df
+
+# %%
 concat_corrected_corrs_df = pd.concat(
     [
         df.assign(TempCondCol=condition)
@@ -2695,16 +3346,62 @@ concat_corrected_corrs_df.insert(
 concat_corrected_corrs_df.insert(
     4,
     "AbsDistance100BPsBin",
-    concat_corrected_corrs_df["AbsDistance"].apply(
+    sig_concat_corrected_corrs_df["AbsDistance"].apply(
         lambda x: int((int(x / 100) * 100)) + 100
     )
 )
 
-for col in ['BothEdited', 'BothUnedited', 'OnlySite1Edited', 'OnlySite2Edited']:
+concat_corrected_corrs_df.insert(
+    concat_corrected_corrs_df.columns.get_loc("AbsDistance500BPsBin") + 1,
+    "EditingSitesSpan",
+    concat_corrected_corrs_df[condition_col].apply(
+        lambda x: distance_between_first_and_last_sites_per_condition[x]
+    )
+)
+concat_corrected_corrs_df.insert(
+    concat_corrected_corrs_df.columns.get_loc("EditingSitesSpan") + 1,
+    "%AbsDistance/EditingSitesSpan",
+    concat_corrected_corrs_df.apply(
+        lambda x: 100 * x["AbsDistance"] / x["EditingSitesSpan"],
+        axis=1 
+    )
+)
+concat_corrected_corrs_df.insert(
+    concat_corrected_corrs_df.columns.get_loc("%AbsDistance/EditingSitesSpan") + 1,
+    "%AbsDistance/EditingSitesSpan10%Bins",
+    # divide to 10% bins, 0-9, 10-19, ..., 90-100
+    concat_corrected_corrs_df["%AbsDistance/EditingSitesSpan"].apply(
+        lambda x: int(x // 10) * 10 + 10
+    ).replace(110, 100)
+)
+
+concat_corrected_corrs_df = concat_corrected_corrs_df.drop(
+    columns=["OnlySite1Edited", "OnlySite2Edited", "bonferroni_rejection"]
+)
+
+for col in ['BothEdited', 'BothUnedited']:
     concat_corrected_corrs_df[f"%{col}"] = concat_corrected_corrs_df.apply(
         lambda x: 100 * x[col] / x["n"],
         axis=1
     )
+concat_corrected_corrs_df["%OnlyOneEdited"] = 100 - concat_corrected_corrs_df[['%BothEdited', '%BothUnedited']].sum(axis=1)
+
+# sig_concat_corrected_corrs_df.insert(
+#     sig_concat_corrected_corrs_df.columns.get_loc("r") + 1,
+#     "r_1_digit_bins",
+#     sig_concat_corrected_corrs_df["r"].round(1)
+# )
+# sig_concat_corrected_corrs_df.insert(
+#     sig_concat_corrected_corrs_df.columns.get_loc("r") + 2,
+#     "r_2_digit_bins",
+#     sig_concat_corrected_corrs_df["r"].round(2)
+# )
+
+concat_corrected_corrs_df.to_csv(
+    Path(out_dir, "Corrs.PB3.tsv"),
+    sep="\t",
+    index=False
+)
 
 concat_corrected_corrs_df
 
@@ -2712,17 +3409,6 @@ concat_corrected_corrs_df
 sig_concat_corrected_corrs_df = concat_corrected_corrs_df.loc[
     (concat_corrected_corrs_df["fdr_by_rejection"])
 ].reset_index(drop=True)
-
-sig_concat_corrected_corrs_df.insert(
-    sig_concat_corrected_corrs_df.columns.get_loc("r") + 1,
-    "r_1_digit_bins",
-    sig_concat_corrected_corrs_df["r"].round(1)
-)
-sig_concat_corrected_corrs_df.insert(
-    sig_concat_corrected_corrs_df.columns.get_loc("r") + 2,
-    "r_2_digit_bins",
-    sig_concat_corrected_corrs_df["r"].round(2)
-)
 
 sig_concat_corrected_corrs_df
 
@@ -2776,6 +3462,41 @@ sig_concat_corrected_corrs_df
     ]
     .groupby(condition_col)["r"].describe().round(2)
     .reset_index()
+)
+
+# %%
+sig_concat_corrected_corrs_df
+
+# %%
+(
+    sig_concat_corrected_corrs_df
+    .sort_values(
+        [condition_col, "AbsDistance", "r"],
+        ascending=[True, False, False]
+    )
+    .groupby(condition_col)
+    .apply(
+        lambda x: x.nlargest(3, 'AbsDistance'),
+        include_groups=False
+    )
+    .reset_index()
+    .loc[
+        :, 
+        [
+            condition_col, "Site1", "Site2",  "AbsDistance",  "EditingSitesSpan", "%AbsDistance/EditingSitesSpan", "r",
+            "fdr_by_corrected_pv", 
+            "n", "%BothEdited", "%BothUnedited",
+        ]
+    ]
+    .round(
+        {
+            "%AbsDistance/EditingSitesSpan": 1,
+            "r": 2,
+            "fdr_by_corrected_pv": 5,
+            "%BothEdited": 1,
+            "%BothUnedited": 1,
+        }
+    )
 )
 
 # %%
@@ -2931,9 +3652,8 @@ df = pd.concat(
     axis=1
 )
 # 1. Create the binning logic
-# bin_size = 30
-bin_size = 50
-# bin_size = 25
+# bin_size = 50
+bin_size = 100
 # 'bin_start' represents the floor of the 30-unit range (0, 30, 60, etc.)
 df['bin_start'] = (df['SitePairsInAbsDistance100BPsBin'] // bin_size) * bin_size
 # 2. Create string labels for the boxes (e.g., "0 - 30")
@@ -2957,9 +3677,73 @@ fig = px.box(
     category_orders={"bin_label": list(unique_labels)}, # Keeps 0-30 before 30-60
     labels={
         "bin_label": "Pairs",
-    }
+        "r": "Pearson's r"
+    },
+    points="outliers",
 )
 fig.update_xaxes(dtick=500)
+fig.update_yaxes(dtick=0.1)
+fig.update_layout(
+    template=template,
+    width=1000,
+    height=500,
+)
+fig.show()
+
+# %%
+# 0. Create df with num of site pairs per 100 bps bin
+df = pd.concat(
+    [
+            sig_concat_corrected_corrs_df,
+            (
+                sig_concat_corrected_corrs_df
+                # .groupby([condition_col])["AbsDistance100BPsBin"].transform("size")
+                .groupby([condition_col, "%AbsDistance/EditingSitesSpan10%Bins"]).transform("size")
+                .reset_index(name="SitePairsIn10%SpanBin")
+                .drop(columns="index")
+            )
+    ],
+    axis=1
+)
+# df["%AbsDistance/EditingSitesSpan10%Bins"] = df["%AbsDistance/EditingSitesSpan10%Bins"].astype("str")
+# 1. Create the binning logic
+# bin_size = 30
+# bin_size = 50
+# bin_size = 25
+bin_size = 300
+# 'bin_start' represents the floor of the 100-unit range (0, 100, 200, etc.)
+df['bin_start'] = (df["SitePairsIn10%SpanBin"] // bin_size) * bin_size
+# 2. Create string labels for the boxes (e.g., "0 - 100")
+df['bin_label'] = (df['bin_start'].astype(int).astype(str) + " - " + 
+                   (df['bin_start'] + bin_size).astype(int).astype(str))
+# 3. Sort by 'bin_start' so the x-axis and colors follow a numerical order
+df = df.sort_values('bin_start')
+unique_labels = df['bin_label'].unique()
+# 4. Map the bins to a colorscale (e.g., 'Viridis' or 'Plasma')
+# We sample hex codes based on the number of unique bins
+colors = px.colors.sample_colorscale("Viridis", [i/(max(1, len(unique_labels)-1)) for i in range(len(unique_labels))])
+color_map = dict(zip(unique_labels, colors))
+# 5. Create the box plot
+fig = px.box(
+    df, 
+    x="%AbsDistance/EditingSitesSpan10%Bins", 
+    y="r",
+    facet_col=condition_col,
+    color="bin_label",
+    color_discrete_map=color_map,
+    category_orders={
+        # "%AbsDistance/EditingSitesSpan10%Bins": [str(x) for x in range(10, 110, 10)],
+        "bin_label": list(unique_labels), # Keeps 0-30 before 30-60
+    }, 
+    labels={
+        "bin_label": "Pairs",
+        "r": "Pearson's r",
+        "%AbsDistance/EditingSitesSpan10%Bins": "Normalized distance 10% bins"
+    },
+    points="outliers"
+)
+fig.update_xaxes(dtick=10)
+fig.update_yaxes(dtick=0.1)
 fig.update_layout(
     template=template,
     width=1000,
@@ -4703,6 +5487,114 @@ singatures_statistics_df = singatures_statistics_df.drop(columns=["TestResult"])
 
 
 singatures_statistics_df
+
+# %% [markdown]
+# ### NAs
+
+# %%
+meatadata_reads_dfs = []
+
+for reads_df in reads_dfs:
+    num_of_editing_sites = reads_df.shape[1] - reads_first_col_pos
+    metadata_reads_df = reads_df.iloc[:, :reads_first_col_pos]
+    metadata_reads_df["NumOfEditingSites"] = num_of_editing_sites
+    for col in ["EditedPositions", "UneditedPositions", "AmbigousPositions"]:
+        metadata_reads_df[f"%{col}"] = metadata_reads_df[col].mul(100).div(metadata_reads_df["NumOfEditingSites"])
+    meatadata_reads_dfs.append(metadata_reads_df)
+    
+concat_meatadata_reads_df = pd.concat(meatadata_reads_dfs, ignore_index=True)
+concat_meatadata_reads_df
+
+# %%
+concat_meatadata_reads_df.loc[
+    :, 
+    ["NumOfEditingSites", "%EditedPositions", "%UneditedPositions", "%AmbigousPositions"]
+].describe().round(2)
+
+# %%
+concat_meatadata_reads_df.groupby(condition_col)["%AmbigousPositions"].describe().round(2)
+
+# %%
+fig = px.ecdf(
+    concat_meatadata_reads_df,
+    x="%AmbigousPositions",
+    # facet_col=condition_col,
+    color=condition_col,
+    color_discrete_map=color_discrete_map,
+    # category_orders=category_orders,
+    template=template,
+    labels={
+        "%AmbigousPositions": "NAs per read [%]",
+        # "RelativePosition%": "Relative editing position [%]",
+    },
+    marginal="box"
+)
+fig.update_xaxes(dtick=10)
+fig.update_yaxes(dtick=0.1)
+fig.update_layout(
+    # showlegend=False,
+    # width=1000,
+    width=550,
+    height=500,
+    # title_text="Squid's UMI long-reads - merged samples",
+    # title_x=0.15,
+)
+fig.show()
+
+# %%
+nas_per_position_dfs = []
+for reads_df, condition in zip(reads_dfs, fixed_conditions):
+    nas_per_position_df = (
+        pd.DataFrame(
+            reads_df.iloc[:, reads_first_col_pos:].eq(-1).sum().mul(100).div(reads_df.shape[0])    
+        )
+        .reset_index()
+        .rename(
+            columns={
+                0: "%NAs",
+                "index": "Position"
+            }
+        )
+    )
+    nas_per_position_df.insert(0, condition_col, condition)
+    # nas_per_position_df.insert(2, "PositionIndex", range(1, nas_per_position_df.shape[0] + 1))
+    nas_per_position_df.insert(2, "PositionIndex", range(nas_per_position_df.shape[0]))
+    nas_per_position_df.insert(
+        3, 
+        "RelativePosition%", 
+        nas_per_position_df["PositionIndex"].apply(
+            lambda x: 100 * x / (nas_per_position_df["PositionIndex"].max())
+        )
+    )
+    nas_per_position_dfs.append(nas_per_position_df)
+concat_nas_per_position_df = pd.concat(nas_per_position_dfs, ignore_index=True)
+concat_nas_per_position_df
+
+# %%
+fig = px.bar(
+    concat_nas_per_position_df,
+    x="RelativePosition%",
+    y="%NAs",
+    facet_col=condition_col,
+    color=condition_col,
+    color_discrete_map=fixed_condition_color_discrete_map,
+    # category_orders=category_orders,
+    template=template,
+    labels={
+        "%NAs": "Reads with NAs [%]",
+        "RelativePosition%": "Relative editing position [%]",
+    }
+    # title="NAs per position [%]",
+)
+fig.update_xaxes(dtick=25)
+fig.update_layout(
+    showlegend=False,
+    width=1000,
+    height=400,
+    # title_text="Squid's UMI long-reads - merged samples",
+    # title_x=0.15,
+)
+fig.show()
 
 # %% [markdown]
 # ## Editing by haplotype
@@ -12114,51 +13006,51 @@ fig.show()
 # ##### Num. of editing sites in rare vs. common isoforms
 
 # %%
+x_most_expressed = 0.01
+y_least_expressed = 0.3
+x_most_expressed_col = f"{100 * x_most_expressed:.0f}% most expressed"
+y_least_expressed_col = f"{100 * y_least_expressed:.0f}% least expressed"
 
-# %%
-for assignment_df in assignment_dfs:
-    assignment_df["300 most expressed"] = assignment_df.index < 300
-    assignment_df["1000 least expressed"] = (
-        assignment_df.index >= assignment_df.shape[0] - 1000
-    )
-merged_assignment_df = pd.concat(assignment_dfs).reset_index(drop=True)
-merged_assignment_df = merged_assignment_df.loc[
-    merged_assignment_df["300 most expressed"]
-    | merged_assignment_df["1000 least expressed"]
+for assignment_df, condition in zip(max_expression_dfs, conditions):
+    
+    nrows = assignment_df.shape[0]
+    actual_x = ceil(nrows * x_most_expressed)
+    actual_y = ceil(nrows * y_least_expressed)
+    ic(condition, actual_x, actual_y)
+    assignment_df[x_most_expressed_col] = assignment_df["#Protein"] <= actual_x
+    assignment_df[y_least_expressed_col] = assignment_df["#Protein"] >= assignment_df["#Protein"].nlargest(actual_y).min()
+
+rare_vs_abundant_isoforms_df = pd.concat(max_expression_dfs).reset_index(drop=True)
+
+rare_vs_abundant_isoforms_df = rare_vs_abundant_isoforms_df.loc[
+    (rare_vs_abundant_isoforms_df[x_most_expressed_col]) 
+    | (rare_vs_abundant_isoforms_df[y_least_expressed_col])
 ]
-merged_assignment_df["Abundancy"] = merged_assignment_df["300 most expressed"].apply(
-    lambda x: "300 most expressed" if x else "1000 least expressed"
+rare_vs_abundant_isoforms_df["Abundancy"] = rare_vs_abundant_isoforms_df[x_most_expressed_col].apply(
+    lambda x: x_most_expressed_col if x else y_least_expressed_col
 )
 # merged_assignment_df.insert(0, "Platform", "Long-reads")
-merged_assignment_df
-
-# %%
-assert (
-    merged_assignment_df.loc[merged_assignment_df["300 most expressed"]].shape[0]
-    == len(conditions) * 300
-)
-assert (
-    merged_assignment_df.loc[merged_assignment_df["1000 least expressed"]].shape[0]
-    == len(conditions) * 1000
-)
-assert merged_assignment_df.loc[
-    merged_assignment_df["300 most expressed"]
-    & merged_assignment_df["1000 least expressed"]
-].empty
+rare_vs_abundant_isoforms_df
 
 
 # %%
-def mannwhitneyu_between_rare_to_abundant(gdf):
-    x = gdf.loc[gdf["300 most expressed"], "EditedPositions"]
-    y = gdf.loc[gdf["1000 least expressed"], "EditedPositions"]
+def mannwhitneyu_between_rare_to_abundant(
+    gdf, x_most_expressed_col, y_least_expressed_col
+):
+    x = gdf.loc[gdf[x_most_expressed_col], "MeanEditedPositions"]
+    y = gdf.loc[gdf[y_least_expressed_col], "MeanEditedPositions"]
     res = scipy.stats.mannwhitneyu(x, y)
     return pd.Series([res.statistic, res.pvalue])
 
 
 # %%
 es_in_rare_vs_abundant_isoforms_df = (
-    merged_assignment_df.groupby(condition_col)
-    .apply(mannwhitneyu_between_rare_to_abundant)
+    rare_vs_abundant_isoforms_df.groupby(condition_col)
+    .apply(
+        mannwhitneyu_between_rare_to_abundant,
+        x_most_expressed_col=x_most_expressed_col,
+        y_least_expressed_col=y_least_expressed_col
+    )
     .rename(columns={0: "MannwhitneyuStatistic", 1: "MannwhitneyuPV"})
 )
 # rejected, adjusted = fdrcorrection(es_in_rare_vs_abundant_isoforms_df["MannwhitneyuPV"])
@@ -12168,8 +13060,11 @@ es_in_rare_vs_abundant_isoforms_df = (
 es_in_rare_vs_abundant_isoforms_df
 
 # %%
-merged_assignment_df.groupby([condition_col, "Abundancy"])["EditedPositions"].agg(
-    ["mean", "median"]
+(
+    rare_vs_abundant_isoforms_df
+    .groupby([condition_col, "Abundancy"], as_index=False)
+    ["MeanEditedPositions"].agg(["mean", "median"])
+    .round(2)
 )
 
 # %%
@@ -12184,17 +13079,18 @@ fig = make_subplots(
     subplot_titles=fixed_conditions,
     shared_yaxes="all",
     # x_title="Abundancy",
-    y_title="Edited positions in originally-<br>supporting reads",
+    # y_title="Edited positions in originally-<br>supporting reads",
+    y_title="Mean edited positions in<br>originally-supporting reads",
 )
 
 for condition, (row, col) in zip(conditions, row_col_iter):
     fig.add_trace(
         go.Violin(
-            x=merged_assignment_df.loc[
-                merged_assignment_df[condition_col] == condition, "Abundancy"
+            x=rare_vs_abundant_isoforms_df.loc[
+                rare_vs_abundant_isoforms_df[condition_col] == condition, "Abundancy"
             ].str.replace(" ", "<br>"),
-            y=merged_assignment_df.loc[
-                merged_assignment_df[condition_col] == condition, "EditedPositions"
+            y=rare_vs_abundant_isoforms_df.loc[
+                rare_vs_abundant_isoforms_df[condition_col] == condition, "MeanEditedPositions"
             ],
             line_color=color_discrete_map[condition],
             fillcolor="white",
@@ -12225,17 +13121,925 @@ fig.update_layout(
 
 
 fig.write_image(
-    "Edited positions vs expression levels - PacBio.svg",
+    Path(out_dir, "Mean edited positions vs expression levels - PacBio3.svg"),
     width=width,
     height=height,
 )
 
 fig.show()
 
+
 # %%
-merged_assignment_df.loc[
-    merged_assignment_df[condition_col] == "GRIA", "Abundancy"
-].str.replace(" ", "<br>")
+def make_one_condition_rare_vs_abundant_isoforms_df(
+    condition_col,
+    condition,
+    rare_vs_abundant_isoforms_df,
+    reads_df,
+    reads_first_col_pos
+):
+    
+    one_condition_rare_vs_abundant_isoforms_df = (
+        rare_vs_abundant_isoforms_df
+        .loc[
+            rare_vs_abundant_isoforms_df[condition_col].eq(condition),
+            [condition_col, "Protein", "%RelativeExpression", "Reads", "Abundancy"]
+        ]
+        .copy()
+        .rename(
+            columns={
+                "%RelativeExpression": "PrctProteinRelativeExpression"
+            }
+        )
+        .assign(
+            PrctReadRelativeExpression = lambda x: x.PrctProteinRelativeExpression / x.Reads.apply(len)
+        )
+    )
+    
+    # make sure the reads in Reads col are given in a list
+    reads_col_types = one_condition_rare_vs_abundant_isoforms_df["Reads"].apply(type)
+    if reads_col_types.nunique() > 1:
+        raise Exception("Reads column has more than one type!")
+    else:
+        reads_col_type = reads_col_types.unique()[0]
+        if reads_col_type != list:
+            if reads_col_type == str:
+                one_condition_rare_vs_abundant_isoforms_df["Reads"] = one_condition_rare_vs_abundant_isoforms_df["Reads"].str.split(",")
+            else:
+                raise Exception("Reads column type should be either str or list!")
+    
+    one_condition_rare_vs_abundant_isoforms_df = (
+        # rare_vs_abundant_isoforms_df
+        # .loc[
+        #     rare_vs_abundant_isoforms_df[condition_col].eq(condition),
+        #     [condition_col, "Protein", "%RelativeExpression", "Reads", "Abundancy"]
+        # ]
+        # .rename(
+        #     columns={
+        #         "%RelativeExpression": "PrctProteinRelativeExpression"
+        #     }
+        # )
+        # .assign(
+        #     PrctReadRelativeExpression = lambda x: x.PrctProteinRelativeExpression / x.Reads.apply(len)
+        # )
+        one_condition_rare_vs_abundant_isoforms_df
+        .explode("Reads")
+        .rename(
+            columns={
+                "Reads": "Read",
+                "PrctProteinRelativeExpression": "%ProteinRelativeExpression",
+                "PrctReadRelativeExpression": "%ReadRelativeExpression"
+            }
+        )
+        .merge(
+            pd.concat(
+                [
+                    reads_df.loc[:, [condition_col, "Read"]],
+                    reads_df.iloc[:, reads_first_col_pos:]
+                ],
+                axis=1
+            ),
+            how="left"
+        )
+        .sort_values(
+            ["Abundancy", "Protein", "Read"],
+            ignore_index=False
+        )
+    )
+    
+    site_cols = one_condition_rare_vs_abundant_isoforms_df.iloc[:, 6:].columns
+
+    one_condition_rare_vs_abundant_isoforms_df[site_cols] = one_condition_rare_vs_abundant_isoforms_df[site_cols].apply(pd.to_numeric, errors="coerce")
+    one_condition_rare_vs_abundant_isoforms_df[site_cols] = one_condition_rare_vs_abundant_isoforms_df[site_cols].replace(-1, np.nan)
+    
+    return one_condition_rare_vs_abundant_isoforms_df
+
+
+# %%
+def make_one_condition_rare_vs_abundant_editing_frequency_per_site_df(
+    condition_col,
+    condition,
+    one_condition_rare_vs_abundant_isoforms_df,
+    first_site_col
+):
+    
+    one_condition_rare_vs_abundant_isoforms_df = (
+        one_condition_rare_vs_abundant_isoforms_df
+        .copy()
+    )
+    
+
+    site_cols = one_condition_rare_vs_abundant_isoforms_df.iloc[:, first_site_col:].columns
+
+    one_condition_rare_vs_abundant_isoforms_df[site_cols] = (
+        one_condition_rare_vs_abundant_isoforms_df[site_cols]
+        .apply(pd.to_numeric, errors="coerce")
+        .replace(-1, np.nan)
+    )
+    
+    # -----------------------------
+    # Common / abundant proteins
+    # -----------------------------
+    
+    one_condition_abundant_isoforms_df = one_condition_rare_vs_abundant_isoforms_df.loc[
+        one_condition_rare_vs_abundant_isoforms_df["Abundancy"].eq("1% most expressed")
+    ].copy()
+    
+    # calc for each protein and site the mean editing level of that protein's reads in that site
+    one_condition_abundant_isoforms_per_protein_per_site_editing_frequency_df = (
+        one_condition_abundant_isoforms_df
+        .loc[
+            :,
+            [condition_col, "Protein", "%ProteinRelativeExpression"]    
+        ]
+        .drop_duplicates()
+        .merge(
+            (
+                one_condition_abundant_isoforms_df
+                .groupby([condition_col, "Protein"])[site_cols]
+                .mean()
+                .reset_index()
+            ),
+            how="left"
+        )
+    )
+
+    # total_common_protein_expression = one_condition_abundant_isoforms_per_protein_per_site_editing_frequency_df["%ProteinRelativeExpression"].sum()
+    # one_condition_abundant_isoforms_weighted_editing_frequency_per_site_df = (
+    #     one_condition_abundant_isoforms_per_protein_per_site_editing_frequency_df[site_cols]
+    #     .mul(one_condition_abundant_isoforms_per_protein_per_site_editing_frequency_df["%ProteinRelativeExpression"], axis=0)
+    #     .sum()
+    #     .div(total_common_protein_expression)
+    #     .mul(100)
+    #     .rename("%ExpressionWeightedMeanCommonEditing")
+    #     .reset_index()
+    #     .rename(columns={"index": "EditingSite"})
+    #     .assign(ConditionCol=condition)
+    #     .rename(columns={"ConditionCol": condition_col})
+    #     .loc[:, [condition_col, "EditingSite", "%ExpressionWeightedMeanCommonEditing"]]
+    # )
+    # one_condition_abundant_isoforms_weighted_editing_frequency_per_site_df
+    
+    common_weights = (
+        one_condition_abundant_isoforms_per_protein_per_site_editing_frequency_df[
+            "%ProteinRelativeExpression"
+        ]
+    )
+    
+    common_site_numerators = (
+        one_condition_abundant_isoforms_per_protein_per_site_editing_frequency_df[site_cols]
+        .mul(common_weights, axis=0)
+        .sum()
+    )
+    
+    # the denumenator sums only the expression of the proteins that have a non-NA value in that site
+    common_site_denominators = (
+        one_condition_abundant_isoforms_per_protein_per_site_editing_frequency_df[site_cols]
+        .notna()
+        .mul(common_weights, axis=0)
+        .sum()
+    )
+    
+    num_common_proteins_per_site = (
+        one_condition_abundant_isoforms_per_protein_per_site_editing_frequency_df[site_cols]
+        .notna()
+        .sum()
+    )
+    
+    one_condition_abundant_isoforms_weighted_editing_frequency_per_site_df = (
+        pd.concat(
+            [
+                common_site_numerators
+                .div(common_site_denominators)
+                .mul(100)
+                .rename("%ExpressionWeightedMeanCommonEditing"),
+                
+                common_site_denominators
+                .rename("CommonProteinExpressionDenominator"),
+                
+                num_common_proteins_per_site
+                .rename("NumCommonProteins"),
+            ],
+            axis=1
+        )
+        .reset_index()
+        .rename(columns={"index": "EditingSite"})
+        .assign(**{condition_col: condition})
+        .loc[
+            :,
+            [
+                condition_col,
+                "EditingSite",
+                "%ExpressionWeightedMeanCommonEditing",
+                # "CommonProteinExpressionDenominator",
+                "NumCommonProteins",
+            ]
+        ]
+    )
+    one_condition_abundant_isoforms_weighted_editing_frequency_per_site_df["CommonDummySEM"] = np.nan
+    
+    # -----------------------------
+    # Rare proteins
+    # -----------------------------
+    
+    one_condition_rare_isoforms_df = one_condition_rare_vs_abundant_isoforms_df.loc[
+        one_condition_rare_vs_abundant_isoforms_df["Abundancy"].eq("30% least expressed")
+    ].copy()
+    
+    # one_condition_rare_isoforms_editing_frequency_per_site_df = (
+    #     one_condition_rare_isoforms_df[site_cols]
+    #     .agg(["mean", "sem"])
+    #     .T
+    #     .mul(100)
+    #     .reset_index()
+    #     .assign(ConditionCol=condition)
+    #     .rename(
+    #         columns={
+    #             "ConditionCol": condition_col,
+    #             "index": "EditingSite",
+    #             "mean": "%MeanRareEditing",
+    #             "sem": "%SEMRareEditing"
+    #         }
+    #     )
+    #     .loc[:, [condition_col, "EditingSite", "%MeanRareEditing", "%SEMRareEditing"]]
+    # )
+    # # one_condition_rare_isoforms_editing_frequency_per_site_df
+    
+    
+    # first calc mean editing per site per protein averaged over each protein's reads, then calc 
+    one_condition_rare_isoforms_per_protein_per_site_editing_frequency_df = (
+        one_condition_rare_isoforms_df
+        .groupby([condition_col, "Protein"], as_index=False)[site_cols]
+        .mean()
+    )
+    
+    # now calc mean/sem across proteins for each site, and count how many proteins have a non-NA value in that site 
+    # (to later use in the t-test denominator and degrees of freedom)
+    rare_summary_per_site_df = (
+        one_condition_rare_isoforms_per_protein_per_site_editing_frequency_df[site_cols]
+        .agg(["mean", "sem", "count"])
+        .T
+        .reset_index()
+        .rename(
+            columns={
+                "index": "EditingSite",
+                "mean": "%MeanRareEditing",
+                "sem": "%SEMRareEditing",
+                "count": "NumRareProteins",
+            }
+        )
+    )
+    
+    rare_summary_per_site_df[["%MeanRareEditing", "%SEMRareEditing"]] = (
+        rare_summary_per_site_df[["%MeanRareEditing", "%SEMRareEditing"]]
+        .mul(100)
+    )
+    
+    rare_summary_per_site_df["NumRareProteins"] = (
+        rare_summary_per_site_df["NumRareProteins"]
+        .astype(int)
+    )
+    
+    one_condition_rare_isoforms_editing_frequency_per_site_df = (
+        rare_summary_per_site_df
+        .assign(**{condition_col: condition})
+        .loc[
+            :,
+            [
+                condition_col,
+                "EditingSite",
+                "%MeanRareEditing",
+                "%SEMRareEditing",
+                "NumRareProteins",
+            ]
+        ]
+    )
+    
+    # -----------------------------
+    # Merge common + rare
+    # -----------------------------
+    
+    # df == one_condition_rare_vs_abundant_editing_frequency_per_site_df
+    df = (
+        one_condition_abundant_isoforms_weighted_editing_frequency_per_site_df
+        .merge(
+            one_condition_rare_isoforms_editing_frequency_per_site_df,
+            how="inner"
+        )
+    )
+    assert (
+        one_condition_abundant_isoforms_weighted_editing_frequency_per_site_df.shape[0] ==
+        one_condition_rare_isoforms_editing_frequency_per_site_df.shape[0] ==
+        df.shape[0]
+    )
+    
+    # -----------------------------
+    # Compare common vs. rare
+    # -----------------------------
+    
+    valid_t = (
+        df["%SEMRareEditing"].gt(0)
+        & df["NumRareProteins"].gt(1)
+        & df["%MeanRareEditing"].notna()
+        & df["%ExpressionWeightedMeanCommonEditing"].notna()
+    )
+
+    df["t_stat"] = np.nan
+
+    df.loc[valid_t, "t_stat"] = (
+        df.loc[valid_t, "%MeanRareEditing"]
+        .sub(df.loc[valid_t, "%ExpressionWeightedMeanCommonEditing"])
+        .div(df.loc[valid_t, "%SEMRareEditing"])
+    )
+
+    df["t_df"] = df["NumRareProteins"] - 1
+
+    df["pv"] = np.nan
+
+    valid_pv = (
+        df["t_stat"].notna() 
+        & df["t_df"].gt(0)
+    )
+
+    df.loc[valid_pv, "pv"] = 2 * scipy.stats.t.sf(
+        np.abs(df.loc[valid_pv, "t_stat"]),
+        df=df.loc[valid_pv, "t_df"]
+    )
+
+    df["fdr_bh_rejection"] = False
+    df["fdr_bh_corrected_pv"] = np.nan
+
+    valid_fdr = df["pv"].notna()
+
+    if valid_fdr.any():
+        rejection, corrected_pv, *_ = multipletests(
+            df.loc[valid_fdr, "pv"], 
+            method="fdr_bh"
+        )
+
+        df.loc[valid_fdr, "fdr_bh_rejection"] = rejection
+        df.loc[valid_fdr, "fdr_bh_corrected_pv"] = corrected_pv
+    else:
+        df["fdr_bh_rejection"] = np.nan
+        df["fdr_bh_corrected_pv"] = np.nan
+    
+    return df
+
+# %%
+one_condition_rare_vs_abundant_isoforms_dfs = [
+    make_one_condition_rare_vs_abundant_isoforms_df(
+        condition_col,
+        condition,
+        rare_vs_abundant_isoforms_df,
+        reads_df,
+        reads_first_col_pos
+    )
+    for condition, reads_df in zip(conditions, reads_dfs)
+]
+one_condition_rare_vs_abundant_isoforms_dfs[0]
+
+# %%
+one_condition_rare_vs_abundant_editing_frequency_per_site_dfs = [
+    make_one_condition_rare_vs_abundant_editing_frequency_per_site_df(
+        condition_col,
+        condition,
+        one_condition_rare_vs_abundant_isoforms_df,
+        first_site_col=6
+    )
+    for condition, one_condition_rare_vs_abundant_isoforms_df in zip(
+        conditions, one_condition_rare_vs_abundant_isoforms_dfs
+    )
+]
+one_condition_rare_vs_abundant_editing_frequency_per_site_dfs[0]
+
+# %%
+num_of_sites_per_condition = []
+num_of_significant_sites_per_condition = []
+num_of_insignificant_sites_per_condition = []
+num_of_untestable_sites_per_condition = []
+num_of_testable_sites_per_condition = []
+
+for condition, df in zip(conditions, one_condition_rare_vs_abundant_editing_frequency_per_site_dfs):
+    na_pvs = df["pv"].isna()
+    fdr_rejects = df["fdr_bh_rejection"]
+    num_of_sites = df.shape[0]
+    num_of_significant_sites = sum(~na_pvs & fdr_rejects)
+    num_of_insignificant_sites = sum(~na_pvs & ~fdr_rejects)
+    num_of_untestable_sites = sum(na_pvs)
+    num_of_sites_per_condition.append(num_of_sites)
+    num_of_significant_sites_per_condition.append(num_of_significant_sites)
+    num_of_insignificant_sites_per_condition.append(num_of_insignificant_sites)
+    num_of_untestable_sites_per_condition.append(num_of_untestable_sites)
+    num_of_testable_sites_per_condition.append(num_of_sites - num_of_untestable_sites)
+    
+rare_vs_abundant_editing_frequency_per_site_summary_df = pd.DataFrame(
+    {
+        condition_col: fixed_conditions,
+        "NumOfEditingSites": num_of_sites_per_condition,
+        "NumOfUntestableSites": num_of_untestable_sites_per_condition,
+        "NumOfTestableSites": num_of_testable_sites_per_condition,
+        "NumOfSignificantSites": num_of_significant_sites_per_condition,
+        "NumOfInsignificantSites": num_of_insignificant_sites_per_condition,
+    }
+).set_index(condition_col)
+rare_vs_abundant_editing_frequency_per_site_summary_df
+
+# %%
+# cols = min(facet_col_wrap, len(conditions), 5)
+cols = min(facet_col_wrap, len(conditions), 1)
+rows = ceil(len(conditions) / cols)
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
+
+# x_title = "Ambiguous positions in a protein"
+# y_title = "Mean editing per expression group [%]"
+y_title = "Editing [%]"
+
+subplot_titles = []
+for condition in fixed_conditions:
+    sites, testable, significant = rare_vs_abundant_editing_frequency_per_site_summary_df.loc[
+        condition,
+        ["NumOfEditingSites", "NumOfTestableSites", "NumOfSignificantSites"]
+    ]
+    subplot_title = f"{condition}<br><sub>({sites} sites, {testable} testable, {significant} significant)</sub>"
+    subplot_titles.append(subplot_title)
+
+fig = make_subplots(
+    rows=rows,
+    cols=cols,
+    # subplot_titles=fixed_conditions,
+    subplot_titles=subplot_titles,
+    shared_yaxes="all",
+    y_title=y_title,
+    vertical_spacing=0.35/rows,
+)
+
+x_inner_cols = ["Common", "Rare"]
+y_cols = ["%ExpressionWeightedMeanCommonEditing", "%MeanRareEditing"]
+error_cols = ["CommonDummySEM", "%SEMRareEditing"]
+
+# colors = ["#1f77b4", "#ff7f0e"]
+common_and_rare_colors = ["#1f77b4", "#ff7f0e"]
+common_and_rare_subcolors_discrete_map = {
+    abundancy: two_subcolors_from_hex(color)
+    for abundancy, color in zip(["Common", "Rare"], common_and_rare_colors)
+}
+
+any_single_covered_common_site = False
+any_single_covered_rare_site = False
+
+for ((row, col), condition, df) in zip(
+    row_col_iter, conditions, one_condition_rare_vs_abundant_editing_frequency_per_site_dfs
+):
+    df = df.copy()
+    df["EditingSiteStr"] = df["EditingSite"].astype(str)
+    
+    common_coverage = df["NumCommonProteins"].gt(0)
+    rare_coverage = df["NumRareProteins"].gt(0)
+    shared_coverage = common_coverage & rare_coverage
+    
+    any_single_covered_common_site = any(
+        [
+            any_single_covered_common_site,
+            any(common_coverage & ~rare_coverage)
+        ]
+    )
+    any_single_covered_rare_site = any(
+        [
+            any_single_covered_rare_site,
+            any(~common_coverage & rare_coverage)
+        ]
+    )
+    
+    
+    # for name, y_col, error_col, color in zip(
+    #     x_inner_cols, y_cols, error_cols, colors
+    # ):
+    for abundancy, y_col, error_col in zip(
+        x_inner_cols, y_cols, error_cols
+    ):
+        x = df["EditingSiteStr"]
+        y = df[y_col]
+        errors = df[error_col]
+        
+        abundancy_colors = common_and_rare_subcolors_discrete_map[abundancy]
+        colors = [
+            abundancy_colors[0] if x else abundancy_colors[1]
+            for x in shared_coverage
+        ]
+    
+        fig.add_trace(
+            go.Bar(
+                x=x,
+                y=y,
+                error_y=dict(
+                    type='data', array=errors,width=2,
+                ),
+                marker=dict(
+                    # color=color,
+                    color=colors
+                ),
+                name=abundancy,
+                offsetgroup=abundancy,          # <-- key: force proper centering/grouping
+                alignmentgroup="editing",  # <-- optional but helps keep all groups aligned
+                showlegend=False
+            ),
+            row=row,
+            col=col
+        )
+        
+    # -----------------------------
+    # Add FDR significance stars
+    # -----------------------------
+
+    y_top_per_site = pd.concat(
+        [
+            df[y_col].add(df[error_col].fillna(0))
+            for y_col, error_col in zip(y_cols, error_cols)
+        ],
+        axis=1
+    ).max(axis=1)
+    
+    y_offset = max(1, 0.03 * y_top_per_site.max())
+    
+    significant = df["fdr_bh_rejection"].fillna(False)
+        
+    sig_df = df.loc[significant].copy()
+    sig_df["y_star"] = y_top_per_site.loc[sig_df.index] + y_offset
+
+    fig.add_trace(
+        go.Scatter(
+            x=sig_df["EditingSiteStr"],
+            y=sig_df["y_star"],
+            mode="text",
+            text=["*"] * len(sig_df),
+            textposition="middle center",
+            textfont=dict(size=12, color="black"),
+            showlegend=False,
+            hoverinfo="skip",
+        ),
+        row=row,
+        col=col,
+    )
+    
+    # Per-subplot x-axis styling based on number of sites
+    sites_cat_array = df["EditingSiteStr"].tolist()
+    n_sites = len(sites_cat_array)
+    # tickfont = tickfont_size_from_n_ticks(n_sites)
+    tickfont = 10
+
+    fig.update_xaxes(
+        type="category",
+        categoryorder="array",
+        categoryarray=sites_cat_array,
+        tickmode='linear',    # Force Plotly to look at every single tick step
+        dtick=1,              # Show a tick label for every 1 step (every category)
+        tickfont=dict(size=tickfont),
+        tickangle=90,
+        
+        # key lines: fill the whole axis with the used categories
+        range=[-0.5, n_sites - 0.5],
+        constrain="domain",
+        
+        row=row,
+        col=col,
+    )
+    
+# # empty traces for legend
+# for x_inner_col, color in zip(
+#         x_inner_cols, colors
+#     ):
+#     fig.add_trace(
+#         go.Bar(
+#             x=[None],
+#             y=[None],
+#             marker=dict(
+#                 color=color,
+#             ),
+#             name=x_inner_col
+#         ),
+#     )
+
+# empty traces for legend
+for abundancy, any_single_site_in_abundancy_covered in zip(
+    x_inner_cols,
+    [any_single_covered_common_site, any_single_covered_rare_site]
+):
+    fig.add_trace(
+        go.Bar(
+            x=[None],
+            y=[None],
+            marker=dict(
+                color=common_and_rare_subcolors_discrete_map[abundancy][0],
+            ),
+            name=abundancy,
+            legendgroup="Both groups covered",  # this can be any string, not just "group"
+            legendgrouptitle_text="Both groups covered",
+        ),
+    )
+    if any_single_site_in_abundancy_covered:
+        fig.add_trace(
+            go.Bar(
+                x=[None],
+                y=[None],
+                marker=dict(
+                    color=common_and_rare_subcolors_discrete_map[abundancy][1],
+                ),
+                legendgroup=f"Only {abundancy} covered",  # this can be any string, not just "group"
+                # name=abundancy,
+                # legendgrouptitle_text=f"Only {abundancy.lower()} covered",
+                name=f"Only {abundancy.lower()} covered  ",
+                legendgrouptitle_text="",
+            ),
+        )
+
+# fig.update_xaxes(
+#     tickfont_size=9
+# )
+fig.update_yaxes(
+    dtick=10
+)
+
+width = 1600
+height = 300 * rows
+
+fig.update_layout(
+    template="plotly_white",
+    width=width,
+    height=height,
+    barmode='group',
+    bargap=0.15,        # optional: tweak spacing
+    bargroupgap=0.05,   # optional: tweak spacing
+    legend_font=dict(size=12),
+    legend_title_font=dict(size=12),
+    legend_tracegroupgap=20
+)
+
+fig.write_image(
+    Path(
+        out_dir,
+        "Per-site editing in abundant vs. rare isoforms - PB3.svg"
+    ),
+    width=width,
+    height=height,
+)
+        
+fig.show()
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+one_condition_rare_vs_abundant_isoforms_dfs = []
+
+for condition, reads_df in zip(conditions, reads_dfs):
+    one_condition_rare_vs_abundant_isoforms_df = (
+        rare_vs_abundant_isoforms_df
+        .loc[
+            rare_vs_abundant_isoforms_df[condition_col].eq(condition),
+            [condition_col, "Protein", "Reads", "Abundancy"]
+        ]
+        .explode("Reads")
+        .rename(
+            columns={
+                "Reads": "Read"
+            }
+        )
+        .merge(
+            pd.concat(
+                [
+                    reads_df.loc[:, [condition_col, "Read"]],
+                    reads_df.iloc[:, reads_first_col_pos:]
+                ],
+                axis=1
+            ),
+            how="left"
+        )
+    )
+    one_condition_rare_vs_abundant_isoforms_dfs.append(one_condition_rare_vs_abundant_isoforms_df)
+    
+# one_condition_rare_vs_abundant_isoforms_dfs[0]
+
+
+one_condition_editing_per_position_and_abundancy_dfs = []
+
+for condition, one_condition_rare_vs_abundant_isoforms_df in zip(fixed_conditions, one_condition_rare_vs_abundant_isoforms_dfs):
+    common_and_rare_editing_per_position_dfs = []
+    for abundancy in ["1% most expressed", "30% least expressed"]:
+        one_abundancy_one_condition_rare_vs_abundant_isoforms_df = one_condition_rare_vs_abundant_isoforms_df.loc[
+            one_condition_rare_vs_abundant_isoforms_df["Abundancy"].eq(abundancy)
+        ]
+        one_abundancy_editing_per_position_df = (
+            pd.DataFrame(
+                one_abundancy_one_condition_rare_vs_abundant_isoforms_df
+                .iloc[:, 4:]
+                .eq(1).sum().mul(100).div(one_abundancy_one_condition_rare_vs_abundant_isoforms_df.shape[0])    
+            )
+            .reset_index()
+            .rename(
+                columns={
+                    0: "%Editing",
+                    "index": "Position"
+                }
+            )
+        )
+        one_abundancy_editing_per_position_df.insert(0, condition_col, condition)
+        one_abundancy_editing_per_position_df.insert(2, "PositionIndex", range(one_abundancy_editing_per_position_df.shape[0]))
+        one_abundancy_editing_per_position_df.insert(
+            3, 
+            "RelativePosition%", 
+            one_abundancy_editing_per_position_df["PositionIndex"].apply(
+                lambda x: 100 * x / (one_abundancy_editing_per_position_df["PositionIndex"].max())
+            )
+        )
+        del one_abundancy_editing_per_position_df["PositionIndex"]
+        one_abundancy_editing_per_position_df.insert(1, "Abundancy", abundancy)
+        common_and_rare_editing_per_position_dfs.append(one_abundancy_editing_per_position_df)
+    one_condition_editing_per_position_and_abundancy_df = pd.concat(
+        common_and_rare_editing_per_position_dfs,
+        ignore_index=True
+    )
+    one_condition_editing_per_position_and_abundancy_dfs.append(one_condition_editing_per_position_and_abundancy_df)
+concat_editing_per_position_and_abundancy_df = pd.concat(
+    one_condition_editing_per_position_and_abundancy_dfs,
+    ignore_index=True
+)
+
+# concat_editing_per_position_and_abundancy_df["%Editing"] = concat_editing_per_position_and_abundancy_df.apply(
+#     lambda x: x["%Editing"] if x["Abundancy"].eq("1% most expressed") else -x["%Editing"],
+#     axis=1
+# )
+concat_editing_per_position_and_abundancy_df.loc[
+    concat_editing_per_position_and_abundancy_df["Abundancy"].eq("30% least expressed"),
+    "%Editing"
+] = concat_editing_per_position_and_abundancy_df.loc[
+    concat_editing_per_position_and_abundancy_df["Abundancy"].eq("30% least expressed"),
+    "%Editing"
+].mul(-1)
+
+concat_editing_per_position_and_abundancy_df
+
+# %%
+fig = px.bar(
+    concat_editing_per_position_and_abundancy_df,
+    x="RelativePosition%",
+    y="%Editing",
+    facet_col=condition_col,
+    # color=condition_col,
+    # color_discrete_map=fixed_condition_color_discrete_map,
+    color="Abundancy",
+    # barmode='group',
+    # category_orders=category_orders,
+    template=template,
+    labels={
+        "%Editing": "Reads with editing [%]",
+        "RelativePosition%": "Relative editing position [%]",
+    }
+    # title="NAs per position [%]",
+)
+fig.update_xaxes(dtick=25)
+fig.update_layout(
+    # showlegend=False,
+    width=1000,
+    height=400,
+    # title_text="Squid's UMI long-reads - merged samples",
+    # title_x=0.15,
+)
+fig.show()
+
+# %%
+# epsilon = 1e-20
+
+# %%
+# epsilon_base = concat_editing_per_position_and_abundancy_df.loc[
+#     concat_editing_per_position_and_abundancy_df["%Editing"].fillna(0).ne(0),
+#     "%Editing"
+# ].abs().min()
+# epsilon = epsilon_base / 5
+# ic(epsilon_base, epsilon);
+
+# %%
+epsilon = 1e-3
+
+# %%
+pivoted_one_condition_editing_per_position_and_abundancy_dfs = []
+for condition in fixed_conditions:
+    one_condition_concat_editing_per_position_and_abundancy_df = concat_editing_per_position_and_abundancy_df.loc[
+        concat_editing_per_position_and_abundancy_df[condition_col].eq(condition)
+    ]
+    # Pivot so each RelativePosition% / Position is a single row, with one %Editing column per Abundancy
+    pivot_cols = [condition_col, "Position", "RelativePosition%", ]
+    idx_cols = [c for c in pivot_cols if c in one_condition_concat_editing_per_position_and_abundancy_df.columns]
+
+    pivoted_one_condition_editing_per_position_and_abundancy_df = (
+        one_condition_concat_editing_per_position_and_abundancy_df
+        .pivot_table(
+            index=idx_cols,
+            columns="Abundancy",
+            values="%Editing",
+            aggfunc="first",
+        )
+        .rename(columns=lambda c: f"%Editing ({c})")
+        .reset_index()
+    )
+    pivoted_one_condition_editing_per_position_and_abundancy_df["%Editing (30% least expressed)"] = (
+        pivoted_one_condition_editing_per_position_and_abundancy_df["%Editing (30% least expressed)"].mul(-1)
+    )
+    for abundancy in ["1% most expressed", "30% least expressed"]:
+        pivoted_one_condition_editing_per_position_and_abundancy_df[f"%Editing ({abundancy})"] = (
+            pivoted_one_condition_editing_per_position_and_abundancy_df[f"%Editing ({abundancy})"]
+            .fillna(0)
+            .apply(
+                lambda x: x if x > 0 else epsilon
+            )
+        )
+    pivoted_one_condition_editing_per_position_and_abundancy_df["log10(%abundant/%rare)"] = np.log10(
+        pivoted_one_condition_editing_per_position_and_abundancy_df["%Editing (1% most expressed)"] / 
+        pivoted_one_condition_editing_per_position_and_abundancy_df["%Editing (30% least expressed)"]
+    )
+    pivoted_one_condition_editing_per_position_and_abundancy_dfs.append(
+        pivoted_one_condition_editing_per_position_and_abundancy_df
+    )
+concat_pivoted_editing_per_position_and_abundancy_df = pd.concat(
+    pivoted_one_condition_editing_per_position_and_abundancy_dfs,
+    ignore_index=True
+)
+concat_pivoted_editing_per_position_and_abundancy_df
+
+# %%
+fig = px.bar(
+    concat_pivoted_editing_per_position_and_abundancy_df,
+    x="RelativePosition%",
+    y="log10(%abundant/%rare)",
+    facet_col=condition_col,
+    color=condition_col,
+    color_discrete_map=fixed_condition_color_discrete_map,
+    # color="Abundancy",
+    # barmode='group',
+    # category_orders=category_orders,
+    template=template,
+    labels={
+        # "log10(%abundant/%rare)": "Reads with editing [%]",
+        "RelativePosition%": "Relative editing position [%]",
+    }
+    # title="NAs per position [%]",
+)
+fig.update_xaxes(dtick=25)
+fig.update_yaxes(
+    dtick=1,
+    zeroline=True,
+    # zerolinewidth=4,          # Set thickness in pixels
+    zerolinecolor='black'     # Set line color
+)
+fig.update_layout(
+    showlegend=False,
+    width=1000,
+    height=300,
+    # title_text="Squid's UMI long-reads - merged samples",
+    # title_x=0.15,
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    concat_pivoted_editing_per_position_and_abundancy_df,
+    x="log10(%abundant/%rare)",
+    facet_col=condition_col,
+    facet_col_spacing=facet_col_spacing,
+    color=condition_col,
+    color_discrete_map=fixed_condition_color_discrete_map,
+    # color="Abundancy",
+    # barmode='group',
+    # category_orders=category_orders,
+    template=template,
+    labels={
+        # "log10(%abundant/%rare)": "Reads with editing [%]",
+        # "RelativePosition%": "Relative editing position [%]",
+    }
+    # title="NAs per position [%]",
+)
+fig.update_xaxes(
+    dtick=1,
+    zeroline=True,
+    zerolinecolor='black'     # Set line color
+)
+fig.update_yaxes(
+    zeroline=True,
+    zerolinecolor='black'     # Set line color
+)
+fig.update_layout(
+    showlegend=False,
+    width=800,
+    height=300,
+    # title_text="Squid's UMI long-reads - merged samples",
+    # title_x=0.15,
+)
+fig.show()
 
 # %% [markdown]
 # ### Dissimilar distinct proteins

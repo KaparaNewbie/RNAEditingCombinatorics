@@ -5,7 +5,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.18.1
+#       jupytext_version: 1.19.3
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -170,6 +170,9 @@ merged_annotated_reads_files = [
     Path(mapped_merged_filtered_bams_dir, f"{chrom}.merged.MinRQ998.reads.csv.gz")
     for chrom in chroms
 ]
+
+# %%
+merged_annotated_reads_files
 
 # %%
 # merged by chrom
@@ -502,10 +505,10 @@ assert (
 concat_unmapped_bam_merged_per_sample_df
 
 # %%
-(
-    concat_unmapped_bam_merged_per_sample_df.size()
-    .reset_index(name="NumOfReadsPerBarcodeTag")
-)
+# (
+#     concat_unmapped_bam_merged_per_sample_df.size()
+#     .reset_index(name="NumOfReadsPerBarcodeTag")
+# )
 
 # %% [markdown]
 # # Mapped BAMs
@@ -1130,6 +1133,20 @@ fig.update_layout(width=800, height=450)
 fig.show()
 
 # %%
+(
+        concat_bams_df.loc[
+            (concat_bams_df["MappedGene"].ne("Unmapped"))
+            & (concat_bams_df["HighQualityRead"])
+        ]
+        .groupby(["Sample"])["MappedGene"]
+        .value_counts()
+        .reset_index(name="Reads")
+    )
+
+# %%
+Out[203]["Reads"].sum()
+
+# %%
 fig = px.bar(
     # concat_bams_df.groupby(["Sample"])["MappedGene"].value_counts().reset_index(name="Reads"),
     (
@@ -1318,12 +1335,6 @@ concat_bams_df = concat_bams_df.drop(columns=["NewRead"])
 concat_bams_df = concat_bams_df.rename(columns={"NR2": "Read"})
 
 concat_bams_df
-
-# %%
-concat_bams_df.loc[concat_bams_df["Read"].eq("1yU")]
-
-# %%
-concat_bams_df["Gene"].value_counts()
 
 # %%
 # concat_bams_df.groupby(["Gene", "Sample"]).size().reset_index(name="Reads")

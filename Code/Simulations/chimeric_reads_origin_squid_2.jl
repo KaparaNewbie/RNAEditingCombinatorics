@@ -991,6 +991,7 @@ function process_one_sample(
 			indices_of_chimeric_read_pairs = find_all_chimeric_reads(B, E)
 			chimerizing_protein_pairs = extract_chimerizing_pairs(common_proteins, indices_of_chimeric_read_pairs)
 			chimerizing_read_pairs = extract_chimerizing_pairs(common_unique_reads, indices_of_chimeric_read_pairs)
+			validate_chimerizing_pairs_are_made_of_different_elements(expression_file, chimerizing_read_pairs)
 			chimerizing_reads_sites_intersection = extract_chimeric_reads_sites_intersection(indices_of_chimeric_read_pairs, B, E)
 			num_of_chimeric_combinations = length(chimerizing_protein_pairs)
 			is_chimeric = num_of_chimeric_combinations > 0
