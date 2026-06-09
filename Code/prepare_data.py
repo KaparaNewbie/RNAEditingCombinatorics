@@ -4,6 +4,8 @@ from multiprocessing import Pool
 from pathlib import Path
 from itertools import chain
 import sys
+import os
+import shutil
 
 from icecream import ic
 
@@ -19,6 +21,87 @@ from General.os_utils import (
 )
 from General.argparse_utils import abs_path_from_str, expanded_path_from_str
 from General.multiqc import multiqc
+
+
+def tool_from_active_conda_env(
+    name: str,
+    *,
+    require_executable: bool = True,
+    require_readable: bool = True,
+) -> Path:
+    conda_prefix = os.environ.get("CONDA_PREFIX")
+
+    if conda_prefix:
+        candidate = Path(conda_prefix, "bin", name)
+
+        if not candidate.exists():
+            raise FileNotFoundError(
+                f"CONDA_PREFIX is set to {conda_prefix}, but {candidate} does not exist. "
+                f"Install {name} into the active conda environment."
+            )
+
+        if require_readable and not os.access(candidate, os.R_OK):
+            raise PermissionError(f"{candidate} exists but is not readable.")
+
+        if require_executable and not os.access(candidate, os.X_OK):
+            raise PermissionError(f"{candidate} exists but is not executable.")
+
+        return candidate
+
+    resolved = shutil.which(name)
+    if resolved is None:
+        raise FileNotFoundError(f"Could not find executable: {name}")
+
+    return Path(resolved)
+
+
+def trimmomatic_adapter_from_active_conda_env(filename: str) -> Path:
+    conda_prefix = os.environ.get("CONDA_PREFIX")
+
+    if not conda_prefix:
+        raise EnvironmentError(
+            "CONDA_PREFIX is not set. Activate the relevant conda environment first."
+        )
+
+    conda_prefix = Path(conda_prefix)
+
+    preferred = conda_prefix / "share" / "trimmomatic" / "adapters" / filename
+
+    if preferred.exists():
+        if not preferred.is_file():
+            raise FileNotFoundError(f"Expected a file, but got: {preferred}")
+        if not os.access(preferred, os.R_OK):
+            raise PermissionError(f"{preferred} exists but is not readable.")
+        return preferred
+
+    candidates = sorted(
+        p for p in conda_prefix.glob(f"share/trimmomatic*/adapters/{filename}")
+        if p.is_file()
+    )
+
+    if not candidates:
+        raise FileNotFoundError(
+            f"Could not find {filename!r} under "
+            f"{conda_prefix}/share/trimmomatic*/adapters/"
+        )
+
+    # Deduplicate cases where paths resolve to the same real file.
+    unique_by_realpath = {}
+    for p in candidates:
+        unique_by_realpath[p.resolve()] = p
+
+    if len(unique_by_realpath) == 1:
+        candidate = next(iter(unique_by_realpath.values()))
+    else:
+        raise RuntimeError(
+            "Found multiple distinct matching Trimmomatic adapter files:\n"
+            + "\n".join(str(p) for p in candidates)
+        )
+
+    if not os.access(candidate, os.R_OK):
+        raise PermissionError(f"{candidate} exists but is not readable.")
+
+    return candidate
 
 
 def pacbio_index(
@@ -178,6 +261,50 @@ def remove_pacbio_duplicates(
     )
 
 
+# def remove_illumina_duplicates(
+#     prinseq_lite_path: Path,
+#     left_in_file: Path,
+#     right_in_file: Path,
+#     out_file: Path,
+#     min_qual_mean: int,
+#     trim_to_len: int,
+#     min_len: int,
+#     trim_left: int,
+#     trim_right: int,
+#     fastqc_path: Path,
+#     threads: int,
+# ):
+#     # out_file = Path(out_dir, sample_name)
+#     rm_dup_cmd = (
+#         f"{prinseq_lite_path} "
+#         f"-fastq {left_in_file} "
+#         f"-fastq2 {right_in_file} "
+#         f"-out_bad null "
+#         f"-out_good {out_file} "
+#         f"-derep 14 "  # Type of duplicates to filter; 1 = exact duplicates, 4 = reverse complement exact duplicate
+#         f"-min_qual_mean {min_qual_mean} "
+#         f"-trim_to_len {trim_to_len} "
+#         f"-min_len {min_len} "
+#         f"-trim_left {trim_left} "
+#         f"-trim_right {trim_right} "
+#     )
+#     subprocess.run(rm_dup_cmd, shell=True)
+#     left_out_file = Path(out_file.parent, f"{out_file.name}_1.fastq")
+#     right_out_file = Path(out_file.parent, f"{out_file.name}_2.fastq")
+#     fastqc(
+#         fastqc_path=fastqc_path,
+#         seq_file=left_out_file,
+#         out_dir=left_out_file.parent,
+#         threads=threads,
+#     )
+#     fastqc(
+#         fastqc_path=fastqc_path,
+#         seq_file=right_out_file,
+#         out_dir=right_out_file.parent,
+#         threads=threads,
+#     )
+    
+
 def remove_illumina_duplicates(
     prinseq_lite_path: Path,
     left_in_file: Path,
@@ -191,23 +318,28 @@ def remove_illumina_duplicates(
     fastqc_path: Path,
     threads: int,
 ):
-    # out_file = Path(out_dir, sample_name)
-    rm_dup_cmd = (
-        f"{prinseq_lite_path} "
-        f"-fastq {left_in_file} "
-        f"-fastq2 {right_in_file} "
-        f"-out_bad null "
-        f"-out_good {out_file} "
-        f"-derep 14 "  # Type of duplicates to filter; 1 = exact duplicates, 4 = reverse complement exact duplicate
-        f"-min_qual_mean {min_qual_mean} "
-        f"-trim_to_len {trim_to_len} "
-        f"-min_len {min_len} "
-        f"-trim_left {trim_left} "
-        f"-trim_right {trim_right} "
-    )
-    subprocess.run(rm_dup_cmd, shell=True)
+    perl_path = tool_from_active_conda_env("perl", require_executable=True)
+
+    cmd = [
+        str(perl_path),
+        str(prinseq_lite_path),
+        "-fastq", str(left_in_file),
+        "-fastq2", str(right_in_file),
+        "-out_bad", "null",
+        "-out_good", str(out_file),
+        "-derep", "14",
+        "-min_qual_mean", str(min_qual_mean),
+        "-trim_to_len", str(trim_to_len),
+        "-min_len", str(min_len),
+        "-trim_left", str(trim_left),
+        "-trim_right", str(trim_right),
+    ]
+
+    subprocess.run(cmd, check=True)
+
     left_out_file = Path(out_file.parent, f"{out_file.name}_1.fastq")
     right_out_file = Path(out_file.parent, f"{out_file.name}_2.fastq")
+
     fastqc(
         fastqc_path=fastqc_path,
         seq_file=left_out_file,
@@ -304,6 +436,28 @@ def trimmomatic_pe(
     )
 
 
+# def fastqc(
+#     fastqc_path: Path,
+#     seq_file: Path,
+#     out_dir: Path,
+#     threads: int,
+# ):
+#     # fastqc [-o output dir] [--(no)extract] [-f fastq|bam|sam]
+#     #    [-c contaminant file] seqfile1 .. seqfileN
+#     out_dir.mkdir(exist_ok=True)
+#     temp_dir = Path(out_dir, f"{seq_file.name}.FastQCTempDir")
+#     temp_dir.mkdir(exist_ok=True)
+#     fastqc_cmd = (
+#         f"{fastqc_path} "
+#         f"--outdir {out_dir} "
+#         f"--threads {threads} "
+#         f"--dir {temp_dir} "
+#         f"{seq_file} "
+#     )
+#     subprocess.run(fastqc_cmd, shell=True)
+#     delete_folder_with_files(temp_dir)
+    
+
 def fastqc(
     fastqc_path: Path,
     seq_file: Path,
@@ -312,18 +466,33 @@ def fastqc(
 ):
     # fastqc [-o output dir] [--(no)extract] [-f fastq|bam|sam]
     #    [-c contaminant file] seqfile1 .. seqfileN
+
+    fastqc_path = Path(fastqc_path)
+    perl_path = tool_from_active_conda_env("perl", require_executable=True)
+
+    if not fastqc_path.exists():
+        raise FileNotFoundError(f"FastQC script does not exist: {fastqc_path}")
+
+    if not os.access(fastqc_path, os.R_OK):
+        raise PermissionError(f"FastQC script exists but is not readable: {fastqc_path}")
+
     out_dir.mkdir(exist_ok=True)
     temp_dir = Path(out_dir, f"{seq_file.name}.FastQCTempDir")
     temp_dir.mkdir(exist_ok=True)
-    fastqc_cmd = (
-        f"{fastqc_path} "
-        f"--outdir {out_dir} "
-        f"--threads {threads} "
-        f"--dir {temp_dir} "
-        f"{seq_file} "
-    )
-    subprocess.run(fastqc_cmd, shell=True)
-    delete_folder_with_files(temp_dir)
+
+    cmd = [
+        str(perl_path),
+        str(fastqc_path),
+        "--outdir", str(out_dir),
+        "--threads", str(threads),
+        "--dir", str(temp_dir),
+        str(seq_file),
+    ]
+
+    try:
+        subprocess.run(cmd, check=True)
+    finally:
+        delete_folder_with_files(temp_dir)
 
 
 def illumina_main(
@@ -982,14 +1151,16 @@ def define_args() -> argparse.ArgumentParser:
         "--fastqc_path",
         type=expanded_path_from_str,
         # default=Path("~/anaconda3/envs/combinatorics/bin/fastqc").expanduser(),
-        default=Path("fastqc"),
+        # default=Path("fastqc"),
+        default=tool_from_active_conda_env("fastqc", require_executable=False),
         help="FastQC executable.",
     )
     parser.add_argument(
         "--multiqc_path",
         type=expanded_path_from_str,
         # default=Path("~/anaconda3/envs/combinatorics2/bin/multiqc").expanduser(),
-        default=Path("multiqc"),
+        # default=Path("multiqc"),
+        default=tool_from_active_conda_env("multiqc", require_executable=True),
         help="MultiQC executable.",
     )
     parser.add_argument(
@@ -1186,7 +1357,8 @@ def define_args() -> argparse.ArgumentParser:
         "--prinseq_lite_path",
         type=expanded_path_from_str,
         # default=Path("~/anaconda3/envs/combinatorics/bin/prinseq-lite.pl").expanduser(),
-        default=Path("printseq-lite.pl"),
+        # default=Path("printseq-lite.pl"),
+        default=tool_from_active_conda_env("prinseq-lite.pl", require_executable=False),
         help="Prinseq-lite executable.",
     )
     illumina_parser.add_argument(
@@ -1218,15 +1390,17 @@ def define_args() -> argparse.ArgumentParser:
         "--trimmomatic_path",
         type=expanded_path_from_str,
         # default=Path("~/anaconda3/envs/combinatorics/bin/trimmomatic").expanduser(),
-        default=Path("trimmomatic"),
+        # default=Path("trimmomatic"),
+        default=tool_from_active_conda_env("trimmomatic", require_executable=True),
         help="Trimmomatic executable.",
     )
     illumina_parser.add_argument(
         "--trimmomatic_adapters_file",
         type=expanded_path_from_str,
-        default=Path(
-            "~/anaconda3/envs/combinatorics/share/trimmomatic-0.39-2/adapters/TruSeq3-PE-2.fa"
-        ).expanduser(),
+        # default=Path(
+        #     "~/anaconda3/envs/combinatorics/share/trimmomatic-0.39-2/adapters/TruSeq3-PE-2.fa"
+        # ).expanduser(),
+        default=trimmomatic_adapter_from_active_conda_env("TruSeq3-PE-2.fa"),
         help="A fasta file with adapters to trim.",
     )
     illumina_parser.add_argument(

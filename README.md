@@ -613,17 +613,16 @@ nohup \
 python Code/prepare_data.py \
 --in_dir "$RAW_DIR" \
 --out_dir "D.pealeii/Data/BulkRNA/${BIOPROJECT}" \
---processes 6 \
+--processes 12 \
 --threads 10 \
 illumina \
 --min_qual_mean 30 \
 --compress_cmd "bgzip -c --threads 10" \
---prinseq_lite_path "~/anaconda3/envs/combinatorics2/bin/prinseq-lite.pl" \
-> D.pealeii/Data/BulkRNA/${BIOPROJECT}/prepare_data.7.6.26.out &
+> D.pealeii/Data/BulkRNA/${BIOPROJECT}/prepare_data.9.6.26.out &
 ```
 * alu 17
-* 17:59
-* 1340913
+* 11:44
+* 2267537
 
 
 ### Download OG data
@@ -665,13 +664,11 @@ python Code/prepare_data.py \
 illumina \
 --min_qual_mean 30 \
 --compress_cmd "bgzip -c --threads 10" \
---prinseq_lite_path "~/anaconda3/envs/combinatorics2/bin/prinseq-lite.pl" \
-> D.pealeii/Data/BulkRNA/${BIOPROJECT}/prepare_data.7.6.26.out &
+> D.pealeii/Data/BulkRNA/${BIOPROJECT}/prepare_data.9.6.26.out &
 ```
 * alu 17
-* 17:59
-* 1341619
-
+* 11:37
+* 2260239
 
 
 # Alignment
