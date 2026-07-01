@@ -520,6 +520,8 @@ python Code/neural_transcripts.py \
 > O.vulgaris/Annotations/neural_transcripts.out &
 ```
 
+
+
 ## New squid long-reads w/ UMIs
 
 ```bash
@@ -670,6 +672,51 @@ illumina \
 * 11:37
 * 2260239
 
+### Quant SG expression
+
+```bash
+BIOPROJECT="PRJNA1216919"
+
+IN_DIR="D.pealeii/Data/BulkRNA/${BIOPROJECT}/TrimmedWoDup"
+OUT_DIR="D.pealeii/Salmon/${BIOPROJECT}"
+
+mkdir -p $OUT_DIR
+
+nohup \
+python Code/run_salmon.py \
+--transcriptome_file D.pealeii/Annotations/Jan2025/orfs_squ.fa \
+--in_dir $IN_DIR \
+--out_dir $OUT_DIR \
+--processes 6 \
+--threads 10 \
+> $OUT_DIR/run_salmon.10.6.2026.out &
+```
+* alu 17
+* 13:37
+* 4193715
+
+### Quant OG expression
+
+```bash
+BIOPROJECT="PRJNA641326"
+
+IN_DIR="D.pealeii/Data/BulkRNA/${BIOPROJECT}/TrimmedWoDup"
+OUT_DIR="D.pealeii/Salmon/${BIOPROJECT}"
+
+mkdir -p $OUT_DIR
+
+nohup \
+python Code/run_salmon.py \
+--transcriptome_file D.pealeii/Annotations/Jan2025/orfs_squ.fa \
+--in_dir $IN_DIR \
+--out_dir $OUT_DIR \
+--processes 2 \
+--threads 10 \
+> $OUT_DIR/run_salmon.10.6.2026.out &
+```
+* alu 17
+* 13:36
+* 4190025
 
 # Alignment
 
@@ -5248,6 +5295,8 @@ samtools index -M *.bam
 
 ## Recreating positions file with all noise positions for directed sequencing data
 
+### PacBio 1
+
 ```bash
 COMB
 
@@ -5279,6 +5328,8 @@ directed_sequencing_data \
 * alu 18
 * 3910740
 
+### PacBio 2
+
 I'm using `--total_mapped_reads 2000` rather than `--total_mapped_reads 50` only as a crude way to use the real sequenced transcripts.
 
 ```bash
@@ -5309,8 +5360,35 @@ directed_sequencing_data \
 * 3911166
 
 
+### PacBio 3
+
 ```bash
-mkdir -p D.pealeii/MpileupAndTranscripts/Illumina80KPairs
+nohup python Code/pileup_with_subparsers.py \
+--transcriptome D.pealeii/Annotations/Jan2025/orfs_squ.fa \
+--known_editing_sites D.pealeii/Annotations/Jan2025/D.pea.EditingSites.bed \
+--exclude_flags 2304 \
+--parity SE \
+--min_rq 0.998 \
+--min_bq 30 \
+--out_dir D.pealeii/MpileupAndTranscripts/CompleteNoisePositions \
+--processes 3 \
+--threads 15 \
+--gz_compression \
+--keep_pileup_files \
+directed_sequencing_data \
+--data_table D.pealeii/Alignment/AdditionalUMILongReads/DataTable.Squid.MergedAdditionalUMILongReads.csv \
+--cds_regions D.pealeii/Annotations/Jan2025/orfs_squ.bed \
+--keep_non_refbase_noisy_positions \
+--stop_after_making_noise_positions \
+> D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/pileup_with_subparsers.OnlyNoisePositions.PacBio3.23.6.26.out &
+```
+* alu 18
+* 2436349
+
+### Illumina 1
+
+```bash
+# mkdir -p D.pealeii/MpileupAndTranscripts/Illumina80KPairs
 
 nohup python Code/pileup_with_subparsers.py \
 --transcriptome D.pealeii/Annotations/Jan2025/orfs_squ.fa \
@@ -5334,6 +5412,12 @@ directed_sequencing_data \
 * alu 18
 * 3914152
 
+## Then create the actuall reads- and SNPs files using notebooks
+
+Use the notebooks:
+* Code/Notebooks/noise_positions_and_reads_squid.ipynb
+* Code/Notebooks/noise_positions_and_reads_octopus.ipynb
+Then use their outputs in the main notebooks of each dataset.
 
 # Chimeric reads
 

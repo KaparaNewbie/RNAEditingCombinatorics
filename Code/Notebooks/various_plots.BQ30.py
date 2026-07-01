@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.3
+#       jupytext_version: 1.19.4
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -5369,7 +5369,9 @@ fig.show()
 condition_col = "Gene"
 platforms = ["Long-reads", "Short-reads"]
 
-pacbio_conditions = ["GRIA2", "PCLO", "ADAR1", "IQEC1"]
+pacbio_conditions = ["GRIA2", "PCLO", 
+                    #  "ADAR1", "IQEC1"
+                     ]
 
 # illumina_conditions = [
 #     "RUSC2_MOUSE",
@@ -5405,10 +5407,10 @@ in_dir = Path("/private7/projects/Combinatorics/Code/Notebooks")
 
 # illumina_merged_distinct_proteins_file = Path(in_dir, "DistinctProteins.Illumina.tsv")
 pacbio_editing_in_motifs_file = Path(in_dir, "EditingInMotifs.PacBio.tsv")
-pacbio_umi_editing_in_motifs_file = Path(
-    in_dir,
-    "EditingInMotifs.PacBio.UMI.tsv",
-)
+# pacbio_umi_editing_in_motifs_file = Path(
+#     in_dir,
+#     "EditingInMotifs.PacBio.UMI.tsv",
+# )
 
 # illumina_merged_max_distinct_proteins_file = Path(
 #     in_dir, "MaxDistinctProteinsF1.Illumina.tsv"
@@ -5442,11 +5444,11 @@ pacbio_concat_signature_positions_df = pd.concat(
             dtype={"Edited": bool, "PositionInSignature": str},
             na_filter=False,
         ),
-        pd.read_table(
-            pacbio_umi_editing_in_motifs_file,
-            dtype={"Edited": bool, "PositionInSignature": str},
-            na_filter=False,
-        ),
+        # pd.read_table(
+        #     pacbio_umi_editing_in_motifs_file,
+        #     dtype={"Edited": bool, "PositionInSignature": str},
+        #     na_filter=False,
+        # ),
     ]
 )
 # illumina_max_distinct_proteins_df = pd.read_table(
@@ -5664,7 +5666,8 @@ fig.update_yaxes(
 
 # fig.update_annotations(font_size=font_size)
 
-width = 800
+# width = 800
+width = 500
 height = 450
 
 fig.update_layout(
@@ -5679,7 +5682,7 @@ fig.update_layout(
 )
 
 fig.write_image(
-    Path(out_dir, "Editing in domains - PacBio.svg"),
+    Path(out_dir, "Editing in domains - PacBio1.svg"),
     width=width,
     height=height,
 )
@@ -6657,7 +6660,10 @@ fig.show()
 condition_col = "Gene"
 platforms = ["Long-reads", "Short-reads"]
 
-pacbio_conditions = ["GRIA2", "PCLO", "ADAR1", "IQEC1"]
+pacbio_conditions = [
+    "GRIA2", "PCLO", 
+    # "ADAR1", "IQEC1"
+]
 
 # illumina_conditions = [
 #     "RUSC2_MOUSE",
@@ -6715,10 +6721,10 @@ in_dir = Path("/private7/projects/Combinatorics/Code/Notebooks")
 
 # illumina_merged_distinct_proteins_file = Path(in_dir, "DistinctProteins.Illumina.tsv")
 pacbio_kmeans_silhouette_scores_file = Path(in_dir, "KMeansMeanSilhouetteScores.PacBio.tsv")
-pacbio_umi_kmeans_silhouette_scores_file = Path(
-    in_dir,
-    "KMeansMeanSilhouetteScores.PacBio.WithUMIs.tsv",
-)
+# pacbio_umi_kmeans_silhouette_scores_file = Path(
+#     in_dir,
+#     "KMeansMeanSilhouetteScores.PacBio.WithUMIs.tsv",
+# )
 
 # illumina_merged_max_distinct_proteins_file = Path(
 #     in_dir, "MaxDistinctProteinsF1.Illumina.tsv"
@@ -6733,11 +6739,11 @@ pacbio_concat_kmeans_silhouette_scores_df = pd.concat(
             # dtype={"Edited": bool, "PositionInSignature": str},
             # na_filter=False,
         ),
-        pd.read_table(
-            pacbio_umi_kmeans_silhouette_scores_file,
-            # dtype={"Edited": bool, "PositionInSignature": str},
-            # na_filter=False,
-        ),
+        # pd.read_table(
+        #     pacbio_umi_kmeans_silhouette_scores_file,
+        #     # dtype={"Edited": bool, "PositionInSignature": str},
+        #     # na_filter=False,
+        # ),
     ]
 )
 # illumina_max_distinct_proteins_df = pd.read_table(
@@ -6978,10 +6984,10 @@ fig.show()
 in_dir = Path("/private7/projects/Combinatorics/Code/Notebooks")
 
 pacbio_dissimilar_kmeans_silhouette_scores_file = Path(in_dir, "KMeansMeanSilhouetteScores.Dissimilar.PacBio.tsv")
-pacbio_dissimilar_umi_kmeans_silhouette_scores_file = Path(
-    in_dir,
-    "KMeansMeanSilhouetteScores.Dissimilar.PacBio.UMIs.tsv",
-)
+# pacbio_dissimilar_umi_kmeans_silhouette_scores_file = Path(
+#     in_dir,
+#     "KMeansMeanSilhouetteScores.Dissimilar.PacBio.UMIs.tsv",
+# )
 
 # %%
 # pacbio_max_distinct_proteins_df = pd.read_table(pacbio_merged_max_distinct_proteins_file)
@@ -6992,11 +6998,11 @@ pacbio_concat_dissimilar_kmeans_silhouette_scores_df = pd.concat(
             # dtype={"Edited": bool, "PositionInSignature": str},
             # na_filter=False,
         ),
-        pd.read_table(
-            pacbio_dissimilar_umi_kmeans_silhouette_scores_file,
-            # dtype={"Edited": bool, "PositionInSignature": str},
-            # na_filter=False,
-        ),
+        # pd.read_table(
+        #     pacbio_dissimilar_umi_kmeans_silhouette_scores_file,
+        #     # dtype={"Edited": bool, "PositionInSignature": str},
+        #     # na_filter=False,
+        # ),
     ]
 )
 
@@ -7061,6 +7067,7 @@ for col, dissimilarity in enumerate(dissimilarities, start=1):
             x=x,
             y=y,
             mode="markers",
+            # mode="lines+markers",
             marker=dict(
                 color=color,
                 # color=labels[clustered],
@@ -7142,17 +7149,17 @@ fig.update_layout(
     height=height,
     width=width,
 )
-# fig.write_image(
-#     "Distinct dissimilar proteins vs. sequencing depth - PacBio.svg",
-#     height=height,
-#     width=width,
-# )
-
 fig.write_image(
-    Path(out_dir, "Mean silhouette score of MiniBatchKMeans vs. K size - PacBio w UMIs - dissimilar.svg"),
+    Path(out_dir, "Mean silhouette score of MiniBatchKMeans vs. K size - PacBio1 - dissimilar.svg"),
     height=height,
     width=width,
 )
+
+# fig.write_image(
+#     Path(out_dir, "Mean silhouette score of MiniBatchKMeans vs. K size - PacBio w UMIs - dissimilar.svg"),
+#     height=height,
+#     width=width,
+# )
 
 fig.show()
 
@@ -7944,7 +7951,7 @@ mismatch_dolor_map
 # pacbio_dispersion_file = "Dispersion.PacBio.tsv"
 pacbio_12_mismatches_files_files = [
     Path(out_dir, "12MismatchsAboveNoiseThreshold.Squid.PacBio.csv"),
-    Path(out_dir, "12MismatchsAboveNoiseThreshold.Squid.PacBio.UMIs.csv"),
+    # Path(out_dir, "12MismatchsAboveNoiseThreshold.Squid.PacBio.UMIs.csv"),
 ]
 illumina_12_mismatches_file = Path(out_dir, "12MismatchsAboveNoiseThreshold.Squid.Illumina.csv")
 octopus_12_mismatches_file = Path(out_dir, "12MismatchsAboveNoiseThreshold.Octopus.WholeTranscriptome.Pooled.csv")

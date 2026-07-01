@@ -5,7 +5,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.3
+#       jupytext_version: 1.19.4
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -514,240 +514,6 @@ concat_unmapped_bam_merged_per_sample_df
 # # Mapped BAMs
 
 # %%
-# mapped_bam_files = list(mapped_bams_dir.glob("*.bam"))
-# mapped_merged_bam_files
-
-# %%
-# # !samtools view -c --threads 10 /private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads/LP2IQEC.r64296e203404D01.aligned.sorted.bam
-
-# %%
-# mapped_bam_file = mapped_bam_files[0]
-# mapped_bam_file
-
-# %%
-# with pysam.AlignmentFile(
-#     mapped_bam_file,
-#     "rb",
-#     threads=10,
-# ) as samfile:
-#     mapped_reads = [read for read in samfile]
-# mapped_reads[0]
-# print(mapped_reads[0])
-
-# %%
-# seq = read.query_sequence
-# len(seq)
-
-# %%
-# soft_clipped_seq = read.query_sequence
-# len(soft_clipped_seq)
-
-# %%
-# primers_dict
-
-# %%
-# read = mapped_reads[0]
-# print(read)
-
-# %%
-# read.get_cigar_stats()
-
-# %%
-# read.get_aligned_pairs(with_cigar=True)[0][2] == 4
-
-# %%
-# read.get_aligned_pairs(with_cigar=True)
-
-# %%
-# query_name = "IQEC"
-# query_seq = str(primers_dict[query_name])
-# target_name = read.query_name
-# target_seq = read.query_sequence  # soft clipped seq of the read
-
-# ic(query_name, query_seq)
-# ic(target_name, target_seq);
-
-# %%
-#
-
-# %%
-# aligner = Align.PairwiseAligner(
-#     # match_score=1.0, mismatch_score=-2.0, gap_score = -2.5,
-#     # mode="local",
-#     scoring="blastn"
-#     # scoring="megablast"
-# )
-
-# global_df = find_best_pairwise_alignments_for_query_and_target(
-#     aligner,
-#     query_name,
-#     target_name,
-#     query_seq,
-#     target_seq,
-#     first_n_alignments_per_strand=10,
-#     # debug_mode=True
-# )
-# global_df
-
-# %%
-# global_df.loc[
-#     (global_df["%QueryIdentity"] == 100)
-#     & (global_df["%QueryCoverage"] == 100)
-# ].sort_values("Gaps", ascending=False)
-
-# %%
-# print(global_df.loc[0, "AlignmentObject"])
-
-# %%
-# aligner.mode
-
-# %%
-# aligner = Align.PairwiseAligner(
-#     # match_score=1.0, mismatch_score=-2.0, gap_score = -2.5,
-#     mode="local",  # otherwise we'd get scattered matches of the primer across the read
-#     scoring="blastn",
-#     # scoring="megablast"
-# )
-
-# local_df = find_best_pairwise_alignments_for_query_and_target(
-#     aligner,
-#     query_name,
-#     target_name,
-#     query_seq,
-#     target_seq,
-#     first_n_alignments_per_strand=10,
-#     debug_mode=True,
-# )
-# local_df
-
-# %%
-# local_df.loc[
-#     (local_df["%QueryIdentity"] == 100)
-#     & (local_df["%QueryCoverage"] == 100)
-#     & (local_df["Gaps"] == 0)
-# ]
-
-# %%
-# local_df.loc[
-#     (local_df["%QueryIdentity"] == 100)
-#     & (local_df["%QueryCoverage"] == 100)
-#     & (local_df["Gaps"] == 0),
-#     "AlignmentObject",
-# ].apply(lambda x: x.aligned)
-
-# %%
-# for i, alignment in enumerate(positive_strand_alignments, start=1):
-#     # ic(i)
-#     score = alignment.score
-#     gaps, identities, mismatches = alignment.counts()
-#     alignment_length = alignment.length
-#     print(
-#         f"{score = }, {gaps = }, {identities = }, {mismatches = }, {alignment_length = }\n"
-#     )
-#     print(alignment)
-#     if i == 10:
-#         break
-#     print("\n")
-
-# %%
-# alignment = alignments[0]
-
-# print(alignment)
-# # ic(alignment)
-
-# %%
-# score = alignment.score
-# gaps, identities, mismatches = alignment.counts()
-# alignment_length = alignment.length
-# ic(score, gaps, identities, mismatches, alignment_length);
-
-# %%
-# alignment.coordinates
-
-# %%
-# alignment.aligned
-
-# %%
-# aligned_target_indices, aligned_query_indices = alignment.aligned
-# aligned_target_indices, aligned_query_indices
-
-# %%
-# target_aligned_indices = alignment.aligned[0]
-
-# target_aligned_indices
-
-# %%
-# query_aligned_indices = alignment.aligned[1]
-# query_aligned_indices
-
-# %%
-# query_aligned_indices = alignment.aligned[1]
-# sum([q_end_i - q_start_i for q_start_i, q_end_i in query_aligned_indices])
-
-# %%
-#
-
-# %%
-#
-
-# %%
-#
-
-# %%
-# #     length of the aligned query sequence.
-
-# #    This is equal to query_alignment_end - query_alignment_start
-
-# read.query_alignment_length
-
-# %%
-"""
-infer query length from CIGAR alignment.
-
-This method deduces the query length from the CIGAR alignment but does not include hard-clipped bases.
-
-Returns None if CIGAR alignment is not present.
-
-If always is set to True, infer_read_length is used instead. This is deprecated and only present for backward compatibility.
-
-"""
-
-# read.infer_query_length()
-
-# %%
-"""
-infer read length from CIGAR alignment.
-
-This method deduces the read length from the CIGAR alignment including hard-clipped bases.
-
-Returns None if CIGAR alignment is not present.
-
-"""
-
-# read.infer_read_length()
-
-# %%
-# # fn: Number of passes in PacBio sequencing (or similar, platform-dependent).
-# read.get_tag("fn")
-
-# %%
-# # np: Number of passes through the template (PacBio circular consensus reads).
-# read.get_tag("np")
-
-# %%
-# read.query_sequence
-
-# %%
-# # bq: Base qualities of the barcode sequence.
-# read.get_tag("rq")
-
-# %%
-# /private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads/LP2IQEC.r64296e203404D01.aligned.sorted.bam
-
-# %%
-#
-
-# %%
 # def count_unique_reads(bam: Path, threads: int = 1):
 #     with pysam.AlignmentFile(bam, "rb", threads=threads) as samfile:
 #         unique_reads_names = {read.query_name for read in samfile}
@@ -1133,18 +899,40 @@ fig.update_layout(width=800, height=450)
 fig.show()
 
 # %%
-(
-        concat_bams_df.loc[
-            (concat_bams_df["MappedGene"].ne("Unmapped"))
-            & (concat_bams_df["HighQualityRead"])
-        ]
-        .groupby(["Sample"])["MappedGene"]
-        .value_counts()
-        .reset_index(name="Reads")
-    )
+# (
+#     concat_bams_df.loc[
+#         (concat_bams_df["MappedGene"].ne("Unmapped"))
+#         & (concat_bams_df["HighQualityRead"])
+#     ]
+#     .groupby(["Sample"])["MappedGene"]
+#     .value_counts()
+#     .reset_index(name="Reads")
+# )
 
 # %%
-Out[203]["Reads"].sum()
+(
+    concat_bams_df.loc[
+        (concat_bams_df["MappedGene"].ne("Unmapped"))
+        & (concat_bams_df["HighQualityRead"])
+    ]
+    .groupby(["MappedGene"])
+    .size()
+    .reset_index(name="Reads")
+)
+
+# %%
+(
+    concat_bams_df.loc[
+        (concat_bams_df["MappedGene"].ne("Unmapped"))
+        & (concat_bams_df["HighQualityRead"])
+    ]
+    .groupby(["MappedGene", "Sample", ])
+    .size()
+    .reset_index(name="Reads")
+)
+
+# %%
+# Out[203]["Reads"].sum()
 
 # %%
 fig = px.bar(
@@ -1952,6 +1740,7 @@ coverage_depth_files = [
     Path(mapped_merged_filtered_bams_dir, f"{gene}.FinalCoverageDepth.tsv")
     for gene in genes
 ]
+coverage_depth_files
 
 # %%
 # filter the bam files according to the final reads used
@@ -1972,10 +1761,12 @@ for in_bam_path, gene in zip(mapped_bam_merged_by_chrom_files, genes):
     
     out_bam_path = Path(temp_dir, in_bam_path.name)
     
+    ic(gene, in_bam_path, out_bam_path, len(reads_to_keep))
+    
     mapped_merged_filtered_bams.append(out_bam_path)
 
-    with pysam.AlignmentFile(in_bam_path, "rb") as in_bam, pysam.AlignmentFile(
-        out_bam_path, "wb", template=in_bam
+    with pysam.AlignmentFile(in_bam_path, "rb", threads=10) as in_bam, pysam.AlignmentFile(
+        out_bam_path, "wb", template=in_bam, threads=10
     ) as out_bam:
         for read in in_bam:
             if read.query_name in reads_to_keep:
@@ -1998,11 +1789,14 @@ for (gene, chrom), coverage_depth_file, final_filtered_bam in zip(
     subprocess.run(cmd, shell=True, check=True)
     
     
-# clean up the temporary directory
-# !rm -rf {temp_dir}
+# # clean up the temporary directory
+# # !rm -rf {temp_dir}
 
 # %%
 #
+
+# %%
+concat_bams_df
 
 # %%
 gene_cov_dfs = []
@@ -2097,6 +1891,83 @@ mapping_boundaries_stats_df = concat_bams_df.loc[
 ].describe()
 
 mapping_boundaries_stats_df
+
+# %%
+# (
+#     concat_bams_df
+#     .loc[
+#         :,
+#         ["Gene", "Read", "GeneStart", "GeneEnd"]
+#     ]
+#     .melt(id_vars=["Gene", "Read"], var_name="BoundaryType", value_name="BoundaryCoord")
+# )
+
+# %%
+fig = px.histogram(
+    concat_bams_df,
+    x="GeneStart",
+    facet_col="Gene",
+    histnorm="percent",
+    # cumulative=True,
+)
+fig.update_xaxes(tick0=0, dtick=500, range=[0, None])
+fig.update_yaxes(dtick=25)
+fig.update_layout(
+    width=1200,
+    height=350
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    concat_bams_df,
+    x="GeneEnd",
+    facet_col="Gene",
+    histnorm="percent",
+)
+fig.update_xaxes(tick0=0, dtick=500, range=[0, None])
+fig.update_yaxes(dtick=25)
+fig.update_layout(
+    width=1200,
+    height=350
+)
+fig.show()
+
+# %%
+fig = px.ecdf(
+    concat_bams_df,
+    x="GeneStart",
+    facet_col="Gene",
+    color="Gene",
+    ecdfnorm="percent",
+    # ecdfmode="reversed",
+)
+fig.update_xaxes(tick0=0, dtick=500, range=[0, None])
+fig.update_yaxes(dtick=25)
+fig.update_layout(
+    width=1200,
+    height=350,
+    showlegend=False
+)
+fig.show()
+
+# %%
+fig = px.ecdf(
+    concat_bams_df,
+    x="GeneEnd",
+    facet_col="Gene",
+    color="Gene",
+    ecdfnorm="percent",
+    ecdfmode="reversed",
+)
+fig.update_xaxes(tick0=0, dtick=500, range=[0, None])
+fig.update_yaxes(dtick=25)
+fig.update_layout(
+    width=1200,
+    height=350,
+    showlegend=False
+)
+fig.show()
 
 # %%
 main_mapping_boundaries_per_gene = []
@@ -2288,6 +2159,50 @@ for gene, gene_cov_df, gene_mapping_boundaries in zip(
             color="black",
             width=2,
             dash="dot",
+        ),
+    )
+    
+    
+    fig.add_trace(
+        go.Scatter(
+            x=[None],
+            y=[None], 
+            mode='lines',
+            name="25% main mapping boundaries",
+            showlegend=True,
+            line=dict(
+                color="black",
+                width=2,
+                dash="dot",
+            )
+        ),
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=[None],
+            y=[None],
+            mode='lines',
+            name="Gene-specific barcode",
+            showlegend=True,
+            line=dict(
+                color="red",
+                width=2,
+                dash="dash",
+            )
+        ),
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=[None],
+            y=[None],
+            mode='lines',
+            name="Total reads",
+            showlegend=True,
+            line=dict(
+                color="LightSeaGreen",
+                width=4,
+                dash="dashdot",
+            )
         ),
     )
 
@@ -13711,42 +13626,42 @@ distinct_umis_gene_specific_pcr_amplified_concat_alignments_df.groupby(
 ).size().reset_index()
 
 # %%
-ccs_vs_distinct_reads_df = concat_ccs_df[["Gene", "Sample"]].value_counts().reset_index().sort_values(
-        ["Gene", "Sample"]
-    ).reset_index(drop=True).rename(columns={"count": "ConnectedComponents"}).transform(
-    lambda x: x.astype({"Sample": "str"})
-    ).merge(
-    distinct_umis_gene_specific_pcr_amplified_concat_alignments_df.groupby(
-        ["Gene", "Sample"]
-    ).size().reset_index().rename(columns={0: "DistinctReads"}),
-    on=["Gene", "Sample"],
-    how="left",
-)
+# ccs_vs_distinct_reads_df = concat_ccs_df[["Gene", "Sample"]].value_counts().reset_index().sort_values(
+#         ["Gene", "Sample"]
+#     ).reset_index(drop=True).rename(columns={"count": "ConnectedComponents"}).transform(
+#     lambda x: x.astype({"Sample": "str"})
+#     ).merge(
+#     distinct_umis_gene_specific_pcr_amplified_concat_alignments_df.groupby(
+#         ["Gene", "Sample"]
+#     ).size().reset_index().rename(columns={0: "DistinctReads"}),
+#     on=["Gene", "Sample"],
+#     how="left",
+# )
     
-ccs_vs_distinct_reads_df["DistinctReads/ConnectedComponent"] = ccs_vs_distinct_reads_df["DistinctReads"].div(
-    ccs_vs_distinct_reads_df["ConnectedComponents"]
-).round(2)
-
-# assert ccs_vs_distinct_reads_df["DistinctReads"].ge(
+# ccs_vs_distinct_reads_df["DistinctReads/ConnectedComponent"] = ccs_vs_distinct_reads_df["DistinctReads"].div(
 #     ccs_vs_distinct_reads_df["ConnectedComponents"]
-# ).all(), "Each connected component should have at least one distinct read in it."
+# ).round(2)
 
-assert ccs_vs_distinct_reads_df["DistinctReads/ConnectedComponent"].ge(1).all(), "Each connected component should have at least one distinct read in it."
+# # assert ccs_vs_distinct_reads_df["DistinctReads"].ge(
+# #     ccs_vs_distinct_reads_df["ConnectedComponents"]
+# # ).all(), "Each connected component should have at least one distinct read in it."
 
-ccs_vs_distinct_reads_df
+# assert ccs_vs_distinct_reads_df["DistinctReads/ConnectedComponent"].ge(1).all(), "Each connected component should have at least one distinct read in it."
+
+# ccs_vs_distinct_reads_df
 
 # %%
-ccs_vs_distinct_reads_df["DistinctReads"].div(
-    ccs_vs_distinct_reads_df["ConnectedComponents"]
-).round(2)
+# ccs_vs_distinct_reads_df["DistinctReads"].div(
+#     ccs_vs_distinct_reads_df["ConnectedComponents"]
+# ).round(2)
 
 # %%
-# num of connected components per graph
-concat_ccs_df[["Gene", "Sample"]].value_counts().reset_index().sort_values(
-    ["Gene", "Sample"]
-).reset_index(drop=True).rename(columns={"count": "ConnectedComponents"}).transform(
-    lambda x: x.astype({"Gene": "str", "Sample": "str"})
-)
+# # num of connected components per graph
+# concat_ccs_df[["Gene", "Sample"]].value_counts().reset_index().sort_values(
+#     ["Gene", "Sample"]
+# ).reset_index(drop=True).rename(columns={"count": "ConnectedComponents"}).transform(
+#     lambda x: x.astype({"Gene": "str", "Sample": "str"})
+# )
 
 # %%
 distinct_umis_gene_specific_pcr_amplified_concat_alignments_df.groupby("Gene").size()

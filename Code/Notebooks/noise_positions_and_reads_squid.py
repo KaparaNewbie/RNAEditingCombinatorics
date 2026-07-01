@@ -5,7 +5,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.3
+#       jupytext_version: 1.19.4
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -61,51 +61,109 @@ assurance_factor = 1.5
 # new_noise_positions_in_use = True
 
 # %%
-pacbio_samples = ["GRIA2", "PCLO", "ADAR1", "IQEC1"]
+# pacbio_samples = ["GRIA2", "PCLO", "ADAR1", "IQEC1"]
+
+# pacbio_new_positions_files = [
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz",
+# ]
+# pacbio_new_old_to_new_reads_files = [
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
+# ]
+
+# pacbio_old_reads_files = [
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz",
+# ]
+# pacbio_old_unique_reads_files = [
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_reads.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_reads.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_reads.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_reads.csv.gz",
+# ]
+# pacbio_old_old_to_new_reads_files = [
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
+# ]
+
+# pacbio_snps_positions_files = [
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.snps.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.snps.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.snps.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.snps.csv.gz",
+# ]
+# pacbio_snps_reads_files = [
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.snps.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.snps.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.snps.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.snps.csv.gz",
+# ]
+
+# %%
+pacbio_samples = [
+    "GRIA2", "PCLO", 
+    # "GRIA2", "ADAR1", "IQEC1"
+]
 
 pacbio_new_positions_files = [
     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
-    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz",
-    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz",
+    # "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/comp141693_c0_seq1.merged.MinRQ998.positions.csv.gz",
+    # "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/comp134400_c0_seq1_extended.merged.MinRQ998.positions.csv.gz",
+    # "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/comp141565_c6_seq3.merged.MinRQ998.positions.csv.gz"
 ]
 pacbio_new_old_to_new_reads_files = [
     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
-    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
-    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
+    # "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/comp141693_c0_seq1.merged.MinRQ998.OldToNewReads.csv.gz",
+    # "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/comp134400_c0_seq1_extended.merged.MinRQ998.OldToNewReads.csv.gz",
+    # "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/comp141565_c6_seq3.merged.MinRQ998.OldToNewReads.csv.gz"
 ]
 
 pacbio_old_reads_files = [
     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz",
     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz",
-    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz",
-    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz",
+    # "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/comp141693_c0_seq1.merged.MinRQ998.reads.csv.gz",
+    # "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/comp134400_c0_seq1_extended.merged.MinRQ998.reads.csv.gz",
+    # "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/comp141565_c6_seq3.merged.MinRQ998.reads.csv.gz"
 ]
 pacbio_old_unique_reads_files = [
     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_reads.csv.gz",
     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_reads.csv.gz",
-    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_reads.csv.gz",
-    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_reads.csv.gz",
+    # "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/comp141693_c0_seq1.merged.MinRQ998.unique_reads.csv.gz",
+    # "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/comp134400_c0_seq1_extended.merged.MinRQ998.unique_reads.csv.gz",
+    # "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/comp141565_c6_seq3.merged.MinRQ998.unique_reads.csv.gz"
 ]
 pacbio_old_old_to_new_reads_files = [
     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
-    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
-    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
+    # "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/comp141693_c0_seq1.merged.MinRQ998.OldToNewReads.csv.gz",
+    # "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/comp134400_c0_seq1_extended.merged.MinRQ998.OldToNewReads.csv.gz",
+    # "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/comp141565_c6_seq3.merged.MinRQ998.OldToNewReads.csv.gz"
 ]
 
 pacbio_snps_positions_files = [
     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.snps.csv.gz",
     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.snps.csv.gz",
-    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.snps.csv.gz",
-    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.snps.csv.gz",
+    # "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/comp141693_c0_seq1.merged.MinRQ998.positions.snps.csv.gz",
+    # "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/comp134400_c0_seq1_extended.merged.MinRQ998.positions.snps.csv.gz",
+    # "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/comp141565_c6_seq3.merged.MinRQ998.positions.snps.csv.gz"
 ]
 pacbio_snps_reads_files = [
     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.snps.csv.gz",
     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.snps.csv.gz",
-    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.snps.csv.gz",
-    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.snps.csv.gz",
+    # "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/comp141693_c0_seq1.merged.MinRQ998.reads.snps.csv.gz",
+    # "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/comp134400_c0_seq1_extended.merged.MinRQ998.reads.snps.csv.gz",
+    # "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/comp141565_c6_seq3.merged.MinRQ998.reads.snps.csv.gz"
 ]
 
 # %%
@@ -380,7 +438,7 @@ def make_snps_positions(
             columns={"NewRead": "OldCompressedReadName"}
         )
         new_to_old_shorted_reads_df = new_old_to_new_reads_df.merge(old_old_to_new_reads_df, on="OldRead", how="outer")
-        assert not new_to_old_shorted_reads_df.isna().any().any()
+        assert not new_to_old_shorted_reads_df.isna().any().any(), f"{positions_file = }, {snps_positions_file = }"
         new_to_old_shorted_reads_dict = dict(
             zip(
                 new_to_old_shorted_reads_df['NewCompressedReadName'], 
@@ -632,22 +690,26 @@ def make_positions_and_reads_snps_dfs(
     new_old_to_new_reads_file=None,
     old_old_to_new_reads_file=None,
 ):
-    snps_positions_df = make_snps_positions(
-        positions_file, 
-        snps_positions_file, 
-        top_x_noisy_positions,
-        assurance_factor,
-        seed, 
-        edited_col, 
-        snp_noise_level, 
-        final_noise_col,
-        new_old_to_new_reads_file=new_old_to_new_reads_file,
-        old_old_to_new_reads_file=old_old_to_new_reads_file
-    )
-    snps_reads_df = make_snps_reads(
-        snps_positions_df, snps_reads_file, platform, sample, parity, multisample
-    )
-    return snps_positions_df, snps_reads_df
+    try:
+        snps_positions_df = make_snps_positions(
+            positions_file, 
+            snps_positions_file, 
+            top_x_noisy_positions,
+            assurance_factor,
+            seed, 
+            edited_col, 
+            snp_noise_level, 
+            final_noise_col,
+            new_old_to_new_reads_file=new_old_to_new_reads_file,
+            old_old_to_new_reads_file=old_old_to_new_reads_file
+        )
+        snps_reads_df = make_snps_reads(
+            snps_positions_df, snps_reads_file, platform, sample, parity, multisample
+        )
+        return snps_positions_df, snps_reads_df
+    except Exception as e:
+        print(f"Error occurred while processing {positions_file}: {e}")
+        raise
 
 
 # %% [markdown]
@@ -655,6 +717,212 @@ def make_positions_and_reads_snps_dfs(
 
 # %%
 # ?make_positions_and_reads_snps_dfs
+
+# %%
+# i = 2
+# # i = 0
+# positions_file = new_positions_files[i]
+# snps_positions_file = snps_positions_files[i]
+# # top_x_noisy_positions
+# # assurance_factor
+# # seed
+# # edited_col
+# # snp_noise_level
+# # final_noise_col
+# snps_reads_file = snps_reads_files[i]
+# platform = platforms[i]
+# sample = samples[i]
+# parity = parities[i]
+# # multisample
+# new_old_to_new_reads_file = new_old_to_new_reads_files[i]
+# old_old_to_new_reads_file = old_old_to_new_reads_files[i]
+
+# %%
+# make_positions_and_reads_snps_dfs(
+#     positions_file,
+#     snps_positions_file,
+#     top_x_noisy_positions,
+#     assurance_factor,
+#     seed,
+#     edited_col,
+#     snp_noise_level,
+#     final_noise_col,
+#     snps_reads_file,
+#     platform,
+#     sample,
+#     parity,
+#     multisample,
+#     new_old_to_new_reads_file,
+#     old_old_to_new_reads_file
+# )
+
+# %%
+# snps_positions_df = make_snps_positions(
+#             positions_file, 
+#             snps_positions_file, 
+#             top_x_noisy_positions,
+#             assurance_factor,
+#             seed, 
+#             edited_col, 
+#             snp_noise_level, 
+#             final_noise_col,
+#             new_old_to_new_reads_file=new_old_to_new_reads_file,
+#             old_old_to_new_reads_file=old_old_to_new_reads_file
+#         )
+
+# %%
+# noise_positions_df = pd.read_csv(positions_file, sep="\t")
+# noise_positions_df = noise_positions_df.loc[
+#     (noise_positions_df["CDS"])
+#     & (~noise_positions_df[edited_col])
+#     & (noise_positions_df["TotalCoverage"].gt(0))
+# ]
+# if final_noise_col is not None:
+#     noise_positions_df = noise_positions_df.loc[
+#         noise_positions_df[final_noise_col]
+#     ]
+# noise_positions_df = noise_positions_df.drop(
+#     columns=[
+#         "CDS",
+#         edited_col,
+#         "InProbRegion",
+#         "EditingFrequency",
+#         "KnownEditing",
+#     ]
+# )
+
+# # finalize empty df with expected cols, save it and return
+# if noise_positions_df.empty:
+#     snps_positions_df = noise_positions_df.assign(
+#         AltBase=None,
+#         AboveEditingThreshold=None,
+#     )
+#     snps_positions_df.to_csv(snps_positions_file, sep="\t", index=False)
+#     # return snps_positions_df
+
+# noise_positions_df["AltBase"] = noise_positions_df.apply(
+#     lambda x: find_alt_base(
+#         x["RefBase"],
+#         x["A"],
+#         x["T"],
+#         x["C"],
+#         x["G"],
+#         seed,
+#     ),
+#     axis=1,
+# )
+# noise_positions_df = noise_positions_df.loc[
+#     ~(
+#         (noise_positions_df["RefBase"].eq("A"))
+#         & (noise_positions_df["AltBase"].eq("G"))
+#     )
+# ]
+# noise_positions_df["Noise"] = noise_positions_df.apply(
+#     lambda x: calc_noise(x[x["RefBase"]], x[x["AltBase"]]), axis=1
+# )
+
+# noise_positions_df
+
+# %%
+# snp_noise_level
+
+# %%
+# # determine editing threshold to annotate which noise positions have high noise and are thus annotated as "strong" SNPs
+# if final_noise_col is not None:
+#     noise_levels = (
+#         noise_positions_df.loc[
+#             (noise_positions_df["Noise"] < snp_noise_level)
+#             & (noise_positions_df[final_noise_col]),
+#             "Noise",
+#         ]
+#         .sort_values(ascending=False)[:top_x_noisy_positions]
+#         .tolist()
+#     )
+# else:
+#     noise_levels = (
+#         noise_positions_df.loc[
+#             (noise_positions_df["Noise"] < snp_noise_level),
+#             "Noise",
+#         ]
+#         .sort_values(ascending=False)[:top_x_noisy_positions]
+#         .tolist()
+#     )
+# # if there are less noisy positions than `top_x_noisy_positions`, add zeros accordingly
+# noise_levels = pd.Series(
+#     noise_levels + [0 for _ in range(top_x_noisy_positions - len(noise_levels))]
+# )
+# noise_threshold = noise_levels.mean()
+# if pd.isna(noise_threshold):
+#     noise_threshold = 0
+# # finalize the editing threshold
+# noise_threshold *= assurance_factor
+# noise_threshold
+
+# %%
+# # map old and new compressed reads names
+# new_old_to_new_reads_df = pd.read_table(new_old_to_new_reads_file).rename(
+#     columns={"NewRead": "NewCompressedReadName"}
+# )
+# new_old_to_new_reads_df
+
+# %%
+# old_old_to_new_reads_df = pd.read_table(old_old_to_new_reads_file).rename(
+#     columns={"NewRead": "OldCompressedReadName"}
+# )
+# old_old_to_new_reads_df
+
+# %%
+# new_to_old_shorted_reads_df = new_old_to_new_reads_df.merge(old_old_to_new_reads_df, on="OldRead", how="outer")
+# new_to_old_shorted_reads_df
+
+# %%
+# new_to_old_shorted_reads_df.isna().sum()
+
+# %%
+# assert not new_to_old_shorted_reads_df.isna().any().any(), f"{positions_file = }, {snps_positions_file = }"
+
+# %%
+# snps_positions_df = noise_positions_df.loc[
+#     noise_positions_df["Noise"].ge(snp_noise_level)
+# ].copy()
+
+# # now annotate the strong SNPs
+# snps_positions_df["AboveEditingThreshold"] = snps_positions_df["Noise"].ge(noise_threshold)
+
+# if (old_old_to_new_reads_file is not None) and (new_old_to_new_reads_file is not None):
+
+#     # map old and new compressed reads names
+#     new_old_to_new_reads_df = pd.read_table(new_old_to_new_reads_file).rename(
+#         columns={"NewRead": "NewCompressedReadName"}
+#     )
+#     old_old_to_new_reads_df = pd.read_table(old_old_to_new_reads_file).rename(
+#         columns={"NewRead": "OldCompressedReadName"}
+#     )
+#     new_to_old_shorted_reads_df = new_old_to_new_reads_df.merge(old_old_to_new_reads_df, on="OldRead", how="outer")
+#     assert not new_to_old_shorted_reads_df.isna().any().any(), f"{positions_file = }, {snps_positions_file = }"
+#     new_to_old_shorted_reads_dict = dict(
+#         zip(
+#             new_to_old_shorted_reads_df['NewCompressedReadName'], 
+#             new_to_old_shorted_reads_df['OldCompressedReadName']
+#         )
+#     )
+    
+#     # use the mapping to replace the new compressed reads names with the old ones (the originals)
+#     snps_positions_df["SplitNewCompressedReads"] = snps_positions_df["Reads"].str.split(",")
+#     snps_positions_df["SplitOldCompressedReads"] = snps_positions_df["SplitNewCompressedReads"].apply(
+#         lambda x: [new_to_old_shorted_reads_dict[y] for y in x],
+#     )
+#     snps_positions_df["Reads"] = snps_positions_df["SplitOldCompressedReads"].apply(lambda x: ",".join(x))
+#     del snps_positions_df["SplitNewCompressedReads"]
+#     del snps_positions_df["SplitOldCompressedReads"]
+    
+# snps_positions_df
+
+# %%
+
+# snps_positions_df.to_csv(snps_positions_file, sep="\t", index=False)
+
+# %%
 
 # %%
 with Pool(processes=len(samples)) as pool:
@@ -703,6 +971,54 @@ with Pool(processes=len(samples)) as pool:
 
 positions_snps_dfs = [dfs[0] for dfs in positions_and_reads_snps_dfs]
 reads_snps_dfs = [dfs[1] for dfs in positions_and_reads_snps_dfs]
+
+# %%
+# pacbio_samples = ["GRIA2", "PCLO", "ADAR1", "IQEC1"]
+
+# pacbio_new_positions_files = [
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz",
+# ]
+# pacbio_new_old_to_new_reads_files = [
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
+# ]
+
+# pacbio_old_reads_files = [
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz",
+# ]
+# pacbio_old_unique_reads_files = [
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_reads.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_reads.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_reads.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_reads.csv.gz",
+# ]
+# pacbio_old_old_to_new_reads_files = [
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.OldToNewReads.csv.gz",
+# ]
+
+# pacbio_snps_positions_files = [
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.snps.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.snps.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.snps.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.snps.csv.gz",
+# ]
+# pacbio_snps_reads_files = [
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.snps.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.snps.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.snps.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.snps.csv.gz",
+# ]
 
 # %%
 positions_snps_dfs[0]

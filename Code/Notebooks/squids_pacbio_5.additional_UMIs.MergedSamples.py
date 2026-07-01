@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.3
+#       jupytext_version: 1.19.4
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -34,6 +34,7 @@ from pathlib import Path
 import time
 from urllib.error import HTTPError
 import math
+import re
 
 
 import matplotlib.pyplot as plt
@@ -107,6 +108,15 @@ filtered_aligned_bam_files = [
 ]
 include_flags = None
 exclude_flags = "2304"  # remove secondary and supplementary (chimeric) alignments
+
+
+# note!!! this are obtained from the notebook Code/Notebooks/additional_umi_long_reads_2b.ipynb!!!
+main_mapping_boundaries_per_gene = [
+    [962, 3032],
+    [259, 3125],
+    [1208, 2968]
+]
+
 sep = "\t"
 positions_files = [
     f"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/{chrom}.merged.MinRQ998.positions.csv.gz"
@@ -231,6 +241,14 @@ merged_old_to_new_reads_files = [
 
 out_dir = Path("/private7/projects/Combinatorics/Code/Notebooks")
 
+# %%
+per_replicate_unmapped_bams_dir = Path(
+    "/private6/projects/Combinatorics/D.pealeii/Data/AdditionalRawWithUMIs/CCS"
+)
+
+# %%
+replicates = [1, 2, 3]
+
 
 # %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"}
 # # Ploting utils
@@ -282,6 +300,14 @@ fixed_condition_color_discrete_map = {
     fixed_condition_by_original_condition[condition]: color_discrete_map[condition] 
     for condition in conditions
 }
+replicates_color_discrete_map = {
+    str(replicate): color
+    for replicate, color in zip(
+        replicates,
+        px.colors.qualitative.Pastel,
+    )
+}
+replicates_color_discrete_map
 subcolors_discrete_map = {
     condition: two_subcolors_from_hex(color_discrete_map[condition])
     for condition in conditions
@@ -690,649 +716,6 @@ concat_raw_reads_stats_df.to_csv(
     index=False
 )
 
-# %% [markdown]
-# ## Raw reads
-
-# %% [markdown]
-# ### Individual unmapped samples
-
-# %%
-individual_unmapped_bams_dir
-
-# %%
-# individual_mapped_bam_files = list(individual_mapped_bams_dir.glob("*.bam"))
-individual_unmapped_bam_files = list(individual_unmapped_bams_dir.glob("*.bam"))
-
-
-individual_unmapped_bam_files
-
-# %%
-individual_unmapped_bam_dfs = []
-
-for bam_file in individual_unmapped_bam_files:
-
-    sample = bam_file.name.split(".")[0]
-    gene = sample[3:]
-    repeat = sample[2]
-
-    if gene == "IQEC":
-        gene = "IQEC1"
-
-    # expected_chrom = chrom_per_gene_dict[gene]
-
-    with pysam.AlignmentFile(
-        bam_file,
-        "rb",
-        threads=10,
-        check_sq=False,
-        # require_index=False,
-        # index_filename=str(Path(bam_file.parent, f"{bam_file.name}.pbi")),
-    ) as samfile:
-        # reads = [read for read in samfile]
-        # reads_names = [read.query_name for read in reads]
-        reads_names = [read.query_name for read in samfile]
-
-        df = pd.DataFrame(
-            {
-                "Sample": sample,
-                "Gene": gene,
-                "Repeat": repeat,
-                "Read": reads_names,
-            }
-        )
-
-        individual_unmapped_bam_dfs.append(df)
-
-        # break
-
-concat_individual_unmapped_bams_df = pd.concat(
-    individual_unmapped_bam_dfs, ignore_index=True
-)
-concat_individual_unmapped_bams_df
-
-# %%
-# merged_old_to_new_reads_files
-
-# %%
-# old_to_new_reads_dfs = []
-
-
-# for old_to_new_reads_file in merged_old_to_new_reads_files:
-#     # ic(old_to_new_reads_file)
-#     old_to_new_reads_df = pd.read_csv(old_to_new_reads_file, sep=sep)
-#     old_to_new_reads_df = old_to_new_reads_df.merge(
-#         concat_individual_mapped_bams_df,
-#         left_on="OldRead",
-#         right_on="Read",
-#         how="left",
-#     ).drop(columns="Read")
-#     # ic(old_to_new_reads_df.head(3))
-#     old_to_new_reads_dfs.append(old_to_new_reads_df)
-
-# old_to_new_reads_dfs[0]
-
-# %%
-# expanded_max_expression_df
-
-# %%
-# old_to_new_reads_dfs[0]
-
-# %% [markdown]
-# ### Merged mapped samples
-
-# %%
-merged_mapped_bams_dir
-
-# %%
-merged_mapped_bam_files = list(merged_mapped_bams_dir.glob("*.bam"))
-merged_mapped_bam_files
-
-# %%
-merged_mapped_bam_files[0].name.split(".")[0]
-
-
-# %%
-def pacbio_rq_to_phred_scale(rq, max_phred_score=60):
-    if rq == 1:
-        return max_phred_score
-    else:
-        return -10 * np.log10(1 - rq)
-
-
-# %%
-merged_mapped_bam_dfs = []
-
-for bam_file, condition in zip(merged_mapped_bam_files, fixed_conditions):
-
-    # sample = bam_file.name.split(".")[0]
-    # gene = sample[3:]
-    # repeat = sample[2]
-
-    # gene = bam_file.name.split(".")[0]
-
-    # if gene == "IQEC":
-    #     gene = "IQEC1"
-
-    # expected_chrom = chrom_per_gene_dict[gene]
-
-    with pysam.AlignmentFile(
-        bam_file,
-        "rb",
-        threads=10,
-        # check_sq=False,
-        # require_index=False,
-        # index_filename=str(Path(bam_file.parent, f"{bam_file.name}.pbi")),
-    ) as samfile:
-
-        # reads_names = [read.query_name for read in samfile]
-
-        reads = [read for read in samfile]
-        reads_names = [read.query_name for read in reads]
-        reads_lengths = [len(read.get_forward_sequence()) for read in reads]
-        reads_tags = [dict(read.tags) for read in reads]
-        num_of_passes_per_read = [int(tags["np"]) for tags in reads_tags]
-        reads_qualities = [float(tags["rq"]) for tags in reads_tags]
-        reads_qualities_in_phred_scale = [pacbio_rq_to_phred_scale(rq) for rq in reads_qualities]
-
-        df = pd.DataFrame(
-            {
-                condition_col: condition,
-                "Read": reads_names,
-                "ReadLength": reads_lengths,
-                "NumOfPasses": num_of_passes_per_read,
-                "ReadQuality": reads_qualities,
-                "ReadQualityPhredScale": reads_qualities_in_phred_scale
-            }
-        )
-
-        merged_mapped_bam_dfs.append(df)
-
-        # break
-
-concat_merged_mapped_bam_df = pd.concat(merged_mapped_bam_dfs, ignore_index=True)
-
-# concat_merged_mapped_bam_df = concat_individual_unmapped_bams_df.merge(
-#     concat_merged_mapped_bam_df, how="right"
-# )
-
-assert concat_merged_mapped_bam_df.loc[
-    concat_merged_mapped_bam_df.isna().any(axis=1)
-].empty
-
-concat_merged_mapped_bam_df
-
-# %%
-merged_old_to_new_reads_dfs = []
-
-for old_to_new_reads_file in merged_old_to_new_reads_files:
-    # ic(old_to_new_reads_file)
-    old_to_new_reads_df = pd.read_csv(old_to_new_reads_file, sep=sep)
-    old_to_new_reads_df = old_to_new_reads_df.merge(
-        concat_merged_mapped_bam_df,
-        left_on="OldRead",
-        right_on="Read",
-        how="left",
-    ).drop(columns="Read")
-    # ic(old_to_new_reads_df.head(3))
-    merged_old_to_new_reads_dfs.append(old_to_new_reads_df)
-
-# merged_old_to_new_reads_dfs[0]
-
-concat_merged_old_to_new_reads_df = pd.concat(
-    merged_old_to_new_reads_dfs, ignore_index=True
-)
-concat_merged_old_to_new_reads_df
-
-# %%
-concat_merged_old_to_new_reads_df.isna().sum()
-
-# %%
-concat_merged_old_to_new_reads_df.loc[
-    concat_merged_old_to_new_reads_df.isna().any(axis=1)
-]
-
-# %%
-bam_file = merged_mapped_bam_files[0]
-condition = fixed_conditions[0]
-orf_start = starts[0]
-orf_end = ends[0]
-
-merged_old_to_new_reads_df = merged_old_to_new_reads_dfs[0]
-
-# %%
-pileup_rows = []
-
-with pysam.FastaFile(transcriptome_file) as fasta:
-
-    with pysam.AlignmentFile(bam_file, "rb", threads=10) as samfile:
-
-        for pileup_col in samfile.pileup(
-            stepper="nofilter",
-            min_base_quality=0,
-            max_depth=1_000_000,
-        ):
-            ref_pos = pileup_col.reference_pos  # 0-based
-            
-            if ref_pos < orf_start or orf_end <= ref_pos:
-                continue
-            
-            ref_name = samfile.get_reference_name(pileup_col.reference_id)
-
-            ref_base = fasta.fetch(ref_name, ref_pos, ref_pos + 1).upper()
-
-            for pileup_read in pileup_col.pileups:
-                read = pileup_read.alignment
-
-                if pileup_read.is_refskip:
-                    event = "Refskip"
-                    query_base = pd.NA
-                    base_phred = pd.NA
-                    query_pos = pd.NA
-
-                elif pileup_read.is_del:
-                    event = "Deletion"
-                    query_base = pd.NA
-                    base_phred = pd.NA
-                    query_pos = pd.NA
-
-                else:
-                    event = "Base"
-                    query_pos = pileup_read.query_position
-
-                    if query_pos is None:
-                        query_base = pd.NA
-                        base_phred = pd.NA
-                    else:
-                        query_base = read.query_sequence[query_pos]
-
-                        if read.query_qualities is None:
-                            base_phred = pd.NA
-                        else:
-                            base_phred = read.query_qualities[query_pos]
-
-                if event == "Base" and not pd.isna(query_base):
-                    mismatch = ref_base != query_base
-                else:
-                    mismatch = False
-                
-                pileup_rows.append(
-                    {
-                        condition_col: condition,
-                        # "BamFile": str(bam_file),
-                        # "Reference": ref_name,
-                        "RefPos": ref_pos,
-                        "Read": read.query_name,
-                        "RefBase": ref_base,
-                        "QueryBase": query_base,
-                        "BasePhred": base_phred,
-                        "Event": event,
-                        "QueryPos": query_pos,
-                        # "IsReverse": read.is_reverse,
-                        "Mismatch": mismatch,
-                    }
-                )
-
-# %%
-pileup_df = pd.DataFrame(pileup_rows)
-pileup_df = pileup_df.rename(columns={"Read": "OldRead"})
-pileup_df["BasePhred"] = pileup_df["BasePhred"].astype("Int16")
-pileup_df["QueryPos"] = pileup_df["QueryPos"].astype("Int64")
-pileup_df
-
-# %%
-pileup_df.isna().sum()
-
-# %%
-pileup_df.loc[
-    pileup_df.isna().any(axis=1),
-    "Event"
-].value_counts()
-
-# %%
-pileup_df.loc[
-    pileup_df.isna().any(axis=1),
-    "OldRead"
-].value_counts().describe()
-
-# %%
-merged_old_to_new_reads_df
-
-# %%
-assert merged_old_to_new_reads_df.isna().sum().eq(0).all()
-
-# %%
-rows_before_merge = pileup_df.shape[0]
-merged_pileup_df = (
-    pileup_df
-    .merge(
-        concat_merged_old_to_new_reads_df,
-        # how="left",
-        how="inner",
-        on=[condition_col, "OldRead"],
-        # validate="many_to_one",
-        # indicator=True,
-)
-)
-rows_after_merge = merged_pileup_df.shape[0]
-# assert rows_before_merge == rows_after_merge
-
-merged_pileup_df
-
-# %%
-merged_pileup_df["_merge"].value_counts()
-
-# %%
-merged_pileup_df.isna().sum()
-
-# %%
-old_reads_in_pileup_df = set(merged_pileup_df["OldRead"].values)
-old_reads_in_concat_merged_old_to_new_reads_df = set(concat_merged_old_to_new_reads_df["OldRead"].values)
-len(old_reads_in_pileup_df - old_reads_in_concat_merged_old_to_new_reads_df)
-
-# %%
-right_df = concat_merged_old_to_new_reads_df
-
-missing_oldreads = (
-    set(pileup_df["OldRead"])
-    - set(right_df["OldRead"])
-)
-
-missing_oldreads
-
-# %%
-pileup_df.loc[
-    pileup_df["OldRead"].isin(missing_oldreads),
-    "OldRead"
-].value_counts()
-
-# %%
-merged_pileup_df.loc[
-    merged_pileup_df.isna().any(axis=1),
-    "Event"
-].value_counts()
-
-# %%
-merged_pileup_df.loc[
-    merged_pileup_df["NewRead"].isna()
-]
-
-# %%
-
-# %%
-
-# %%
-
-# %%
-pileup_df = pileup_df.loc[
-    :,
-    [
-        condition_col, 'RefPos', 
-        "OldRead", 'NewRead', "ReadLength", "NumOfPasses", "ReadQuality", "ReadQualityPhredScale",
-        'RefBase', 'QueryBase', 'BasePhred', 'Event', 'QueryPos', 'Mismatch', 
-    ]
-].rename(
-    columns={"NewRead": "Read"}
-)
-pileup_df
-
-# %%
-pileup_df.isna().sum()
-
-# %%
-pileup_df.loc[
-    pileup_df.isna().any(axis=1),
-    "Event"
-].value_counts()
-
-# %%
-
-
-
-# %%
-def get_pileup_df(
-    transcriptome_file,
-    bam_file,
-    condition_col,
-    condition,
-    orf_start,
-    orf_end,
-    concat_merged_old_to_new_reads_df
-):
-    pileup_rows = []
-
-    with pysam.FastaFile(transcriptome_file) as fasta:
-
-        with pysam.AlignmentFile(bam_file, "rb", threads=10) as samfile:
-
-            for pileup_col in samfile.pileup(
-                stepper="nofilter",
-                min_base_quality=0,
-                max_depth=1_000_000,
-            ):
-                ref_pos = pileup_col.reference_pos  # 0-based
-                
-                if ref_pos < orf_start or orf_end <= ref_pos:
-                    continue
-                
-                ref_name = samfile.get_reference_name(pileup_col.reference_id)
-
-                ref_base = fasta.fetch(ref_name, ref_pos, ref_pos + 1).upper()
-
-                for pileup_read in pileup_col.pileups:
-                    read = pileup_read.alignment
-
-                    if pileup_read.is_refskip:
-                        event = "Refskip"
-                        query_base = pd.NA
-                        base_phred = pd.NA
-                        query_pos = pd.NA
-
-                    elif pileup_read.is_del:
-                        event = "Deletion"
-                        query_base = pd.NA
-                        base_phred = pd.NA
-                        query_pos = pd.NA
-
-                    else:
-                        event = "Base"
-                        query_pos = pileup_read.query_position
-
-                        if query_pos is None:
-                            query_base = pd.NA
-                            base_phred = pd.NA
-                        else:
-                            query_base = read.query_sequence[query_pos]
-
-                            if read.query_qualities is None:
-                                base_phred = pd.NA
-                            else:
-                                base_phred = read.query_qualities[query_pos]
-
-                    if event == "Base" and not pd.isna(query_base):
-                        mismatch = ref_base != query_base
-                    else:
-                        mismatch = False
-                    
-                    pileup_rows.append(
-                        {
-                            condition_col: condition,
-                            # "BamFile": str(bam_file),
-                            # "Reference": ref_name,
-                            "RefPos": ref_pos,
-                            "OldRead": read.query_name,
-                            "RefBase": ref_base,
-                            "QueryBase": query_base,
-                            "BasePhred": base_phred,
-                            "Event": event,
-                            "QueryPos": query_pos,
-                            # "IsReverse": read.is_reverse,
-                            "Mismatch": mismatch,
-                        }
-                    )
-
-    pileup_df = pd.DataFrame(pileup_rows)
-
-    pileup_df["BasePhred"] = pileup_df["BasePhred"].astype("Int16")
-    pileup_df["QueryPos"] = pileup_df["QueryPos"].astype("Int64")
-    
-    # rows_before_merge = pileup_df.shape[0]
-    pileup_df = pileup_df.merge(
-        concat_merged_old_to_new_reads_df,
-        # how="left",
-        # left_on=[condition_col, "Read"],
-        # right_on=[condition_col, "OldRead"],
-        how="inner",
-        left_on=[condition_col, "OldRead"],
-    )
-    # rows_after_merge = pileup_df.shape[0]
-    # assert rows_before_merge == rows_after_merge
-    
-    pileup_df = pileup_df.loc[
-        :,
-        [
-            condition_col, 'RefPos', 
-            "OldRead", 'NewRead', "ReadLength", "NumOfPasses", "ReadQuality", "ReadQualityPhredScale",
-            'RefBase', 'QueryBase', 'BasePhred', 'Event', 'QueryPos', 'Mismatch', 
-        ]
-    ].rename(
-        columns={"NewRead": "Read"}
-    )
-    
-    return pileup_df
-
-
-# %%
-with Pool(processes=3) as pool:
-    pileup_dfs = pool.starmap(
-        func=get_pileup_df,
-        iterable=[
-            [
-                transcriptome_file,
-                bam_file,
-                condition_col,
-                condition,
-                orf_start,
-                orf_end,
-                concat_merged_old_to_new_reads_df
-            ]
-            for bam_file, condition, orf_start, orf_end in zip(
-                merged_mapped_bam_files, fixed_conditions, starts, ends
-            )
-        ]
-    )
-
-# concat_pileup_df = pd.concat(pileup_dfs, ignore_index=True)
-# del pileup_dfs
-# concat_pileup_df
-
-pileup_dfs[0]
-
-
-# %%
-def annotate_na_type(event, measured_phred_score, min_sufficent_phred_score=30):
-    if event == "Deletion":
-        return "Deletion"
-    elif event == "Base":
-        if measured_phred_score >= min_sufficent_phred_score:
-            return "NotNA"
-        else:
-            return "LowQuality"
-    else:
-        return np.nan
-
-
-# %%
-pileup_df = pileup_dfs[0].copy()
-pileup_df["NAType"] = pileup_df.apply(
-    lambda row: annotate_na_type(row["Event"], row["BasePhred"]), 
-    axis=1
-)
-pileup_df
-
-# %%
-pileup_df.isna().sum()
-
-# %%
-pileup_df.loc[
-    pileup_df["Read"].isna()
-]
-
-# %%
-pileup_df["RefPos"].isna().sum()
-
-# %%
-read_pos_counts_df = pileup_df.loc[:, ["Read", "RefPos"]].value_counts().reset_index()
-read_pos_counts_df
-
-# %%
-read_pos_counts_df.loc[read_pos_counts_df["count"].gt(1)]
-
-# %%
-na_types = list(sorted(pileup_df["NAType"].unique()))
-
-na_types_per_read_df = (
-    pileup_df
-    .groupby(
-        [condition_col, "Read", "ReadLength", "NumOfPasses", "ReadQuality", "ReadQualityPhredScale"]
-    )
-    ["NAType"].value_counts()
-    .reset_index()
-    .pivot(
-        index=[condition_col, "Read", "ReadLength", "NumOfPasses", "ReadQuality", "ReadQualityPhredScale"],
-        columns="NAType",
-        values="count",
-    )
-    .reset_index()
-)
-
-na_types_per_read_df.loc[:, na_types] = na_types_per_read_df.loc[:, na_types].fillna(0)
-
-for col in na_types + ["ReadLength", "NumOfPasses"]:
-    na_types_per_read_df[col] = na_types_per_read_df[col].astype(int)
-
-na_types_per_read_df
-
-# %%
-na_types_per_read_df["ReadLength"].ge(
-    na_types_per_read_df.loc[:, na_types].sum(axis=1)
-).all()
-
-# %%
-na_types_per_read_df.loc[
-    ~na_types_per_read_df["ReadLength"].ge(
-        na_types_per_read_df.loc[:, na_types].sum(axis=1)
-    )
-]
-
-# %% vscode={"languageId": "ruby"}
-
-# %% vscode={"languageId": "ruby"}
-
-# %% vscode={"languageId": "ruby"}
-# Pivot pileup_df so rows=reads and columns=RefPos, values=BasePhred
-# (keeps only actual bases; drops deletions/refskips)
-bases_df = pileup_df.loc[pileup_df["Event"].eq("base")].copy()
-
-# in case of multiple entries per (read, position) keep the first
-bases_df = bases_df.sort_values([condition_col, "Read", "RefPos"]).drop_duplicates(
-    subset=[condition_col, "Read", "RefPos"], keep="first"
-)
-
-# optional sanity: ensure numeric dtype
-bases_df["BasePhred"] = pd.to_numeric(bases_df["BasePhred"], errors="coerce").astype("Int16")
-
-pileup_phred_pivot_df = bases_df.pivot(
-    index=[condition_col, "Read", "ReadLength", "NumOfPasses", "ReadQuality", "ReadQualityPhredScale"],
-    columns="RefPos",
-    values="BasePhred",
-).sort_index(axis=1).reset_index()
-
-pileup_phred_pivot_df
-
-# %%
-
-# %%
-
 # %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"}
 # ## Reads
 
@@ -1346,6 +729,32 @@ pileup_phred_pivot_df
 reads_dfs = [pd.read_csv(reads_file, sep=sep) for reads_file in reads_files]
 reads_dfs[0]
 
+
+# %%
+metadata_cols = ['EditedPositions', 'UneditedPositions', 'AmbigousPositions']
+values_correspodning_to_metadata_cols = [1, 0, -1]
+
+for reads_df in reads_dfs:
+
+     for metadata_col, value in zip(metadata_cols, values_correspodning_to_metadata_cols):
+          assert reads_df[metadata_col].eq(
+          reads_df.iloc[:, reads_first_col_pos:].eq(value).sum(axis=1)
+          ).all()
+
+
+# %%
+# reads with no edited positions
+reads_dfs[0].loc[reads_dfs[0]["EditedPositions"].eq(0)]
+
+# %%
+# make sure that all reads with 0 edited positions have only unedited/NA bases
+pd.Series(
+    reads_dfs[0].loc[
+        reads_dfs[0]["EditedPositions"].eq(0),
+    ].iloc[
+        :, reads_first_col_pos:
+    ].values.flatten()
+).value_counts()
 
 # %%
 pd.concat(
@@ -1591,6 +1000,1885 @@ unique_reads_dfs[2]
 # ]
 # edited_unique_reads_dfs[0]
 
+
+# %% [markdown]
+# ## Raw reads
+
+# %% [markdown]
+# ### Individual unmapped samples
+
+# %%
+per_replicate_bam_files = [
+    Path(
+        per_replicate_unmapped_bams_dir,
+        f"JR{replicate}.r841072252411_C01.hifireads.bam"
+    )
+    for replicate in replicates
+]
+for bam in per_replicate_bam_files:
+    assert bam.is_file(), f"{bam} does not exist!"
+per_replicate_bam_files
+
+# %%
+per_replicate_unmapped_bam_dfs = []
+
+for bam_file, replicate in zip(per_replicate_bam_files, replicates):
+
+    with pysam.AlignmentFile(
+        bam_file,
+        "rb",
+        threads=10,
+        check_sq=False,
+        # require_index=False,
+        # index_filename=str(Path(bam_file.parent, f"{bam_file.name}.pbi")),
+    ) as samfile:
+        # reads = [read for read in samfile]
+        # reads_names = [read.query_name for read in reads]
+        reads_names = [read.query_name for read in samfile]
+
+        df = pd.DataFrame(
+            {
+                "Replicate": replicate,
+                "OldRead": reads_names,
+            }
+        )
+
+        per_replicate_unmapped_bam_dfs.append(df)
+
+        # break
+
+concat_per_replicate_unmapped_bams_df = pd.concat(
+    per_replicate_unmapped_bam_dfs, ignore_index=True
+)
+
+# make sure the original reads' names are unique across the three replicates' bam files, 
+# to allow unambiguous merges with the reads_dfs based on the original read names
+assert concat_per_replicate_unmapped_bams_df["OldRead"].value_counts().nunique() == 1, "Some reads appear in more than one replicate's bam file!"
+
+concat_per_replicate_unmapped_bams_df
+
+# %%
+
+# %% [markdown]
+# ### Merged mapped samples
+
+# %% [markdown]
+# #### Get basic reads' metrics
+
+# %%
+merged_mapped_bams_dir
+
+# %%
+merged_mapped_bam_files = list(merged_mapped_bams_dir.glob("*.bam"))
+merged_mapped_bam_files
+
+
+# %%
+def pacbio_rq_to_phred_scale(rq, max_phred_score=60):
+    if rq == 1:
+        return max_phred_score
+    else:
+        return -10 * np.log10(1 - rq)
+
+
+# %%
+merged_mapped_bam_dfs = []
+
+for bam_file, condition in zip(merged_mapped_bam_files, fixed_conditions):
+
+    # sample = bam_file.name.split(".")[0]
+    # gene = sample[3:]
+    # repeat = sample[2]
+
+    # gene = bam_file.name.split(".")[0]
+
+    # if gene == "IQEC":
+    #     gene = "IQEC1"
+
+    # expected_chrom = chrom_per_gene_dict[gene]
+
+    with pysam.AlignmentFile(
+        bam_file,
+        "rb",
+        threads=10,
+        # check_sq=False,
+        # require_index=False,
+        # index_filename=str(Path(bam_file.parent, f"{bam_file.name}.pbi")),
+    ) as samfile:
+
+        # reads_names = [read.query_name for read in samfile]
+
+        reads = [read for read in samfile]
+        reads_names = [read.query_name for read in reads]
+        reads_lengths = [len(read.get_forward_sequence()) for read in reads]
+        reads_tags = [dict(read.tags) for read in reads]
+        num_of_passes_per_read = [int(tags["np"]) for tags in reads_tags]
+        reads_qualities = [float(tags["rq"]) for tags in reads_tags]
+        reads_qualities_in_phred_scale = [pacbio_rq_to_phred_scale(rq) for rq in reads_qualities]
+
+        df = pd.DataFrame(
+            {
+                condition_col: condition,
+                "Read": reads_names,
+                "ReadLength": reads_lengths,
+                "NumOfPasses": num_of_passes_per_read,
+                "ReadQuality": reads_qualities,
+                "ReadQualityPhredScale": reads_qualities_in_phred_scale
+            }
+        )
+
+        merged_mapped_bam_dfs.append(df)
+
+        # break
+
+concat_merged_mapped_bam_df = pd.concat(merged_mapped_bam_dfs, ignore_index=True)
+
+# concat_merged_mapped_bam_df = concat_individual_unmapped_bams_df.merge(
+#     concat_merged_mapped_bam_df, how="right"
+# )
+
+assert concat_merged_mapped_bam_df.loc[
+    concat_merged_mapped_bam_df.isna().any(axis=1)
+].empty
+
+concat_merged_mapped_bam_df
+
+# %%
+merged_old_to_new_reads_dfs = []
+
+for old_to_new_reads_file, reads_df in zip(merged_old_to_new_reads_files, reads_dfs):
+    # ic(old_to_new_reads_file)
+    old_to_new_reads_df = pd.read_csv(old_to_new_reads_file, sep=sep)
+    old_to_new_reads_df = old_to_new_reads_df.merge(
+        concat_merged_mapped_bam_df,
+        left_on="OldRead",
+        right_on="Read",
+        how="left",
+    ).drop(columns="Read")
+    old_to_new_reads_df = old_to_new_reads_df = old_to_new_reads_df.merge(
+        reads_df.loc[:, ["Read"]],
+        left_on="NewRead",
+        right_on="Read",
+        how="outer",
+        indicator=True
+    ).drop(columns="Read")
+    old_to_new_reads_df["FinalUsedRead"] = old_to_new_reads_df["_merge"].apply(lambda x: x == "both")
+    del old_to_new_reads_df["_merge"]
+    # ic(old_to_new_reads_df.head(3))
+    merged_old_to_new_reads_dfs.append(old_to_new_reads_df)
+
+# merged_old_to_new_reads_dfs[0]
+
+concat_merged_old_to_new_reads_df = pd.concat(
+    merged_old_to_new_reads_dfs, ignore_index=True
+)
+
+# merge with concat_per_replicate_unmapped_bams_df to obtain each read's replicate/sample origin
+concat_merged_old_to_new_reads_df = concat_merged_old_to_new_reads_df.merge(
+    concat_per_replicate_unmapped_bams_df,
+    how="left",
+    on="OldRead"
+)
+
+concat_merged_old_to_new_reads_df
+
+# %%
+
+# %%
+concat_merged_old_to_new_reads_df.groupby([condition_col, "FinalUsedRead"]).size()
+
+
+# %% [markdown]
+# #### Pileup
+
+# %%
+def annotate_na_type(event, measured_phred_score, min_sufficent_phred_score=30):
+    if pd.notna(measured_phred_score) and measured_phred_score < min_sufficent_phred_score:
+        return "LowQuality"
+    elif event == "Deletion":
+        return "Deletion"
+    elif event == "Base":
+        return "NotNA"    
+    else:
+        return np.nan
+
+
+# %%
+def get_first_and_last_matched_ref_positions_in_read(aligned_read_target_pairs):
+    # aligned_read_target_pairs = read.get_aligned_pairs(matches_only=True)
+    _, aligned_target_start = aligned_read_target_pairs[0]
+    _, aligned_target_end = aligned_read_target_pairs[-1]
+    return aligned_target_start, aligned_target_end
+
+
+# %%
+def annotate_pileup_df_with_alignment_boundaries(
+    pileup_df,
+    bam_file,
+    main_mapping_boundaries
+):
+    with pysam.AlignmentFile(bam_file, "rb", threads=10) as samfile:   
+        reads = [read for read in samfile]
+        old_reads_names = [read.query_name for read in reads]
+        first_and_last_matched_ref_positions_in_reads = [
+            get_first_and_last_matched_ref_positions_in_read(
+                read.get_aligned_pairs(matches_only=True)
+            )
+            for read in reads
+        ]
+        alignment_boundries_df = pd.DataFrame(
+            {
+                "OldRead": old_reads_names,
+                "FirstMappedRefPosOfRead": [start for start, _ in first_and_last_matched_ref_positions_in_reads],
+                "LastMappedRefPosOfRead": [end for _, end in first_and_last_matched_ref_positions_in_reads],
+                "MappingBoundaryStart": main_mapping_boundaries[0],
+                "MappingBoundaryEnd": main_mapping_boundaries[1],
+            }
+        )
+        alignment_boundries_df["ReadSpansMappingBoundaries"] = alignment_boundries_df.apply(
+            lambda x: (x["FirstMappedRefPosOfRead"] <= x["MappingBoundaryStart"]) 
+            and (x["LastMappedRefPosOfRead"] >= x["MappingBoundaryEnd"] - 1),
+            axis=1
+        )
+        
+    pileup_df = pileup_df.merge(
+        alignment_boundries_df,
+        on="OldRead",
+        how="left"
+    )
+    
+    pileup_df["BaseWithinMappingBoundaries"] = pileup_df.apply(
+           lambda x: x["MappingBoundaryStart"] <= x["RefPos"] <= x["MappingBoundaryEnd"] - 1,
+           axis=1 
+    )
+    
+    return pileup_df
+
+
+# %%
+def find_alt_base(ref_base, a_count, t_count, c_count, g_count, seed):
+
+    bases = list("ATCG")
+    base_counts = [a_count, t_count, c_count, g_count]
+
+    alt_base_counts = {
+        base: count for base, count in zip(bases, base_counts) if base != ref_base
+    }
+
+    max_alt_base_count = max(alt_base_counts.values())
+
+    max_alt_bases = [
+        base for base, count in alt_base_counts.items() if count == max_alt_base_count
+    ]
+
+    # randomly choose one of the equally most frequent alt bases
+    return np.random.default_rng(seed).choice(max_alt_bases)
+
+
+# %%
+def get_alt_base_per_position_dict(pileup_df):
+    covered_high_quality_pileup_df = pileup_df.loc[
+        pileup_df["NAType"].eq("NotNA")
+    ]
+
+    covered_high_quality_base_counts_per_position_df = (
+        covered_high_quality_pileup_df
+        .groupby(
+            [condition_col, "RefPos", "RefBase", "Edited"],
+        )
+        ["QueryBase"].value_counts()
+        .reset_index()
+        .pivot(
+            index=[condition_col, "RefPos", "RefBase", "Edited"],
+            columns="QueryBase",
+            values="count",
+        )
+        .reset_index()
+        .fillna(0)
+        .astype({base: int for base in "ATCG"})
+    )
+    covered_high_quality_base_counts_per_position_df["AltBase"] = covered_high_quality_base_counts_per_position_df.apply(
+            lambda x: find_alt_base(
+                x["RefBase"],
+                x["A"],
+                x["T"],
+                x["C"],
+                x["G"],
+                seed,
+            ),
+            axis=1,
+        )
+
+    alt_base_per_position_dict = (
+        covered_high_quality_base_counts_per_position_df
+        .loc[
+            :,
+            ["RefPos", "AltBase"]
+        ]
+        .set_index("RefPos")
+        ["AltBase"].to_dict()
+    )
+    
+    return alt_base_per_position_dict
+
+
+# %%
+def replace_na_type_of_high_quality_unexpected_bases(pileup_df):
+    """
+    Replace NA types of high-quality unexpected bases, by finding the alt base for each position.
+    If a high-quality base is different from both the ref and the alt, then its NA type is changed to "UnexpectedBase" 
+    (instead of "NotNA").
+    """
+    pileup_df = pileup_df.copy()
+
+    alt_base_per_position_dict = get_alt_base_per_position_dict(pileup_df)
+
+    pileup_df.insert(
+        pileup_df.columns.get_loc("RefBase") + 1,
+        "AltBase",
+        pileup_df["RefPos"].map(alt_base_per_position_dict)
+    )
+
+    pileup_df.loc[
+        (pileup_df["NAType"].eq("NotNA"))
+        & (pileup_df["QueryBase"] != pileup_df["RefBase"])
+        & (pileup_df["QueryBase"] != pileup_df["AltBase"]),
+        "NAType"
+    ] = "UnexpectedBase"
+    
+    return pileup_df
+
+
+# %%
+def get_covered_pileup_df(
+    transcriptome_file,
+    bam_file,
+    condition_col,
+    condition,
+    orf_start,
+    orf_end,
+    concat_merged_old_to_new_reads_df,
+    edited_positions_df,
+    main_mapping_boundaries, # first and last main mapping positions of the gene (detemrined in Code/Notebooks/additional_umi_long_reads_2b.ipynb)
+    min_sufficent_phred_score=30
+):
+    """
+    Generate a DataFrame containing pileup information for a specific genomic region of all covered bases
+    within this region.
+    """
+    pileup_rows = []
+
+    with pysam.FastaFile(transcriptome_file) as fasta:
+
+        with pysam.AlignmentFile(bam_file, "rb", threads=10) as samfile:
+        
+            for pileup_col in samfile.pileup(
+                stepper="nofilter",
+                min_base_quality=0,
+                max_depth=1_000_000,
+            ):
+                ref_pos = pileup_col.reference_pos  # 0-based
+                
+                if ref_pos < orf_start or orf_end <= ref_pos:
+                    continue
+                
+                ref_name = samfile.get_reference_name(pileup_col.reference_id)
+
+                ref_base = fasta.fetch(ref_name, ref_pos, ref_pos + 1).upper()
+
+                for pileup_read in pileup_col.pileups:
+                    read = pileup_read.alignment
+
+                    if pileup_read.is_refskip:
+                        event = "Refskip"
+                        query_base = pd.NA
+                        base_phred = pd.NA
+                        query_pos = pd.NA
+
+                    elif pileup_read.is_del:
+                        event = "Deletion"
+                        query_base = pd.NA
+                        base_phred = pd.NA
+                        query_pos = pd.NA
+
+                    else:
+                        event = "Base"
+                        query_pos = pileup_read.query_position
+
+                        if query_pos is None:
+                            query_base = pd.NA
+                            base_phred = pd.NA
+                        else:
+                            query_base = read.query_sequence[query_pos]
+
+                            if read.query_qualities is None:
+                                base_phred = pd.NA
+                            else:
+                                base_phred = read.query_qualities[query_pos]
+
+                    if event == "Base" and not pd.isna(query_base):
+                        mismatch = ref_base != query_base
+                    else:
+                        mismatch = False
+                        
+                    na_type = annotate_na_type(event, base_phred, min_sufficent_phred_score)
+                    
+                    pileup_rows.append(
+                        {
+                            condition_col: condition,
+                            # "BamFile": str(bam_file),
+                            # "Reference": ref_name,
+                            "RefPos": ref_pos,
+                            "OldRead": read.query_name,
+                            "RefBase": ref_base,
+                            "QueryBase": query_base,
+                            "BasePhred": base_phred,
+                            "Event": event,
+                            "QueryPos": query_pos,
+                            # "IsReverse": read.is_reverse,
+                            "Mismatch": mismatch,
+                            "NAType": na_type,
+                        }
+                    )
+
+    pileup_df = pd.DataFrame(pileup_rows)
+
+    pileup_df["BasePhred"] = pileup_df["BasePhred"].astype("Int16")
+    pileup_df["QueryPos"] = pileup_df["QueryPos"].astype("Int64")
+    
+    # rows_before_merge = pileup_df.shape[0]
+    pileup_df = pileup_df.merge(
+        concat_merged_old_to_new_reads_df.loc[
+            concat_merged_old_to_new_reads_df["FinalUsedRead"]
+        ],
+        # how="left",
+        # left_on=[condition_col, "Read"],
+        # right_on=[condition_col, "OldRead"],
+        how="inner",
+        on=[condition_col, "OldRead"],
+    )
+    # rows_after_merge = pileup_df.shape[0]
+    # assert rows_before_merge == rows_after_merge
+    
+    pileup_df = pileup_df.loc[
+        :,
+        [
+            condition_col, 'RefPos', 
+            "OldRead", 'NewRead', "ReadLength", "NumOfPasses", "ReadQuality", "ReadQualityPhredScale",
+            'RefBase', 'QueryBase', 'BasePhred', 'Event', 'QueryPos', 'Mismatch', "NAType"
+        ]
+    ].rename(
+        columns={"NewRead": "Read"}
+    )
+    
+    pileup_df = pileup_df.merge(
+        edited_positions_df,
+        left_on=[condition_col, "RefPos"],
+        right_on=[condition_col, "Position"],
+        how="left"
+    ).drop(
+        columns="Position"
+    )
+    pileup_df["Edited"] = pileup_df["Edited"].fillna(False)
+    
+    # using the pre-computed main mapping boundaries,
+    # annotate for each read whether the read spans that region,
+    # and also for each base whether it is within the main mapping boundaries or not
+    pileup_df = annotate_pileup_df_with_alignment_boundaries(
+        pileup_df,
+        bam_file,
+        main_mapping_boundaries
+    )
+    
+    # after having the basic pileup df with NA types LowQuality/Deletion/NotNA, 
+    # we can find the alt base per position and replace NotNA of high-quality unexpected bases 
+    # (where the query base is different from both the ref and the alt) with "UnexpectedBase" NA type,
+    pileup_df = replace_na_type_of_high_quality_unexpected_bases(pileup_df)
+
+    
+    return pileup_df
+
+# %%
+edited_positions_dfs = [
+    df.loc[
+        df["Edited"],
+        [condition_col, "Position", "Edited"],
+    ]
+    for df in positions_dfs
+]
+for df in edited_positions_dfs:
+    df[condition_col] = df[condition_col].apply(lambda x: fixed_condition_by_original_condition[x])
+
+edited_positions_dfs[0]
+
+# %%
+with Pool(processes=3) as pool:
+    covered_pileup_dfs = pool.starmap(
+        func=get_covered_pileup_df,
+        iterable=[
+            [
+                transcriptome_file,
+                bam_file,
+                condition_col,
+                condition,
+                orf_start,
+                orf_end,
+                concat_merged_old_to_new_reads_df,
+                edited_positions_df, main_mapping_boundaries
+            ]
+            for bam_file, condition, orf_start, orf_end, edited_positions_df, main_mapping_boundaries in zip(
+                merged_mapped_bam_files, fixed_conditions, starts, ends, 
+                edited_positions_dfs, main_mapping_boundaries_per_gene
+                # merged_mapped_bam_files[:1], fixed_conditions[:1], starts[:1], ends[:1], 
+                # edited_positions_dfs[:1], main_mapping_boundaries_per_gene[:1]
+            )
+        ]
+    )
+
+# # after having the basic pileup dfs with NA types LowQuality/Deletion/NotNA, 
+# # we can find the alt base per position and replace NotNA of high-quality unexpected bases 
+# # (where the query base is different from both the ref and the alt) with "UnexpectedBase" NA type,
+# covered_pileup_dfs = [
+#     replace_na_type_of_high_quality_unexpected_bases(pileup_df)
+#     for pileup_df in covered_pileup_dfs
+# ]
+
+covered_pileup_dfs[0]
+
+# %%
+covered_pileup_dfs[1]
+
+# %%
+covered_pileup_dfs[2]
+
+# %%
+covered_pileup_dfs[0]["Event"].value_counts(dropna=False)
+
+# %%
+covered_pileup_dfs[0]["BasePhred"].value_counts(dropna=False)
+
+# %%
+covered_pileup_dfs[0].isna().sum()
+
+# %%
+covered_pileup_dfs[0].loc[
+    covered_pileup_dfs[0].isna().any(axis=1),
+    "Event"
+].value_counts()
+
+# %%
+covered_pileup_dfs[0]["NAType"].value_counts()
+
+
+# %% [markdown]
+# #### NAs per read
+
+# %%
+def get_uncovered_bases_per_read(
+    covered_pileup_df: pd.DataFrame,
+    considered_bases: list[int]
+):
+    all_possible_bases_per_read_df = pd.DataFrame(
+        product(
+            considered_bases,
+            covered_pileup_df["Read"].unique()
+        ),
+        columns=["RefPos", "Read"]   
+    )
+    
+    covered_uncovered_pileup_df = (
+        covered_pileup_df
+        .loc[:, ["RefPos", "Read"]]
+        .merge(
+            all_possible_bases_per_read_df,
+            how="outer",
+            indicator=True
+        )
+    )
+    
+    merge_indicator_value_counts = covered_uncovered_pileup_df["_merge"].value_counts()
+    assert merge_indicator_value_counts.get("both", 0) == covered_pileup_df.shape[0]
+    assert merge_indicator_value_counts.get("left_only", 0) == 0
+    
+    uncovered_pileup_df = covered_uncovered_pileup_df.loc[
+        covered_uncovered_pileup_df["_merge"].eq("right_only")
+    ].drop(columns="_merge")
+    
+    uncovered_bases_per_read = uncovered_pileup_df.groupby("Read").size()
+    
+    return uncovered_bases_per_read
+
+# %%
+# def make_na_types_per_read_df(
+#     covered_pileup_df: pd.DataFrame,
+#     considered_bases: list[int]
+# ):
+#     na_types_per_read_df = (
+#         covered_pileup_df
+#         .groupby(
+#             [condition_col, "OldRead", "Read", "ReadLength", "NumOfPasses", "ReadQuality", "ReadQualityPhredScale"]
+#         )
+#         ["NAType"].value_counts()
+#         .reset_index()
+#         .pivot(
+#             index=[condition_col, "OldRead", "Read", "ReadLength", "NumOfPasses", "ReadQuality", "ReadQualityPhredScale"],
+#             columns="NAType",
+#             values="count",
+#         )
+#         .reset_index()
+#     )
+#     na_types_per_read_df.columns.name = None
+
+#     uncovered_bases_per_read = get_uncovered_bases_per_read(covered_pileup_df, considered_bases)
+#     na_types_per_read_df["UncoveredBase"] = na_types_per_read_df["Read"].map(uncovered_bases_per_read)
+
+#     na_types = list(sorted(covered_pileup_df["NAType"].unique())) + ["UncoveredBase"]
+
+#     na_types_per_read_df.loc[:, na_types] = na_types_per_read_df.loc[:, na_types].fillna(0)
+
+#     for col in na_types + ["ReadLength", "NumOfPasses"]:
+#         na_types_per_read_df[col] = na_types_per_read_df[col].astype(int)
+        
+#     new_na_types_dict = {
+#         "Deletion": "DeletedBases",
+#         "LowQuality": "LowQualityBases",
+#         "NotNA": "NotNABases",
+#         'UnexpectedBase': "UnexpectedBases",
+#         'UncoveredBase': "UncoveredBases",
+#         np.nan: np.nan
+#     }
+#     na_types_per_read_df = na_types_per_read_df.rename(columns=new_na_types_dict)
+
+#     true_na_types = ["DeletedBases", "LowQualityBases", "UnexpectedBases", "UncoveredBases"]
+#     sum_of_true_nas_col = "TotalNAs"
+#     total_bases_col = "TotalBases"
+#     no_nas_in_read_col = "NoNAsInRead"
+
+#     na_types_per_read_df[sum_of_true_nas_col] = na_types_per_read_df.loc[:, true_na_types].sum(axis=1)
+
+#     # move NotNABases to the end of the dataframe
+#     na_types_per_read_df["NotNABases2"] = na_types_per_read_df["NotNABases"]
+#     na_types_per_read_df = (
+#         na_types_per_read_df
+#         .drop(columns="NotNABases")
+#         .rename(columns={"NotNABases2": "NotNABases"})
+#     )
+
+#     # na_types_per_read_df[total_bases_col] = pileup_df["RefPos"].nunique()
+#     na_types_per_read_df[total_bases_col] = len(considered_bases)
+
+#     assert (
+#         na_types_per_read_df[sum_of_true_nas_col] 
+#         + na_types_per_read_df["NotNABases"] 
+#         == na_types_per_read_df[total_bases_col]
+#     ).all()
+
+#     na_types_per_read_df[no_nas_in_read_col] = na_types_per_read_df[sum_of_true_nas_col].eq(0)
+
+#     for na_type in true_na_types:
+#         na_types_per_read_df[f"%{na_type}/{sum_of_true_nas_col}"] = np.where(
+#             ~na_types_per_read_df[no_nas_in_read_col],
+#             na_types_per_read_df[na_type].mul(100).div(na_types_per_read_df[sum_of_true_nas_col]),
+#             np.nan
+#         )
+#         na_types_per_read_df[f"%{na_type}/{total_bases_col}"] = np.where(
+#             ~na_types_per_read_df[no_nas_in_read_col],
+#             na_types_per_read_df[na_type].mul(100).div(na_types_per_read_df[total_bases_col]),
+#             np.nan
+#         )
+
+#     na_types_per_read_df[f"%{sum_of_true_nas_col}/{total_bases_col}"] = np.where(
+#         ~na_types_per_read_df[no_nas_in_read_col],
+#         na_types_per_read_df[sum_of_true_nas_col].mul(100).div(na_types_per_read_df[total_bases_col]),
+#         np.nan
+#     )
+    
+        
+#     return na_types_per_read_df
+
+# %%
+def make_na_types_per_read_df(
+    covered_pileup_df: pd.DataFrame,
+    # consider only these bases when summing NA types per read
+    considered_bases: list[int], 
+    # for each read, only consider his mapped bases within the considered bases, instead of setting other bases in considerd bases as uncovered for that read
+    per_read_mapping_boundaries = False 
+    
+):
+    if per_read_mapping_boundaries:
+        first_considered_base = considered_bases[0]
+        last_considered_base = considered_bases[-1]
+
+        covered_pileup_df["FirstMappedRefPosOfReadWithinConsideredBases"] = covered_pileup_df["FirstMappedRefPosOfRead"].apply(
+            lambda x: max(x, first_considered_base)
+        )
+        covered_pileup_df["LastMappedRefPosOfReadWithinConsideredBases"] = covered_pileup_df["LastMappedRefPosOfRead"].apply(
+            lambda x: min(x, last_considered_base)
+        )
+        covered_pileup_df["NumOfMappedRefPositionsWithinConsideredBases"] = covered_pileup_df.apply(
+            lambda x: x["LastMappedRefPosOfReadWithinConsideredBases"] - x["FirstMappedRefPosOfReadWithinConsideredBases"] + 1,
+            axis=1
+        )
+        
+        assert (
+            covered_pileup_df
+            .groupby(["Read", "NumOfMappedRefPositionsWithinConsideredBases"])
+            .size()
+            .reset_index(name="Count")
+            .apply(
+                lambda x: x["NumOfMappedRefPositionsWithinConsideredBases"] == x["Count"],
+                axis=1
+            )
+            .all()
+        )
+        
+        # probably has no meaning, but definitely won't hurt
+        covered_pileup_df = covered_pileup_df.loc[
+            (covered_pileup_df["RefPos"].ge(covered_pileup_df["FirstMappedRefPosOfReadWithinConsideredBases"]))
+            & (covered_pileup_df["RefPos"].le(covered_pileup_df["LastMappedRefPosOfReadWithinConsideredBases"]))
+        ]
+        
+    reads_metadata_cols = [
+        condition_col, "OldRead", "Read", "ReadLength", "NumOfPasses", "ReadQuality", "ReadQualityPhredScale",
+    ]
+    if per_read_mapping_boundaries:
+        reads_metadata_cols.append("NumOfMappedRefPositionsWithinConsideredBases")
+
+    na_types_per_read_df = (
+        covered_pileup_df
+        .groupby(reads_metadata_cols)
+        ["NAType"].value_counts()
+        .reset_index()
+        .pivot(
+            index=reads_metadata_cols,
+            columns="NAType",
+            values="count",
+        )
+        .reset_index()
+    )
+    na_types_per_read_df.columns.name = None
+
+    if not per_read_mapping_boundaries:
+        uncovered_bases_per_read = get_uncovered_bases_per_read(covered_pileup_df, considered_bases)
+        na_types_per_read_df["UncoveredBase"] = na_types_per_read_df["Read"].map(uncovered_bases_per_read)
+
+    na_types = list(sorted(covered_pileup_df["NAType"].unique()))
+    if not per_read_mapping_boundaries: 
+        na_types.append("UncoveredBase")
+
+    na_types_per_read_df.loc[:, na_types] = na_types_per_read_df.loc[:, na_types].fillna(0)
+
+    for col in na_types + ["ReadLength", "NumOfPasses"]:
+        na_types_per_read_df[col] = na_types_per_read_df[col].astype(int)
+        
+    new_na_types_dict = {
+        "Deletion": "DeletedBases",
+        "LowQuality": "LowQualityBases",
+        "NotNA": "NotNABases",
+        'UnexpectedBase': "UnexpectedBases",
+        'UncoveredBase': "UncoveredBases",
+        np.nan: np.nan
+    }
+    na_types_per_read_df = na_types_per_read_df.rename(columns=new_na_types_dict)
+
+    true_na_types = ["DeletedBases", "LowQualityBases", "UnexpectedBases"]
+    if not per_read_mapping_boundaries:
+        true_na_types.append("UncoveredBases")
+    sum_of_true_nas_col = "TotalNAs"
+    total_bases_col = "TotalBases"
+    no_nas_in_read_col = "NoNAsInRead"
+
+    na_types_per_read_df[sum_of_true_nas_col] = na_types_per_read_df.loc[:, true_na_types].sum(axis=1)
+
+    # move NotNABases to the end of the dataframe
+    na_types_per_read_df["NotNABases2"] = na_types_per_read_df["NotNABases"]
+    na_types_per_read_df = (
+        na_types_per_read_df
+        .drop(columns="NotNABases")
+        .rename(columns={"NotNABases2": "NotNABases"})
+    )
+
+    # na_types_per_read_df[total_bases_col] = pileup_df["RefPos"].nunique()
+    if not per_read_mapping_boundaries:
+        na_types_per_read_df[total_bases_col] = len(considered_bases)
+    else:
+        na_types_per_read_df[total_bases_col] = na_types_per_read_df["NumOfMappedRefPositionsWithinConsideredBases"]
+
+    assert (
+        na_types_per_read_df[sum_of_true_nas_col] 
+        + na_types_per_read_df["NotNABases"] 
+        == na_types_per_read_df[total_bases_col]
+    ).all()
+
+    na_types_per_read_df[no_nas_in_read_col] = na_types_per_read_df[sum_of_true_nas_col].eq(0)
+
+    for na_type in true_na_types:
+        na_types_per_read_df[f"%{na_type}/{sum_of_true_nas_col}"] = np.where(
+            ~na_types_per_read_df[no_nas_in_read_col],
+            na_types_per_read_df[na_type].mul(100).div(na_types_per_read_df[sum_of_true_nas_col]),
+            np.nan
+        )
+        na_types_per_read_df[f"%{na_type}/{total_bases_col}"] = np.where(
+            ~na_types_per_read_df[no_nas_in_read_col],
+            na_types_per_read_df[na_type].mul(100).div(na_types_per_read_df[total_bases_col]),
+            np.nan
+        )
+
+    na_types_per_read_df[f"%{sum_of_true_nas_col}/{total_bases_col}"] = np.where(
+        ~na_types_per_read_df[no_nas_in_read_col],
+        na_types_per_read_df[sum_of_true_nas_col].mul(100).div(na_types_per_read_df[total_bases_col]),
+        np.nan
+    )
+    
+        
+    return na_types_per_read_df
+
+# %%
+
+# %% [markdown]
+# ##### NAs per read, edited positions
+
+# %%
+edited_covered_pileup_dfs = [
+    pileup_df.loc[pileup_df["Edited"]].reset_index(drop=True)
+    for pileup_df in covered_pileup_dfs
+]
+for condition, df in zip(fixed_conditions, edited_covered_pileup_dfs):
+    ic(condition, df["RefPos"].nunique(), df["Read"].nunique())
+edited_covered_pileup_dfs[0]
+
+# %%
+# sum NA types per read considering only editing positions
+
+edited_positions_per_sample = [
+    sorted(df["Position"].unique()) for df in edited_positions_dfs
+]
+
+with Pool(processes=3) as pool:
+    edited_na_types_per_read_dfs = pool.starmap(
+        func=make_na_types_per_read_df,
+        iterable=zip(edited_covered_pileup_dfs, edited_positions_per_sample)
+        # iterable=zip(edited_covered_pileup_dfs[:1], edited_positions_per_sample[:1])
+    )
+    
+concat_edited_na_types_per_read_df = pd.concat(edited_na_types_per_read_dfs, ignore_index=True)
+
+concat_edited_na_types_per_read_df
+
+# %%
+concat_edited_na_types_per_read_df[condition_col].value_counts()
+
+# %%
+concat_edited_na_types_per_read_df["%TotalNAs/TotalBases"].describe().round(2)
+
+# %%
+concat_edited_na_types_per_read_df.groupby(
+    condition_col
+)["%TotalNAs/TotalBases"].describe().round(2)
+
+# %%
+# let's debug NA disagreements in this new check vs old/original pipeline in GRIA2
+
+gria2_edited_na_types_per_read_df = concat_edited_na_types_per_read_df.loc[
+    concat_edited_na_types_per_read_df[condition_col].eq("GRIA2")
+].copy()
+gria2_edited_na_types_per_read_df
+
+# %%
+# # this df is based on the old/original pipeline and should be identical to the new one if there are no disagreements in NA annotations
+# metadata_reads_dfs = []
+
+# for reads_df, condition in zip(reads_dfs, conditions):
+#     num_of_editing_sites = reads_df.shape[1] - reads_first_col_pos
+#     ic(condition, num_of_editing_sites)
+#     metadata_reads_df = reads_df.iloc[:, :reads_first_col_pos]
+#     metadata_reads_df["NumOfEditingSites"] = num_of_editing_sites
+#     for col in ["EditedPositions", "UneditedPositions", "AmbigousPositions"]:
+#         metadata_reads_df[f"%{col}"] = metadata_reads_df[col].mul(100).div(metadata_reads_df["NumOfEditingSites"])
+#     metadata_reads_dfs.append(metadata_reads_df)
+    
+# concat_metadata_reads_df = pd.concat(metadata_reads_dfs, ignore_index=True)
+# concat_metadata_reads_df[condition_col] = concat_metadata_reads_df[condition_col].map(fixed_condition_by_original_condition)
+# # concat_metadata_reads_df
+
+# gria2_metadata_reads_df = concat_metadata_reads_df.loc[
+#     concat_metadata_reads_df[condition_col].eq("GRIA2")
+# ].copy()
+# gria2_metadata_reads_df
+
+# %%
+metadata_cols = ['EditedPositions', 'UneditedPositions', 'AmbigousPositions']
+values_correspodning_to_metadata_cols = [1, 0, -1]
+
+for reads_df in reads_dfs:
+
+     for metadata_col, value in zip(metadata_cols, values_correspodning_to_metadata_cols):
+          assert reads_df[metadata_col].eq(
+          reads_df.iloc[:, reads_first_col_pos:].eq(value).sum(axis=1)
+          ).all()
+
+
+# %%
+gria2_reads_df = reads_dfs[0].copy()
+gria2_reads_df[condition_col] = gria2_reads_df[condition_col].map(fixed_condition_by_original_condition)
+gria2_reads_df
+
+# %%
+gria2_new_vs_old_nas_df = (
+    gria2_edited_na_types_per_read_df
+    .loc[
+        :,
+        [condition_col, "OldRead", "Read", "TotalNAs", ]
+    ]
+    .merge(
+        # gria2_metadata_reads_df.loc[
+        #     :,
+        #     [condition_col, "Read", "EditedPositions", "UneditedPositions", "AmbigousPositions", ]
+        # ],
+        gria2_reads_df,
+        how="left",
+        on=[condition_col, "Read"]
+    )
+)
+gria2_new_vs_old_nas_df
+
+# %%
+gria2_new_vs_old_nas_df.apply(
+    lambda x: x["TotalNAs"] - x["AmbigousPositions"],
+    axis=1
+).describe().round(2)
+
+# %%
+gria2_unagreeing_new_vs_old_nas_df = gria2_new_vs_old_nas_df.loc[
+    gria2_new_vs_old_nas_df["TotalNAs"].ne(
+        gria2_new_vs_old_nas_df["AmbigousPositions"]
+    )
+]
+gria2_unagreeing_new_vs_old_nas_df
+
+# %%
+gria2_unagreeing_new_vs_old_nas_df.apply(
+    lambda x: x["TotalNAs"] - x["AmbigousPositions"],
+    axis=1
+).describe().round(2)
+
+# %% [markdown]
+# ##### NAs per read, all ORF positions
+
+# %%
+# sum NA types per read considering all positions in ORF
+
+bases_in_orf_per_condition = [
+    range(orf_start, orf_end)
+    for orf_start, orf_end in zip(starts, ends)
+]
+
+with Pool(processes=3) as pool:
+    na_types_per_read_dfs = pool.starmap(
+        func=make_na_types_per_read_df,
+        iterable=zip(covered_pileup_dfs, bases_in_orf_per_condition)
+    )
+    
+concat_na_types_per_read_df = pd.concat(na_types_per_read_dfs, ignore_index=True)
+
+concat_na_types_per_read_df
+
+# %%
+concat_na_types_per_read_df["%TotalNAs/TotalBases"].describe().round(2)
+
+# %%
+concat_na_types_per_read_df.groupby(
+    condition_col
+)["%TotalNAs/TotalBases"].describe().round(2)
+
+# %%
+(
+    concat_na_types_per_read_df
+    .groupby(condition_col)["NoNAsInRead"]
+    .value_counts(normalize=True).mul(100).round(2)
+    .reset_index()
+    .rename(columns={"proportion": "% of reads in gene"})
+)
+
+# %%
+concat_na_types_per_read_df.loc[
+    :, 
+    ["%DeletedBases/TotalNAs", "%LowQualityBases/TotalNAs", "%UnexpectedBases/TotalNAs", "%UncoveredBases/TotalNAs"]
+].describe().round(2)
+
+# %%
+concat_na_types_per_read_df.loc[
+    :, 
+    ["%DeletedBases/TotalBases", "%LowQualityBases/TotalBases", "%UnexpectedBases/TotalBases", "%UncoveredBases/TotalBases"]
+].describe().round(2)
+
+# %%
+# (
+#     concat_na_types_per_read_df
+#     .loc[
+#         ~concat_na_types_per_read_df["NoNAsInRead"],
+#         ["%DeletedBases/TotalNAs", "%LowQualityBases/TotalNAs"]
+#     ]
+#     .describe()
+#     .round(2)
+# )
+
+# %%
+(
+    concat_na_types_per_read_df
+    .loc[
+        ~concat_na_types_per_read_df["NoNAsInRead"]
+    ]
+    .groupby(condition_col)["%DeletedBases/TotalNAs"]
+    .describe()
+    .round(2)
+    .reset_index()
+)
+
+# %%
+(
+    concat_na_types_per_read_df
+    .loc[
+        ~concat_na_types_per_read_df["NoNAsInRead"]
+    ]
+    .groupby(condition_col)["%LowQualityBases/TotalNAs"]
+    .describe()
+    .round(2)
+    .reset_index()
+)
+
+# %%
+# fig = px.scatter(
+#     concat_na_types_per_read_df.loc[
+#         ~concat_na_types_per_read_df["NoNAsInRead"]
+#     ], 
+#     x="TotalNAs",
+#     y='%LowQualityBases/TotalNAs',
+#     facet_col=condition_col,
+#     color=condition_col,
+#     color_discrete_map=fixed_condition_color_discrete_map,
+#     labels={
+#         'TotalNAs': 'Total NAs',
+#         '%LowQualityBases/TotalNAs': 'Low quality bases / total NAs [%]'
+#     }
+# )
+# # fig.update_xaxes(dtick=100)
+# fig.update_yaxes(dtick=20)
+# fig.update_layout(
+#     template=template,
+#     width=1000,
+#     height=400,
+#     showlegend=False
+# )
+# fig.show()
+
+# %%
+# fig = px.scatter(
+#     concat_na_types_per_read_df.loc[
+#         ~concat_na_types_per_read_df["NoNAsInRead"]
+#     ],
+#     x="TotalNAs",
+#     y='%DeletedBases/TotalNAs',
+#     facet_col=condition_col,
+#     color=condition_col,
+#     color_discrete_map=fixed_condition_color_discrete_map,
+#     labels={
+#         'TotalNAs': 'Total NAs',
+#         '%DeletedBases/TotalNAs': 'Deleted bases / total NAs [%]'
+#     }
+# )
+# # fig.update_xaxes(dtick=100)
+# fig.update_yaxes(dtick=20)
+# fig.update_layout(
+#     template=template,
+#     width=1000,
+#     height=400,
+#     showlegend=False
+# )
+# fig.show()
+
+# %%
+fig = px.scatter(
+    concat_na_types_per_read_df.loc[
+        ~concat_na_types_per_read_df["NoNAsInRead"]
+    ],
+    x="LowQualityBases",
+    y='%LowQualityBases/TotalNAs',
+    facet_col=condition_col,
+    color=condition_col,
+    color_discrete_map=fixed_condition_color_discrete_map,
+    labels={
+        'LowQualityBases': 'Low quality bases',
+        '%LowQualityBases/TotalNAs': 'Low quality bases / total NAs [%]'
+    }
+)
+fig.update_xaxes(dtick=100)
+fig.update_yaxes(dtick=20)
+fig.update_layout(
+    template=template,
+    width=1000,
+    height=400,
+    showlegend=False
+)
+fig.show()
+
+# %%
+fig = px.scatter(
+    concat_na_types_per_read_df.loc[
+        ~concat_na_types_per_read_df["NoNAsInRead"]
+    ],
+    x="ReadQualityPhredScale",
+    y="LowQualityBases",
+    # y='%LowQualityBases/TotalNAs',
+    facet_col=condition_col,
+    color=condition_col,
+    color_discrete_map=fixed_condition_color_discrete_map,
+    labels={
+        'LowQualityBases': 'Low quality bases',
+        'ReadQualityPhredScale': 'Read quality (Phred)'
+    }
+)
+fig.update_xaxes(dtick=5)
+fig.update_yaxes(dtick=100)
+fig.update_layout(
+    template=template,
+    width=1000,
+    height=400,
+    showlegend=False
+)
+fig.show()
+
+# %%
+fig = px.box(
+    concat_na_types_per_read_df.assign(
+        ReadQualityPhredScaleInt=concat_na_types_per_read_df["ReadQualityPhredScale"].round(0).astype("int")
+    ),
+    x="ReadQualityPhredScaleInt",
+    y="LowQualityBases",
+    # y='%LowQualityBases/TotalNAs',
+    facet_col=condition_col,
+    color=condition_col,
+    color_discrete_map=fixed_condition_color_discrete_map,
+    labels={
+        'LowQualityBases': 'Low quality bases',
+        'ReadQualityPhredScaleInt': 'Read quality (Phred)'
+    }
+)
+fig.update_xaxes(dtick=5)
+fig.update_yaxes(
+    # dtick=100,
+    type="log"
+)
+fig.update_layout(
+    template=template,
+    width=1400,
+    height=400,
+    showlegend=False
+)
+fig.show()
+
+# %%
+
+# %%
+# this is biased - most NAs result from uncovered bases, 
+# and uncovered bases are not expected to be related to read quality
+
+fig = px.histogram(
+    concat_na_types_per_read_df, 
+    x='ReadQualityPhredScale',
+    y="TotalNAs",
+    histfunc='avg',
+    facet_col=condition_col,
+    color=condition_col,
+    color_discrete_map=fixed_condition_color_discrete_map,
+    labels={
+        'TotalNAs': 'Total NAs',
+        'ReadQualityPhredScale': 'Read quality (Phred)'
+    },    
+)
+fig.update_xaxes(dtick=5)
+# fig.update_yaxes(dtick=20)
+fig.update_layout(
+    template=template,
+    width=1000,
+    height=400,
+    showlegend=False
+)
+fig.show()
+
+# %% [markdown]
+# ##### NAs per read, ORF positions within main mapping boundaries
+
+# %%
+# sum NA types per read considering: 
+# (1) all positions in ORF, that are also in main mapping boundaries positions
+# (2) using only reads that span these main mapping boundaries positions from head to tail
+
+bases_in_orf_and_main_mapping_boundaries_per_condition = []
+for orf_start, orf_end, main_mapping_boundaries in zip(starts, ends, main_mapping_boundaries_per_gene):
+    mapping_boundaries_start, mapping_boundaries_end = main_mapping_boundaries
+    bases_in_orf_and_main_mapping_boundaries = [
+        x 
+        for x in range(orf_start, orf_end)
+        if mapping_boundaries_start <= x <= mapping_boundaries_end - 1
+    ]
+    bases_in_orf_and_main_mapping_boundaries_per_condition.append(bases_in_orf_and_main_mapping_boundaries)
+ic([len(bases) for bases in bases_in_orf_and_main_mapping_boundaries_per_condition]);
+
+full_spanning_reads_with_bases_within_boundaries_dfs = [
+    df.loc[
+        df["ReadSpansMappingBoundaries"] & df["BaseWithinMappingBoundaries"]
+    ].reset_index(drop=True)
+    for df in covered_pileup_dfs
+]
+
+with Pool(processes=3) as pool:
+    na_types_per_read_in_mapping_boundaries_dfs = pool.starmap(
+        func=make_na_types_per_read_df,
+        iterable=zip(
+            full_spanning_reads_with_bases_within_boundaries_dfs, 
+            bases_in_orf_and_main_mapping_boundaries_per_condition
+        )
+    )
+    
+concat_na_types_per_read_in_mapping_boundaries = pd.concat(na_types_per_read_in_mapping_boundaries_dfs, ignore_index=True)
+
+concat_na_types_per_read_in_mapping_boundaries
+
+# %%
+concat_na_types_per_read_in_mapping_boundaries[condition_col].value_counts()
+
+# %%
+concat_na_types_per_read_in_mapping_boundaries["%TotalNAs/TotalBases"].describe().round(2)
+
+# %%
+concat_na_types_per_read_in_mapping_boundaries.groupby(
+    condition_col
+)["%TotalNAs/TotalBases"].describe().round(2)
+
+# %%
+concat_na_types_per_read_in_mapping_boundaries.loc[
+    :, 
+    ["%DeletedBases/TotalNAs", "%LowQualityBases/TotalNAs", "%UnexpectedBases/TotalNAs", "%UncoveredBases/TotalNAs"]
+].describe().round(2)
+
+# %%
+concat_na_types_per_read_in_mapping_boundaries.loc[
+    :, 
+    ["%DeletedBases/TotalBases", "%LowQualityBases/TotalBases", "%UnexpectedBases/TotalBases", "%UncoveredBases/TotalBases"]
+].describe().round(2)
+
+# %%
+
+# %%
+
+# %% [markdown]
+# ##### NAs per read, ORF positions, within that read's mapping boundaries
+
+# %%
+# sum NA types per read considering all positions in ORF that are covered by that read
+# (i.e., look at each read by itself - don't look at global ORF/mapping boundaries)
+
+bases_in_orf_per_condition = [
+    range(orf_start, orf_end)
+    for orf_start, orf_end in zip(starts, ends)
+]
+
+with Pool(processes=3) as pool:
+    na_types_per_read_personal_mapping_boundaries_dfs = pool.starmap(
+        func=make_na_types_per_read_df,
+        iterable=zip(covered_pileup_dfs, bases_in_orf_per_condition, [True] * len(covered_pileup_dfs))
+    )
+    
+concat_na_types_per_read_personal_mapping_boundaries_df = pd.concat(na_types_per_read_personal_mapping_boundaries_dfs, ignore_index=True)
+
+concat_na_types_per_read_personal_mapping_boundaries_df
+
+# %%
+concat_na_types_per_read_personal_mapping_boundaries_df["%TotalNAs/TotalBases"].describe().round(2)
+
+# %%
+concat_na_types_per_read_personal_mapping_boundaries_df.groupby(
+    condition_col
+)["%TotalNAs/TotalBases"].describe().round(2)
+
+# %%
+concat_na_types_per_read_personal_mapping_boundaries_df.loc[
+    :, 
+    ["%DeletedBases/TotalNAs", "%LowQualityBases/TotalNAs", "%UnexpectedBases/TotalNAs"]
+].describe().round(2)
+
+# %%
+concat_na_types_per_read_personal_mapping_boundaries_df.loc[
+    :, 
+    ["%DeletedBases/TotalBases", "%LowQualityBases/TotalBases", "%UnexpectedBases/TotalBases"]
+].describe().round(2)
+
+
+# %% [markdown]
+# #### NAs per position
+
+# %%
+def get_uncovered_reads_per_base(
+    covered_pileup_df: pd.DataFrame,
+    considered_bases: list[int],
+    condition_col: str,
+    condition: str
+):
+    all_possible_bases_per_read_df = pd.DataFrame(
+        product(
+            considered_bases,
+            covered_pileup_df["Read"].unique()
+        ),
+        columns=["RefPos", "Read"]   
+    )
+    
+    covered_uncovered_pileup_df = (
+        covered_pileup_df
+        .loc[:, ["RefPos", "Read"]]
+        .merge(
+            all_possible_bases_per_read_df,
+            how="outer",
+            indicator=True
+        )
+    )
+    
+    merge_indicator_value_counts = covered_uncovered_pileup_df["_merge"].value_counts()
+    assert merge_indicator_value_counts.get("both", 0) == covered_pileup_df.shape[0]
+    assert merge_indicator_value_counts.get("left_only", 0) == 0
+    
+    uncovered_pileup_df = covered_uncovered_pileup_df.loc[
+        covered_uncovered_pileup_df["_merge"].eq("right_only")
+    ].drop(columns="_merge")
+    
+    uncovered_reads_per_base = uncovered_pileup_df.groupby("RefPos").size().reset_index(name="UncoveredReads")
+    uncovered_reads_per_base.insert(0, condition_col, condition)
+    
+    return uncovered_reads_per_base
+
+
+# %%
+def make_na_types_per_position_df(
+    covered_pileup_df,
+    considered_bases,
+    condition_col,
+    condition
+):
+    na_types_per_position_df = (
+        covered_pileup_df
+        .groupby(
+            [condition_col, "RefPos", "RefBase", "Edited"],
+        )
+        ["NAType"].value_counts()
+        .reset_index()
+        .pivot(
+            index=[condition_col, "RefPos", "RefBase", "Edited"],
+            columns="NAType",
+            values="count",
+        )
+        .reset_index()
+    )
+
+    na_types_per_position_df.columns.name = None
+
+    uncovered_reads_per_base = get_uncovered_reads_per_base(
+        covered_pileup_df,
+        considered_bases,
+        condition_col,
+        condition
+    )
+    # na_types_per_position_df["UncoveredReads"] = na_types_per_position_df["RefPos"].map(uncovered_reads_per_base)
+    na_types_per_position_df = na_types_per_position_df.merge(
+        uncovered_reads_per_base,
+        on=[condition_col, "RefPos"],
+        how="outer"
+    )
+
+    na_types = list(sorted(covered_pileup_df["NAType"].unique())) + ["UncoveredReads"]
+
+    na_types_per_position_df["Edited"] = na_types_per_position_df["Edited"].fillna(False)
+
+    na_types_per_position_df.loc[:, na_types] = na_types_per_position_df.loc[:, na_types].fillna(0)
+
+    for col in na_types:
+        na_types_per_position_df[col] = na_types_per_position_df[col].astype(int)
+
+    new_na_types_dict = {
+        "Deletion": "DeletedReads",
+        "LowQuality": "LowQualityReads",
+        "NotNA": "NotNAReads",
+        "UnexpectedBase": "UnexpectedBaseReads",
+        "UncoveredReads": "UncoveredReads",
+        np.nan: np.nan
+    }
+    na_types_per_position_df = na_types_per_position_df.rename(columns=new_na_types_dict)
+
+    true_na_types = ["DeletedReads", "LowQualityReads", "UnexpectedBaseReads", "UncoveredReads"]
+    sum_of_true_nas_col = "TotalNAs"
+    total_coverage_col = "TotalCoverage"
+    no_nas_in_position_col = "NoNAsInPosition"
+
+    na_types_per_position_df[sum_of_true_nas_col] = na_types_per_position_df.loc[:, true_na_types].sum(axis=1)
+
+    # move NotNAReads to the end of the dataframe
+    na_types_per_position_df["NotNAReads2"] = na_types_per_position_df["NotNAReads"]
+    na_types_per_position_df = (
+        na_types_per_position_df
+        .drop(columns="NotNAReads")
+        .rename(columns={"NotNAReads2": "NotNAReads"})
+    )
+
+    # na_types_per_position_df[total_coverage_col] = na_types_per_position_df[sum_of_true_nas_col] + na_types_per_position_df["NotNAReads"]
+    na_types_per_position_df[total_coverage_col] = covered_pileup_df["Read"].nunique()
+
+    assert (
+        na_types_per_position_df[sum_of_true_nas_col] 
+        + na_types_per_position_df["NotNAReads"] 
+        == na_types_per_position_df[total_coverage_col]
+    ).all()
+
+    # find consecutive covered positions
+    zero_covereage_encounters = (
+        na_types_per_position_df["UncoveredReads"]
+        .eq(na_types_per_position_df["TotalCoverage"])
+        .cumsum()
+    )
+    na_types_per_position_df["ConsecutiveCoveredPositions"] = (
+        na_types_per_position_df["UncoveredReads"]
+        .ne(na_types_per_position_df["TotalCoverage"])
+        .groupby(zero_covereage_encounters)
+        .cumsum()
+    )
+
+    na_types_per_position_df[no_nas_in_position_col] = na_types_per_position_df[sum_of_true_nas_col].eq(0)
+
+    for na_type in true_na_types:
+        na_types_per_position_df[f"%{na_type}/{sum_of_true_nas_col}"] = np.where(
+            ~na_types_per_position_df[no_nas_in_position_col],
+            na_types_per_position_df[na_type].mul(100).div(na_types_per_position_df[sum_of_true_nas_col]),
+            np.nan
+        )
+        na_types_per_position_df[f"%{na_type}/{total_coverage_col}"] = np.where(
+            ~na_types_per_position_df[no_nas_in_position_col],
+            na_types_per_position_df[na_type].mul(100).div(na_types_per_position_df[total_coverage_col]),
+            np.nan
+        )
+        
+    na_types_per_position_df[f"%{sum_of_true_nas_col}/{total_coverage_col}"] = (
+        na_types_per_position_df[sum_of_true_nas_col].mul(100).div(na_types_per_position_df[total_coverage_col])
+    )
+    
+    return na_types_per_position_df
+
+
+# %%
+# sum NA types per each ORF position considering all possible reads
+
+bases_in_orf_per_condition = [
+    range(orf_start, orf_end)
+    for orf_start, orf_end in zip(starts, ends)
+]
+
+with Pool(processes=3) as pool:
+    na_types_per_position_dfs = pool.starmap(
+        func=make_na_types_per_position_df,
+        iterable=[
+            (covered_pileup_df, bases_in_orf, condition_col, condition)
+            for covered_pileup_df, bases_in_orf, condition in zip(
+                covered_pileup_dfs,
+                bases_in_orf_per_condition,
+                fixed_conditions
+            )
+        ]
+    )
+
+concat_na_types_per_position_df = pd.concat(na_types_per_position_dfs, ignore_index=True)
+
+# fill missing RefBase values in the na types per position df, 
+# (which are the result of positions with no coverage and thus no pileup information, 
+# and consequently no RefBase information)
+# by fetching the reference base from the transcriptome fasta file using the RefPos and the 
+# chrom corresponding to the condition
+transcriptome_dict = make_fasta_dict(transcriptome_file)
+chrom_by_fixed_condition = {
+    condition: chrom for condition, chrom in zip(fixed_conditions, chroms)
+}
+concat_na_types_per_position_df["RefBase"] = concat_na_types_per_position_df.apply(
+    lambda x: transcriptome_dict[chrom_by_fixed_condition[x[condition_col]]][x["RefPos"]],
+    axis=1
+)
+
+# add boolean column indicating whether the position is covered by at least one read 
+# (i.e. has at least one NotNA read),
+concat_na_types_per_position_df.insert(
+    concat_na_types_per_position_df.columns.get_loc("TotalCoverage") + 1,
+    "IsPositionCovered",
+    concat_na_types_per_position_df["NotNAReads"].gt(0)
+)
+
+concat_na_types_per_position_df
+
+# %%
+# num of uncovered ORF positions, per gene
+(
+    concat_na_types_per_position_df
+    .groupby(condition_col)["IsPositionCovered"]
+    .value_counts()
+    .reset_index(name="Positions")
+)
+
+# %%
+# % of uncovered ORF positions, per gene
+(
+    concat_na_types_per_position_df
+    .groupby(condition_col)["IsPositionCovered"]
+    .value_counts(normalize=True)
+    .mul(100).round(2)
+    .reset_index(name="% of positions")
+)
+
+# %%
+# num of uncovered ORF positions, per gene
+(
+    concat_na_types_per_position_df
+    .groupby(condition_col)
+    .apply(lambda x: (x["UncoveredReads"].eq(x["TotalCoverage"])).sum())
+    .sort_index()
+    .reset_index(name="Uncovered positions")
+)
+
+# %%
+# total NAs / total coverage, in all positions, per gene
+(
+    concat_na_types_per_position_df
+    .groupby(condition_col)
+    ["%TotalNAs/TotalCoverage"]
+    .describe().round(2)
+    .reset_index()
+)
+
+# %%
+# total NAs / total coverage, in adenosines, per gene
+(
+    concat_na_types_per_position_df
+    .loc[
+        concat_na_types_per_position_df["RefBase"].eq("A")
+    ]
+    .groupby([condition_col, "Edited"])
+    ["%TotalNAs/TotalCoverage"]
+    .describe().round(2)
+    .reset_index()
+)
+
+# %%
+# total NAs / total coverage, in covered positions, per gene
+(
+    concat_na_types_per_position_df
+    .loc[concat_na_types_per_position_df["IsPositionCovered"]]
+    .groupby(condition_col)
+    ["%TotalNAs/TotalCoverage"]
+    .describe().round(2)
+    .reset_index()
+)
+
+# %%
+# total NAs / total coverage, in covered adenosines, per gene
+(
+    concat_na_types_per_position_df
+    .loc[
+        (concat_na_types_per_position_df["RefBase"].eq("A"))
+        & (concat_na_types_per_position_df["IsPositionCovered"])
+    ]
+    .groupby([condition_col, "Edited"])
+    ["%TotalNAs/TotalCoverage"]
+    .describe().round(2)
+    .reset_index()
+)
+
+# %%
+# % of covered adnosines that are edited, per gene
+(
+    concat_na_types_per_position_df
+    .loc[
+        (concat_na_types_per_position_df["RefBase"].eq("A"))
+        & (concat_na_types_per_position_df["IsPositionCovered"])
+    ]
+    .groupby(condition_col)
+    ["Edited"]
+    .value_counts(normalize=True, dropna=False).mul(100).round(2)
+    .reset_index()
+    .rename(columns={"proportion": "% of positions in gene"})
+)
+
+# %%
+(
+    concat_na_types_per_position_df
+    .groupby(condition_col)
+    [["RefBase", "NoNAsInPosition"]]
+    .value_counts(normalize=True).mul(100).round(2)
+    .reset_index()
+    .rename(columns={"proportion": "% of positions in gene"})
+)
+
+# %%
+# # all positions have NAs
+
+# fig = px.bar(
+#     (
+#         concat_na_types_per_position_df
+#         .groupby(condition_col)
+#         [["RefBase", "NoNAsInPosition"]]
+#         .value_counts(normalize=True).mul(100).round(2)
+#         .reset_index()
+#         .rename(columns={"proportion": "% of positions in gene"})
+#     ),
+#     x="RefBase",
+#     y="% of positions in gene",
+#     color="NoNAsInPosition",
+#     barmode='group',
+#     facet_col=condition_col,
+# )
+# fig.update_yaxes(dtick=5)
+# fig.update_layout(
+#     width=900,
+#     height=350,
+#     template=template
+# )
+# fig.show()
+
+# %%
+concat_na_types_per_position_df
+
+# %%
+fig = px.ecdf(
+    concat_na_types_per_position_df.loc[
+        concat_na_types_per_position_df["IsPositionCovered"]
+    ],
+    x="%TotalNAs/TotalCoverage",
+    color="RefBase",
+    facet_col=condition_col,
+    marginal="box",
+    category_orders={"RefBase": ["A", "T", "C", "G"]},
+)
+fig.update_xaxes(dtick=10)
+fig.update_traces(opacity=0.75)
+fig.update_layout(
+    # width=1400,
+    width=1000,
+    height=450,
+    template=template,
+    title="% NAs in covered positions, per reference base"
+)
+fig.show()
+
+# %%
+fig = px.ecdf(
+    concat_na_types_per_position_df.loc[
+        concat_na_types_per_position_df["RefBase"].eq("A")
+    ],
+    x="%TotalNAs/TotalCoverage",
+    color="Edited",
+    facet_col=condition_col,
+    marginal="box",
+    category_orders={"Edited": [True, False]},
+)
+fig.update_xaxes(dtick=10)
+fig.update_traces(opacity=0.75)
+fig.update_layout(
+    width=1000,
+    height=400,
+    template=template,
+    title="% NAs in edited vs. non-edited, covered adenosines"
+)
+fig.show()
+
+# %%
+x_cols = [
+    "%DeletedReads/TotalCoverage",
+    "%LowQualityReads/TotalCoverage",
+    "%UnexpectedBaseReads/TotalCoverage",
+    "%UncoveredReads/TotalCoverage"
+]
+formatted_na_types = ['% deleted<br>reads',
+ '% low quality<br>reads',
+ '% unexpected base<br>reads',
+ '% uncovered<br>reads']
+na_type_to_formatted_na_type_dict = dict(zip(x_cols, formatted_na_types))
+
+# %%
+long_covered_adenosines_concat_na_types_per_position_df = (
+    concat_na_types_per_position_df
+    .loc[
+        concat_na_types_per_position_df["RefBase"].eq("A")
+    ]
+    .melt(
+        id_vars=[condition_col, "RefPos", "Edited"],
+        value_vars=x_cols,
+        var_name="NAType",
+        value_name="Value"
+    )
+)
+long_covered_adenosines_concat_na_types_per_position_df["NAType"] = long_covered_adenosines_concat_na_types_per_position_df["NAType"].map(na_type_to_formatted_na_type_dict)
+long_covered_adenosines_concat_na_types_per_position_df
+
+# %%
+fig = px.ecdf(
+    long_covered_adenosines_concat_na_types_per_position_df,
+    x="Value",
+    # color="Edited",
+    facet_col=condition_col,
+    facet_row="NAType",
+    # marginal="box",
+    category_orders={"Edited": [True, False]},
+    # cumulative=True
+    # log_y=True
+)
+fig.update_xaxes(dtick=10)
+fig.update_yaxes(dtick=0.2)
+fig.update_traces(opacity=0.75)
+fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+fig.update_layout(
+    width=1200,
+    height=800,
+    template=template,
+    title="% NAs in covered adenosines, per NA type"
+)
+fig.show()
+
+# %%
+fig = px.ecdf(
+    long_covered_adenosines_concat_na_types_per_position_df,
+    x="Value",
+    color="Edited",
+    facet_col=condition_col,
+    facet_row="NAType",
+    # marginal="box",
+    category_orders={"Edited": [True, False]},
+    # cumulative=True
+    # log_x=True
+)
+fig.update_xaxes(dtick=10)
+fig.update_yaxes(dtick=0.2)
+fig.update_traces(opacity=0.75)
+fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+fig.update_layout(
+    width=1200,
+    height=800,
+    template=template,
+    title="% NAs in covered adenosines, per NA type and editing status"
+)
+fig.show()
+
+# %%
+# x_cols = [
+#     "%DeletedReads/TotalCoverage",
+#     "%LowQualityReads/TotalCoverage",
+#     "%UnexpectedBaseReads/TotalCoverage",
+#     "%UncoveredReads/TotalCoverage"
+# ]
+
+# row_titles = [
+#     "% " + " ".join(
+#         y.lower() for y in
+#         re.findall(r'[A-Z][^A-Z]*', x.removeprefix('%').split('/')[0])
+#     )
+#     for x in x_cols
+# ]
+# row_titles
+
+# cols = len(conditions)
+# rows = len(x_cols)
+# row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))
+
+# row_col_iter
+
+# %%
+# x_cols = [
+#     "%DeletedReads/TotalCoverage",
+#     "%LowQualityReads/TotalCoverage",
+#     "%UnexpectedBaseReads/TotalCoverage",
+#     "%UncoveredReads/TotalCoverage"
+# ]
+# formatted_na_types = ['% deleted<br>reads',
+#  '% low quality<br>reads',
+#  '% unexpected base<br>reads',
+#  '% uncovered<br>reads']
+# na_type_to_formatted_na_type_dict = dict(zip(x_cols, formatted_na_types))
+
+# %%
+# fig = make_subplots(
+#     rows=rows,
+#     cols=cols,
+#     column_titles=fixed_conditions,
+#     # row_titles=x_cols,
+#     row_titles=row_titles,
+#     # shared_xaxes="all",
+#     # shared_yaxes="all",
+#     shared_xaxes=True,
+#     shared_yaxes=True,
+#     # y_title="Pearson",
+# )
+
+
+# for col, condition in enumerate(conditions, start=1):
+#     for row, x_col in enumerate(x_cols, start=1):
+#         for edited, color in zip(
+#             [True, False],
+#             ["blue", "red"]
+#         ):
+#             x = concat_na_types_per_position_df.loc[
+#                 (concat_na_types_per_position_df["RefBase"].eq("A"))
+#                 & (concat_na_types_per_position_df[condition_col].eq(condition))
+#                 & (concat_na_types_per_position_df["Edited"].eq(edited)),
+#                 x_col
+#             ]
+#             fig.add_trace(
+#                 go.Histogram(
+#                     x=x, 
+#                     marker_color=color,
+#                     # name=edited,
+#                     cumulative_enabled=True, # Enables cumulative distribution
+#                     # cumulative_direction="increasing", # Options: "increasing" (default) or "decreasing"
+#                     # cumulative_currentbin="include" # Options: "include", "exclude", "half"
+#                     showlegend=False
+#                 ),
+#                 row=row,
+#                 col=col
+#             )
+        
+# for edited, color in zip(
+#     [True, False],
+#     ["blue", "red"]
+# ):
+#     fig.add_trace(
+#         go.Scatter(
+#             x=[None],
+#             y=[None], 
+#             marker_color=color,
+#             mode='lines',
+#             name=edited,
+#             showlegend=True
+#         ),
+#         # row=row,
+#         # col=col
+#     )
+
+# # fig.update_yaxes(zerolinewidth=zerolinewidth, tickmode="linear", tick0=0, dtick=0.2)
+
+# fig.update_layout(
+#     template=template,
+#     title="% NAs in covered adenosines, per NA type and editing status",
+#     width=300 * cols,
+#     height=250 * rows,
+#     legend_title="Edited",
+# )
+
+
+# fig.show()
+
+# %%
+
+# %%
 
 # %% [markdown]
 # ## Proteins
@@ -5492,31 +6780,35 @@ singatures_statistics_df
 # ### NAs
 
 # %%
-meatadata_reads_dfs = []
+metadata_reads_dfs = []
 
-for reads_df in reads_dfs:
+for reads_df, condition in zip(reads_dfs, conditions):
     num_of_editing_sites = reads_df.shape[1] - reads_first_col_pos
+    ic(condition, num_of_editing_sites)
     metadata_reads_df = reads_df.iloc[:, :reads_first_col_pos]
     metadata_reads_df["NumOfEditingSites"] = num_of_editing_sites
     for col in ["EditedPositions", "UneditedPositions", "AmbigousPositions"]:
         metadata_reads_df[f"%{col}"] = metadata_reads_df[col].mul(100).div(metadata_reads_df["NumOfEditingSites"])
-    meatadata_reads_dfs.append(metadata_reads_df)
+    metadata_reads_dfs.append(metadata_reads_df)
     
-concat_meatadata_reads_df = pd.concat(meatadata_reads_dfs, ignore_index=True)
-concat_meatadata_reads_df
+concat_metadata_reads_df = pd.concat(metadata_reads_dfs, ignore_index=True)
+concat_metadata_reads_df
 
 # %%
-concat_meatadata_reads_df.loc[
+concat_metadata_reads_df.loc[
     :, 
     ["NumOfEditingSites", "%EditedPositions", "%UneditedPositions", "%AmbigousPositions"]
 ].describe().round(2)
 
 # %%
-concat_meatadata_reads_df.groupby(condition_col)["%AmbigousPositions"].describe().round(2)
+concat_metadata_reads_df.groupby(condition_col)["AmbigousPositions"].describe().round(2)
+
+# %%
+concat_metadata_reads_df.groupby(condition_col)["%AmbigousPositions"].describe().round(2)
 
 # %%
 fig = px.ecdf(
-    concat_meatadata_reads_df,
+    concat_metadata_reads_df,
     x="%AmbigousPositions",
     # facet_col=condition_col,
     color=condition_col,
@@ -5595,6 +6887,484 @@ fig.update_layout(
     # title_x=0.15,
 )
 fig.show()
+
+# %% [markdown]
+# ### Editing per-site per-sample
+
+# %%
+concat_edited_positions_df = pd.concat(
+    [
+        df.loc[df["Edited"]]
+        for df in positions_dfs
+    ],
+    ignore_index=True
+)
+concat_edited_positions_df
+
+# %%
+concat_edited_positions_df[condition_col].value_counts()
+
+# %%
+concat_expanded_edited_positions_df = (
+        concat_edited_positions_df
+        .reset_index(drop=True)
+        .drop(
+            [
+                "Phred",
+                # "Reads",
+                "Noise",
+                "EditingFrequency",
+                "A",
+                "T",
+                "C",
+                "G",
+                "TotalCoverage",
+                "Edited",
+                "CDS",
+                "KnownEditing",
+                "InProbRegion",
+                "RefBase",
+            ],
+            axis=1,
+        )
+    )
+
+concat_expanded_edited_positions_df["Reads"] = concat_expanded_edited_positions_df[
+    "Reads"
+].str.split(",")
+concat_expanded_edited_positions_df[
+    "MappedBases"
+] = concat_expanded_edited_positions_df["MappedBases"].apply(list)
+
+
+# now is the time the df is really expanded
+concat_expanded_edited_positions_df = concat_expanded_edited_positions_df.explode(
+    ["Reads", "MappedBases"]
+).rename(
+    columns={"Reads": "Read", "MappedBases": "MappedBase"}
+)
+
+concat_expanded_edited_positions_df["MappedBase"] = concat_expanded_edited_positions_df["MappedBase"].apply(
+    lambda x: "A" if x == "."
+    else "G" if x == "G"
+    else np.nan
+)
+
+concat_expanded_edited_positions_df = concat_expanded_edited_positions_df.loc[
+    concat_expanded_edited_positions_df["MappedBase"].notna()
+].reset_index(drop=True)
+
+concat_expanded_edited_positions_df[condition_col] = concat_expanded_edited_positions_df[condition_col].map(fixed_condition_by_original_condition)
+
+# annotate each read with its original replicate/sample
+concat_expanded_edited_positions_df = concat_expanded_edited_positions_df.merge(
+    concat_merged_old_to_new_reads_df.loc[
+        concat_merged_old_to_new_reads_df["FinalUsedRead"],
+        [condition_col, "NewRead", "Replicate"]
+    ].rename(columns={"NewRead": "Read"}),
+    how="left",
+    on=[condition_col, "Read"],
+    indicator=True
+)
+assert concat_expanded_edited_positions_df["_merge"].value_counts()["both"] == concat_expanded_edited_positions_df.shape[0]
+del concat_expanded_edited_positions_df["_merge"]
+
+concat_expanded_edited_positions_df = concat_expanded_edited_positions_df.groupby(
+    [condition_col, "Chrom", "Position", "Replicate"]
+)["MappedBase"].value_counts(dropna=False).reset_index()
+
+
+concat_expanded_edited_positions_df["Replicate"] = concat_expanded_edited_positions_df["Replicate"].astype("str")
+
+concat_expanded_edited_positions_df
+
+# %%
+per_sample_agged_expanded_concat_edited_positions_df = concat_expanded_edited_positions_df.pivot(
+    index=[condition_col, "Chrom", "Position", "Replicate"],
+    columns="MappedBase",
+    values="count",
+).reset_index().fillna(0).rename_axis(columns=None)
+
+per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"] = (
+    per_sample_agged_expanded_concat_edited_positions_df.loc[:, ["A", "G"]].sum(axis=1)
+)
+per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"] = (
+    per_sample_agged_expanded_concat_edited_positions_df["G"] / per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"]
+)
+
+per_sample_agged_expanded_concat_edited_positions_df
+
+# %%
+per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].describe()
+
+# %%
+per_sample_agged_expanded_concat_edited_positions_df.groupby(
+    condition_col
+)["TotalCoverage"].describe()
+
+# %%
+# per_sample_agged_expanded_concat_edited_positions_df.groupby(
+#     [condition_col, "Position"]
+# )["TotalCoverage"].mean().describe()
+
+# %%
+fig = px.ecdf(
+    per_sample_agged_expanded_concat_edited_positions_df,
+    x="TotalCoverage",
+    facet_col=condition_col,
+    # color=condition_col,
+    # color_discrete_map=fixed_condition_color_discrete_map,
+    color="Replicate",
+    color_discrete_map=replicates_color_discrete_map,
+    log_x=True,
+    # log_y=True,
+    ecdfnorm="percent",
+    # cumulative=True,
+)
+fig.update_yaxes(dtick=25)
+# fig.update_traces(opacity=0.75)
+fig.for_each_annotation(
+    lambda a: a.update(
+        text=a.text.split("=")[-1].upper(),           # remove "condition=" from the annotation text
+        )
+)
+
+fig.update_layout(
+    template=template,
+    width=1200,
+    height=400,
+    # barmode='overlay'
+    # showlegend=False,
+    title="Cumulative distribution of total A+G coverage per editing site in each replicate",
+)
+fig.show()
+
+# %%
+min_tot_covs = [0, 500, 1000, 1500]
+min_editing_freqs = [0.001, 0.01, 0.1]
+
+# %%
+num_of_sites_per_sample_per_min_cov_and_editing_freq_dfs = []
+for min_tot_cov, min_editing_freq in product(min_tot_covs, min_editing_freqs):
+    # min_tot_cov = min_tot_covs[1]
+    # min_editing_freq = min_editing_freqs[0]
+    print(f"Min total coverage: {min_tot_cov}, min editing frequency: {min_editing_freq}")
+    num_of_sites_per_sample_per_min_cov_and_editing_freq_df = per_sample_agged_expanded_concat_edited_positions_df.loc[
+        (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
+        & (per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"].ge(min_editing_freq))
+    ].groupby(
+        [condition_col, "Position"]
+    )["Replicate"].apply(list).reset_index(name="Replicates")
+    num_of_sites_per_sample_per_min_cov_and_editing_freq_df.insert(0, "MinTotalCoverage", min_tot_cov)
+    num_of_sites_per_sample_per_min_cov_and_editing_freq_df.insert(1, "MinEditingFrequency", min_editing_freq)
+    num_of_sites_per_sample_per_min_cov_and_editing_freq_df = num_of_sites_per_sample_per_min_cov_and_editing_freq_df.explode("Replicates").rename(
+        columns={"Replicates": "Replicate"}
+    ).groupby(
+        ["MinTotalCoverage", "MinEditingFrequency", "Replicate",]
+    ).size().reset_index(name="NumOfEditingSitesPerReplicate")
+    
+    sites_covered_per_sample_df = per_sample_agged_expanded_concat_edited_positions_df.loc[
+        (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
+    ].groupby("Replicate").size().reset_index(name="NumOfSitesCoveredPerReplicate")
+
+    num_of_sites_per_sample_per_min_cov_and_editing_freq_df = num_of_sites_per_sample_per_min_cov_and_editing_freq_df.merge(
+        sites_covered_per_sample_df, on="Replicate"
+    )
+    num_of_sites_per_sample_per_min_cov_and_editing_freq_df["%EditedOfCoveredSites"] = (
+        100
+        * num_of_sites_per_sample_per_min_cov_and_editing_freq_df["NumOfEditingSitesPerReplicate"]
+        / num_of_sites_per_sample_per_min_cov_and_editing_freq_df["NumOfSitesCoveredPerReplicate"]
+    )
+    
+    num_of_sites_per_sample_per_min_cov_and_editing_freq_dfs.append(num_of_sites_per_sample_per_min_cov_and_editing_freq_df)
+    
+    # break
+    
+concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df = pd.concat(
+    num_of_sites_per_sample_per_min_cov_and_editing_freq_dfs, ignore_index=True
+)
+
+# concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df["Replicate"] = concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df["Replicate"].astype(str)
+
+concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df
+
+# %%
+# aggreated measure with num of sites supported by numer of samples
+
+num_of_samples_per_sites_per_min_cov_and_editing_freq_dfs = []
+for min_tot_cov, min_editing_freq in product(min_tot_covs, min_editing_freqs):
+    print(f"Min total coverage: {min_tot_cov}, min editing frequency: {min_editing_freq}")
+    num_of_samples_per_sites_per_min_cov_and_editing_freq_df = per_sample_agged_expanded_concat_edited_positions_df.loc[
+        (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
+        & (per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"].ge(min_editing_freq))
+    ].groupby(
+        [condition_col, "Position"]
+    )["Replicate"].nunique().value_counts().reset_index()
+    num_of_samples_per_sites_per_min_cov_and_editing_freq_df.insert(0, "MinTotalCoverage", min_tot_cov)
+    num_of_samples_per_sites_per_min_cov_and_editing_freq_df.insert(1, "MinEditingFrequency", min_editing_freq)
+    
+    num_of_samples_per_sites_per_min_cov_and_editing_freq_df = num_of_samples_per_sites_per_min_cov_and_editing_freq_df.rename(
+        columns={
+            "count": "NumOfEditingSites",
+            "Replicate": "NumOfReplicates"
+        }
+    )
+    num_of_samples_per_sites_per_min_cov_and_editing_freq_df = num_of_samples_per_sites_per_min_cov_and_editing_freq_df.sort_values(
+        "NumOfReplicates", ascending=False, ignore_index=True
+    )
+    num_of_samples_per_sites_per_min_cov_and_editing_freq_df["ReverseCumulativeNumOfEditingSites"] = (
+        num_of_samples_per_sites_per_min_cov_and_editing_freq_df["NumOfEditingSites"].cumsum()
+    )
+    num_of_samples_per_sites_per_min_cov_and_editing_freq_df["%ReverseCumulativeNumOfEditingSites"] = (
+        100
+        * num_of_samples_per_sites_per_min_cov_and_editing_freq_df["ReverseCumulativeNumOfEditingSites"]
+        / num_of_samples_per_sites_per_min_cov_and_editing_freq_df["NumOfEditingSites"].sum()
+    )
+    
+    num_of_samples_per_sites_per_min_cov_and_editing_freq_dfs.append(num_of_samples_per_sites_per_min_cov_and_editing_freq_df)
+    
+concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df = pd.concat(
+    num_of_samples_per_sites_per_min_cov_and_editing_freq_dfs, ignore_index=True
+)
+
+concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df
+
+# %%
+# fig = px.bar(
+#     concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df,
+#     x="Replicate",
+#     y="NumOfEditingSitesPerReplicate",
+#     facet_col="MinTotalCoverage",
+#     facet_row="MinEditingFrequency",
+#     labels={
+#         # "NumOfSamples": "Samples",
+#         "NumOfEditingSitesPerReplicate": "Editing sites",
+#         # "MinTotalCoverage": "Min tot coverage",
+#         # "MinEditingFrequency": "Min editing freq"
+#     },
+#     color="Replicate",
+#     color_discrete_map=replicates_color_discrete_map,
+#     # log_y=True
+# )
+
+# # Loop through all facet annotations and modify their text
+# for annotation in fig.layout.annotations:
+#     if "MinTotalCoverage=" in annotation.text:
+#         annotation.text = annotation.text.replace("MinTotalCoverage=", "Coverage / sample ≥ ")
+#     if "MinEditingFrequency=" in annotation.text:
+#         annotation.text = annotation.text.replace("MinEditingFrequency=", "Editing freq / sample ≥ ")
+        
+# # fig.update_yaxes(dtick=5000)
+
+# fig.update_layout(
+#     template=template,
+#     width=1200,
+#     height=800,
+#     title="Number of sites edited per replicate",
+#     showlegend=False
+# )
+# fig.show()
+
+# %%
+# fig = px.bar(
+#     concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df,
+#     x="Replicate",
+#     # y="NumOfEditingSitesPerReplicate",
+#     y="%EditedOfCoveredSites",
+#     facet_col="MinTotalCoverage",
+#     facet_row="MinEditingFrequency",
+#     labels={
+#         # "NumOfSamples": "Samples",
+#         # "%EditedOfCoveredSites": "Editing frequency",
+#         "%EditedOfCoveredSites": "Edited / covered sites [%]",
+#         # "MinTotalCoverage": "Min tot coverage",
+#         # "MinEditingFrequency": "Min editing freq"
+#     },
+#     color="Replicate",
+#     color_discrete_map=replicates_color_discrete_map,
+#     log_y=True
+# )
+
+# # Loop through all facet annotations and modify their text
+# for annotation in fig.layout.annotations:
+#     if "MinTotalCoverage=" in annotation.text:
+#         annotation.text = annotation.text.replace("MinTotalCoverage=", "Coverage / sample ≥ ")
+#     if "MinEditingFrequency=" in annotation.text:
+#         annotation.text = annotation.text.replace("MinEditingFrequency=", "Editing freq / sample ≥ ")
+        
+# # fig.update_yaxes(dtick=5000)
+
+# fig.update_layout(
+#     template=template,
+#     width=1200,
+#     height=800,
+#     title="Number of sites edited per replicate",
+#     showlegend=False
+# )
+# fig.show()
+
+# %%
+concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df.loc[
+        concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df["MinEditingFrequency"] == 0.001,
+        "%EditedOfCoveredSites"
+    ].min().round(2)
+
+# %%
+fig = px.bar(
+    concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df.loc[
+        concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df["MinEditingFrequency"] == 0.001
+    ],
+    x="Replicate",
+    y="%EditedOfCoveredSites",
+    # facet_row="MinTotalCoverage",
+    # facet_col="MinEditingFrequency",
+    facet_col="MinTotalCoverage",
+    # facet_row_spacing=0.05,
+    labels={
+        # "NumOfSamples": "Samples",
+        # "%EditedOfCoveredSites": "Edited /<br>covered sites [%]",
+        "%EditedOfCoveredSites": "Edited / covered sites [%]",
+        # "MinTotalCoverage": "Min tot coverage",
+        # "MinEditingFrequency": "Min editing freq"
+    },
+    color="Replicate",
+    color_discrete_map=replicates_color_discrete_map,
+    # color_discrete_map=samples_color_discrete_map,
+    # log_y=True
+)
+
+# Loop through all facet annotations and modify their text
+for annotation in fig.layout.annotations:
+    if "MinTotalCoverage=" in annotation.text:
+        annotation.text = annotation.text.replace("MinTotalCoverage=", "Coverage / sample ≥ ")
+    # if "MinEditingFrequency=" in annotation.text:
+    #     annotation.text = annotation.text.replace("MinEditingFrequency=", "Editing freq / sample ≥ ")
+        
+
+# fig.update_yaxes(
+#     # dtick=25,
+#     type="log"
+# )
+
+width = 1000
+height = 400
+
+fig.update_layout(
+    template=template,
+    width=width,
+    height=height,
+    title="Normalized number of sites edited per replicate",
+    showlegend=False
+)
+
+# fig.write_image(
+#     Path(
+#         out_dir,
+#         "Number of sites edited per sample - Octopus - pooled.svg",
+#     ),
+#     width=width,
+#     height=height,
+# )
+
+fig.show()
+
+# %%
+# fig = px.line(
+#     concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df,
+#     x="NumOfReplicates",
+#     y="%ReverseCumulativeNumOfEditingSites",
+#     facet_row="MinTotalCoverage",
+#     facet_col="MinEditingFrequency",
+#     facet_row_spacing=0.05,
+#     labels={
+#         "NumOfReplicates": "Replicates",
+#         "%ReverseCumulativeNumOfEditingSites": "% of edited sites",
+#     },
+#     markers=True
+# )
+
+# # Loop through all facet annotations and modify their text
+# for annotation in fig.layout.annotations:
+#     if "MinTotalCoverage=" in annotation.text:
+#         annotation.text = annotation.text.replace("MinTotalCoverage=", "Coverage / sample ≥ ")
+#     if "MinEditingFrequency=" in annotation.text:
+#         annotation.text = annotation.text.replace("MinEditingFrequency=", "Editing freq / sample ≥ ")
+
+# # fig.update_xaxes(dtick=1)
+# fig.update_xaxes(dtick=1, autorange="reversed")
+# fig.update_yaxes(range=[0, 105], dtick=25)
+
+# fig.update_layout(
+#     template=template,
+#     width=800,
+#     height=800,
+#     title="Cumulative % of edited sites supported by X replicates or less"
+# )
+# fig.show()
+
+# %%
+concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df.loc[
+        (concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df["MinTotalCoverage"] == 0)
+        & (concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df["MinEditingFrequency"] == 0.001)
+    ]
+
+# %%
+fig = px.line(
+    concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df.loc[
+        (concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df["MinTotalCoverage"] == 0)
+        & (concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df["MinEditingFrequency"] == 0.001)
+    ],
+    x="NumOfReplicates",
+    y="%ReverseCumulativeNumOfEditingSites",
+    # facet_row="MinTotalCoverage",
+    # facet_col="MinEditingFrequency",
+    # facet_row_spacing=0.05,
+    labels={
+        "NumOfReplicates": "Replicates",
+        "%ReverseCumulativeNumOfEditingSites": "% of edited sites",
+    },
+    markers=True
+)
+
+# # Loop through all facet annotations and modify their text
+# for annotation in fig.layout.annotations:
+#     if "MinTotalCoverage=" in annotation.text:
+#         annotation.text = annotation.text.replace("MinTotalCoverage=", "Coverage / sample ≥ ")
+#     if "MinEditingFrequency=" in annotation.text:
+#         annotation.text = annotation.text.replace("MinEditingFrequency=", "Editing freq / sample ≥ ")
+
+# fig.update_xaxes(dtick=1)
+fig.update_xaxes(dtick=1, autorange="reversed")
+# fig.update_yaxes(
+#     # range=[0, 105], dtick=25,
+#     type="log",
+#     # range=[1, 3]
+# )
+
+width = 400
+height = 400
+
+fig.update_layout(
+    template=template,
+    width=width,
+    height=height,
+    title="Cumulative % of edited sites supported<br>by X replicates or less"
+)
+
+# fig.write_image(
+#     Path(
+#         out_dir,
+#         "Cumulative % of edited sites supported by X replicates or less.PacBio3..svg",
+#     ),
+#     width=width,
+#     height=height,
+# )
+
+fig.show()
+
+# %%
+
+# %%
 
 # %% [markdown]
 # ## Editing by haplotype

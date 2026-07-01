@@ -46,6 +46,7 @@ dependencies:
   - more-itertools
   # - plotly < 6 # sadly, I encountered this annoying bug: https://github.com/plotly/plotly.py/issues/4997, also need at least 5.1.0
   - plotly
+  # - python-kaleido
   # - matplotlib >= 3.3.4
   - matplotlib
   # - seaborn >= 0.11.0
@@ -55,7 +56,7 @@ dependencies:
 
   - nodejs
   - htslib
-  - python-kaleido
+  # - python-kaleido
   - salmon # >= 1.10.0
   # - samtools >= 1.9
   - samtools
@@ -88,3 +89,4 @@ dependencies:
   - pip
   - pip:
       - parasail
+      - kaleido
