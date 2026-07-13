@@ -3906,6 +3906,36 @@ cut -f 5 /private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Additi
 
 ##### Expression levels
 
+<!-- ```bash
+UMI_DIR=D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.ReadsWithRecognizableBarcodes
+
+
+nohup \
+julia \
+--project=. \
+--threads 60 \
+Code/Simulations/expressionlevels.jl \
+--distinctfiles $UMI_DIR/comp141693_c0_seq1.DistinctUniqueProteins.*.csv \
+$UMI_DIR/comp134400_c0_seq1_extended.DistinctUniqueProteins.*.csv \
+$UMI_DIR/comp141565_c6_seq3.DistinctUniqueProteins.*.csv \
+--allprotsfiles $UMI_DIR/comp141693_c0_seq1.merged.MinRQ998.unique_proteins.csv.gz \
+$UMI_DIR/comp134400_c0_seq1_extended.merged.MinRQ998.unique_proteins.csv.gz \
+$UMI_DIR/comp141565_c6_seq3.merged.MinRQ998.unique_proteins.csv.gz \
+--allreadsfiles $UMI_DIR/comp141693_c0_seq1.merged.MinRQ998.reads.csv.gz \
+$UMI_DIR/comp134400_c0_seq1_extended.merged.MinRQ998.reads.csv.gz \
+$UMI_DIR/comp141565_c6_seq3.merged.MinRQ998.reads.csv.gz \
+--samplenames GRIA2 ADAR1 IQEC1 \
+--firstcolpos 15 \
+--onlymaxdistinct \
+--innerthreadedassignment \
+--outdir $UMI_DIR \
+> $UMI_DIR/expressionlevels.5.7.2026.out &
+```
+- alu 17
+- 445936 -->
+
+Considering entropy:
+
 ```bash
 UMI_DIR=D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.ReadsWithRecognizableBarcodes
 
@@ -3918,46 +3948,136 @@ Code/Simulations/expressionlevels.jl \
 --distinctfiles $UMI_DIR/comp141693_c0_seq1.DistinctUniqueProteins.*.csv \
 $UMI_DIR/comp134400_c0_seq1_extended.DistinctUniqueProteins.*.csv \
 $UMI_DIR/comp141565_c6_seq3.DistinctUniqueProteins.*.csv \
---allprotsfiles $UMI_DIR/comp141693_c0_seq1.Merged.MinRQ998.unique_proteins.csv.gz \
-$UMI_DIR/comp134400_c0_seq1_extended.Merged.MinRQ998.unique_proteins.csv.gz \
-$UMI_DIR/comp141565_c6_seq3.Merged.MinRQ998.unique_proteins.csv.gz \
---allreadsfiles $UMI_DIR/comp141693_c0_seq1.Merged.MinRQ998.reads.csv.gz \
-$UMI_DIR/comp134400_c0_seq1_extended.Merged.MinRQ998.reads.csv.gz \
-$UMI_DIR/comp141565_c6_seq3.Merged.MinRQ998.reads.csv.gz \
+--allprotsfiles $UMI_DIR/comp141693_c0_seq1.merged.MinRQ998.unique_proteins.csv.gz \
+$UMI_DIR/comp134400_c0_seq1_extended.merged.MinRQ998.unique_proteins.csv.gz \
+$UMI_DIR/comp141565_c6_seq3.merged.MinRQ998.unique_proteins.csv.gz \
+--allreadsfiles $UMI_DIR/comp141693_c0_seq1.merged.MinRQ998.reads.csv.gz \
+$UMI_DIR/comp134400_c0_seq1_extended.merged.MinRQ998.reads.csv.gz \
+$UMI_DIR/comp141565_c6_seq3.merged.MinRQ998.reads.csv.gz \
 --samplenames GRIA2 ADAR1 IQEC1 \
---firstcolpos 15 \
---onlymaxdistinct \
---innerthreadedassignment \
---outdir $UMI_DIR \
-> $UMI_DIR/expressionlevels.16.4.2026.out &
-```
-- alu 17
-- 2902140
-
-Considering entropy:
-
-```bash
-UMI_DIR=D.pealeii/MpileupAndTranscripts/UMILongReads.UniqueReadsByUMISubSeq.MergedSamples
-
-nohup \
-julia \
---project=. \
---threads 60 \
-Code/Simulations/expressionlevels.jl \
---distinctfiles $UMI_DIR/ADAR1.Merged.DistinctUniqueProteins.04.07.2025-15:59:37.csv $UMI_DIR/IQEC.Merged.DistinctUniqueProteins.04.07.2025-15:34:47.csv \
---allprotsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_proteins.csv.gz \
---allreadsfiles $UMI_DIR/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz $UMI_DIR/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.csv.gz \
---samplenames ADAR1 IQEC1 \
 --firstcolpos 15 \
 --onlymaxdistinct \
 --innerthreadedassignment \
 --considerentropy \
 --outdir $UMI_DIR \
 --postfix_to_add .EntropyConsidered \
-> $UMI_DIR/expressionlevels.EntropyConsidered.14.8.25.out &
+> $UMI_DIR/expressionlevels.5.7.2026.out &
 ```
 * alu 17
-* 1220256
+* 477747
+
+
+## Additional squid long reads w/ UMIs - unique reads
+
+Using the unique (deduplicated) reads found by the notebook `additional_umi_long_read_2b.ipynb` by finding reads where
+the the primers were recognized and the UMI was deduplicated.
+
+### Pileup
+
+```bash
+mkdir -p D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.DeduppedReads
+
+# cp \
+# D.pealeii/Alignment/AdditionalUMILongReads/DataTable.Squid.MergedAdditionalUMILongReads.csv \
+# D.pealeii/Alignment/AdditionalUMILongReads.DeduppedReads/DataTable.csv
+
+nohup python Code/pileup_with_subparsers.py \
+--transcriptome D.pealeii/Annotations/Jan2025/orfs_squ.fa \
+--known_editing_sites D.pealeii/Annotations/Jan2025/D.pea.EditingSites.bed \
+--exclude_flags 2304 \
+--parity SE \
+--min_rq 0.998 \
+--min_bq 30 \
+--out_dir D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.DeduppedReads \
+--processes 3 \
+--threads 15 \
+--gz_compression \
+directed_sequencing_data \
+--data_table D.pealeii/Alignment/AdditionalUMILongReads.DeduppedReads/DataTable.csv \
+--cds_regions D.pealeii/Annotations/Jan2025/orfs_squ.bed \
+> D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.DeduppedReads/pileup.2.7.2026.out &
+```
+* alu 17
+* 15:42
+* 2076076
+
+
+
+
+### Distinct proteins
+
+#### Regular
+
+##### Distinct isoforms
+
+```bash
+tmux new -s COMB17
+
+COMB
+
+INFILES=$(echo D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.DeduppedReads/*.unique_proteins.csv.gz)
+
+julia \
+--project=. \
+--threads 80 --proc 6 \
+Code/Simulations/maximal_independent_set_5.jl \
+--infiles $INFILES \
+--postfix_to_remove ".merged.MinRQ998.unique_proteins.csv.gz" \
+--idcol Protein \
+--firstcolpos 15 \
+--datatype Proteins \
+--outdir D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.DeduppedReads \
+--fracstep 0.2 \
+--fracrepetitions 4 \
+--algrepetitions 2 \
+--algs Ascending Descending \
+--run_solve_threaded \
+2>&1 | tee D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.DeduppedReads/DistinctProteins.Regular.6.7.2026.log
+```
+* alu 17
+
+cut -f 5 /private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.DeduppedReads/comp141693_c0_seq1.DistinctUniqueProteins.06.07.2026-15:48:37.csv | sort -nr | head
+> 1723 (previously 1737)
+cut -f 5 /private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.DeduppedReads/comp134400_c0_seq1_extended.DistinctUniqueProteins.06.07.2026-15:48:25.csv | sort -nr | head
+> 919 (previously 922)
+cut -f 5 /private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.DeduppedReads/comp141565_c6_seq3.DistinctUniqueProteins.06.07.2026-15:51:28.csv | sort -nr | head
+> 8321 (previously 8377)
+
+##### Expression levels
+
+Considering entropy:
+
+```bash
+UMI_DIR=D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.DeduppedReads
+
+nohup \
+julia \
+--project=. \
+--threads 40 \
+Code/Simulations/expressionlevels.jl \
+--distinctfiles $UMI_DIR/comp141693_c0_seq1.DistinctUniqueProteins.*.csv \
+$UMI_DIR/comp134400_c0_seq1_extended.DistinctUniqueProteins.*.csv \
+$UMI_DIR/comp141565_c6_seq3.DistinctUniqueProteins.*.csv \
+--allprotsfiles $UMI_DIR/comp141693_c0_seq1.merged.MinRQ998.unique_proteins.csv.gz \
+$UMI_DIR/comp134400_c0_seq1_extended.merged.MinRQ998.unique_proteins.csv.gz \
+$UMI_DIR/comp141565_c6_seq3.merged.MinRQ998.unique_proteins.csv.gz \
+--allreadsfiles $UMI_DIR/comp141693_c0_seq1.merged.MinRQ998.reads.csv.gz \
+$UMI_DIR/comp134400_c0_seq1_extended.merged.MinRQ998.reads.csv.gz \
+$UMI_DIR/comp141565_c6_seq3.merged.MinRQ998.reads.csv.gz \
+--samplenames GRIA2 ADAR1 IQEC1 \
+--firstcolpos 15 \
+--onlymaxdistinct \
+--innerthreadedassignment \
+--considerentropy \
+--outdir $UMI_DIR \
+--postfix_to_add .EntropyConsidered \
+> $UMI_DIR/expressionlevels.6.7.2026.out &
+```
+* alu 15
+* 13:56
+* 2081867
+
+
 
 
 ## O.vul single-cell data

@@ -34,6 +34,7 @@ import copy
 
 from scipy import interpolate  # todo unimport this later?
 import scipy.stats
+from scipy.stats import linregress
 import numpy as np
 import pandas as pd
 from sklearn import linear_model
@@ -2668,8 +2669,12 @@ out_dir = in_dir
 # illumina_merged_assignment_file = Path(in_dir, "AssignedExpression.Illumina.tsv")
 illumina_merged_assignment_file = Path(in_dir, "AssignedExpression.Fixed.Illumina.tsv")
 pacbio_merged_assignment_file = Path(in_dir, "AssignedExpression.PacBio.tsv")
+# pacbio_umi_merged_assignment_file = Path(
+#     in_dir, "AssignedExpression.PacBio.WithUMIs.tsv"
+# )
+# data 3 w/ duplicates
 pacbio_umi_merged_assignment_file = Path(
-    in_dir, "AssignedExpression.PacBio.WithUMIs.tsv"
+    in_dir, "AssignedExpression.PacBio3.WithUMIs.tsv"
 )
 
 # %%
@@ -3459,6 +3464,400 @@ fig.write_image(
 
 fig.show()
 
+# %%
+
+# %% [markdown]
+# ## Reads w/ barcodes vs de-duped expression
+
+# %%
+# TODO reads dedopped assignment dfs and compare them to the non-dedopped ones (ADAR1 and IQEC1)
+
+# %%
+pacbio_umi_conditions = ["GRIA2", "ADAR1", "IQEC1"]
+
+umis_subcolors_discrete_map = {
+    condition: two_subcolors_from_hex(pacbio_color_discrete_map[condition])
+    for condition in pacbio_umi_conditions
+}
+umis_subcolors_discrete_map
+
+# %%
+# in_dir = out_dir
+pacbio_dupped_merged_assignment_file = Path(
+    in_dir, "AssignedExpression.PacBio3.ReadsWithRecognizableBarcodes.tsv"
+)
+pacbio_dedupped_merged_assignment_file = Path(
+    in_dir, "AssignedExpression.PacBio3.DeduppedReads.tsv"
+)
+
+# %%
+merged_umi_duped_assignment_df = pd.read_table(
+    pacbio_dupped_merged_assignment_file, usecols=expression_cols
+)
+merged_umi_duped_assignment_df.insert(1, "Deduped", False)
+# merged_umi_dooped_assignment_df
+
+# %%
+merged_umi_deduped_assignment_df = pd.read_table(
+    pacbio_dedupped_merged_assignment_file, usecols=expression_cols
+)
+merged_umi_deduped_assignment_df.insert(1, "Deduped", True)
+# merged_umi_unqiue_assignment_df
+
+# %%
+merged_umi_assignment_df = pd.concat(
+    [
+        merged_umi_duped_assignment_df,
+        merged_umi_deduped_assignment_df,
+    ]
+)
+merged_umi_assignment_df
+
+# %%
+merged_umi_assignment_df.loc[
+    :,
+    [
+        "Gene",
+        "Deduped",
+    ],
+].value_counts().reset_index().sort_values("Gene")
+
+# %%
+x_axis_name = "Isoform rank"
+y_axis_name = "Cumulative relative<br>expression [%]"
+head_title = "Cumulative expression vs. distinct unique proteins"
+
+cols = min(facet_col_wrap, len(pacbio_umi_conditions), 4)
+rows = ceil(len(pacbio_umi_conditions) / cols)
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[
+    : len(pacbio_umi_conditions)
+]
+
+# assignment_method = "Weighted"
+# percentile_fractions = [0.1, 1.0]
+
+fig = make_subplots(
+    rows=rows,
+    cols=cols,
+    subplot_titles=pacbio_umi_conditions,
+    shared_xaxes=True,
+    shared_yaxes=True,
+    x_title=x_axis_name,
+    y_title=y_axis_name,
+    # vertical_spacing=0.01,
+    horizontal_spacing=facet_col_spacing,
+)
+
+# legend_x = [5]
+# legend_ys = [[75], [65]]
+legend_x = [3]
+# legend_ys = [[85], [75]]
+legend_ys = [[95], [85]]
+inner_texts = ["Full data", "Deduplicated data (UMIs)"]
+
+for (row, col), condition in zip(row_col_iter, pacbio_umi_conditions):
+
+    duped_aassignment_df = merged_umi_assignment_df.loc[
+        (~merged_umi_assignment_df["Deduped"])
+        & (merged_umi_assignment_df["Gene"] == condition)
+    ]
+    deduped_aassignment_df = merged_umi_assignment_df.loc[
+        (merged_umi_assignment_df["Deduped"])
+        & (merged_umi_assignment_df["Gene"] == condition)
+    ]
+
+    for color, df, legend_y, inner_text in zip(
+        umis_subcolors_discrete_map[condition],
+        [duped_aassignment_df, deduped_aassignment_df],
+        legend_ys,
+        inner_texts,
+    ):
+        # df = df.loc[df["AssignmentMethod"] == assignment_method]
+
+        x = df["#Protein"]
+        y = df["%CummulativeRelativeExpression"]
+
+        # x_mean = df.groupby("Percentile")["RequiredProteins"].apply(np.mean)
+        # y_unique = x_mean.index
+
+        fig.add_trace(
+            go.Scattergl(
+                x=x,
+                y=y,
+                mode="markers",
+                # mode="lines+markers",
+                marker=dict(
+                    color=color,
+                    size=4,
+                    opacity=0.5,
+                    # symbol=symbol,
+                    # line=dict(width=0),
+                ),
+            ),
+            row=row,
+            col=col,
+        )
+
+        fig.add_trace(
+            go.Scatter(
+                x=legend_x,
+                y=legend_y,
+                mode="markers+text",
+                marker=dict(
+                    color=color,
+                    size=5,
+                    # opacity=0.7,
+                    # symbol=symbol,
+                    # line=dict(width=0),
+                ),
+                text=inner_text,
+                textposition="middle right",
+                textfont=dict(size=10),
+            ),
+            row=row,
+            col=col,
+        )
+
+fig.update_xaxes(
+    # tick0 = -1,
+    # dtick = 5_000,
+    matches="x",
+    type="log",
+    nticks=6,
+)
+
+width = 1200
+height = 450
+
+fig.update_layout(
+    # title="Squid's Long-reads",
+    # title_x=0.11,
+    showlegend=False,
+    template=template,
+    width=width,
+    height=height,
+)
+
+# fig.write_image(
+#     Path(
+#         out_dir,
+#         "Cumulative expression vs. distinct protein rank - PacBio - full data vs. deduped.svg",
+#     ),
+#     width=width,
+#     height=height,
+# )
+
+fig.show()
+
+# %%
+df = (
+    merged_umi_assignment_df
+    .pivot(
+        index=["Platform", "Gene", "#Protein"],
+        columns="Deduped",
+        values="%RelativeExpression"
+    )
+    .reset_index()
+    .rename_axis(columns=None)
+    .rename(columns={False: "False", True: "True"})
+)
+
+x_axis_name = "Relative expression - full data [%]"
+y_axis_name = "Relative expression - deduped reads data [%]"
+head_title = "Relative expression of isoforms with matching expression rank"
+sub_title = "Data are based on reads with recognizable barcodes"
+
+
+def format_pvalue(pval):
+    if pval < 1e-23:
+        return "pv < 1e-23"
+    else:
+        return f"pv = {pval:.4f}"
+
+fig = make_subplots(
+    rows=1,
+    cols=len(pacbio_umi_conditions),
+    subplot_titles=pacbio_umi_conditions,
+    x_title=x_axis_name,
+    y_title=y_axis_name,
+    horizontal_spacing=facet_col_spacing,
+)
+
+for col, condition in enumerate(pacbio_umi_conditions, start=1):
+
+    sub_df = df.loc[df["Gene"] == condition]
+
+    # Make sure values are numeric
+    x = pd.to_numeric(sub_df["False"], errors="coerce")  # full / duped data
+    y = pd.to_numeric(sub_df["True"], errors="coerce")   # deduped data
+
+    color = pacbio_color_discrete_map[condition]
+
+    # Data used for both plotting limits and regression
+    clean_df = (
+        pd.DataFrame({"x": x, "y": y})
+        .replace([np.inf, -np.inf], np.nan)
+        .dropna()
+    )
+
+    if clean_df.empty:
+        continue
+
+    max_x_and_y = clean_df[["x", "y"]].max().max()
+
+    if max_x_and_y > 2:
+        dtick = 0.5
+    elif max_x_and_y <= 0.5:
+        dtick = 0.1
+    else:
+        dtick = 0.2
+
+    axis_max = math.ceil(max_x_and_y / dtick) * dtick
+
+    # Avoid zero-width axes in edge cases
+    if axis_max == 0:
+        axis_max = dtick
+
+    xaxis_id = "x" if col == 1 else f"x{col}"
+    axis_suffix = "" if col == 1 else str(col)
+
+    # Scatter points
+    fig.add_trace(
+        go.Scattergl(
+            x=clean_df["x"],
+            y=clean_df["y"],
+            mode="markers",
+            marker=dict(
+                color=color,
+                size=5,
+            ),
+        ),
+        row=1,
+        col=col,
+    )
+
+    # Regression line + annotation
+    if len(clean_df) >= 2 and clean_df["x"].nunique() > 1:
+
+        reg = linregress(clean_df["x"], clean_df["y"])
+
+        slope = reg.slope
+        intercept = reg.intercept
+        r2 = reg.rvalue ** 2
+        pval = reg.pvalue
+
+        x_line = np.array([0, axis_max])
+        y_line = intercept + slope * x_line
+
+        fig.add_trace(
+            go.Scatter(
+                x=x_line,
+                y=y_line,
+                mode="lines",
+                line=dict(
+                    color="black",
+                    width=2,
+                ),
+                hoverinfo="skip",
+            ),
+            row=1,
+            col=col,
+        )
+
+        # if intercept >= 0:
+        #     equation_text = f"y = {slope:.2f}x + {intercept:.2f}"
+        # else:
+        #     equation_text = f"y = {slope:.2f}x - {abs(intercept):.2f}"
+        
+        equation_text = f"y = {slope:.3f}x"
+        abs_rounded_intercept = abs(np.round(intercept, 3))
+        if abs_rounded_intercept > 0:
+            equation_text += f" + {abs_rounded_intercept}"
+        elif abs_rounded_intercept < 0:
+            equation_text += f" - {abs_rounded_intercept}"
+
+        annotation_text = (
+            f"{equation_text}<br>"
+            f"R² = {r2:.3f}<br>"
+            f"{format_pvalue(pval)}"
+        )
+
+        fig.add_annotation(
+            # x=0.05,
+            x=0.15,
+            y=0.95,
+            xref=f"x{axis_suffix} domain",
+            yref=f"y{axis_suffix} domain",
+            text=annotation_text,
+            showarrow=False,
+            align="left",
+            xanchor="left",
+            yanchor="top",
+            font=dict(
+                size=11,
+                color="black",
+            ),
+            bgcolor="rgba(255,255,255,0.75)",
+            # bordercolor="black",
+            borderwidth=0.5,
+        )
+
+    # Axis settings
+    fig.update_xaxes(
+        tick0=0,
+        dtick=dtick,
+        range=[0, axis_max],
+        constrain="domain",
+        row=1,
+        col=col,
+    )
+
+    fig.update_yaxes(
+        tick0=0,
+        dtick=dtick,
+        range=[0, axis_max],
+        scaleanchor=xaxis_id,
+        scaleratio=1,
+        constrain="domain",
+        row=1,
+        col=col,
+    )
+
+
+width = 1200
+height = 500
+
+fig.update_layout(
+    # title=head_title,
+    # subtitle_text=sub_title,
+    title=dict(
+        text=head_title,
+        subtitle=dict(
+            text=sub_title,
+            # font=dict(color="gray", size=14)
+        )
+    ),
+    showlegend=False,
+    template=template,
+    width=width,
+    height=height,
+)
+
+fig.write_image(
+    Path(
+        out_dir,
+        "Relative expression of matching isoforms ranks - PacBio 3 - full data vs. deduped.svg",
+    ),
+    width=width,
+    height=height,
+)
+
+fig.show()
+
+
+# %%
+
+# %%
 
 # %% [markdown]
 # ## Long-reads expression vs rank - w/ UMIs

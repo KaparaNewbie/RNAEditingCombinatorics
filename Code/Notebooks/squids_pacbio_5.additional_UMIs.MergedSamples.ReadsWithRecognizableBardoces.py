@@ -95,17 +95,17 @@ strands = ["+", "+",  "+"]
 #     "/private7/projects/Combinatorics/D.pealeii/Data/RawWithUMIs/30-1097162729/CCSAsBulk/IQEC.Merged.r64296e203404D01.hifireads.bam",
 # ]
 reads_type = "CCS"  # something like CCS / miseq / etc.
-aligned_bam_files = [
-    Path(
-        "/private6/projects/Combinatorics/D.pealeii/Alignment/AdditionalUMILongReads/ByChrom/comp123097_c0_seq3", 
-        f"{chrom}.merged.bam"
-    ) 
-    for chrom in chroms
-]
-filtered_aligned_bam_files = [
-    f"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/{chrom}.merged.MinRQ998.bam"
-    for chrom in chroms
-]
+# aligned_bam_files = [
+#     Path(
+#         "/private6/projects/Combinatorics/D.pealeii/Alignment/AdditionalUMILongReads/ByChrom/comp123097_c0_seq3", 
+#         f"{chrom}.merged.bam"
+#     ) 
+#     for chrom in chroms
+# ]
+# filtered_aligned_bam_files = [
+#     f"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/{chrom}.merged.MinRQ998.bam"
+#     for chrom in chroms
+# ]
 include_flags = None
 exclude_flags = "2304"  # remove secondary and supplementary (chimeric) alignments
 
@@ -119,7 +119,7 @@ main_mapping_boundaries_per_gene = [
 
 sep = "\t"
 positions_files = [
-    f"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/{chrom}.merged.MinRQ998.positions.csv.gz"
+    f"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.ReadsWithRecognizableBarcodes/{chrom}.merged.MinRQ998.positions.csv.gz"
     for chrom in chroms
 ]
 # snps_positions_files = [
@@ -127,7 +127,7 @@ positions_files = [
 #     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.snps.csv.gz"
 # ]
 reads_files = [
-    f"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/{chrom}.merged.MinRQ998.reads.csv.gz"
+    f"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.ReadsWithRecognizableBarcodes/{chrom}.merged.MinRQ998.reads.csv.gz"
     for chrom in chroms
 ]
 # snps_reads_files = [
@@ -135,15 +135,15 @@ reads_files = [
 #     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.reads.snps.csv.gz"
 # ]
 unique_reads_files = [
-    f"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/{chrom}.merged.MinRQ998.unique_reads.csv.gz"
+    f"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.ReadsWithRecognizableBarcodes/{chrom}.merged.MinRQ998.unique_reads.csv.gz"
     for chrom in chroms
 ]
 proteins_files = [
-    f"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/{chrom}.merged.MinRQ998.proteins.csv.gz"
+    f"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.ReadsWithRecognizableBarcodes/{chrom}.merged.MinRQ998.proteins.csv.gz"
     for chrom in chroms
 ]
 unique_proteins_files = [
-    f"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/{chrom}.merged.MinRQ998.unique_proteins.csv.gz"
+    f"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.ReadsWithRecognizableBarcodes/{chrom}.merged.MinRQ998.unique_proteins.csv.gz"
     for chrom in chroms
 ]
 reads_first_col_pos = 6
@@ -155,9 +155,9 @@ proteins_editing_col = "MinNonSyns"
 
 # distinct files with available supporting reads
 distinct_unique_proteins_files = [
-    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/comp141693_c0_seq1.DistinctUniqueProteins.19.03.2026-13:06:03.csv",
-    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/comp134400_c0_seq1_extended.DistinctUniqueProteins.19.03.2026-13:03:20.csv",
-    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/comp141565_c6_seq3.DistinctUniqueProteins.19.03.2026-13:22:23.csv"
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.ReadsWithRecognizableBarcodes/comp141693_c0_seq1.DistinctUniqueProteins.16.04.2026-15:54:38.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.ReadsWithRecognizableBarcodes/comp134400_c0_seq1_extended.DistinctUniqueProteins.16.04.2026-15:54:27.csv",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.ReadsWithRecognizableBarcodes/comp141565_c6_seq3.DistinctUniqueProteins.16.04.2026-15:57:32.csv"
 ]
 
 # distinct_unique_proteins_fraction01_files = [
@@ -167,7 +167,7 @@ distinct_unique_proteins_files = [
 
 # entropy-consistent expression files
 expression_files = [
-    f"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/{condition}.DistinctUniqueProteins.ExpressionLevels.EntropyConsidered.csv"
+    f"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.ReadsWithRecognizableBarcodes/{condition}.DistinctUniqueProteins.ExpressionLevels.EntropyConsidered.csv"
     for condition in fixed_conditions
 ]
 # # TODO fill update f01 exp files
@@ -230,25 +230,25 @@ transcriptome_file = (
 #     "/private7/projects/Combinatorics/D.pealeii/Alignment/UMILongReads"
 # )
 
-merged_mapped_bams_dir = Path(
-    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads"
-)
+# merged_mapped_bams_dir = Path(
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads"
+# )
 
-merged_old_to_new_reads_files = [
-    f"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/{chrom}.merged.MinRQ998.OldToNewReads.csv.gz"
-    for chrom in chroms
-]
+# merged_old_to_new_reads_files = [
+#     f"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/{chrom}.merged.MinRQ998.OldToNewReads.csv.gz"
+#     for chrom in chroms
+# ]
 
 out_dir = Path("/private7/projects/Combinatorics/Code/Notebooks")
 
-# %%
-per_replicate_unmapped_bams_dir = Path(
-    "/private6/projects/Combinatorics/D.pealeii/Data/AdditionalRawWithUMIs/CCS"
-)
 
 # %%
-replicates = [1, 2, 3]
+# per_replicate_unmapped_bams_dir = Path(
+#     "/private6/projects/Combinatorics/D.pealeii/Data/AdditionalRawWithUMIs/CCS"
+# )
 
+# %%
+# replicates = [1, 2, 3]
 
 # %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"}
 # # Ploting utils
@@ -307,6 +307,7 @@ replicates_color_discrete_map = {
         px.colors.qualitative.Pastel,
     )
 }
+replicates_color_discrete_map
 subcolors_discrete_map = {
     condition: two_subcolors_from_hex(color_discrete_map[condition])
     for condition in conditions
@@ -1180,6 +1181,8 @@ concat_merged_old_to_new_reads_df = concat_merged_old_to_new_reads_df.merge(
 )
 
 concat_merged_old_to_new_reads_df
+
+# %%
 
 # %%
 concat_merged_old_to_new_reads_df.groupby([condition_col, "FinalUsedRead"]).size()
@@ -3545,31 +3548,6 @@ max_distinct_per_fraction_df.groupby([condition_col, "Fraction"]).size().unique(
 # #### Max distinct
 
 # %%
-# max_distinct_proteins_df = max_distinct_per_fraction_df.loc[
-#     max_distinct_per_fraction_df["Fraction"] == 1
-# ]
-
-
-# # max_distinct_proteins_df = max_distinct_proteins_df.merge(
-# #     tmr50_alignment_stats_df,
-# #     on="Chrom",
-# #     # how="left",
-# #     how="right",
-# # )
-
-# # max_distinct_proteins_df["NumOfProteins"] = max_distinct_proteins_df[
-# #     "NumOfProteins"
-# # ].fillna(1)
-
-
-# # max_distinct_proteins_df = max_distinct_proteins_df.sort_values(
-# #     "NumOfProteins", ascending=False, ignore_index=True
-# # )
-
-
-# max_distinct_proteins_df
-
-# %%
 fraction_1_gdf = distinct_unique_proteins_df.loc[
     (distinct_unique_proteins_df["Fraction"] == 1.0)
     # & (distinct_unique_proteins_df["Algorithm"] == "Descending")
@@ -3695,16 +3673,22 @@ def get_f1_max_expression_df(chrom, expression_file, max_distinct_per_fraction_d
 
     # retain only rows of the maximal solution
     expression_df = expression_df.merge(
-        max_distinct_per_fraction_df.loc[
-            max_distinct_per_fraction_df["Fraction"].eq(1),
-            [
-                condition_col,
-                "Fraction",
-                "FractionRepetition",
-                "Algorithm",
-                "AlgorithmRepetition",
-            ],
-        ],
+        (
+            max_distinct_per_fraction_df
+            .assign(FixedConditionCol = max_distinct_per_fraction_df[condition_col].map(fixed_condition_by_original_condition))
+            .drop(columns=condition_col)
+            .rename(columns={"FixedConditionCol": condition_col})
+            .loc[
+                max_distinct_per_fraction_df["Fraction"].eq(1),
+                [
+                    condition_col,
+                    "Fraction",
+                    "FractionRepetition",
+                    "Algorithm",
+                    "AlgorithmRepetition",
+                ],
+            ]
+        ),
         how="inner",
     )
 
@@ -3820,7 +3804,7 @@ max_solution_id_df = (
 max_solution_id_df
 
 # %%
-for expression_file, condition in zip(expression_files, conditions):
+for expression_file, condition in zip(expression_files, fixed_conditions):
     maximal_solution = max_solution_id_df.loc[condition]
     expression_file = Path(expression_file)
     max_sol_file = Path(
@@ -6371,7 +6355,7 @@ fig = px.histogram(
     color_discrete_map=color_discrete_map,
     category_orders=category_orders,
     template=template,
-)
+)j
 
 # https://stackoverflow.com/questions/58167028/single-axis-caption-in-plotly-express-facet-plot
 for axis in fig.layout:
@@ -6902,9 +6886,6 @@ concat_edited_positions_df
 concat_edited_positions_df[condition_col].value_counts()
 
 # %%
-concat_merged_old_to_new_reads_df
-
-# %%
 concat_expanded_edited_positions_df = (
         concat_edited_positions_df
         .reset_index(drop=True)
@@ -6995,21 +6976,6 @@ per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"] = (
 per_sample_agged_expanded_concat_edited_positions_df
 
 # %%
-per_sample_agged_expanded_concat_edited_positions_df.loc[
-    per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"].ge(0.001),
-].shape[0]
-
-# %%
-per_sample_agged_expanded_concat_edited_positions_df.loc[
-    per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"].ge(0.01),
-].shape[0]
-
-# %%
-per_sample_agged_expanded_concat_edited_positions_df.loc[
-    per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"].ge(0.1),
-].shape[0]
-
-# %%
 per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].describe()
 
 # %%
@@ -7056,9 +7022,7 @@ fig.show()
 
 # %%
 min_tot_covs = [0, 500, 1000, 1500]
-# min_editing_freqs = [0.001, 0.01, 0.1]
-# min_editing_freqs = [0.01, 0.1, 0.3]
-min_editing_freqs = [0.01, 0.1, 0.3, 0.5, 0.7, 1]
+min_editing_freqs = [0.001, 0.01, 0.1]
 
 # %%
 num_of_sites_per_sample_per_min_cov_and_editing_freq_dfs = []
@@ -7106,120 +7070,29 @@ concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df = pd.concat(
 concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df
 
 # %%
-# per_cov_per_edit_freq_per_sample_concat_edited_positions_df = per_sample_agged_expanded_concat_edited_positions_df.loc[
-#     (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
-#     & (per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"].ge(min_editing_freq))
-# ]
-# per_cov_per_edit_freq_per_sample_concat_edited_positions_df
-
-# %%
-# min_tot_cov, min_editing_freq = min_tot_covs[0], min_editing_freqs[0]
-
-# per_cov_per_edit_freq_per_sample_concat_edited_positions_df = per_sample_agged_expanded_concat_edited_positions_df.loc[
-#     (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
-#     & (per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"].ge(min_editing_freq))
-# ]
-
-# num_of_samples_per_sites_per_min_cov_and_editing_freq_df = (
-#     # per_sample_agged_expanded_concat_edited_positions_df
-#     # .loc[
-#     #     (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
-#     #     & (per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"].ge(min_editing_freq))
-#     # ]
-#     per_cov_per_edit_freq_per_sample_concat_edited_positions_df
-#     .groupby(
-#         [condition_col, "Position"]
-#     )["Replicate"].nunique().value_counts()
-#     .reset_index()
-#     .rename(
-#         columns={
-#             "Replicate": "NumOfReplicates",
-#             "count": "NumOfEditingSites",
-#         }
-#     )
-#     .sort_values(
-#         "NumOfReplicates", ascending=False, ignore_index=True
-#     )
-# )
-
-# if num_of_samples_per_sites_per_min_cov_and_editing_freq_df.empty:
-#     num_of_samples_per_sites_per_min_cov_and_editing_freq_df = pd.DataFrame(
-#         {
-#             "NumOfReplicates": reversed(replicates),
-#             "NumOfEditingSites": 0
-#         }
-#     )
-
-# num_of_samples_per_sites_per_min_cov_and_editing_freq_df.insert(0, "MinTotalCoverage", min_tot_cov)
-# num_of_samples_per_sites_per_min_cov_and_editing_freq_df.insert(1, "MinEditingFrequency", min_editing_freq)
-
-
-# # num_of_samples_per_sites_per_min_cov_and_editing_freq_df["ReverseCumulativeNumOfEditingSites"] = (
-# #     num_of_samples_per_sites_per_min_cov_and_editing_freq_df["NumOfEditingSites"].cumsum()
-# # )
-# # num_of_samples_per_sites_per_min_cov_and_editing_freq_df["%ReverseCumulativeNumOfEditingSites"] = (
-# #     100
-# #     * num_of_samples_per_sites_per_min_cov_and_editing_freq_df["ReverseCumulativeNumOfEditingSites"]
-# #     / num_of_samples_per_sites_per_min_cov_and_editing_freq_df["NumOfEditingSites"].sum()
-# # ).fillna(0)
-
-# num_of_samples_per_sites_per_min_cov_and_editing_freq_df
-
-# %%
-# per_cov_per_edit_freq_per_sample_concat_edited_positions_df.shape[0]
-
-# %%
-# num_of_samples_per_sites_per_min_cov_and_editing_freq_df["NumOfEditingSites"]
-
-# %%
-# num_of_samples_per_sites_per_min_cov_and_editing_freq_df.loc[
-#     num_of_samples_per_sites_per_min_cov_and_editing_freq_df.shape[0]
-# ] = [
-#     min_tot_cov,
-#     min_editing_freq,
-#     0,
-    
-# ]
-
-# %%
 # aggreated measure with num of sites supported by numer of samples
 
 num_of_samples_per_sites_per_min_cov_and_editing_freq_dfs = []
 for min_tot_cov, min_editing_freq in product(min_tot_covs, min_editing_freqs):
     print(f"Min total coverage: {min_tot_cov}, min editing frequency: {min_editing_freq}")
-    num_of_samples_per_sites_per_min_cov_and_editing_freq_df = (
-        per_sample_agged_expanded_concat_edited_positions_df
-        .loc[
-            (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
-            & (per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"].ge(min_editing_freq))
-        ]
-        .groupby(
-            [condition_col, "Position"]
-        )["Replicate"].nunique().value_counts()
-        .reset_index()
-        .rename(
-            columns={
-                "Replicate": "NumOfReplicates",
-                "count": "NumOfEditingSites",
-            }
-        )
-        .sort_values(
-            "NumOfReplicates", ascending=False, ignore_index=True
-        )
-    )
-
-    if num_of_samples_per_sites_per_min_cov_and_editing_freq_df.empty:
-        num_of_samples_per_sites_per_min_cov_and_editing_freq_df = pd.DataFrame(
-            {
-                "NumOfReplicates": reversed(replicates),
-                "NumOfEditingSites": 0
-            }
-        )
-
+    num_of_samples_per_sites_per_min_cov_and_editing_freq_df = per_sample_agged_expanded_concat_edited_positions_df.loc[
+        (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
+        & (per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"].ge(min_editing_freq))
+    ].groupby(
+        [condition_col, "Position"]
+    )["Replicate"].nunique().value_counts().reset_index()
     num_of_samples_per_sites_per_min_cov_and_editing_freq_df.insert(0, "MinTotalCoverage", min_tot_cov)
     num_of_samples_per_sites_per_min_cov_and_editing_freq_df.insert(1, "MinEditingFrequency", min_editing_freq)
-
-
+    
+    num_of_samples_per_sites_per_min_cov_and_editing_freq_df = num_of_samples_per_sites_per_min_cov_and_editing_freq_df.rename(
+        columns={
+            "count": "NumOfEditingSites",
+            "Replicate": "NumOfReplicates"
+        }
+    )
+    num_of_samples_per_sites_per_min_cov_and_editing_freq_df = num_of_samples_per_sites_per_min_cov_and_editing_freq_df.sort_values(
+        "NumOfReplicates", ascending=False, ignore_index=True
+    )
     num_of_samples_per_sites_per_min_cov_and_editing_freq_df["ReverseCumulativeNumOfEditingSites"] = (
         num_of_samples_per_sites_per_min_cov_and_editing_freq_df["NumOfEditingSites"].cumsum()
     )
@@ -7227,7 +7100,7 @@ for min_tot_cov, min_editing_freq in product(min_tot_covs, min_editing_freqs):
         100
         * num_of_samples_per_sites_per_min_cov_and_editing_freq_df["ReverseCumulativeNumOfEditingSites"]
         / num_of_samples_per_sites_per_min_cov_and_editing_freq_df["NumOfEditingSites"].sum()
-    ).fillna(0)
+    )
     
     num_of_samples_per_sites_per_min_cov_and_editing_freq_dfs.append(num_of_samples_per_sites_per_min_cov_and_editing_freq_df)
     
@@ -7238,101 +7111,89 @@ concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df = pd.concat(
 concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df
 
 # %%
-fig = px.bar(
-    concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df,
-    x="Replicate",
-    y="NumOfEditingSitesPerReplicate",
-    facet_col="MinTotalCoverage",
-    facet_row="MinEditingFrequency",
-    labels={
-        # "NumOfSamples": "Samples",
-        "NumOfEditingSitesPerReplicate": "Editing sites",
-        # "MinTotalCoverage": "Min tot coverage",
-        # "MinEditingFrequency": "Min editing freq"
-    },
-    color="Replicate",
-    color_discrete_map=replicates_color_discrete_map,
-    # log_y=True
-)
+# fig = px.bar(
+#     concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df,
+#     x="Replicate",
+#     y="NumOfEditingSitesPerReplicate",
+#     facet_col="MinTotalCoverage",
+#     facet_row="MinEditingFrequency",
+#     labels={
+#         # "NumOfSamples": "Samples",
+#         "NumOfEditingSitesPerReplicate": "Editing sites",
+#         # "MinTotalCoverage": "Min tot coverage",
+#         # "MinEditingFrequency": "Min editing freq"
+#     },
+#     color="Replicate",
+#     color_discrete_map=replicates_color_discrete_map,
+#     # log_y=True
+# )
 
-# Loop through all facet annotations and modify their text
-for annotation in fig.layout.annotations:
-    if "MinTotalCoverage=" in annotation.text:
-        annotation.text = annotation.text.replace("MinTotalCoverage=", "Coverage / sample ≥ ")
-    if "MinEditingFrequency=" in annotation.text:
-        # annotation.text = annotation.text.replace("MinEditingFrequency=", "Editing freq / sample ≥ ")
-        annotation.text = annotation.text.replace("MinEditingFrequency=", "Editing freq /<br>sample ≥ ")
+# # Loop through all facet annotations and modify their text
+# for annotation in fig.layout.annotations:
+#     if "MinTotalCoverage=" in annotation.text:
+#         annotation.text = annotation.text.replace("MinTotalCoverage=", "Coverage / sample ≥ ")
+#     if "MinEditingFrequency=" in annotation.text:
+#         annotation.text = annotation.text.replace("MinEditingFrequency=", "Editing freq / sample ≥ ")
         
-fig.update_yaxes(dtick=50)
+# # fig.update_yaxes(dtick=5000)
 
-fig.update_layout(
-    template=template,
-    width=1200,
-    height=900,
-    title="Number of sites edited per replicate",
-    showlegend=False
-)
-fig.show()
+# fig.update_layout(
+#     template=template,
+#     width=1200,
+#     height=800,
+#     title="Number of sites edited per replicate",
+#     showlegend=False
+# )
+# fig.show()
 
 # %%
-fig = px.bar(
-    concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df,
-    x="Replicate",
-    # y="NumOfEditingSitesPerReplicate",
-    y="%EditedOfCoveredSites",
-    facet_col="MinTotalCoverage",
-    facet_row="MinEditingFrequency",
-    labels={
-        # "%EditedOfCoveredSites": "Edited / covered sites [%]",
-        "%EditedOfCoveredSites": "Edited /<br>covered sites [%]",
-    },
-    color="Replicate",
-    color_discrete_map=replicates_color_discrete_map,
-    # log_y=True
-)
+# fig = px.bar(
+#     concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df,
+#     x="Replicate",
+#     # y="NumOfEditingSitesPerReplicate",
+#     y="%EditedOfCoveredSites",
+#     facet_col="MinTotalCoverage",
+#     facet_row="MinEditingFrequency",
+#     labels={
+#         # "NumOfSamples": "Samples",
+#         # "%EditedOfCoveredSites": "Editing frequency",
+#         "%EditedOfCoveredSites": "Edited / covered sites [%]",
+#         # "MinTotalCoverage": "Min tot coverage",
+#         # "MinEditingFrequency": "Min editing freq"
+#     },
+#     color="Replicate",
+#     color_discrete_map=replicates_color_discrete_map,
+#     log_y=True
+# )
 
-# Loop through all facet annotations and modify their text
-for annotation in fig.layout.annotations:
-    if "MinTotalCoverage=" in annotation.text:
-        annotation.text = annotation.text.replace("MinTotalCoverage=", "Coverage / sample ≥ ")
-    if "MinEditingFrequency=" in annotation.text:
-        # annotation.text = annotation.text.replace("MinEditingFrequency=", "Editing freq / sample ≥ ")
-        annotation.text = annotation.text.replace("MinEditingFrequency=", "Editing freq /<br>sample ≥ ")
+# # Loop through all facet annotations and modify their text
+# for annotation in fig.layout.annotations:
+#     if "MinTotalCoverage=" in annotation.text:
+#         annotation.text = annotation.text.replace("MinTotalCoverage=", "Coverage / sample ≥ ")
+#     if "MinEditingFrequency=" in annotation.text:
+#         annotation.text = annotation.text.replace("MinEditingFrequency=", "Editing freq / sample ≥ ")
         
-fig.update_yaxes(dtick=10)
+# # fig.update_yaxes(dtick=5000)
 
-width = 1200
-height = 900
-
-fig.update_layout(
-    template=template,
-    height=height,
-    width=width,
-    title="Number of sites edited per replicate",
-    showlegend=False
-)
-
-fig.write_image(
-    Path(
-        out_dir,
-        "Number of sites edited per replicate per coverage per editing frequency - PacBio3.svg"
-    ),
-    height=height,
-    width=width,
-)
-
-fig.show()
+# fig.update_layout(
+#     template=template,
+#     width=1200,
+#     height=800,
+#     title="Number of sites edited per replicate",
+#     showlegend=False
+# )
+# fig.show()
 
 # %%
 concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df.loc[
-        concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df["MinEditingFrequency"] == min_editing_freqs[0],
+        concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df["MinEditingFrequency"] == 0.001,
         "%EditedOfCoveredSites"
     ].min().round(2)
 
 # %%
 fig = px.bar(
     concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df.loc[
-        concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df["MinEditingFrequency"] == min_editing_freqs[0]
+        concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df["MinEditingFrequency"] == 0.001
     ],
     x="Replicate",
     y="%EditedOfCoveredSites",
@@ -7425,18 +7286,6 @@ fig.show()
 # %%
 concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df.loc[
         (concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df["MinTotalCoverage"] == 0)
-        & (concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df["MinEditingFrequency"] == 0.001)
-    ]
-
-# %%
-min_tot_covs
-
-# %%
-min_editing_freqs
-
-# %%
-concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df.loc[
-        (concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df["MinTotalCoverage"] == min_tot_covs[0])
         & (concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df["MinEditingFrequency"] == 0.001)
     ]
 
@@ -12638,7 +12487,7 @@ max_expression_df
 
 # %%
 max_expression_df.to_csv(
-    "/private7/projects/Combinatorics/Code/Notebooks/AssignedExpression.PacBio3.WithUMIs.tsv",
+    "/private7/projects/Combinatorics/Code/Notebooks/AssignedExpression.PacBio3.ReadsWithRecognizableBarcodes.tsv",
     sep="\t",
     index=False,
 )

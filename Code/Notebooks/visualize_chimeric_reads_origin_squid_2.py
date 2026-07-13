@@ -28,21 +28,21 @@ from icecream import ic
 
 # %%
 pacbio_platforms = (
-    ["PacBio1"] * 2 +
-    ["PacBio2"] * 2 +
-    ["PacBio3"] * 3
+    ["PacBio1"] * 2 
+    # + ["PacBio2"] * 2
+    # + ["PacBio3"] * 3
 )
 pacbio_samples = [
 	"GRIA2", "PCLO",
-	"ADAR1", "IQEC1",
-	"GRIA2", "ADAR1", "IQEC1",
+	# "ADAR1", "IQEC1",
+	# "GRIA2", "ADAR1", "IQEC1",
 ]
 
 # %%
 shortened_platform_names = {
     "PacBio1": "PB1",
-    "PacBio2": "PB2",
-    "PacBio3": "PB3",
+    # "PacBio2": "PB2",
+    # "PacBio3": "PB3",
     "Illumina1": "IL1"
 }
 
@@ -98,13 +98,13 @@ pacbio_expression_files = [
 	# PacBio1
 	"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA.DistinctUniqueProteins.ExpressionLevels.EntropyConsidered.csv",
 	"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO.DistinctUniqueProteins.ExpressionLevels.EntropyConsidered.csv",
-	# PacBio2
-	"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.DistinctUniqueProteins.ExpressionLevels.EntropyConsidered.csv",
-	"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC1.DistinctUniqueProteins.ExpressionLevels.EntropyConsidered.csv",
-	# PacBio3
-	"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/GRIA2.DistinctUniqueProteins.ExpressionLevels.EntropyConsidered.csv",
-	"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/ADAR1.DistinctUniqueProteins.ExpressionLevels.EntropyConsidered.csv",
-	"/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/IQEC1.DistinctUniqueProteins.ExpressionLevels.EntropyConsidered.csv",
+	# # PacBio2
+	# "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.DistinctUniqueProteins.ExpressionLevels.EntropyConsidered.csv",
+	# "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC1.DistinctUniqueProteins.ExpressionLevels.EntropyConsidered.csv",
+	# # PacBio3
+	# "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/GRIA2.DistinctUniqueProteins.ExpressionLevels.EntropyConsidered.csv",
+	# "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/ADAR1.DistinctUniqueProteins.ExpressionLevels.EntropyConsidered.csv",
+	# "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/IQEC1.DistinctUniqueProteins.ExpressionLevels.EntropyConsidered.csv",
 ]
 
 illumina_expression_files = [
@@ -125,13 +125,13 @@ pacbio_unique_reads_files = [
 	# PacBio1
 	"/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_reads.csv.gz",
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.unique_reads.csv.gz",
-	# PacBio2
-	"/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_reads.csv.gz",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_reads.csv.gz",
-	# PacBio3
-	'/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/comp141693_c0_seq1.merged.MinRQ998.unique_reads.csv.gz',
-    '/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/comp134400_c0_seq1_extended.merged.MinRQ998.unique_reads.csv.gz',
-    '/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/comp141565_c6_seq3.merged.MinRQ998.unique_reads.csv.gz'
+	# # PacBio2
+	# "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_reads.csv.gz",
+    # "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.unique_reads.csv.gz",
+	# # PacBio3
+	# '/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/comp141693_c0_seq1.merged.MinRQ998.unique_reads.csv.gz',
+    # '/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/comp134400_c0_seq1_extended.merged.MinRQ998.unique_reads.csv.gz',
+    # '/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/comp141565_c6_seq3.merged.MinRQ998.unique_reads.csv.gz'
 ]
 
 illumina_unique_reads_files = [
@@ -282,6 +282,9 @@ soft_comparisons = [True, False]
 
 # %%
 out_dir = Path("/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/JointChimericReadsAnalysis2")
+
+# %%
+plots_out_dir = Path("/private7/projects/Combinatorics/Code/Notebooks")
 
 
 # %%
@@ -832,6 +835,9 @@ def update_common_and_rare_facet_titles(title):
             return f"Common: {float(value.strip()) * 100:.1f}%"
         elif param.strip() == "YRareProteins":
             return f"Rare: {float(value.strip()) * 100:.1f}%"
+        elif param.strip() == "IsSoftComparison":
+            # return f"Soft Comparison = {value.strip()}"
+            return "Soft comparison" if value.strip() == "True" else "Strict comparison"
     else:
         return title
 
@@ -891,6 +897,7 @@ fig.update_layout(
     template="plotly_white",
     # title="Soft Comparison = True, YRareProteins = 0.3",
     title="Soft Comparison = True",
+    # width=1400,
     width=1400,
     height=350,
     showlegend=False
@@ -922,7 +929,9 @@ for soft_comparison in [False, True]:
         cols=len(X_common_proteins), 
         shared_xaxes="all", 
         shared_yaxes="all",
-        y_title="% of chimeric proteins on editing sites level",
+        # y_title="% of chimeric proteins on editing sites level",
+        # y_title="Chimeric proteins based on read-level chimerization [%]",
+        y_title="Chimeric rare proteins [%]",
         # subplot_titles=subplot_titles,
         # column_titles=col_titles,
         # row_titles=row_titles,
@@ -964,8 +973,8 @@ for soft_comparison in [False, True]:
                 col=j
             )
     fig.update_xaxes(
-        # tickfont_size=10
-        tickfont_size=5
+        tickfont_size=6.5
+        # tickfont_size=5
     )
     fig.update_yaxes(
         # dtick=20
@@ -973,12 +982,25 @@ for soft_comparison in [False, True]:
         dtick=10
     )
 
+    width = 1700
+    height = 800
+    
     fig.update_layout(
         template="plotly_white",
         showlegend=False,
-        width=1700,
-        height=800,
-        title=f"Soft Comparison = {soft_comparison}"
+        width=width,
+        height=height,
+        # title=f"Soft Comparison = {soft_comparison}"
+        title="Soft comparison" if soft_comparison else "Strict comparison"
+    )
+    
+    fig.write_image(
+        Path(
+            plots_out_dir,
+            f"ChimericRareProteinsPerGene.AllX.AllY.SoftComparison={soft_comparison}.svg"
+        ),
+        width=width,
+        height=height,
     )
             
     fig.show()
@@ -1093,15 +1115,28 @@ fig = px.box(
 fig.for_each_annotation(
     lambda a: a.update(text=update_common_and_rare_facet_titles(a.text))
 )
-fig.update_yaxes(dtick=5)
+# fig.update_yaxes(dtick=5)
+fig.update_yaxes(dtick=10)
+
+width = 1600
+height = 350
 fig.update_layout(
     template="plotly_white",
     # title="Soft Comparison = True, YRareProteins = 0.3",
     title="Soft Comparison = False",
-    width=1600,
-    height=350,
+    width=width,
+    height=height,
     showlegend=False
 )
+fig.write_image(
+    Path(
+        plots_out_dir,
+        f"ChimericRareProteinsPerPlatform.AllX.Y=30.SoftComparison=False.svg"
+    ),
+    width=width,
+    height=height,
+)
+
 fig.show()
 
 # %%
@@ -1136,6 +1171,9 @@ fig.for_each_annotation(
     lambda a: a.update(text=update_common_and_rare_facet_titles(a.text))
 )
 fig.update_yaxes(dtick=10)
+
+width = 1600
+height = 350
 fig.update_layout(
     template="plotly_white",
     # title="Soft Comparison = True, YRareProteins = 0.3",
@@ -1144,7 +1182,91 @@ fig.update_layout(
     height=350,
     showlegend=False
 )
+fig.write_image(
+    Path(
+        plots_out_dir,
+        f"ChimericRareProteinsPerPlatform.AllX.Y=30.SoftComparison=True.svg"
+    ),
+    width=width,
+    height=height,
+)
+
 fig.show()
+
+# %%
+fig = px.box(
+    (
+        proteins_stats_df
+        .loc[
+            # (~proteins_stats_df["IsSoftComparison"]) 
+            # & (proteins_stats_df["YRareProteins"].eq(0.3))
+            (proteins_stats_df["YRareProteins"].eq(0.3))
+        ]
+    ),
+    x="ShortPlatform",
+    y="%OfChimericProteinsOnEditingSitesLevel",
+    # points="all",
+    color="ShortPlatform",
+    color_discrete_map=shortened_platform_colormap,
+    facet_col="XCommonProteins",
+    # facet_row="YRareProteins",
+    facet_row="IsSoftComparison",
+    labels={
+        "ShortPlatform": "Platform",
+        "%OfChimericProteinsOnEditingSitesLevel": "Chimeric rare proteins [%]",
+        # "IsSoftComparison": "Soft Comparison"
+    },
+    category_orders={
+        "ShortPlatform": sorted(shortened_platform_colormap.keys()),
+    }
+)
+# fig.update_traces(
+#     jitter=0.3,
+#     pointpos=-2
+# )
+fig.for_each_annotation(
+    lambda a: a.update(text=update_common_and_rare_facet_titles(a.text))
+)
+# fig.update_yaxes(dtick=5)
+fig.update_yaxes(dtick=10)
+
+width = 1600
+height = 600
+fig.update_layout(
+    template="plotly_white",
+    # title="Soft Comparison = True, YRareProteins = 0.3",
+    # title="Soft Comparison = False",
+    title="Rare: 30%",
+    width=width,
+    height=height,
+    showlegend=False
+)
+fig.write_image(
+    Path(
+        plots_out_dir,
+        f"ChimericRareProteinsPerPlatform.AllX.Y=30.BothComparisons.svg"
+    ),
+    width=width,
+    height=height,
+)
+
+fig.show()
+
+# %%
+(
+    proteins_stats_df
+    .loc[
+        # (~proteins_stats_df["IsSoftComparison"]) 
+        # & (proteins_stats_df["YRareProteins"].eq(0.3))
+        (proteins_stats_df["YRareProteins"].eq(0.3))
+        & (proteins_stats_df["XCommonProteins"].eq(0.01))
+    ]
+    .groupby(
+        # ["Platform", "IsSoftComparison"], 
+        "IsSoftComparison",
+        as_index=False
+    )["%OfChimericProteinsOnEditingSitesLevel"].describe().round(2)
+)
 
 # %%
 fig = px.box(
@@ -1171,13 +1293,23 @@ fig.for_each_annotation(
     lambda a: a.update(text=update_common_and_rare_facet_titles(a.text))
 )
 fig.update_yaxes(dtick=10)
+width = 1600
+height = 350
 fig.update_layout(
     template="plotly_white",
     # title="Soft Comparison = True, YRareProteins = 0.3",
-    width=1600,
-    # height=500,
-    height=350,
+    width=width,
+    height=height,
     showlegend=False
+)
+fig.write_image(
+    Path(
+        plots_out_dir,
+        # f"ChimericRareProteinsPerPlatform.AllX.Y=30.BothComparisons.svg"
+        "CummulativeExpressionOfXCommonProteinsPerPlatform.svg"
+    ),
+    width=width,
+    height=height,
 )
 fig.show()
 
