@@ -41,7 +41,8 @@ from statsmodels.stats.multitest import fdrcorrection
 # # Inputs
 
 # %%
-PROCESSES = 8
+# PROCESSES = 8
+PROCESSES = 10
 
 # %%
 platform = "PacBio"
@@ -86,14 +87,20 @@ positions_data_df = pd.DataFrame(
     }
 )
 
-positions_data_df["SNPsPositionsFile"] = positions_data_df["Chrom"].apply(
-    lambda x: Path(positions_dir, f"{x}.positions.snps.csv.gz")
+# positions_data_df["SNPsPositionsFile"] = positions_data_df["Chrom"].apply(
+#     lambda x: Path(positions_dir, f"{x}.positions.snps.csv.gz")
+# )
+positions_data_df["NoisePositionsFile"] = positions_data_df["Chrom"].apply(
+    lambda x: Path(positions_dir, f"{x}.positions.noise.csv.gz")
 )
 positions_data_df["SNPsReadsFile"] = positions_data_df["Chrom"].apply(
     lambda x: Path(reads_dir, f"{x}.reads.snps.csv.gz")
 )
 
 positions_data_df
+
+# %%
+positions_files[:3]
 
 
 # %%
@@ -139,44 +146,140 @@ def calc_noise(ref_base_count, alt_base_count):
 
 
 # %%
-# for (
-#     positions_file, 
-#     snps_positions_file, 
-#     snps_reads_file,  
-#     sample, 
-# ) in positions_data_df.loc[
-#     :,
-#     ["PositionsFile", "SNPsPositionsFile", "SNPsReadsFile", "Chrom"]
-# ].values:
-#     ic(positions_file, snps_positions_file, snps_reads_file, sample);
-#     break
-
-# %%
-# noise_positions_df = pd.read_csv(positions_file, sep="\t")
-# noise_positions_df = noise_positions_df.loc[
-#     (noise_positions_df["CDS"])
-#     & (~noise_positions_df[edited_col])
-#     & (noise_positions_df["TotalCoverage"].gt(0))
-# ]
-# if final_noise_col is not None:
+# def make_snps_positions(
+#     positions_file: Path | str,
+#     snps_positions_file: Path | str,
+#     top_x_noisy_positions: int,
+#     assurance_factor: float,
+#     seed: int,
+#     edited_col: str,
+#     snp_noise_level: float,
+#     final_noise_col: str | None,
+#     new_old_to_new_reads_file: Path | str | None = None,
+#     old_old_to_new_reads_file: Path | str | None = None,
+# ):
+#     noise_positions_df = pd.read_csv(positions_file, sep="\t")
 #     noise_positions_df = noise_positions_df.loc[
-#         noise_positions_df[final_noise_col]
+#         (noise_positions_df["CDS"])
+#         & (~noise_positions_df[edited_col])
+#         & (noise_positions_df["TotalCoverage"].gt(0))
 #     ]
-# noise_positions_df = noise_positions_df.drop(
-#     columns=[
-#         "CDS",
-#         edited_col,
-#         "InProbRegion",
-#         "EditingFrequency",
-#         "KnownEditing",
+#     if final_noise_col is not None:
+#         noise_positions_df = noise_positions_df.loc[
+#             noise_positions_df[final_noise_col]
+#         ]
+#     noise_positions_df = noise_positions_df.drop(
+#         columns=[
+#             "CDS",
+#             edited_col,
+#             "InProbRegion",
+#             "EditingFrequency",
+#             "KnownEditing",
+#         ]
+#     )
+    
+#     # finalize empty df with expected cols, save it and return
+#     if noise_positions_df.empty:
+#         snps_positions_df = noise_positions_df.assign(
+#             AltBase=None,
+#             AboveEditingThreshold=None,
+#         )
+#         snps_positions_df.to_csv(snps_positions_file, sep="\t", index=False)
+#         return snps_positions_df
+    
+#     noise_positions_df["AltBase"] = noise_positions_df.apply(
+#         lambda x: find_alt_base(
+#             x["RefBase"],
+#             x["A"],
+#             x["T"],
+#             x["C"],
+#             x["G"],
+#             seed,
+#         ),
+#         axis=1,
+#     )
+#     noise_positions_df = noise_positions_df.loc[
+#         ~(
+#             (noise_positions_df["RefBase"].eq("A"))
+#             & (noise_positions_df["AltBase"].eq("G"))
+#         )
 #     ]
-# )
-# noise_positions_df
+#     noise_positions_df["Noise"] = noise_positions_df.apply(
+#         lambda x: calc_noise(x[x["RefBase"]], x[x["AltBase"]]), axis=1
+#     )
+    
+#     # determine editing threshold to annotate which noise positions have high noise and are thus annotated as "strong" SNPs
+#     if final_noise_col is not None:
+#         noise_levels = (
+#             noise_positions_df.loc[
+#                 (noise_positions_df["Noise"] < snp_noise_level)
+#                 & (noise_positions_df[final_noise_col]),
+#                 "Noise",
+#             ]
+#             .sort_values(ascending=False)[:top_x_noisy_positions]
+#             .tolist()
+#         )
+#     else:
+#         noise_levels = (
+#             noise_positions_df.loc[
+#                 (noise_positions_df["Noise"] < snp_noise_level),
+#                 "Noise",
+#             ]
+#             .sort_values(ascending=False)[:top_x_noisy_positions]
+#             .tolist()
+#         )
+#     # if there are less noisy positions than `top_x_noisy_positions`, add zeros accordingly
+#     noise_levels = pd.Series(
+#         noise_levels + [0 for _ in range(top_x_noisy_positions - len(noise_levels))]
+#     )
+#     noise_threshold = noise_levels.mean()
+#     if pd.isna(noise_threshold):
+#         noise_threshold = 0
+#     # finalize the editing threshold
+#     noise_threshold *= assurance_factor
+    
+#     snps_positions_df = noise_positions_df.loc[
+#         noise_positions_df["Noise"].ge(snp_noise_level)
+#     ].copy()
+
+#     # now annotate the strong SNPs
+#     snps_positions_df["AboveEditingThreshold"] = snps_positions_df["Noise"].ge(noise_threshold)
+
+#     if (old_old_to_new_reads_file is not None) and (new_old_to_new_reads_file is not None):
+
+#         # map old and new compressed reads names
+#         new_old_to_new_reads_df = pd.read_table(new_old_to_new_reads_file).rename(
+#             columns={"NewRead": "NewCompressedReadName"}
+#         )
+#         old_old_to_new_reads_df = pd.read_table(old_old_to_new_reads_file).rename(
+#             columns={"NewRead": "OldCompressedReadName"}
+#         )
+#         new_to_old_shorted_reads_df = new_old_to_new_reads_df.merge(old_old_to_new_reads_df, on="OldRead", how="outer")
+#         assert not new_to_old_shorted_reads_df.isna().any().any()
+#         new_to_old_shorted_reads_dict = dict(
+#             zip(
+#                 new_to_old_shorted_reads_df['NewCompressedReadName'], 
+#                 new_to_old_shorted_reads_df['OldCompressedReadName']
+#             )
+#         )
+        
+#         # use the mapping to replace the new compressed reads names with the old ones (the originals)
+#         snps_positions_df["SplitNewCompressedReads"] = snps_positions_df["Reads"].str.split(",")
+#         snps_positions_df["SplitOldCompressedReads"] = snps_positions_df["SplitNewCompressedReads"].apply(
+#             lambda x: [new_to_old_shorted_reads_dict[y] for y in x],
+#         )
+#         snps_positions_df["Reads"] = snps_positions_df["SplitOldCompressedReads"].apply(lambda x: ",".join(x))
+#         del snps_positions_df["SplitNewCompressedReads"]
+#         del snps_positions_df["SplitOldCompressedReads"]
+    
+#     snps_positions_df.to_csv(snps_positions_file, sep="\t", index=False)
+
+#     return snps_positions_df
 
 # %%
-def make_snps_positions(
+def make_noise_positions(
     positions_file: Path | str,
-    snps_positions_file: Path | str,
+    noise_positions_file: Path | str,
     top_x_noisy_positions: int,
     assurance_factor: float,
     seed: int,
@@ -208,12 +311,16 @@ def make_snps_positions(
     
     # finalize empty df with expected cols, save it and return
     if noise_positions_df.empty:
-        snps_positions_df = noise_positions_df.assign(
+        noise_positions_df = noise_positions_df.assign(
             AltBase=None,
+            EditingThreshold=None,
             AboveEditingThreshold=None,
+            SNP=None
         )
-        snps_positions_df.to_csv(snps_positions_file, sep="\t", index=False)
-        return snps_positions_df
+        noise_positions_df.to_csv(
+            noise_positions_file, sep="\t", index=False
+        )
+        return noise_positions_df
     
     noise_positions_df["AltBase"] = noise_positions_df.apply(
         lambda x: find_alt_base(
@@ -235,8 +342,8 @@ def make_snps_positions(
     noise_positions_df["Noise"] = noise_positions_df.apply(
         lambda x: calc_noise(x[x["RefBase"]], x[x["AltBase"]]), axis=1
     )
-    
-    # determine editing threshold to annotate which noise positions have high noise and are thus annotated as "strong" SNPs
+
+    # determine editing threshold to annotate which noise positions have high noise and are thus possible false-positives
     if final_noise_col is not None:
         noise_levels = (
             noise_positions_df.loc[
@@ -260,19 +367,20 @@ def make_snps_positions(
     noise_levels = pd.Series(
         noise_levels + [0 for _ in range(top_x_noisy_positions - len(noise_levels))]
     )
-    noise_threshold = noise_levels.mean()
-    if pd.isna(noise_threshold):
-        noise_threshold = 0
+    editing_threshold = noise_levels.mean()
+    if pd.isna(editing_threshold):
+        editing_threshold = 0
     # finalize the editing threshold
-    noise_threshold *= assurance_factor
+    editing_threshold *= assurance_factor
+
+    noise_positions_df["EditingThreshold"] = editing_threshold
+    noise_positions_df["AboveEditingThreshold"] = noise_positions_df["Noise"].ge(editing_threshold)
     
-    snps_positions_df = noise_positions_df.loc[
-        noise_positions_df["Noise"].ge(snp_noise_level)
-    ].copy()
+    # annotate which positions are considered SNPs based on the snp_noise_level
+    noise_positions_df["SNP"] = noise_positions_df["Noise"].ge(snp_noise_level)
 
-    # now annotate the strong SNPs
-    snps_positions_df["AboveEditingThreshold"] = snps_positions_df["Noise"].ge(noise_threshold)
-
+    # since the reads names in the noise positions file are the new compressed reads names, 
+    # we need to map them back to the old compressed reads names (the originals) using the old_to_new_reads files
     if (old_old_to_new_reads_file is not None) and (new_old_to_new_reads_file is not None):
 
         # map old and new compressed reads names
@@ -283,7 +391,7 @@ def make_snps_positions(
             columns={"NewRead": "OldCompressedReadName"}
         )
         new_to_old_shorted_reads_df = new_old_to_new_reads_df.merge(old_old_to_new_reads_df, on="OldRead", how="outer")
-        assert not new_to_old_shorted_reads_df.isna().any().any()
+        assert not new_to_old_shorted_reads_df.isna().any().any(), f"{positions_file = }, {noise_positions_file = }"
         new_to_old_shorted_reads_dict = dict(
             zip(
                 new_to_old_shorted_reads_df['NewCompressedReadName'], 
@@ -292,17 +400,18 @@ def make_snps_positions(
         )
         
         # use the mapping to replace the new compressed reads names with the old ones (the originals)
-        snps_positions_df["SplitNewCompressedReads"] = snps_positions_df["Reads"].str.split(",")
-        snps_positions_df["SplitOldCompressedReads"] = snps_positions_df["SplitNewCompressedReads"].apply(
+        noise_positions_df["SplitNewCompressedReads"] = noise_positions_df["Reads"].str.split(",")
+        noise_positions_df["SplitOldCompressedReads"] = noise_positions_df["SplitNewCompressedReads"].apply(
             lambda x: [new_to_old_shorted_reads_dict[y] for y in x],
         )
-        snps_positions_df["Reads"] = snps_positions_df["SplitOldCompressedReads"].apply(lambda x: ",".join(x))
-        del snps_positions_df["SplitNewCompressedReads"]
-        del snps_positions_df["SplitOldCompressedReads"]
-    
-    snps_positions_df.to_csv(snps_positions_file, sep="\t", index=False)
+        noise_positions_df["Reads"] = noise_positions_df["SplitOldCompressedReads"].apply(lambda x: ",".join(x))
+        del noise_positions_df["SplitNewCompressedReads"]
+        del noise_positions_df["SplitOldCompressedReads"]
+        
+    noise_positions_df.to_csv(noise_positions_file, sep="\t", index=False)
 
-    return snps_positions_df
+    return noise_positions_df
+
 
 
 # %% [markdown]
@@ -518,9 +627,44 @@ def make_snps_reads(
 # ## Positions & reads
 
 # %%
-def make_positions_and_reads_snps_dfs(
+# def make_positions_and_reads_snps_dfs(
+#     positions_file,
+#     snps_positions_file,
+#     top_x_noisy_positions,
+#     assurance_factor,
+#     seed,
+#     edited_col,
+#     snp_noise_level,
+#     final_noise_col,
+#     snps_reads_file,
+#     platform,
+#     sample,
+#     parity,
+#     multisample,
+#     new_old_to_new_reads_file=None,
+#     old_old_to_new_reads_file=None,
+# ):
+#     snps_positions_df = make_snps_positions(
+#         positions_file, 
+#         snps_positions_file, 
+#         top_x_noisy_positions,
+#         assurance_factor,
+#         seed, 
+#         edited_col, 
+#         snp_noise_level, 
+#         final_noise_col,
+#         new_old_to_new_reads_file=new_old_to_new_reads_file,
+#         old_old_to_new_reads_file=old_old_to_new_reads_file
+#     )
+#     snps_reads_df = make_snps_reads(
+#         snps_positions_df, snps_reads_file, platform, sample, parity, multisample
+#     )
+#     return snps_positions_df, snps_reads_df
+
+# %%
+def make_noise_positions_and_snps_reads_dfs(
     positions_file,
-    snps_positions_file,
+    noise_positions_file,
     top_x_noisy_positions,
     assurance_factor,
     seed,
@@ -535,22 +679,29 @@ def make_positions_and_reads_snps_dfs(
     new_old_to_new_reads_file=None,
     old_old_to_new_reads_file=None,
 ):
-    snps_positions_df = make_snps_positions(
-        positions_file, 
-        snps_positions_file, 
-        top_x_noisy_positions,
-        assurance_factor,
-        seed, 
-        edited_col, 
-        snp_noise_level, 
-        final_noise_col,
-        new_old_to_new_reads_file=new_old_to_new_reads_file,
-        old_old_to_new_reads_file=old_old_to_new_reads_file
-    )
-    snps_reads_df = make_snps_reads(
-        snps_positions_df, snps_reads_file, platform, sample, parity, multisample
-    )
-    return snps_positions_df, snps_reads_df
+    try:
+        noise_positions_df = make_noise_positions(
+            positions_file, 
+            noise_positions_file, 
+            top_x_noisy_positions,
+            assurance_factor,
+            seed, 
+            edited_col, 
+            snp_noise_level, 
+            final_noise_col,
+            new_old_to_new_reads_file=new_old_to_new_reads_file,
+            old_old_to_new_reads_file=old_old_to_new_reads_file
+        )
+        snps_positions_df = noise_positions_df.loc[
+            noise_positions_df["SNP"]
+        ].copy()
+        snps_reads_df = make_snps_reads(
+            snps_positions_df, snps_reads_file, platform, sample, parity, multisample
+        )
+        return snps_positions_df, snps_reads_df
+    except Exception as e:
+        print(f"Error occurred while processing {positions_file}: {e}")
+        raise
 
 
 # %% [markdown]
@@ -560,13 +711,51 @@ def make_positions_and_reads_snps_dfs(
 # # ?make_positions_and_reads_snps_dfs
 
 # %%
+# with Pool(processes=PROCESSES) as pool:
+#     positions_and_reads_snps_dfs = pool.starmap(
+#         func=make_positions_and_reads_snps_dfs,
+#         iterable=[
+#             (
+#                 positions_file,
+#                 snps_positions_file,
+#                 top_x_noisy_positions,
+#                 assurance_factor,
+#                 seed,
+#                 edited_col,
+#                 snp_noise_level,
+#                 final_noise_col,
+#                 snps_reads_file,
+#                 platform,
+#                 sample,
+#                 parity,
+#                 multisample,
+#                 None, # new_old_to_new_reads_file
+#                 None  # old_old_to_new_reads_file
+#             )
+#             for (
+#                 positions_file, 
+#                 snps_positions_file, 
+#                 snps_reads_file,  
+#                 sample, 
+#             ) in positions_data_df.loc[
+#                 :,
+#                 ["PositionsFile", "SNPsPositionsFile", "SNPsReadsFile", "Chrom"]
+#             ].values
+
+#         ],
+#     )
+
+# positions_snps_dfs = [dfs[0] for dfs in positions_and_reads_snps_dfs]
+# reads_snps_dfs = [dfs[1] for dfs in positions_and_reads_snps_dfs]
+
+# %%
 with Pool(processes=PROCESSES) as pool:
     positions_and_reads_snps_dfs = pool.starmap(
-        func=make_positions_and_reads_snps_dfs,
+        func=make_noise_positions_and_snps_reads_dfs,
         iterable=[
             (
                 positions_file,
-                snps_positions_file,
+                noise_positions_file,
                 top_x_noisy_positions,
                 assurance_factor,
                 seed,
@@ -583,19 +772,28 @@ with Pool(processes=PROCESSES) as pool:
             )
             for (
                 positions_file, 
-                snps_positions_file, 
+                noise_positions_file, 
                 snps_reads_file,  
                 sample, 
             ) in positions_data_df.loc[
                 :,
-                ["PositionsFile", "SNPsPositionsFile", "SNPsReadsFile", "Chrom"]
+                ["PositionsFile", "NoisePositionsFile", "SNPsReadsFile", "Chrom"]
             ].values
 
         ],
     )
 
-positions_snps_dfs = [dfs[0] for dfs in positions_and_reads_snps_dfs]
+noise_positions_dfs = [dfs[0] for dfs in positions_and_reads_snps_dfs]
 reads_snps_dfs = [dfs[1] for dfs in positions_and_reads_snps_dfs]
+
+# %%
+noise_positions_dfs[0]
+
+# %%
+noise_positions_dfs[1]
+
+# %%
+noise_positions_dfs[2]
 
 # %%
 # non_empty_chroms = []

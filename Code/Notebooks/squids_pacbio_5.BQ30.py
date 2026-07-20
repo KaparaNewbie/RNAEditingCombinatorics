@@ -110,9 +110,13 @@ positions_files = [
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
 ]
-snps_positions_files = [
-    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.snps.csv.gz",
-    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.snps.csv.gz",
+# snps_positions_files = [
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.snps.csv.gz",
+#     "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.snps.csv.gz",
+# ]
+noise_positions_files = [
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.noise.csv.gz",
+    "/private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.noise.csv.gz",
 ]
 reads_files = [
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.reads.csv.gz",
@@ -478,26 +482,159 @@ for x in within_primers_editing_positions_per_sample:
     print(x)
 
 # %% [markdown]
-# ## SNPs positions
+# ## Noise positions
 
 # %%
-snps_positions_dfs = [
-    pd.read_csv(position_file, sep=sep, dtype={"Reads": str}) for position_file in snps_positions_files
+noise_positions_dfs = [
+    pd.read_csv(position_file, sep=sep, dtype={"Reads": str}) for position_file in noise_positions_files
 ]
-for positions_df, condition in zip(snps_positions_dfs, conditions):
+for positions_df, condition in zip(noise_positions_dfs, conditions):
     positions_df.insert(0, condition_col, condition)
-snps_positions_dfs[0]
+noise_positions_dfs[0]
+
+# %%
+noise_positions_dfs[0].loc[:, ["RefBase", "AltBase"]].value_counts()
+
+# %%
+noise_positions_dfs[1].loc[:, ["RefBase", "AltBase"]].value_counts()
 
 # %% [markdown]
 # ## 12 mismatches
 
 # %%
-positions_dfs[0]
+noise_positions_df = noise_positions_dfs[0]
+
+noise_positions_df = (
+    noise_positions_df
+    .loc[
+        :,
+        [
+            condition_col,
+            "Chrom",
+            "Position",
+            "RefBase",
+            "AltBase",
+            "TotalCoverage",
+            "Noise",
+            "EditingThreshold",
+            "AboveEditingThreshold",
+            "SNP"
+        ]
+    ]
+    .rename(
+        columns={"Noise": "MismatchFrequency"}
+    )
+    .assign(
+        Mismatch=lambda x: x.RefBase + ">" + x.AltBase
+    )
+    .drop(
+        columns=["RefBase", "AltBase",]
+    )
+    .loc[
+        :,
+        [
+            condition_col,
+            "Chrom",
+            "Position",
+            "Mismatch",
+            "TotalCoverage",
+            "MismatchFrequency",
+            "EditingThreshold",
+            "AboveEditingThreshold",
+            "SNP"
+        ]
+    ]
+)
+
+editing_threshold = noise_positions_df["EditingThreshold"].iloc[0]
+
+noise_positions_df
+
+# %%
+positions_df = positions_dfs[0]
+
+positions_df = (
+    positions_df
+    .loc[
+        positions_df["Edited"],
+        [
+            condition_col,
+            "Chrom",
+            "Position",
+            "TotalCoverage",
+            "EditingFrequency"
+        ]
+    ]
+    .rename(
+        columns={"EditingFrequency": "MismatchFrequency"}
+    )
+    .assign(
+        Mismatch="A>G",
+        EditingThreshold=editing_threshold,
+        AboveEditingThreshold=True,
+        SNP=False
+        
+    )
+    .loc[
+        :,
+        [
+            condition_col,
+            "Chrom",
+            "Position",
+            "Mismatch",
+            "TotalCoverage",
+            "MismatchFrequency",
+            "EditingThreshold",
+            "AboveEditingThreshold",
+            "SNP"
+        ]
+    ]
+)
+positions_df
+
+# %%
+positions_df["MismatchFrequency"].ge(positions_df["EditingThreshold"]).all()
+
+# %%
+positions_df.loc[
+    ~positions_df["MismatchFrequency"].ge(positions_df["EditingThreshold"])
+]
+
+# %%
+
+# %%
+positions_df_not_empty = not positions_df.empty
+noise_positions_df_not_empty = not noise_positions_df.empty
+
+if positions_df_not_empty and noise_positions_df_not_empty:
+    twelve_mismatches_df = pd.concat([positions_df, noise_positions_df], ignore_index=True)
+elif positions_df_not_empty:
+    twelve_mismatches_df = positions_df
+elif noise_positions_df_not_empty:
+    twelve_mismatches_df = noise_positions_df
+else:
+    twelve_mismatches_df = pd.DataFrame(
+        columns=[
+            condition_col,
+            "Chrom",
+            "Position",
+            "Mismatch",
+            "TotalCoverage",
+            "MismatchFrequency",
+            "EditingThreshold",
+            "AboveEditingThreshold",
+            "SNP"
+        ]
+    )
+twelve_mismatches_df
+
+# %%
+twelve_mismatches_df["EditingThreshol"]
 
 # %%
 twelve_mismatches_dfs = []
 
-for positions_df, snps_positions_df in zip(positions_dfs, snps_positions_dfs):
+for positions_df, noise_positions_df in zip(positions_dfs, noise_positions_dfs):
     
     positions_df = positions_df.loc[
         positions_df["Edited"],
@@ -524,8 +661,8 @@ for positions_df, snps_positions_df in zip(positions_dfs, snps_positions_dfs):
         ]
     ]
     
-    snps_positions_df = snps_positions_df.loc[
-        :,
+    noise_positions_df = noise_positions_df.loc[
+        ~noise_positions_df["SNP"],
         [
             condition_col,
             "Chrom",
@@ -554,16 +691,16 @@ for positions_df, snps_positions_df in zip(positions_dfs, snps_positions_dfs):
     ]
     
     positions_df_not_empty = not positions_df.empty
-    snps_positions_df_not_empty = not snps_positions_df.empty
+    noise_positions_df_not_empty = not noise_positions_df.empty
     
-    if positions_df_not_empty and snps_positions_df_not_empty:
-        twelve_mismatches_df = pd.concat([positions_df, snps_positions_df])
+    if positions_df_not_empty and noise_positions_df_not_empty:
+        twelve_non_snp_mismatches_df = pd.concat([positions_df, noise_positions_df], ignore_index=True)
     elif positions_df_not_empty:
-        twelve_mismatches_df = positions_df
-    elif snps_positions_df_not_empty:
-        twelve_mismatches_df = snps_positions_df
+        twelve_non_snp_mismatches_df = positions_df
+    elif noise_positions_df_not_empty:
+        twelve_non_snp_mismatches_df = noise_positions_df
     else:
-        twelve_mismatches_df = pd.DataFrame(
+        twelve_non_snp_mismatches_df = pd.DataFrame(
             columns=[
                 condition_col,
                 "Chrom",
@@ -574,18 +711,117 @@ for positions_df, snps_positions_df in zip(positions_dfs, snps_positions_dfs):
             ]
         )    
     
-    twelve_mismatches_dfs.append(twelve_mismatches_df)
+    twelve_non_snp_mismatches_dfs.append(twelve_non_snp_mismatches_df)
     
-concat_twelve_mismatches_df = pd.concat(twelve_mismatches_dfs, ignore_index=True)
+concat_twelve_non_snp_mismatches_df = pd.concat(twelve_non_snp_mismatches_dfs, ignore_index=True)
 
-concat_twelve_mismatches_df
-
-# %%
-concat_twelve_mismatches_df.groupby(condition_col)["Mismatch"].value_counts()
+concat_twelve_non_snp_mismatches_df
 
 # %%
-concat_twelve_mismatches_df.to_csv(
-    Path(out_dir, "12MismatchsAboveNoiseThreshold.Squid.PacBio.csv"),
+concat_twelve_non_snp_mismatches_df.groupby(condition_col)["Mismatch"].value_counts()
+
+# %%
+concat_twelve_non_snp_mismatches_df.to_csv(
+    Path(out_dir, "12NonSNPMismatchesAboveNoiseThreshold.Squid.PacBio.csv"),
+    sep="\t",
+    index=False
+)
+
+# %% [markdown]
+# ## 12 non-SNP mismatches
+
+# %%
+twelve_non_snp_mismatches_dfs = []
+
+for positions_df, noise_positions_df in zip(positions_dfs, noise_positions_dfs):
+    
+    positions_df = positions_df.loc[
+        positions_df["Edited"],
+        [
+            condition_col,
+            "Chrom",
+            "Position",
+            "TotalCoverage",
+            "EditingFrequency"
+        ]
+    ].rename(
+        columns={"EditingFrequency": "MismatchFrequency"}
+    ).assign(
+        Mismatch="A>G"
+    ).loc[
+        :,
+        [
+            condition_col,
+            "Chrom",
+            "Position",
+            "Mismatch",
+            "TotalCoverage",
+            "MismatchFrequency"
+        ]
+    ]
+    
+    noise_positions_df = noise_positions_df.loc[
+        ~noise_positions_df["SNP"],
+        [
+            condition_col,
+            "Chrom",
+            "Position",
+            "RefBase",
+            "AltBase",
+            "TotalCoverage",
+            "Noise"
+        ]
+    ].rename(
+        columns={"Noise": "MismatchFrequency"}
+    ).assign(
+        Mismatch=lambda x: x.RefBase + ">" + x.AltBase
+    ).drop(
+        columns=["RefBase", "AltBase",]
+    ).loc[
+        :,
+        [
+            condition_col,
+            "Chrom",
+            "Position",
+            "Mismatch",
+            "TotalCoverage",
+            "MismatchFrequency"
+        ]
+    ]
+    
+    positions_df_not_empty = not positions_df.empty
+    noise_positions_df_not_empty = not noise_positions_df.empty
+    
+    if positions_df_not_empty and noise_positions_df_not_empty:
+        twelve_non_snp_mismatches_df = pd.concat([positions_df, noise_positions_df], ignore_index=True)
+    elif positions_df_not_empty:
+        twelve_non_snp_mismatches_df = positions_df
+    elif noise_positions_df_not_empty:
+        twelve_non_snp_mismatches_df = noise_positions_df
+    else:
+        twelve_non_snp_mismatches_df = pd.DataFrame(
+            columns=[
+                condition_col,
+                "Chrom",
+                "Position",
+                "Mismatch",
+                "TotalCoverage",
+                "MismatchFrequency"
+            ]
+        )    
+    
+    twelve_non_snp_mismatches_dfs.append(twelve_non_snp_mismatches_df)
+    
+concat_twelve_non_snp_mismatches_df = pd.concat(twelve_non_snp_mismatches_dfs, ignore_index=True)
+
+concat_twelve_non_snp_mismatches_df
+
+# %%
+concat_twelve_non_snp_mismatches_df.groupby(condition_col)["Mismatch"].value_counts()
+
+# %%
+concat_twelve_non_snp_mismatches_df.to_csv(
+    Path(out_dir, "12NonSNPMismatchesAboveNoiseThreshold.Squid.PacBio.csv"),
     sep="\t",
     index=False
 )

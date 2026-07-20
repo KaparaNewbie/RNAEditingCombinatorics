@@ -201,8 +201,12 @@ positions_files = [
     f"/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.{chrom}.positions.csv"
     for chrom in chroms
 ]
-snps_positions_files = [
-    f"/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.{chrom}.positions.snps.csv.gz"
+# snps_positions_files = [
+#     f"/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.{chrom}.positions.snps.csv.gz"
+#     for chrom in chroms
+# ]
+noise_positions_files = [
+    f"/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.{chrom}.positions.noise.csv.gz"
     for chrom in chroms
 ]
 reads_files = [
@@ -838,35 +842,24 @@ for x, y in zip(
 ):
     assert x == y
 
-# %%
-
-# %%
-
-# %%
-
-# %%
-
 # %% [markdown]
-# ## SNPs positions
+# ## Noise positions
 
 # %%
-snps_positions_dfs = [
-    pd.read_csv(position_file, sep=sep, dtype={"Reads": str}) for position_file in snps_positions_files
+noise_positions_dfs = [
+    pd.read_csv(position_file, sep=sep, dtype={"Reads": str}) for position_file in noise_positions_files
 ]
-for positions_df, condition in zip(snps_positions_dfs, conditions):
+for positions_df, condition in zip(noise_positions_dfs, conditions):
     positions_df.insert(0, condition_col, condition)
-snps_positions_dfs[0]
+noise_positions_dfs[0]
 
 # %% [markdown]
-# ## 12 mismatches
+# ## 12 non-SNP mismatches
 
 # %%
-positions_dfs[0].head()
+twelve_non_snp_mismatches_dfs = []
 
-# %%
-twelve_mismatches_dfs = []
-
-for positions_df, snps_positions_df in zip(positions_dfs, snps_positions_dfs):
+for positions_df, noise_positions_df in zip(positions_dfs, noise_positions_dfs):
     
     positions_df = positions_df.loc[
         positions_df["Edited"],
@@ -893,8 +886,8 @@ for positions_df, snps_positions_df in zip(positions_dfs, snps_positions_dfs):
         ]
     ]
     
-    snps_positions_df = snps_positions_df.loc[
-        :,
+    noise_positions_df = noise_positions_df.loc[
+        ~noise_positions_df["SNP"],
         [
             condition_col,
             "Chrom",
@@ -923,16 +916,16 @@ for positions_df, snps_positions_df in zip(positions_dfs, snps_positions_dfs):
     ]
     
     positions_df_not_empty = not positions_df.empty
-    snps_positions_df_not_empty = not snps_positions_df.empty
+    noise_positions_df_not_empty = not noise_positions_df.empty
     
-    if positions_df_not_empty and snps_positions_df_not_empty:
-        twelve_mismatches_df = pd.concat([positions_df, snps_positions_df])
+    if positions_df_not_empty and noise_positions_df_not_empty:
+        twelve_non_snp_mismatches_df = pd.concat([positions_df, noise_positions_df], ignore_index=True)
     elif positions_df_not_empty:
-        twelve_mismatches_df = positions_df
-    elif snps_positions_df_not_empty:
-        twelve_mismatches_df = snps_positions_df
+        twelve_non_snp_mismatches_df = positions_df
+    elif noise_positions_df_not_empty:
+        twelve_non_snp_mismatches_df = noise_positions_df
     else:
-        twelve_mismatches_df = pd.DataFrame(
+        twelve_non_snp_mismatches_df = pd.DataFrame(
             columns=[
                 condition_col,
                 "Chrom",
@@ -943,24 +936,29 @@ for positions_df, snps_positions_df in zip(positions_dfs, snps_positions_dfs):
             ]
         )    
     
-    twelve_mismatches_dfs.append(twelve_mismatches_df)
+    twelve_non_snp_mismatches_dfs.append(twelve_non_snp_mismatches_df)
     
-concat_twelve_mismatches_df = pd.concat(twelve_mismatches_dfs, ignore_index=True)
+concat_twelve_non_snp_mismatches_df = pd.concat(twelve_non_snp_mismatches_dfs, ignore_index=True)
 
-concat_twelve_mismatches_df
-
-# %%
-concat_twelve_mismatches_df.groupby(condition_col)["Mismatch"].value_counts()
+concat_twelve_non_snp_mismatches_df
 
 # %%
-concat_twelve_mismatches_df["Mismatch"].value_counts()
+concat_twelve_non_snp_mismatches_df.groupby(condition_col)["Mismatch"].value_counts()
 
 # %%
-concat_twelve_mismatches_df.to_csv(
-    Path(out_dir, "12MismatchsAboveNoiseThreshold.Squid.Illumina.csv"),
+concat_twelve_non_snp_mismatches_df.to_csv(
+    Path(out_dir, "12NonSNPMismatchesAboveNoiseThreshold.Squid.Illumina.csv"),
     sep="\t",
     index=False
 )
+
+# %%
+
+# %%
+
+# %%
+
+# %%
 
 # %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"}
 # ## Reads

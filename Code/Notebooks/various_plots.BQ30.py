@@ -8243,7 +8243,7 @@ plt.savefig(
 plt.show()
 
 # %% [markdown]
-# # 12 mismatches distribution
+# # 12 non-SNP mismatches distribution
 
 # %% [markdown]
 # For this analysis, we only consider genes in which we detected editing.  
@@ -8347,13 +8347,22 @@ mismatch_dolor_map = {
 mismatch_dolor_map
 
 # %%
+# # pacbio_dispersion_file = "Dispersion.PacBio.tsv"
+# pacbio_12_mismatches_files_files = [
+#     Path(out_dir, "12MismatchsAboveNoiseThreshold.Squid.PacBio.csv"),
+#     # Path(out_dir, "12MismatchsAboveNoiseThreshold.Squid.PacBio.UMIs.csv"),
+# ]
+# illumina_12_mismatches_file = Path(out_dir, "12MismatchsAboveNoiseThreshold.Squid.Illumina.csv")
+# octopus_12_mismatches_file = Path(out_dir, "12MismatchsAboveNoiseThreshold.Octopus.WholeTranscriptome.Pooled.csv")
+
+# %%
 # pacbio_dispersion_file = "Dispersion.PacBio.tsv"
 pacbio_12_mismatches_files_files = [
-    Path(out_dir, "12MismatchsAboveNoiseThreshold.Squid.PacBio.csv"),
+    Path(out_dir, "12NonSNPMismatchesAboveNoiseThreshold.Squid.PacBio.csv"),
     # Path(out_dir, "12MismatchsAboveNoiseThreshold.Squid.PacBio.UMIs.csv"),
 ]
-illumina_12_mismatches_file = Path(out_dir, "12MismatchsAboveNoiseThreshold.Squid.Illumina.csv")
-octopus_12_mismatches_file = Path(out_dir, "12MismatchsAboveNoiseThreshold.Octopus.WholeTranscriptome.Pooled.csv")
+illumina_12_mismatches_file = Path(out_dir, "12NonSNPMismatchesAboveNoiseThreshold.Squid.Illumina.csv")
+octopus_12_mismatches_file = Path(out_dir, "12NonSNPMismatchesAboveNoiseThreshold.Octopus.WholeTranscriptome.Pooled.csv")
 
 # %%
 pacbio_12_mismatches_df = pd.concat(
@@ -8440,6 +8449,85 @@ concat_12_mismatches_relative_abundance_df = (
     .reset_index()
 )
 concat_12_mismatches_relative_abundance_df
+
+# %%
+
+# %%
+fig = px.box(
+    concat_12_mismatches_df,
+    x="Mismatch",
+    y="MismatchFrequency",
+    color="Mismatch",
+    color_discrete_map=mismatch_dolor_map,
+    facet_col="Platform",
+    facet_col_spacing=0.04,
+    # log_y=True,
+    template=template,
+    category_orders={"Mismatch": mismatches},
+    # points="all",
+    # title="Absolute number of sites above editing threshold",
+)
+
+width = 1400
+height = 500
+
+# Use for_each_annotation to customize each title (i.e., remove the "Platform=" prefix)
+fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+
+fig.update_xaxes(tickangle=35)
+# fig.update_yaxes(dtick=0.1)
+
+fig.update_layout(
+    width=width,
+    height=height,
+    showlegend=False
+)
+
+# fig.write_image(
+#     Path(out_dir, "12 mismatches distribution - absolute - combined.svg"),
+#     width=width,
+#     height=height,
+# )
+
+fig.show()
+
+# %%
+fig = px.ecdf(
+    concat_12_mismatches_df,
+    # x="Mismatch",
+    x="MismatchFrequency",
+    color="Mismatch",
+    color_discrete_map=mismatch_dolor_map,
+    facet_col="Platform",
+    facet_col_spacing=0.04,
+    # log_y=True,
+    template=template,
+    category_orders={"Mismatch": mismatches},
+    # title="Absolute number of sites above editing threshold",
+)
+
+width = 1400
+height = 500
+
+# Use for_each_annotation to customize each title (i.e., remove the "Platform=" prefix)
+fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+
+# fig.update_xaxes(tickangle=35)
+# fig.update_yaxes(dtick=0.1)
+
+fig.update_layout(
+    width=width,
+    height=height,
+    # showlegend=False
+)
+
+# fig.write_image(
+#     Path(out_dir, "12 mismatches distribution - absolute - combined.svg"),
+#     width=width,
+#     height=height,
+# )
+
+fig.show()
 
 # %%
 

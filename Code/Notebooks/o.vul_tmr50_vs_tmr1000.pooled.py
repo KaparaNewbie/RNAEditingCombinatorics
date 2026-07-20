@@ -205,21 +205,40 @@ positions_data_df = pd.DataFrame(
     }
 )
 
-snps_positions_files = list(positions_dir.glob("*.positions.snps.csv.gz"))
-chroms_in_snps_positions = [
-    positions_file.name.split(".")[0] for positions_file in snps_positions_files
+# snps_positions_files = list(positions_dir.glob("*.positions.snps.csv.gz"))
+# chroms_in_snps_positions = [
+#     positions_file.name.split(".")[0] for positions_file in snps_positions_files
+# ]
+# snps_positions_data_df = pd.DataFrame(
+#     {
+#         "Chrom": chroms_in_snps_positions,
+#         "SNPsPositionsFile": snps_positions_files,
+#     }
+# )
+
+# positions_data_df = positions_data_df.merge(
+#     snps_positions_data_df, on="Chrom", how="outer"
+# )
+# assert not positions_data_df.isna().any().any(), "There are some chroms that are missing either positions file or snps positions file. Please check the dataframes to see which ones are missing and fix the issue."
+
+
+noise_positions_files = list(positions_dir.glob("*.positions.noise.csv.gz"))
+chroms_in_noise_positions = [
+    positions_file.name.split(".")[0] for positions_file in noise_positions_files
 ]
-snps_positions_data_df = pd.DataFrame(
+noise_positions_data_df = pd.DataFrame(
     {
-        "Chrom": chroms_in_snps_positions,
-        "SNPsPositionsFile": snps_positions_files,
+        "Chrom": chroms_in_noise_positions,
+        "NoisePositionsFile": noise_positions_files,
     }
 )
 
 positions_data_df = positions_data_df.merge(
-    snps_positions_data_df, on="Chrom", how="outer"
+    noise_positions_data_df, on="Chrom", how="outer"
 )
-assert not positions_data_df.isna().any().any(), "There are some chroms that are missing either positions file or snps positions file. Please check the dataframes to see which ones are missing and fix the issue."
+assert not positions_data_df.isna().any().any(), "There are some chroms that are missing either positions file or noise positions file. Please check the dataframes to see which ones are missing and fix the issue."
+
+
 
 positions_data_df
 
@@ -1124,42 +1143,38 @@ concat_all_positions_df.loc[
 
 
 # %% [markdown]
-# ### SNPs
+# ### SNPs [to be deleted]
 
 # %%
-positions_data_df
+# positions_data_df
 
 # %%
-snps_positions_files_of_edited_genes = positions_data_df.loc[
-    positions_data_df["Chrom"].isin(chroms),
-    "SNPsPositionsFile"
-].values
-snps_positions_files_of_edited_genes
+# snps_positions_files_of_edited_genes = positions_data_df.loc[
+#     positions_data_df["Chrom"].isin(chroms),
+#     "SNPsPositionsFile"
+# ].values
+# snps_positions_files_of_edited_genes
 
 # %%
-concat_snps_positions_df = pd.concat(
-    [
-        pd.read_table(
-            snps_positions_file, sep="\t", dtype={"Reads": str}
-        ).drop(
-            columns=[
-                "EditingBinomPVal", "EditingCorrectedPVal", "EditedCorrected", "BelowEditingFreq1"
-            ]
-        )
-        for snps_positions_file in positions_data_df["SNPsPositionsFile"].values
-    ]
-)
-concat_snps_positions_df
+# concat_snps_positions_df = pd.concat(
+#     [
+#         pd.read_table(
+#             snps_positions_file, sep="\t", dtype={"Reads": str}
+#         ).drop(
+#             columns=[
+#                 "EditingBinomPVal", "EditingCorrectedPVal", "EditedCorrected", "BelowEditingFreq1"
+#             ]
+#         )
+#         for snps_positions_file in positions_data_df["SNPsPositionsFile"].values
+#     ]
+# )
+# concat_snps_positions_df
 
 # %%
-np.isclose
+# concat_snps_positions_df["Chrom"].nunique()
 
 # %%
-concat_snps_positions_df["Chrom"].nunique()
-
-# %%
-concat_snps_positions_df["Chrom"].value_counts().describe().round(2)
-
+# concat_snps_positions_df["Chrom"].value_counts().describe().round(2)
 
 # %% [markdown]
 # ### Mismatches
@@ -1288,7 +1303,7 @@ mismatches_df.insert(
 )
 del mismatches_df["Strand"]
 mismatches_df = mismatches_df.rename(columns={"Strand2": "Strand"})
-
+ 
 mismatches_df.insert(
     mismatches_df.columns.get_loc("AltBase") + 1,
     "Mismatch",
@@ -1306,37 +1321,37 @@ mismatches_df = mismatches_df.merge(
 mismatches_df
 
 # %%
-# so it seems that the same data about snps can be extracted from the general positions files and from the 
-# snps-specific positions files - which is reassuring. the mismatch annotation also allows to get the mismatch 
-# type and frequency, which can be useful for downstream analyses and for setting a noise threshold based on the 
-# distribution of mismatch frequencies at known snps.
+# # so it seems that the same data about snps can be extracted from the general positions files and from the 
+# # snps-specific positions files - which is reassuring. the mismatch annotation also allows to get the mismatch 
+# # type and frequency, which can be useful for downstream analyses and for setting a noise threshold based on the 
+# # distribution of mismatch frequencies at known snps.
 
-df = concat_snps_positions_df.loc[
-    :,
-    ["Chrom", "Position", "Noise", "AboveEditingThreshold"]
-].merge(
-    mismatches_df.loc[
-        (mismatches_df["NoisyFinal"])
-        & (mismatches_df["MismatchFrequency"].ge(snp_noise_level)),
-        ["Chrom", "Position", "MismatchFrequency", "NoiseThreshold"]
-    ],
-    how="outer"
-)
+# df = concat_snps_positions_df.loc[
+#     :,
+#     ["Chrom", "Position", "Noise", "AboveEditingThreshold"]
+# ].merge(
+#     mismatches_df.loc[
+#         (mismatches_df["NoisyFinal"])
+#         & (mismatches_df["MismatchFrequency"].ge(snp_noise_level)),
+#         ["Chrom", "Position", "MismatchFrequency", "NoiseThreshold"]
+#     ],
+#     how="outer"
+# )
 
-assert df.apply(
-    lambda x: np.isclose(x["MismatchFrequency"], x["Noise"]),
-    axis=1
-).all()
+# assert df.apply(
+#     lambda x: np.isclose(x["MismatchFrequency"], x["Noise"]),
+#     axis=1
+# ).all()
 
-assert df.loc[
-    (df["AboveEditingThreshold"])
-    & (df["Noise"].lt(df["NoiseThreshold"])),
-].empty
+# assert df.loc[
+#     (df["AboveEditingThreshold"])
+#     & (df["Noise"].lt(df["NoiseThreshold"])),
+# ].empty
 
-del df
+# del df
 
-# following that, i can use whatever is convinient for me - 
-# but it's still good i made ahead the snps reads files
+# # following that, i can use whatever is convinient for me - 
+# # but it's still good i made ahead the snps reads files
 
 # %%
 
@@ -3555,6 +3570,40 @@ fig.show()
 # %%
 
 # %%
+
+# %% [markdown]
+# ### 12 non-SNP mismatches distribution
+
+# %% [markdown]
+# For this analysis, we only consider genes in which we detected editing.  
+# This excludes genes with too many SNPs where we didn't even look for editing, or genes we looked at but didn't find any editing.  
+# Also, one needs to remember that by our definition of editing, a site is considered an A->G if its mismatch frequency
+# is above the noise threshold. Therefore, not many sites of other mismatches can possibly be above the noise threshold.
+
+# %%
+mismatches_df
+
+# %%
+significant_non_snp_mismatches_df = mismatches_df.loc[
+    (
+        (mismatches_df["EditedFinal"])
+        | (
+            (mismatches_df["NoisyFinal"])
+            & (mismatches_df["MismatchFrequency"].ge(mismatches_df["NoiseThreshold"]))
+            & (mismatches_df["MismatchFrequency"].lt(snp_noise_level))
+        )
+    )
+    & (mismatches_df["Chrom"].isin(chroms))
+]
+significant_non_snp_mismatches_df = significant_non_snp_mismatches_df.sort_values("Mismatch", ignore_index=True)
+significant_non_snp_mismatches_df
+
+# %%
+significant_non_snp_mismatches_df.to_csv(
+    Path(out_dir, "12NonSNPMismatchesAboveNoiseThreshold.Octopus.WholeTranscriptome.Pooled.csv"),
+    sep="\t",
+    index=False
+)
 
 # %% [markdown]
 # ### 12 mismatches distribution
