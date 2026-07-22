@@ -1321,6 +1321,14 @@ mismatches_df = mismatches_df.merge(
 mismatches_df
 
 # %%
+mismatches_df.columns
+
+# %%
+['Gene', 'Chrom', 'Position', 'Mismatch', 'TotalCoverage',
+       'MismatchFrequency', 'EditingThreshold', 'AboveEditingThreshold',
+       'Edited', 'SNP']
+
+# %%
 # # so it seems that the same data about snps can be extracted from the general positions files and from the 
 # # snps-specific positions files - which is reassuring. the mismatch annotation also allows to get the mismatch 
 # # type and frequency, which can be useful for downstream analyses and for setting a noise threshold based on the 

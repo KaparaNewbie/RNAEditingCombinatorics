@@ -854,6 +854,152 @@ for positions_df, condition in zip(noise_positions_dfs, conditions):
 noise_positions_dfs[0]
 
 # %% [markdown]
+# ## 12 mismatches
+
+# %%
+twelve_mismatches_dfs = []
+
+for positions_df, noise_positions_df in zip(positions_dfs, noise_positions_dfs):
+    
+    noise_positions_df = (
+        noise_positions_df
+        .loc[
+            :,
+            [
+                condition_col,
+                "Chrom",
+                "Position",
+                "RefBase",
+                "AltBase",
+                "TotalCoverage",
+                "Noise",
+                "EditingThreshold",
+                "AboveEditingThreshold",
+                "SNP"
+            ]
+        ]
+        .rename(
+            columns={"Noise": "MismatchFrequency"}
+        )
+        .assign(
+            Mismatch=lambda x: x.RefBase + ">" + x.AltBase,
+            Edited=False
+        )
+        .drop(
+            columns=["RefBase", "AltBase",]
+        )
+        .loc[
+            :,
+            [
+                condition_col,
+                "Chrom",
+                "Position",
+                "Mismatch",
+                "TotalCoverage",
+                "MismatchFrequency",
+                "EditingThreshold",
+                "AboveEditingThreshold",
+                "Edited",
+                "SNP"
+            ]
+        ]
+    )
+
+    editing_threshold = noise_positions_df["EditingThreshold"].iloc[0]
+    
+    positions_df = (
+        positions_df
+        .loc[
+            positions_df["Edited"],
+            [
+                condition_col,
+                "Chrom",
+                "Position",
+                "TotalCoverage",
+                "EditingFrequency",
+                "Edited",
+            ]
+        ]
+        .rename(
+            columns={"EditingFrequency": "MismatchFrequency"}
+        )
+        .assign(
+            Mismatch="A>G",
+            EditingThreshold=editing_threshold,
+            AboveEditingThreshold=True,
+            SNP=False
+            
+        )
+        .loc[
+            :,
+            [
+                condition_col,
+                "Chrom",
+                "Position",
+                "Mismatch",
+                "TotalCoverage",
+                "MismatchFrequency",
+                "EditingThreshold",
+                "AboveEditingThreshold",
+                "Edited",
+                "SNP"
+            ]
+        ]
+    )
+    
+    positions_df_not_empty = not positions_df.empty
+    noise_positions_df_not_empty = not noise_positions_df.empty
+
+    if positions_df_not_empty and noise_positions_df_not_empty:
+        twelve_mismatches_df = pd.concat([positions_df, noise_positions_df], ignore_index=True)
+    elif positions_df_not_empty:
+        twelve_mismatches_df = positions_df
+    elif noise_positions_df_not_empty:
+        twelve_mismatches_df = noise_positions_df
+    else:
+        twelve_mismatches_df = pd.DataFrame(
+            columns=[
+                condition_col,
+                "Chrom",
+                "Position",
+                "Mismatch",
+                "TotalCoverage",
+                "MismatchFrequency",
+                "EditingThreshold",
+                "AboveEditingThreshold",
+                "Edited",
+                "SNP"
+            ]
+        )
+    
+    twelve_mismatches_dfs.append(twelve_mismatches_df)
+    
+concat_twelve_mismatches_df = pd.concat(twelve_mismatches_dfs, ignore_index=True)
+
+assert concat_twelve_mismatches_df.loc[
+    (concat_twelve_mismatches_df["Edited"])
+    & (concat_twelve_mismatches_df["MismatchFrequency"].lt(concat_twelve_mismatches_df["EditingThreshold"]))
+].empty
+
+concat_twelve_mismatches_df
+
+# %%
+concat_twelve_mismatches_df.groupby([condition_col, "Position"]).size().value_counts()
+
+# %%
+concat_twelve_mismatches_df.groupby(condition_col)["SNP"].value_counts()
+
+# %%
+concat_twelve_mismatches_df.columns
+
+# %%
+concat_twelve_mismatches_df.to_csv(
+    Path(out_dir, "12Mismatches.Squid.Illumina.csv"),
+    sep="\t",
+    index=False
+)
+
+# %% [markdown]
 # ## 12 non-SNP mismatches
 
 # %%

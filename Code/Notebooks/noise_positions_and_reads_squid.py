@@ -527,12 +527,12 @@ def make_noise_positions(
         ),
         axis=1,
     )
-    noise_positions_df = noise_positions_df.loc[
-        ~(
-            (noise_positions_df["RefBase"].eq("A"))
-            & (noise_positions_df["AltBase"].eq("G"))
-        )
-    ]
+    # noise_positions_df = noise_positions_df.loc[
+    #     ~(
+    #         (noise_positions_df["RefBase"].eq("A"))
+    #         & (noise_positions_df["AltBase"].eq("G"))
+    #     )
+    # ]
     noise_positions_df["Noise"] = noise_positions_df.apply(
         lambda x: calc_noise(x[x["RefBase"]], x[x["AltBase"]]), axis=1
     )
@@ -542,6 +542,7 @@ def make_noise_positions(
         noise_levels = (
             noise_positions_df.loc[
                 (noise_positions_df["Noise"] < snp_noise_level)
+                & (noise_positions_df["RefBase"].ne("A"))
                 & (noise_positions_df[final_noise_col]),
                 "Noise",
             ]
@@ -551,7 +552,8 @@ def make_noise_positions(
     else:
         noise_levels = (
             noise_positions_df.loc[
-                (noise_positions_df["Noise"] < snp_noise_level),
+                (noise_positions_df["Noise"] < snp_noise_level)
+                & (noise_positions_df["RefBase"].ne("A")),
                 "Noise",
             ]
             .sort_values(ascending=False)[:top_x_noisy_positions]
@@ -571,7 +573,11 @@ def make_noise_positions(
     noise_positions_df["AboveEditingThreshold"] = noise_positions_df["Noise"].ge(editing_threshold)
     
     # annotate which positions are considered SNPs based on the snp_noise_level
-    noise_positions_df["SNP"] = noise_positions_df["Noise"].ge(snp_noise_level)
+    noise_positions_df["SNP"] = (
+        (noise_positions_df["Noise"].ge(snp_noise_level))
+        & (noise_positions_df["RefBase"].ne("A"))
+        & (noise_positions_df["AltBase"].ne("G"))
+    )
 
     # since the reads names in the noise positions file are the new compressed reads names, 
     # we need to map them back to the old compressed reads names (the originals) using the old_to_new_reads files
@@ -896,11 +902,10 @@ def make_noise_positions_and_snps_reads_dfs(
         snps_reads_df = make_snps_reads(
             snps_positions_df, snps_reads_file, platform, sample, parity, multisample
         )
-        return snps_positions_df, snps_reads_df
+        return noise_positions_df, snps_reads_df
     except Exception as e:
         print(f"Error occurred while processing {positions_file}: {e}")
         raise
-
 
 # %% [markdown]
 # # Finding SNPs
@@ -909,12 +914,12 @@ def make_noise_positions_and_snps_reads_dfs(
 # # ?make_positions_and_reads_snps_dfs
 
 # %%
-samples
+# samples
 
 # %%
 # # i = 2
-# # i = 0
-# i = 3
+# i = 0
+# # i = 3
 # positions_file = new_positions_files[i]
 # noise_positions_file = noise_positions_files[i]
 # # top_x_noisy_positions
@@ -930,6 +935,9 @@ samples
 # # multisample
 # new_old_to_new_reads_file = new_old_to_new_reads_files[i]
 # old_old_to_new_reads_file = old_old_to_new_reads_files[i]
+
+# %%
+# positions_file
 
 # %%
 # # testing new version of make_snps_positions,
@@ -1079,6 +1087,46 @@ samples
 # noise_positions_df
 
 # %%
+# # old threshold obtained by using samtools 2
+
+# threshold_candidates_df = noise_positions_df.loc[
+#     noise_positions_df["Noise"].lt(snp_noise_level)
+#     & noise_positions_df["RefBase"].ne("A")
+# ]
+
+# top3_df = threshold_candidates_df.nlargest(
+#     top_x_noisy_positions, "Noise"
+# )
+
+# display(
+#     top3_df[
+#         ["Position", "RefBase", "AltBase", "Noise", "TotalCoverage"]
+#     ]
+# )
+
+# top3_df["Noise"].sum() / top_x_noisy_positions * assurance_factor
+
+# %%
+# # new threshold obtained by using samtools 1.18
+
+# threshold_candidates_df = noise_positions_df.loc[
+#     noise_positions_df["Noise"].lt(snp_noise_level)
+#     & noise_positions_df["RefBase"].ne("A")
+# ]
+
+# top3_df = threshold_candidates_df.nlargest(
+#     top_x_noisy_positions, "Noise"
+# )
+
+# display(
+#     top3_df[
+#         ["Position", "RefBase", "AltBase", "Noise", "TotalCoverage"]
+#     ]
+# )
+
+# top3_df["Noise"].sum() / top_x_noisy_positions * assurance_factor
+
+# %%
 # snps_positions_df = noise_positions_df.loc[
 #     noise_positions_df["SNP"]
 # ].copy()
@@ -1218,7 +1266,16 @@ with Pool(processes=len(samples)) as pool:
                 new_old_to_new_reads_files,
                 old_old_to_new_reads_files
             )
-            
+        #     ) in zip(
+        #         new_positions_files[:2],
+        #         noise_positions_files[:2],
+        #         snps_reads_files[:2],
+        #         platforms[:2],
+        #         samples[:2],
+        #         parities[:2],
+        #         new_old_to_new_reads_files[:2],
+        #         old_old_to_new_reads_files[:2]
+        #     )  
         ],
     )
 
@@ -1226,7 +1283,16 @@ noise_positions_dfs = [dfs[0] for dfs in noise_positions_and_snps_reads_dfs]
 snps_reads_dfs = [dfs[1] for dfs in noise_positions_and_snps_reads_dfs]
 
 # %%
-noise_positions_dfs[0]
+noise_positions_df = noise_positions_dfs[0]
+noise_positions_df
+
+# %%
+noise_positions_df.loc[
+    (noise_positions_df["RefBase"].eq("A"))
+    & (noise_positions_df["AltBase"].eq("G")),
+    # & (noise_positions_df["Noise"].ge(noise_positions_df["EditingThreshold"]))
+    "Noise"
+].describe()
 
 # %%
 reads_noise_first_pos_loc = 3

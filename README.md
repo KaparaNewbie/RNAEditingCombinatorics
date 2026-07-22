@@ -5417,7 +5417,7 @@ samtools index -M *.bam
 
 ### PacBio 1
 
-```bash
+<!-- ```bash
 COMB
 
 mkdir -p D.pealeii/MpileupAndTranscripts/CompleteNoisePositions
@@ -5446,9 +5446,49 @@ directed_sequencing_data \
 > D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/pileup_with_subparsers.OnlyNoisePositions.OldPacBio.4.1.26.out &
 ```
 * alu 18
-* 3910740
+* 3910740 -->
 
-### PacBio 2
+
+
+
+There were discrepencies between the original and complete positions files in PB1.
+It's probably due to bumping the samtools version from 1.18 to 2.
+Therefore, since the original positions files for squid where created with samtools 1.18, I will also create it the complete positions file with the same version of samtools.
+
+```bash
+SAMTOOLS_118=/home/alu/kobish/anaconda3/envs/combinatorics/bin/samtools
+OUTDIR=D.pealeii/MpileupAndTranscripts/CompleteNoisePositions
+
+"$SAMTOOLS_118" --version
+
+mkdir -p "$OUTDIR"
+
+nohup \
+python Code/pileup_with_subparsers.py \
+--transcriptome D.pealeii/Annotations/Jan2025/orfs_squ.fa \
+--known_editing_sites D.pealeii/Annotations/Jan2025/D.pea.EditingSites.bed \
+--exclude_flags 2304 \
+--parity SE \
+--min_rq 0.998 \
+--min_bq 30 \
+--samtools_path "$SAMTOOLS_118" \
+--out_dir "$OUTDIR" \
+--processes 2 \
+--threads 15 \
+--gz_compression \
+--keep_pileup_files \
+--override_existing_pileup_files \
+directed_sequencing_data \
+--data_table Code/Alignment/DataTable.Squid.LongReads.csv \
+--cds_regions D.pealeii/Annotations/Jan2025/orfs_squ.bed \
+--keep_non_refbase_noisy_positions \
+--stop_after_making_noise_positions \
+> "$OUTDIR/pileup_with_subparsers.OnlyNoisePositions.PB1.samtools118.21.7.2026.out" 2>&1 &
+```
+* alu 13
+* 3519699
+
+<!-- ### PacBio 2
 
 I'm using `--total_mapped_reads 2000` rather than `--total_mapped_reads 50` only as a crude way to use the real sequenced transcripts.
 
@@ -5503,11 +5543,11 @@ directed_sequencing_data \
 > D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/pileup_with_subparsers.OnlyNoisePositions.PacBio3.23.6.26.out &
 ```
 * alu 18
-* 2436349
+* 2436349 -->
 
 ### Illumina 1
 
-```bash
+<!-- ```bash
 # mkdir -p D.pealeii/MpileupAndTranscripts/Illumina80KPairs
 
 nohup python Code/pileup_with_subparsers.py \
@@ -5522,6 +5562,7 @@ nohup python Code/pileup_with_subparsers.py \
 --threads 10 \
 --gz_compression \
 --keep_pileup_files \
+--override_existing_pileup_files \
 directed_sequencing_data \
 --data_table D.pealeii/Alignment/Illumina/reads.ByChrom/data_table.csv \
 --cds_regions D.pealeii/Annotations/Jan2025/orfs_squ.bed \
@@ -5530,7 +5571,42 @@ directed_sequencing_data \
 > D.pealeii/MpileupAndTranscripts/CompleteNoisePositions/pileup_with_subparsers.OnlyNoisePositions.Illumina.4.1.26.out &
 ```
 * alu 18
-* 3914152
+* 3914152 -->
+
+```bash
+SAMTOOLS_118=/home/alu/kobish/anaconda3/envs/combinatorics/bin/samtools
+OUTDIR=D.pealeii/MpileupAndTranscripts/CompleteNoisePositions
+
+"$SAMTOOLS_118" --version
+
+mkdir -p "$OUTDIR"
+
+nohup \
+python Code/pileup_with_subparsers.py \
+--transcriptome D.pealeii/Annotations/Jan2025/orfs_squ.fa \
+--known_editing_sites D.pealeii/Annotations/Jan2025/D.pea.EditingSites.bed \
+--include_flags 3 \
+--exclude_flags 2304 \
+--parity PE \
+--min_bq 30 \
+--samtools_path "$SAMTOOLS_118" \
+--out_dir "$OUTDIR" \
+--processes 10 \
+--threads 10 \
+--gz_compression \
+--keep_pileup_files \
+--override_existing_pileup_files \
+directed_sequencing_data \
+--data_table D.pealeii/Alignment/Illumina/reads.ByChrom/data_table.csv \
+--cds_regions D.pealeii/Annotations/Jan2025/orfs_squ.bed \
+--keep_non_refbase_noisy_positions \
+--stop_after_making_noise_positions \
+> "$OUTDIR/pileup_with_subparsers.OnlyNoisePositions.Illumina.samtools118..21.7.2026.out" 2>&1 &
+```
+* alu 13
+* 21.7.2026
+* 3239241
+
 
 ## Then create the actuall reads- and SNPs files using notebooks
 

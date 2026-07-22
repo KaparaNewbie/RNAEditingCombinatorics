@@ -5875,6 +5875,19 @@ pacbio_concat_signature_positions_df
 pacbio_concat_signature_positions_df["PositionInSignature"].value_counts(dropna=False)
 
 # %%
+pacbio_concat_signature_positions_df.groupby("Gene")["PositionInSignature"].value_counts(dropna=False)
+
+# %%
+pacbio_concat_signature_positions_df.loc[
+    (pacbio_concat_signature_positions_df["PositionInSignature"].eq("Yes"))
+    & (pacbio_concat_signature_positions_df["Edited"]),
+    [
+        "Chrom", "Gene", "Position", "EditingFrequency", 
+        "AAPosition", "SignatureAccession", "SignatureStart", "SignatureEnd"
+    ]
+].reset_index(drop=True)
+
+# %%
 pacbio_concat_signature_positions_proportion_df = (
     pacbio_concat_signature_positions_df.groupby([condition_col, "Edited"])[
         "PositionInSignature"
