@@ -241,6 +241,8 @@ transcriptome_file = (
 
 out_dir = Path("/private7/projects/Combinatorics/Code/Notebooks")
 
+replicates = [1, 2, 3]
+
 
 # %%
 # per_replicate_unmapped_bams_dir = Path(
@@ -12166,6 +12168,7 @@ for (row, col), condition in zip(
             # https://community.plotly.com/t/solving-the-problem-of-overlapping-text-labels-in-a-scatterplot-by-manually-assigning-the-position-of-each-label/66159/2
             # https://github.com/plotly/plotly.py/issues/925
             textposition="middle right",
+            # textposition="middle right" if condition != "ADAR1" else ["middle right", "middle right", "middle left"],
             textfont=dict(size=8),
         ),
         row=row,

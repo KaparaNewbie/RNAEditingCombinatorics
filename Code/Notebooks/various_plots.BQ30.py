@@ -493,6 +493,116 @@ def two_subcolors_from_hex(hex_color, d_r=4, d_g=20, d_b=22, scale_1=1, scale_2=
     return subcolor_1, subcolor_2
 
 
+# %%
+mismatches = sorted(
+    list(
+        {
+            f"{ref_base}>{alt_base}"
+            for ref_base in "ATCG"
+            for alt_base in "ATCG"
+            if ref_base != alt_base
+        }
+    )
+)
+mismatches
+
+# %%
+# mismatches_color_sequence = px.colors.qualitative.Set3
+mismatches_color_sequence = px.colors.qualitative.Dark24
+mismatch_dolor_map = {
+    mismatch: color
+    for mismatch, color in zip(
+        mismatches, mismatches_color_sequence
+    )
+}
+mismatch_dolor_map
+
+# %%
+squid_and_octopus_platforms = [
+    "Squid's Long-reads",
+    "Squid's Short-reads",
+    "Whole-transcriptome octopus data"
+]
+
+squid_and_octopus_platforms_two_lines = [
+    "Squids'<br>Long-reads", 
+    "Squids'<br>Short-reads", 
+    "Whole-transcriptome<br>octopus data"
+]
+
+# %%
+condition_col = "Gene"
+# platforms = ["Long-reads", "Short-reads"]
+
+pacbio_conditions = [
+    "GRIA2", "PCLO", 
+    # "ADAR1", "IQEC1"
+]
+
+illumina_conditions = [
+    'RUSC2',
+    'TRIM2',
+    'CA2D3',
+    'ABL',
+    'DGLA',
+    'K0513',
+    'KCNAS',
+    'ACHA4',
+    'ANR17',
+    'TWK7',
+    'SCN1',
+    'CACB2',
+    'RIMS2',
+    'PCLO',
+    'DOP1',
+    'IQEC1',
+    'CSKI1',
+    'MTUS2',
+    'ROBO2'
+]
+
+illumina_chroms = [
+    "comp141881_c0_seq3",
+    "comp141044_c0_seq2",
+    "comp140439_c0_seq1",
+    "comp126362_c0_seq1",
+    "comp141517_c0_seq1",
+    "comp141840_c0_seq2",
+    "comp141640_c0_seq1",
+    "comp140987_c3_seq1",
+    "comp140910_c2_seq1",
+    "comp136058_c0_seq1",
+    "comp141378_c0_seq7",
+    "comp141158_c1_seq2",
+    "comp140712_c0_seq3",
+    "comp141882_c0_seq14",
+    "comp141880_c1_seq3",
+    "comp141565_c6_seq3",
+    "comp141684_c0_seq1",
+    "comp141532_c3_seq11",
+    "comp141574_c0_seq3",
+]
+
+# %%
+squid_conditions = sorted(set(pacbio_conditions + illumina_conditions))
+squid_conditions
+
+# %%
+squid_color_sequence = px.colors.qualitative.Dark24
+squid_color_discrete_map = {
+    condition: color
+    for condition, color in zip(squid_conditions, squid_color_sequence)
+}
+ic(len(squid_conditions),len(squid_color_discrete_map))
+squid_color_discrete_map
+
+# %%
+squid_subcolors_discrete_map = {
+    condition: two_subcolors_from_hex(color)
+    for condition, color in squid_color_discrete_map.items()
+}
+squid_subcolors_discrete_map
+
 # %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"}
 # # Editing levels in PCLO - squid
 
@@ -3526,6 +3636,7 @@ merged_umi_assignment_df.loc[
 x_axis_name = "Isoform rank"
 y_axis_name = "Cumulative relative<br>expression [%]"
 head_title = "Cumulative expression vs. distinct unique proteins"
+sub_title = "Data are based on reads with recognizable barcodes"
 
 cols = min(facet_col_wrap, len(pacbio_umi_conditions), 4)
 rows = ceil(len(pacbio_umi_conditions) / cols)
@@ -3551,6 +3662,7 @@ fig = make_subplots(
 # legend_x = [5]
 # legend_ys = [[75], [65]]
 legend_x = [3]
+# legend_x = [100]
 # legend_ys = [[85], [75]]
 legend_ys = [[95], [85]]
 inner_texts = ["Full data", "Deduplicated data (UMIs)"]
@@ -3568,6 +3680,7 @@ for (row, col), condition in zip(row_col_iter, pacbio_umi_conditions):
 
     for color, df, legend_y, inner_text in zip(
         umis_subcolors_discrete_map[condition],
+        # squid_subcolors_discrete_map[condition],
         [duped_aassignment_df, deduped_aassignment_df],
         legend_ys,
         inner_texts,
@@ -3636,6 +3749,124 @@ fig.update_layout(
     template=template,
     width=width,
     height=height,
+    title=dict(
+        text=head_title,
+        subtitle=dict(
+            text=sub_title,
+            # font=dict(color="gray", size=14)
+        )
+    ),
+)
+
+# fig.write_image(
+#     Path(
+#         out_dir,
+#         "Cumulative expression vs. distinct protein rank - PacBio - full data vs. deduped.svg",
+#     ),
+#     width=width,
+#     height=height,
+# )
+
+fig.show()
+
+# %%
+x_axis_name = "Isoform rank"
+y_axis_name = "Cumulative relative expression [%]"
+head_title = "Cumulative expression vs. distinct unique proteins"
+sub_title = "Data are based on reads with recognizable barcodes"
+
+cols = len(pacbio_umi_conditions)
+rows = 2
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[
+    : len(pacbio_umi_conditions)
+]
+
+# assignment_method = "Weighted"
+# percentile_fractions = [0.1, 1.0]
+
+row_titles = ["Full data", "Deduplicated data (UMIs)"]
+
+fig = make_subplots(
+    rows=rows,
+    cols=cols,
+    subplot_titles=pacbio_umi_conditions,
+    shared_xaxes=True,
+    shared_yaxes=True,
+    x_title=x_axis_name,
+    y_title=y_axis_name,
+    row_titles=row_titles,
+    vertical_spacing=0.01,
+    horizontal_spacing=facet_col_spacing,
+)
+
+# legend_x = [5]
+# legend_ys = [[75], [65]]
+legend_x = [3]
+# legend_x = [100]
+# legend_ys = [[85], [75]]
+legend_ys = [[95], [85]]
+
+
+for col, condition in zip([1, 2, 3], pacbio_umi_conditions):
+    
+    for row, deduped in zip([1, 2], [False, True]):
+        assignment_df = merged_umi_assignment_df.loc[
+            (merged_umi_assignment_df["Deduped"].eq(deduped))
+            & (merged_umi_assignment_df["Gene"] == condition)
+        ]
+        # color = umis_subcolors_discrete_map[condition][row-1]
+        color = pacbio_color_discrete_map[condition]
+        x = assignment_df["#Protein"]
+        y = assignment_df["%CummulativeRelativeExpression"]
+
+        # x_mean = df.groupby("Percentile")["RequiredProteins"].apply(np.mean)
+        # y_unique = x_mean.index
+
+        fig.add_trace(
+            go.Scattergl(
+                x=x,
+                y=y,
+                mode="markers",
+                # mode="lines+markers",
+                marker=dict(
+                    color=color,
+                    size=4,
+                    opacity=0.5,
+                    # symbol=symbol,
+                    # line=dict(width=0),
+                ),
+            ),
+            row=row,
+            col=col,
+        )
+
+
+fig.update_xaxes(
+    # tick0 = -1,
+    # dtick = 5_000,
+    matches="x",
+    type="log",
+    nticks=6,
+)
+
+width = 1200
+# height = 450
+height = 700
+
+fig.update_layout(
+    # title="Squid's Long-reads",
+    # title_x=0.11,
+    showlegend=False,
+    template=template,
+    width=width,
+    height=height,
+    title=dict(
+        text=head_title,
+        subtitle=dict(
+            text=sub_title,
+            # font=dict(color="gray", size=14)
+        )
+    ),
 )
 
 # fig.write_image(
@@ -8248,15 +8479,15 @@ fig.suptitle(
     # y=1.2
 )
 
-plt.savefig(
-    Path(out_dir, "Known vs new editing sites - PacBio w UMIs.svg"), 
-    format="svg", dpi=300
-)
+# plt.savefig(
+#     Path(out_dir, "Known vs new editing sites - PacBio w UMIs.svg"), 
+#     format="svg", dpi=300
+# )
 
 plt.show()
 
 # %% [markdown]
-# # 12 non-SNP mismatches distribution
+# # 12 mismatches distribution
 
 # %% [markdown]
 # For this analysis, we only consider genes in which we detected editing.  
@@ -8265,215 +8496,140 @@ plt.show()
 # is above the noise threshold. Therefore, not many sites of other mismatches can possibly be above the noise threshold.
 
 # %%
-# condition_col = "Gene"
-# platforms = ["Long-reads", "Short-reads"]
-
-# pacbio_conditions = ["GRIA2", "PCLO", "ADAR1", "IQEC1"]
-
-# illumina_conditions = [
-#     'RUSC2',
-#     'TRIM2',
-#     'CA2D3',
-#     'ABL',
-#     'DGLA',
-#     'K0513',
-#     'KCNAS',
-#     'ACHA4',
-#     'ANR17',
-#     'TWK7',
-#     'SCN1',
-#     'CACB2',
-#     'RIMS2',
-#     'PCLO',
-#     'DOP1',
-#     'IQEC1',
-#     'CSKI1',
-#     'MTUS2',
-#     'ROBO2'
-# ]
-# illumina_chroms = [
-#     "comp141881_c0_seq3",
-#     "comp141044_c0_seq2",
-#     "comp140439_c0_seq1",
-#     "comp126362_c0_seq1",
-#     "comp141517_c0_seq1",
-#     "comp141840_c0_seq2",
-#     "comp141640_c0_seq1",
-#     "comp140987_c3_seq1",
-#     "comp140910_c2_seq1",
-#     "comp136058_c0_seq1",
-#     "comp141378_c0_seq7",
-#     "comp141158_c1_seq2",
-#     "comp140712_c0_seq3",
-#     "comp141882_c0_seq14",
-#     "comp141880_c1_seq3",
-#     "comp141565_c6_seq3",
-#     "comp141684_c0_seq1",
-#     "comp141532_c3_seq11",
-#     "comp141574_c0_seq3",
-# ]
-
-# %%
-# pacbio_color_sequence = px.colors.qualitative.G10
-# pacbio_color_discrete_map = {
-#     condition: color
-#     for condition, color in zip(pacbio_conditions, pacbio_color_sequence)
-# }
-
-# illumina_color_sequence = px.colors.qualitative.Dark24
-# illumina_color_discrete_map = {
-#     condition: color
-#     for condition, color in zip(illumina_conditions, illumina_color_sequence)
-# }
-
-# platforms_color_map = {
-#     platform: color_map
-#     for platform, color_map in zip(
-#         platforms, [pacbio_color_discrete_map, illumina_color_discrete_map]
-#     )
-# }
-
-# platforms_color_map
-
-# %%
-mismatches = sorted(
-    list(
-        {
-            f"{ref_base}>{alt_base}"
-            for ref_base in "ATCG"
-            for alt_base in "ATCG"
-            if ref_base != alt_base
-        }
-    )
-)
-mismatches
-
-# %%
-# mismatches_color_sequence = px.colors.qualitative.Set3
-mismatches_color_sequence = px.colors.qualitative.Dark24
-mismatch_dolor_map = {
-    mismatch: color
-    for mismatch, color in zip(
-        mismatches, mismatches_color_sequence
-    )
-}
-mismatch_dolor_map
-
-# %%
-# # pacbio_dispersion_file = "Dispersion.PacBio.tsv"
-# pacbio_12_mismatches_files_files = [
-#     Path(out_dir, "12MismatchsAboveNoiseThreshold.Squid.PacBio.csv"),
-#     # Path(out_dir, "12MismatchsAboveNoiseThreshold.Squid.PacBio.UMIs.csv"),
-# ]
-# illumina_12_mismatches_file = Path(out_dir, "12MismatchsAboveNoiseThreshold.Squid.Illumina.csv")
-# octopus_12_mismatches_file = Path(out_dir, "12MismatchsAboveNoiseThreshold.Octopus.WholeTranscriptome.Pooled.csv")
-
-# %%
 # pacbio_dispersion_file = "Dispersion.PacBio.tsv"
 pacbio_12_mismatches_files_files = [
-    Path(out_dir, "12NonSNPMismatchesAboveNoiseThreshold.Squid.PacBio.csv"),
+    Path(out_dir, "12Mismatches.Squid.PacBio1.csv"),
     # Path(out_dir, "12MismatchsAboveNoiseThreshold.Squid.PacBio.UMIs.csv"),
 ]
-illumina_12_mismatches_file = Path(out_dir, "12NonSNPMismatchesAboveNoiseThreshold.Squid.Illumina.csv")
-octopus_12_mismatches_file = Path(out_dir, "12NonSNPMismatchesAboveNoiseThreshold.Octopus.WholeTranscriptome.Pooled.csv")
+illumina_12_mismatches_file = Path(out_dir, "12Mismatches.Squid.Illumina.csv")
+octopus_12_mismatches_file = Path(out_dir, "12Mismatches.Octopus.PacBio.csv")
 
 # %%
 pacbio_12_mismatches_df = pd.concat(
     [
         pd.read_table(
-            f,
-            usecols=[
-                "Gene",
-                "Chrom",
-                "Position",
-                "Mismatch",
-                "TotalCoverage",
-                "MismatchFrequency"
-            ]
+            f
         )
         for f in pacbio_12_mismatches_files_files
     ],
     ignore_index=False
 )
-pacbio_12_mismatches_df["Platform"] = "Squid's Long-reads"
+pacbio_12_mismatches_df.insert(
+    0, 
+    "Platform", 
+    "Squid's Long-reads"
+)
+pacbio_12_mismatches_df["Gene"] = pacbio_12_mismatches_df["Gene"].apply(
+    lambda x: x if x != "GRIA" else "GRIA2"
+)
 pacbio_12_mismatches_df
 
 # %%
 illumina_12_mismatches_df = pd.read_table(
     illumina_12_mismatches_file,
-    usecols=[
-        "Gene",
-        "Chrom",
-        "Position",
-        "Mismatch",
-        "TotalCoverage",
-        "MismatchFrequency"
-    ]
 )
-illumina_12_mismatches_df["Platform"] = "Squid's Short-reads"
+illumina_12_mismatches_df.insert(
+    0, 
+    "Platform", 
+    "Squid's Short-reads"
+)
+illumina_12_mismatches_df["Gene"] = illumina_12_mismatches_df["Gene"].apply(
+    lambda x: x.split("_")[0]
+)
 illumina_12_mismatches_df
 
 # %%
-octopus_12_mismatches_df = pd.read_table(
-    octopus_12_mismatches_file,
-    usecols=[
-        "Transcript",
-        "Chrom",
-        "Position",
-        "Mismatch",
-        "TotalCoverage",
-        "MismatchFrequency"
-    ]
-).rename(
-    columns={
-        "Transcript": "Gene"
-    }
+octopus_12_mismatches_df = (
+    pd.read_table(
+        octopus_12_mismatches_file,
+    )
 )
-octopus_12_mismatches_df["Platform"] = "Whole-transcriptome octopus data"
+octopus_12_mismatches_df.insert(
+    0,
+    "Platform",
+    "Whole-transcriptome octopus data"
+)
+
+# only consider octopus genes in which we detected editing
+edited_octopus_chroms = octopus_12_mismatches_df.loc[
+    octopus_12_mismatches_df["Edited"],
+    "Chrom"
+].unique()
+ic(len(edited_octopus_chroms))
+octopus_12_mismatches_df = octopus_12_mismatches_df.loc[
+    octopus_12_mismatches_df["Chrom"].isin(edited_octopus_chroms)
+].reset_index(drop=True)
+
 octopus_12_mismatches_df
 
 # %%
-twelve_mismatches_dfs = [
-    pacbio_12_mismatches_df,
-    illumina_12_mismatches_df,
-    octopus_12_mismatches_df
-]
+# twelve_mismatches_dfs = [
+#     pacbio_12_mismatches_df,
+#     illumina_12_mismatches_df,
+#     octopus_12_mismatches_df
+# ]
 
 # %%
 concat_12_mismatches_df = pd.concat(
-    twelve_mismatches_dfs,
+    # twelve_mismatches_dfs,
+        [
+        pacbio_12_mismatches_df,
+        illumina_12_mismatches_df,
+        octopus_12_mismatches_df
+    ],
     ignore_index=True
 )
 concat_12_mismatches_df
 
 # %%
-pacbio_12_mismatches_df["Mismatch"].value_counts(normalize=True)
+concat_12_mismatches_df.groupby("Platform")["Noisy"].value_counts(dropna=False)
+
+# %% [markdown]
+# ## 12 non-SNP mismatches
 
 # %%
-illumina_12_mismatches_df["Mismatch"].value_counts(normalize=True)
+concat_12_non_snp_mismatches_df = concat_12_mismatches_df.loc[
+    (concat_12_mismatches_df["Edited"])
+    | (
+        (~concat_12_mismatches_df["SNP"] )
+        & (concat_12_mismatches_df["MismatchFrequency"].ge(concat_12_mismatches_df["EditingThreshold"]))
+        & (
+            (
+                (concat_12_mismatches_df["Platform"].eq("Whole-transcriptome octopus data"))
+                & (concat_12_mismatches_df["Noisy"])
+            )
+            | (
+                ~concat_12_mismatches_df["Platform"].eq("Whole-transcriptome octopus data")
+            )
+        )
+    )
+]
+concat_12_non_snp_mismatches_df
 
 # %%
-concat_12_mismatches_relative_abundance_df = (
-    concat_12_mismatches_df
+concat_12_non_snp_mismatches_df["Mismatch"].value_counts(normalize=True)
+
+# %%
+concat_12_non_snp_mismatches_relative_abundance_df = (
+    concat_12_non_snp_mismatches_df
     .groupby("Platform")["Mismatch"]
     .value_counts(normalize=True)
     .mul(100)
     .rename("% of sites")
     .reset_index()
 )
-concat_12_mismatches_relative_abundance_df
-
-# %%
+concat_12_non_snp_mismatches_relative_abundance_df
 
 # %%
 fig = px.box(
-    concat_12_mismatches_df,
+    concat_12_non_snp_mismatches_df,
     x="Mismatch",
     y="MismatchFrequency",
     color="Mismatch",
     color_discrete_map=mismatch_dolor_map,
     facet_col="Platform",
     facet_col_spacing=0.04,
+    # facet_row="Edited",
     # log_y=True,
     template=template,
     category_orders={"Mismatch": mismatches},
@@ -8505,48 +8661,8 @@ fig.update_layout(
 fig.show()
 
 # %%
-fig = px.ecdf(
-    concat_12_mismatches_df,
-    # x="Mismatch",
-    x="MismatchFrequency",
-    color="Mismatch",
-    color_discrete_map=mismatch_dolor_map,
-    facet_col="Platform",
-    facet_col_spacing=0.04,
-    # log_y=True,
-    template=template,
-    category_orders={"Mismatch": mismatches},
-    # title="Absolute number of sites above editing threshold",
-)
-
-width = 1400
-height = 500
-
-# Use for_each_annotation to customize each title (i.e., remove the "Platform=" prefix)
-fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
-
-# fig.update_xaxes(tickangle=35)
-# fig.update_yaxes(dtick=0.1)
-
-fig.update_layout(
-    width=width,
-    height=height,
-    # showlegend=False
-)
-
-# fig.write_image(
-#     Path(out_dir, "12 mismatches distribution - absolute - combined.svg"),
-#     width=width,
-#     height=height,
-# )
-
-fig.show()
-
-# %%
-
-# %%
 fig = px.histogram(
-    concat_12_mismatches_df,
+    concat_12_non_snp_mismatches_df,
     x="Mismatch",
     color="Mismatch",
     color_discrete_map=mismatch_dolor_map,
@@ -8555,7 +8671,7 @@ fig = px.histogram(
     log_y=True,
     template=template,
     category_orders={"Mismatch": mismatches},
-    title="Absolute number of sites above editing threshold",
+    title="Absolute number of editing and non-SNP sites above editing threshold",
 )
 
 width = 1400
@@ -8574,7 +8690,7 @@ fig.update_layout(
 )
 
 fig.write_image(
-    Path(out_dir, "12 mismatches distribution - absolute - combined.svg"),
+    Path(out_dir, "12 npn-SNP mismatches distribution - absolute - combined.svg"),
     width=width,
     height=height,
 )
@@ -8583,7 +8699,7 @@ fig.show()
 
 # %%
 fig = px.bar(
-    concat_12_mismatches_relative_abundance_df,
+    concat_12_non_snp_mismatches_relative_abundance_df,
     x="Mismatch",
     y="% of sites",
     color="Mismatch",
@@ -8593,7 +8709,7 @@ fig = px.bar(
     log_y=True,
     template=template,
     category_orders={"Mismatch": mismatches},
-    title="Relative number of sites above editing threshold",
+    title="Relative number of editing and non-SNP sites above editing threshold",
 )
 
 width = 1400
@@ -8612,12 +8728,972 @@ fig.update_layout(
 )
 
 fig.write_image(
-    Path(out_dir, "12 mismatches distribution - relative - combined.svg"),
+    Path(out_dir, "12 non-SNP mismatches distribution - relative - combined.svg"),
     width=width,
     height=height,
 )
 
 fig.show()
+
+# %% [markdown]
+# ## A>G vs G>A (SNR)
+
+# %%
+ag_vs_ga_mismatches_df = concat_12_mismatches_df.loc[
+    concat_12_mismatches_df["Mismatch"].isin(["A>G", "G>A"])
+]
+
+ag_vs_ga_mismatches_df
+
+
+# %%
+def calc_accuracy(a_to_g_counts, g_to_a_counts):
+    if g_to_a_counts == 0:
+        return np.nan
+    return a_to_g_counts / g_to_a_counts
+
+
+# %%
+def calc_snr(a_to_g_counts, g_to_a_counts):
+    return a_to_g_counts / (a_to_g_counts + g_to_a_counts)
+
+
+# %% [markdown]
+# ### Below SNP levels
+
+# %%
+ag_vs_ga_mismatches_below_snp_levels_df = ag_vs_ga_mismatches_df.loc[
+    (
+        ag_vs_ga_mismatches_df["MismatchFrequency"].ge(ag_vs_ga_mismatches_df["EditingThreshold"])
+    )
+    & (
+        (
+            ag_vs_ga_mismatches_df["Platform"].ne("Whole-transcriptome octopus data")
+            & ag_vs_ga_mismatches_df["MismatchFrequency"].lt(0.1)
+        )
+        | (
+            ag_vs_ga_mismatches_df["Platform"].eq("Whole-transcriptome octopus data")
+            & ag_vs_ga_mismatches_df["MismatchFrequency"].lt(0.05)
+            & (
+                (
+                    ag_vs_ga_mismatches_df["Mismatch"].eq("A>G") 
+                    & ag_vs_ga_mismatches_df["Edited"]
+                )
+                | (
+                    ag_vs_ga_mismatches_df["Mismatch"].eq("G>A")
+                    & ag_vs_ga_mismatches_df["Noisy"]
+                )
+            )
+        )
+    )
+]
+ag_vs_ga_mismatches_below_snp_levels_df
+
+# %%
+counts_of_ag_vs_ga_mismatches_below_snp_levels_df = (
+    ag_vs_ga_mismatches_below_snp_levels_df
+    .groupby(["Platform", "Gene", "Chrom"])
+    .agg(
+        AG=("Mismatch", lambda x: (x == "A>G").sum()),
+        GA=("Mismatch", lambda x: (x == "G>A").sum())
+    )
+    .reset_index()
+    .rename(
+        columns={
+            "AG": "A>G",
+            "GA": "G>A"
+        }
+    )
+    .assign(
+        Accuracy=lambda df: df.apply(
+            lambda x: calc_accuracy(x["A>G"], x["G>A"]),
+            axis=1
+        ),
+        SNR=lambda df: df.apply(
+            lambda x: calc_snr(x["A>G"], x["G>A"]),
+            axis=1
+        )
+    )
+)
+counts_of_ag_vs_ga_mismatches_below_snp_levels_df
+
+# %%
+(
+    counts_of_ag_vs_ga_mismatches_below_snp_levels_df
+    .groupby("Platform")
+    [["A>G", "G>A"]]
+    .sum()
+)
+
+# %%
+(
+    counts_of_ag_vs_ga_mismatches_below_snp_levels_df
+    .groupby("Platform")
+    ["SNR"]
+    .describe().round(2)
+)
+
+# %%
+counts_of_ag_vs_ga_mismatches_below_snp_levels_df.loc[
+    (counts_of_ag_vs_ga_mismatches_below_snp_levels_df["Platform"].eq("Whole-transcriptome octopus data"))
+    # & (counts_of_ag_vs_ga_mismatches_below_snp_levels_df["SNR"].ge(0.99))
+]
+
+# %%
+np.round(
+    (
+        100 
+        * counts_of_ag_vs_ga_mismatches_below_snp_levels_df.loc[
+            (counts_of_ag_vs_ga_mismatches_below_snp_levels_df["Platform"].eq("Whole-transcriptome octopus data"))
+            # & (counts_of_ag_vs_ga_mismatches_below_snp_levels_df["SNR"].ge(0.99))
+            & (counts_of_ag_vs_ga_mismatches_below_snp_levels_df["SNR"].eq(1))
+        ].shape[0] 
+        / counts_of_ag_vs_ga_mismatches_below_snp_levels_df.loc[
+            (counts_of_ag_vs_ga_mismatches_below_snp_levels_df["Platform"].eq("Whole-transcriptome octopus data"))
+        ].shape[0]
+    ),
+    2
+) 
+
+# %%
+column_widths = [len(pacbio_conditions), len(illumina_conditions), len(illumina_conditions)/2]
+subplot_titles = squid_and_octopus_platforms_two_lines
+
+fig = make_subplots(
+    rows=1,
+    cols=3,
+    # y_title="Dispersion [%]",
+    # x_title="Gene",
+    subplot_titles=subplot_titles,
+    # shared_yaxes="all",
+    # shared_xaxes="all",
+    # vertical_spacing=0.04,
+    horizontal_spacing=0.06,
+    column_widths=column_widths,
+)
+
+# for platform, conditions, col in zip(
+#     squid_and_octopus_platforms[:2], [pacbio_conditions, illumina_conditions], [1, 2]
+# ):
+
+for platform, col in zip(
+    squid_and_octopus_platforms[:2], [1, 2]
+):
+    df = counts_of_ag_vs_ga_mismatches_below_snp_levels_df.loc[
+        (counts_of_ag_vs_ga_mismatches_below_snp_levels_df["Platform"].eq(platform))
+        # & (counts_of_ag_vs_ga_mismatches_below_snp_levels_df["Gene"].eq(condition))
+    ].sort_values("Gene")
+    
+    x = df["Gene"]
+    y = df["SNR"]
+    
+    colors = [squid_color_discrete_map[condition] for condition in x]
+    
+    # df = counts_of_ag_vs_ga_mismatches_below_snp_levels_df.loc[
+    #     (counts_of_ag_vs_ga_mismatches_below_snp_levels_df["Platform"].eq(platform))
+    #     # & (counts_of_ag_vs_ga_mismatches_below_snp_levels_df["Gene"].eq(condition))
+    # ].sort_values("Gene")
+    
+    
+    
+    # color = platforms_color_map[platform][condition]
+    # col = 1 if platform == "Long-reads" else 2
+    
+
+    fig.add_trace(
+        go.Bar(
+            x=x,
+            y=y,
+            # mode="markers",
+            # fillcolor=color,
+            marker=dict(
+                # color=color,
+                color=colors,
+                # symbol=platforms_symbols[platform],
+                # size=3,
+                # opacity=0.3,
+            ),
+            # mode="lines",
+            # line=dict(
+            #     color=platforms_color_map[platform][condition],
+            #     dash=platforms_dashes[platform],
+            #     # size=8,
+            # ),
+            # opacity=0.3,
+            # name=condition,
+        ),
+        row=1,
+        col=col,
+    )
+    
+    fig.update_xaxes(row=1, col=col, title_text="Gene", tickangle = 30, tickfont=dict(size=10))
+    # fig.update_yaxes(row=1, col=col, range=[0, max_noise])
+    
+    # ic(platform, condition)
+    # ic(x)
+    # ic(y)
+    # break
+
+fig.update_yaxes(row=1, col=1, title_text="SNR")
+
+df = counts_of_ag_vs_ga_mismatches_below_snp_levels_df.loc[
+    (counts_of_ag_vs_ga_mismatches_below_snp_levels_df["Platform"].eq(squid_and_octopus_platforms[-1]))
+    # & (counts_of_ag_vs_ga_mismatches_below_snp_levels_df["Gene"].eq(condition))
+]
+x = df["SNR"]
+
+fig.add_trace(
+        go.Histogram(
+        y=x,
+        marker_color="black",
+        # cumulative_enabled=True,
+        histnorm='percent',
+        # opacity=0.5
+    ),
+    row=1,
+    col=3,
+)
+
+fig.update_xaxes(row=1, col=3, title_text="Genes [%]", type="log")
+# fig.update_yaxes(row=1, col=3, autorange="reversed")
+# fig.update_yaxes(row=1, col=3, title_text="Per-gene noise level [%]", range=[0, max_noise])
+# fig.update_yaxes(dtick=1)
+
+    
+# fig.update_xaxes(
+#         tickangle = 30, 
+#     # title_standoff = 10,
+#     tickfont=dict(size=10)
+# )    
+
+# fig.update_yaxes(type="log",
+#                  # range=[np.log10(y_min), np.log10(y_max)], nticks=6
+#                 )
+
+
+width = 1200
+height = 450
+
+fig.update_annotations(
+    # yshift=20, 
+    font_size=14
+)
+
+fig.update_layout(
+    title="Below-SNP SNR levels",
+    title_x=0.07,
+    title_y=0.95,
+    template=template,
+    width=width,
+    height=height,
+    showlegend=False
+)
+
+# fig.write_image(
+#     Path(out_dir, "Per chrom noise levels - PacBio vs. Illumina vs. octopus pooled.svg"),
+#     width=width,
+#     height=height,
+# )
+
+fig.show()
+
+# %% [markdown]
+# ### Above SNP levels
+
+# %%
+ag_vs_ga_mismatches_df.loc[
+    (
+        ag_vs_ga_mismatches_df["MismatchFrequency"].ge(ag_vs_ga_mismatches_df["EditingThreshold"])
+    )
+    & (
+        (
+            ag_vs_ga_mismatches_df["Platform"].ne("Whole-transcriptome octopus data")
+            & ag_vs_ga_mismatches_df["MismatchFrequency"].lt(0.1)
+        )
+        | (
+            ag_vs_ga_mismatches_df["Platform"].eq("Whole-transcriptome octopus data")
+            & ag_vs_ga_mismatches_df["MismatchFrequency"].lt(0.05)
+            & (
+                (
+                    ag_vs_ga_mismatches_df["Mismatch"].eq("A>G") 
+                    & ag_vs_ga_mismatches_df["Edited"]
+                )
+                | (
+                    ag_vs_ga_mismatches_df["Mismatch"].eq("G>A")
+                    & ag_vs_ga_mismatches_df["Noisy"]
+                )
+            )
+        )
+    )
+]
+
+# %%
+ag_vs_ga_mismatches_above_snp_levels_df = ag_vs_ga_mismatches_df.loc[
+    (
+        ag_vs_ga_mismatches_df["MismatchFrequency"].ge(ag_vs_ga_mismatches_df["EditingThreshold"])
+    )
+    & (
+        (
+            ag_vs_ga_mismatches_df["Platform"].ne("Whole-transcriptome octopus data")
+            & ag_vs_ga_mismatches_df["MismatchFrequency"].ge(0.1)
+        )
+        | (
+            ag_vs_ga_mismatches_df["Platform"].eq("Whole-transcriptome octopus data")
+            & ag_vs_ga_mismatches_df["MismatchFrequency"].ge(0.05)
+            & (
+                (
+                    ag_vs_ga_mismatches_df["Mismatch"].eq("A>G") 
+                    & ag_vs_ga_mismatches_df["Edited"]
+                )
+                | (
+                    ag_vs_ga_mismatches_df["Mismatch"].eq("G>A")
+                    & ag_vs_ga_mismatches_df["Noisy"]
+                    & ag_vs_ga_mismatches_df["SNP"]
+                )
+            )
+        )
+    )
+]
+
+assert ag_vs_ga_mismatches_above_snp_levels_df.loc[
+    ~(
+        ag_vs_ga_mismatches_above_snp_levels_df["Edited"]
+        | ag_vs_ga_mismatches_above_snp_levels_df["SNP"]
+        
+    )
+].empty
+
+ag_vs_ga_mismatches_above_snp_levels_df
+
+# %%
+counts_of_ag_vs_ga_mismatches_above_snp_levels_df = (
+    ag_vs_ga_mismatches_above_snp_levels_df
+    .groupby(["Platform", "Gene", "Chrom"])
+    .agg(
+        AG=("Mismatch", lambda x: (x == "A>G").sum()),
+        GA=("Mismatch", lambda x: (x == "G>A").sum())
+    )
+    .reset_index()
+    .rename(
+        columns={
+            "AG": "A>G",
+            "GA": "G>A"
+        }
+    )
+    .assign(
+        Accuracy=lambda df: df.apply(
+            lambda x: calc_accuracy(x["A>G"], x["G>A"]),
+            axis=1
+        ),
+        SNR=lambda df: df.apply(
+            lambda x: calc_snr(x["A>G"], x["G>A"]),
+            axis=1
+        )
+    )
+)
+counts_of_ag_vs_ga_mismatches_above_snp_levels_df
+
+# %%
+(
+    counts_of_ag_vs_ga_mismatches_above_snp_levels_df
+    .groupby("Platform")
+    [["A>G", "G>A"]]
+    .sum()
+)
+
+# %%
+(
+    counts_of_ag_vs_ga_mismatches_above_snp_levels_df
+    .groupby("Platform")
+    ["SNR"]
+    .describe().round(2)
+)
+
+# %%
+np.round(
+    (
+        100 
+        * counts_of_ag_vs_ga_mismatches_above_snp_levels_df.loc[
+            (counts_of_ag_vs_ga_mismatches_above_snp_levels_df["Platform"].eq("Whole-transcriptome octopus data"))
+            # & (counts_of_ag_vs_ga_mismatches_below_snp_levels_df["SNR"].ge(0.99))
+            & (counts_of_ag_vs_ga_mismatches_above_snp_levels_df["SNR"].eq(1))
+        ].shape[0] 
+        / counts_of_ag_vs_ga_mismatches_above_snp_levels_df.loc[
+            (counts_of_ag_vs_ga_mismatches_above_snp_levels_df["Platform"].eq("Whole-transcriptome octopus data"))
+        ].shape[0]
+    ),
+    2
+) 
+
+# %%
+column_widths = [len(pacbio_conditions), len(illumina_conditions), len(illumina_conditions)/2]
+subplot_titles = squid_and_octopus_platforms_two_lines
+
+fig = make_subplots(
+    rows=1,
+    cols=3,
+    # y_title="Dispersion [%]",
+    # x_title="Gene",
+    subplot_titles=subplot_titles,
+    # shared_yaxes="all",
+    # shared_xaxes="all",
+    # vertical_spacing=0.04,
+    horizontal_spacing=0.06,
+    column_widths=column_widths,
+)
+
+for platform, col in zip(
+    squid_and_octopus_platforms[:2], [1, 2]
+):
+    df = counts_of_ag_vs_ga_mismatches_above_snp_levels_df.loc[
+        (counts_of_ag_vs_ga_mismatches_above_snp_levels_df["Platform"].eq(platform))
+        # & (counts_of_ag_vs_ga_mismatches_below_snp_levels_df["Gene"].eq(condition))
+    ].sort_values("Gene")
+    
+    x = df["Gene"]
+    y = df["SNR"]
+    
+    colors = [squid_color_discrete_map[condition] for condition in x]
+        
+
+    fig.add_trace(
+        go.Bar(
+            x=x,
+            y=y,
+            # mode="markers",
+            # fillcolor=color,
+            marker=dict(
+                # color=color,
+                color=colors,
+                # symbol=platforms_symbols[platform],
+                # size=3,
+                # opacity=0.3,
+            ),
+            # mode="lines",
+            # line=dict(
+            #     color=platforms_color_map[platform][condition],
+            #     dash=platforms_dashes[platform],
+            #     # size=8,
+            # ),
+            # opacity=0.3,
+            # name=condition,
+        ),
+        row=1,
+        col=col,
+    )
+    
+    fig.update_xaxes(row=1, col=col, title_text="Gene", tickangle = 30, tickfont=dict(size=10))
+    # fig.update_yaxes(row=1, col=col, range=[0, max_noise])
+    
+    # ic(platform, condition)
+    # ic(x)
+    # ic(y)
+    # break
+
+fig.update_yaxes(row=1, col=1, title_text="SNR")
+
+df = counts_of_ag_vs_ga_mismatches_above_snp_levels_df.loc[
+    (counts_of_ag_vs_ga_mismatches_above_snp_levels_df["Platform"].eq(squid_and_octopus_platforms[-1]))
+    # & (counts_of_ag_vs_ga_mismatches_below_snp_levels_df["Gene"].eq(condition))
+]
+x = df["SNR"]
+
+fig.add_trace(
+        go.Histogram(
+        y=x,
+        marker_color="black",
+        # cumulative_enabled=True,
+        histnorm='percent',
+        # opacity=0.5
+    ),
+    row=1,
+    col=3,
+)
+
+fig.update_xaxes(row=1, col=3, title_text="Genes [%]", type="log")
+# fig.update_yaxes(row=1, col=3, autorange="reversed")
+# fig.update_yaxes(row=1, col=3, title_text="Per-gene noise level [%]", range=[0, max_noise])
+# fig.update_yaxes(dtick=1)
+
+    
+# fig.update_xaxes(
+#         tickangle = 30, 
+#     # title_standoff = 10,
+#     tickfont=dict(size=10)
+# )    
+
+# fig.update_yaxes(type="log",
+#                  # range=[np.log10(y_min), np.log10(y_max)], nticks=6
+#                 )
+
+
+width = 1200
+height = 450
+
+fig.update_annotations(
+    # yshift=20, 
+    font_size=14
+)
+
+fig.update_layout(
+    title="Above-SNP SNR levels",
+    title_x=0.07,
+    title_y=0.95,
+    template=template,
+    width=width,
+    height=height,
+    showlegend=False
+)
+
+# fig.write_image(
+#     Path(out_dir, "Per chrom noise levels - PacBio vs. Illumina vs. octopus pooled.svg"),
+#     width=width,
+#     height=height,
+# )
+
+fig.show()
+
+# %%
+
+# %% [markdown]
+# ## SNPs vs. editing
+
+# %%
+concat_snps_vs_strong_editing_mismatches_df = concat_12_mismatches_df.loc[
+    (
+        (concat_12_mismatches_df["Edited"])
+        & (
+            (
+                concat_12_mismatches_df["Platform"].eq("Whole-transcriptome octopus data")
+                & concat_12_mismatches_df["MismatchFrequency"].ge(0.05)
+            )
+            | (
+                concat_12_mismatches_df["Platform"].ne("Whole-transcriptome octopus data")
+                & concat_12_mismatches_df["MismatchFrequency"].ge(0.1)
+            )
+        )
+    )
+    | (
+        concat_12_mismatches_df["SNP"]
+    )
+]
+
+assert concat_snps_vs_strong_editing_mismatches_df.loc[
+    :,
+    ["Edited", "SNP"]
+].sum(axis=1).eq(1).all()
+
+concat_snps_vs_strong_editing_mismatches_df["Site"] = np.where(
+    concat_snps_vs_strong_editing_mismatches_df["Edited"],
+    # "Editing<br>sites",
+    # "Strong <br>editing sites",
+    "Strong editing sites",
+    "SNPs"
+)
+
+concat_snps_vs_strong_editing_mismatches_df
+
+# %%
+# concat_snps_vs_strong_editing_mismatches_df.loc[
+#     (
+#         (concat_snps_vs_strong_editing_mismatches_df["Platform"].eq("Whole-transcriptome octopus data"))
+#         & (concat_snps_vs_strong_editing_mismatches_df["Mismatch"].ne("A>G"))
+#         & (concat_snps_vs_strong_editing_mismatches_df["SNP"])
+#         & (concat_snps_vs_strong_editing_mismatches_df["Noisy"])
+#     )
+# ]
+
+# %%
+# concat_snps_vs_strong_editing_mismatches_df.loc[
+#     (
+#         (concat_snps_vs_strong_editing_mismatches_df["Platform"].eq("Whole-transcriptome octopus data"))
+#         & (concat_snps_vs_strong_editing_mismatches_df["Mismatch"].ne("A>G"))
+#         & (concat_snps_vs_strong_editing_mismatches_df["SNP"])
+#         # & (concat_snps_vs_strong_editing_mismatches_df["Noisy"])
+#     )
+# ]
+
+# %%
+counts_of_snps_vs_strong_editing_df = (
+    concat_snps_vs_strong_editing_mismatches_df
+    .groupby(["Platform", "Chrom", "Gene"])
+    .agg(
+        StrongEditingSites=("Mismatch", lambda x: (x == "A>G").sum()),
+        SNPs=("Mismatch", lambda x: (x != "A>G").sum())
+    )
+    # ["Site"].value_counts()
+    .reset_index()
+    # .rename(
+    #     columns={
+    #         "AG": "A>G",
+    #         "GA": "G>A"
+    #     }
+    # )
+    .assign(
+        # Accuracy=lambda df: df.apply(
+        #     lambda x: calc_accuracy(x["A>G"], x["G>A"]),
+        #     axis=1
+        # ),
+        # SNR=lambda df: df.apply(
+        #     lambda x: calc_snr(x["A>G"], x["G>A"]),
+        #     axis=1
+        # )
+        StrongEditingSitesMinusSNPs=lambda df: df.apply(
+            lambda x: x["StrongEditingSites"] - x["SNPs"],
+            axis=1
+        )
+    )
+    .assign(
+        SitesVsSNPs=lambda df: df.apply(
+            lambda x: "More strong editing sites" if x["StrongEditingSites"] > x["SNPs"]
+            else "More SNPs" if x["StrongEditingSites"] < x["SNPs"] else "Equal counts",
+            axis=1
+        )
+    )
+)
+counts_of_snps_vs_strong_editing_df
+
+# %%
+squid_counts_of_snps_vs_strong_editing_df = counts_of_snps_vs_strong_editing_df.loc[
+    counts_of_snps_vs_strong_editing_df["Platform"].ne("Whole-transcriptome octopus data"),
+    ["Platform", "Gene", "StrongEditingSites", "SNPs"]
+]
+squid_counts_of_snps_vs_strong_editing_df
+
+# %%
+squid_counts_of_snps_vs_strong_editing_df.loc[:, ["StrongEditingSites", "SNPs"]].sum()
+
+# %%
+octopus_counts_of_snps_vs_strong_editing_df = counts_of_snps_vs_strong_editing_df.loc[
+    counts_of_snps_vs_strong_editing_df["Platform"].eq("Whole-transcriptome octopus data")
+]
+octopus_counts_of_snps_vs_strong_editing_df
+
+# %%
+octopus_counts_of_snps_vs_strong_editing_df.loc[
+    octopus_counts_of_snps_vs_strong_editing_df["StrongEditingSites"].eq(0),
+    "SNPs"
+].describe().round(2)
+
+# %%
+octopus_counts_of_snps_vs_strong_editing_df.loc[
+    octopus_counts_of_snps_vs_strong_editing_df["SNPs"].eq(0),
+    "StrongEditingSites"
+].describe().round(2)
+
+# %%
+(
+    octopus_counts_of_snps_vs_strong_editing_df
+    .loc[:, ["StrongEditingSites", "SNPs"]]
+    .describe().round(2)
+)
+
+# %%
+(
+    octopus_counts_of_snps_vs_strong_editing_df["SitesVsSNPs"]
+    .value_counts()
+)
+
+# %%
+(
+    octopus_counts_of_snps_vs_strong_editing_df["StrongEditingSitesMinusSNPs"]
+    .describe().round(2)
+)
+
+# %%
+(
+    octopus_counts_of_snps_vs_strong_editing_df
+    .groupby("SitesVsSNPs")
+    ["StrongEditingSitesMinusSNPs"]
+    .describe().round(2)
+)
+
+# %%
+# (
+#     concat_snps_vs_editing_mismatches_df
+#     .groupby("Platform")
+#     .apply(
+#         lambda df: df["SNP"].sum() / (df["SNP"].sum() + df["Edited"].sum())
+#     )
+# )
+
+# %%
+# (
+#     concat_snps_vs_editing_mismatches_df
+#     .groupby(["Platform", "Chrom", "Gene"])
+#     .apply(
+#         lambda df: df["SNP"].sum() / (df["SNP"].sum() + df["Edited"].sum())
+#     )
+# )
+
+# %%
+
+# %%
+fig = px.histogram(
+    concat_snps_vs_editing_mismatches_df,
+    x="Site",
+    color="Site",
+    # color_discrete_map=mismatch_dolor_map,
+    facet_col="Platform",
+    facet_col_spacing=0.04,
+    # log_y=True,
+    template=template,
+    labels={
+        "Site": ""
+    }
+    # category_orders={"Mismatch": mismatches},
+    # title="Absolute number of editing and non-SNP sites above editing threshold",
+)
+
+width = 900
+height = 350
+
+# Use for_each_annotation to customize each title (i.e., remove the "Platform=" prefix)
+fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+
+# fig.update_xaxes(tickangle=35)
+# fig.update_yaxes(dtick=10)
+
+fig.update_layout(
+    width=width,
+    height=height,
+    showlegend=False
+)
+
+# fig.write_image(
+#     Path(out_dir, "12 npn-SNP mismatches distribution - absolute - combined.svg"),
+#     width=width,
+#     height=height,
+# )
+
+fig.show()
+
+# %%
+fig = px.histogram(
+    concat_snps_vs_editing_mismatches_df,
+    x="Platform",
+    color="Site",
+    # color_discrete_map=mismatch_dolor_map,
+    # facet_col="Platform",
+    # facet_col_spacing=0.04,
+    log_y=True,
+    template=template,
+    labels={
+        "Site": ""
+    },
+    barmode='group',
+    # category_orders={"Mismatch": mismatches},
+    # title="Absolute number of editing and non-SNP sites above editing threshold",
+)
+
+width = 900
+height = 350
+
+# Use for_each_annotation to customize each title (i.e., remove the "Platform=" prefix)
+fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+
+# fig.update_xaxes(tickangle=35)
+# fig.update_yaxes(dtick=10)
+
+fig.update_layout(
+    width=width,
+    height=height,
+    # showlegend=False
+)
+
+# fig.write_image(
+#     Path(out_dir, "12 npn-SNP mismatches distribution - absolute - combined.svg"),
+#     width=width,
+#     height=height,
+# )
+
+fig.show()
+
+# %%
+fig = px.histogram(
+    concat_snps_vs_editing_mismatches_df.loc[
+    concat_snps_vs_editing_mismatches_df["Platform"].ne("Whole-transcriptome octopus data")
+    ],
+    x="Gene",
+    color="Site",
+    # color_discrete_map=mismatch_dolor_map,
+    # facet_col="Platform",
+    facet_col_spacing=0.04,
+    log_y=True,
+    template=template,
+    labels={
+        "Site": ""
+    }
+    # category_orders={"Mismatch": mismatches},
+    # title="Absolute number of editing and non-SNP sites above editing threshold",
+)
+
+width = 900
+height = 350
+
+# Use for_each_annotation to customize each title (i.e., remove the "Platform=" prefix)
+fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+
+# fig.update_xaxes(tickangle=35)
+# fig.update_yaxes(dtick=10)
+
+fig.update_layout(
+    width=width,
+    height=height,
+    showlegend=False
+)
+
+# fig.write_image(
+#     Path(out_dir, "12 npn-SNP mismatches distribution - absolute - combined.svg"),
+#     width=width,
+#     height=height,
+# )
+
+fig.show()
+
+# %% [markdown]
+# ## 12 mismatches below SNP levels
+
+# %%
+concat_12_mismatches_df.loc[
+    (
+        concat_12_mismatches_df["Platform"].eq("Whole-transcriptome octopus data")
+        & concat_12_mismatches_df["Mismatch"].eq("A>G")
+        # & concat_12_mismatches_df["MismatchFrequency"].lt(0.05)
+    ),
+    "MismatchFrequency"
+].describe().round(2)
+
+# %%
+concat_12_mismatches_df.loc[
+    (
+        concat_12_mismatches_df["Platform"].eq("Whole-transcriptome octopus data")
+        & concat_12_mismatches_df["Mismatch"].eq("A>G")
+        # & concat_12_mismatches_df["MismatchFrequency"].lt(0.05)
+    ),
+    # "MismatchFrequency"
+]
+
+# %%
+concat_12_mismatches_below_snp_levels_df = concat_12_mismatches_df.loc[
+    (
+        concat_12_mismatches_df["Platform"].eq("Whole-transcriptome octopus data")
+        & concat_12_mismatches_df["MismatchFrequency"].lt(0.05)
+        & (
+            concat_12_mismatches_df["Edited"]
+            | concat_12_mismatches_df["Noisy"]
+        )
+    ) | (
+        concat_12_mismatches_df["Platform"].ne("Whole-transcriptome octopus data")
+        & concat_12_mismatches_df["MismatchFrequency"].lt(0.1)
+    )
+]
+
+assert concat_12_mismatches_below_snp_levels_df["SNP"].eq(False).all()
+
+concat_12_mismatches_below_snp_levels_df
+
+# %%
+concat_12_mismatches_below_snp_levels_relative_abundance_df = (
+    concat_12_mismatches_below_snp_levels_df
+    .groupby("Platform")["Mismatch"]
+    .value_counts(normalize=True)
+    .mul(100)
+    .rename("% of sites")
+    .reset_index()
+)
+concat_12_mismatches_below_snp_levels_relative_abundance_df
+
+# %%
+(
+    concat_12_mismatches_below_snp_levels_df
+    .loc[
+        concat_12_mismatches_below_snp_levels_df["Mismatch"].eq("A>G")
+    ]
+    .groupby(["Platform", "AboveEditingThreshold"])
+    .size()
+)
+
+# %%
+fig = px.histogram(
+    concat_12_mismatches_below_snp_levels_df,
+    x="Mismatch",
+    color="Mismatch",
+    color_discrete_map=mismatch_dolor_map,
+    facet_col="Platform",
+    facet_col_spacing=0.04,
+    facet_row="AboveEditingThreshold",
+    log_y=True,
+    template=template,
+    category_orders={"Mismatch": mismatches},
+    # title="Absolute number of editing and non-SNP sites above editing threshold",
+)
+
+width = 1400
+# height = 500
+height = 600
+
+# Use for_each_annotation to customize each title (i.e., remove the "Platform=" prefix)
+# fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+
+fig.update_xaxes(tickangle=35)
+# fig.update_yaxes(dtick=10)
+
+fig.update_layout(
+    width=width,
+    height=height,
+    showlegend=False
+)
+
+# fig.write_image(
+#     Path(out_dir, "12 npn-SNP mismatches distribution - absolute - combined.svg"),
+#     width=width,
+#     height=height,
+# )
+
+fig.show()
+
+# %%
+fig = px.bar(
+    concat_12_mismatches_below_snp_levels_relative_abundance_df,
+    x="Mismatch",
+    y="% of sites",
+    color="Mismatch",
+    color_discrete_map=mismatch_dolor_map,
+    facet_col="Platform",
+    facet_col_spacing=0.04,
+    # log_y=True,
+    template=template,
+    category_orders={"Mismatch": mismatches},
+    # title="Relative number of editing and non-SNP sites above editing threshold",
+)
+
+width = 1400
+height = 500
+
+# Use for_each_annotation to customize each title (i.e., remove the "Platform=" prefix)
+fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+
+fig.update_xaxes(tickangle=35)
+# fig.update_yaxes(dtick=10)
+
+fig.update_layout(
+    width=width,
+    height=height,
+    showlegend=False
+)
+
+# fig.write_image(
+#     Path(out_dir, "12 non-SNP mismatches distribution - relative - combined.svg"),
+#     width=width,
+#     height=height,
+# )
+
+fig.show()
+
+# %%
+
+# %%
 
 # %% [markdown]
 # # Combined long reads raw stats plots for squid

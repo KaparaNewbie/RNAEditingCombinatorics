@@ -2928,6 +2928,37 @@ unique_proteins_dfs[0]
 
 
 # %%
+(
+    pd.concat(
+        df.loc[:, [condition_col, "NumOfReads"]]
+        for df in unique_proteins_dfs
+    )
+    .loc[:, "NumOfReads"].sum()
+    # [["NumOfReads"]].sum(2)
+)
+
+# %%
+(
+    pd.concat(
+        df.loc[:, [condition_col, "NumOfReads"]]
+        for df in unique_proteins_dfs
+    )
+    .groupby(condition_col)["NumOfReads"]
+    .describe().round(2)
+)
+
+# %%
+(
+    pd.concat(
+        df.loc[:, [condition_col, "NumOfReads"]]
+        for df in unique_proteins_dfs
+    )
+    .loc[lambda x: x["NumOfReads"].gt(1)]
+    .groupby(condition_col)["NumOfReads"]
+    .describe().round(2)
+)
+
+# %%
 for unique_proteins_df in unique_proteins_dfs:
     mean_edited_aas = unique_proteins_df["MinNonSyns"].mean()
     print(mean_edited_aas)
@@ -3810,6 +3841,17 @@ max_expression_dfs[0]
 max_expression_df = pd.concat(max_expression_dfs, ignore_index=True)
 
 max_expression_df
+
+# %%
+max_expression_df.groupby(condition_col)["NumOfReads"].describe().round(2)
+
+# %%
+(
+    max_expression_df
+    .loc[max_expression_df["NumOfReads"].gt(1)]
+    .groupby(condition_col)["NumOfReads"]
+    .describe().round(2)
+)
 
 # %%
 max_solution_id_df = (
@@ -6995,6 +7037,9 @@ per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"] = (
 per_sample_agged_expanded_concat_edited_positions_df
 
 # %%
+per_sample_agged_expanded_concat_edited_positions_df.groupby(condition_col)["EditingFrequency"].describe().round(2)
+
+# %%
 per_sample_agged_expanded_concat_edited_positions_df.loc[
     per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"].ge(0.001),
 ].shape[0]
@@ -7058,7 +7103,9 @@ fig.show()
 min_tot_covs = [0, 500, 1000, 1500]
 # min_editing_freqs = [0.001, 0.01, 0.1]
 # min_editing_freqs = [0.01, 0.1, 0.3]
-min_editing_freqs = [0.01, 0.1, 0.3, 0.5, 0.7, 1]
+# min_editing_freqs = [0.01, 0.1, 0.3, 0.5, 0.7, 1]
+# min_editing_freqs = [0.01, 0.03, 0.05, 1]
+min_editing_freqs = [0.01, 0.03, 0.05, 0.1]
 
 # %%
 num_of_sites_per_sample_per_min_cov_and_editing_freq_dfs = []
@@ -7444,7 +7491,7 @@ concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df.loc[
 fig = px.line(
     concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df.loc[
         (concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df["MinTotalCoverage"] == 0)
-        & (concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df["MinEditingFrequency"] == 0.001)
+        & (concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df["MinEditingFrequency"] == 0.01)
     ],
     x="NumOfReplicates",
     y="%ReverseCumulativeNumOfEditingSites",
@@ -7493,6 +7540,104 @@ fig.update_layout(
 # )
 
 fig.show()
+
+# %%
+concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df.loc[
+        (concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df["MinTotalCoverage"] == 0)
+    ]
+
+# %%
+(
+    concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df
+    .loc[
+        (concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df["MinTotalCoverage"] == 0)
+    ]
+    .assign(
+        AllReplicates=lambda x: x["NumOfReplicates"].eq(3)
+    )
+    .groupby(
+        "MinEditingFrequency"
+    )
+    .apply(
+        lambda x: 100 * x.loc[x["AllReplicates"], "NumOfEditingSites"].sum() / x["NumOfEditingSites"].sum()
+    )
+    .round(2)
+    .reset_index(
+        name="%OfSitesEditedInAllReplicates"
+    )
+    
+)
+
+# %%
+fig = px.line(
+    (
+        concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df
+        .loc[
+            (concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df["MinTotalCoverage"] == 0)
+        ]
+        .assign(
+            AllReplicates=lambda x: x["NumOfReplicates"].eq(3)
+        )
+        .groupby(
+            "MinEditingFrequency"
+        )
+        .apply(
+            lambda x: 100 * x.loc[x["AllReplicates"], "NumOfEditingSites"].sum() / x["NumOfEditingSites"].sum()
+        )
+        .reset_index(
+            name="%OfSitesEditedInAllReplicates"
+        )
+        
+    ),
+    x="MinEditingFrequency",
+    y="%OfSitesEditedInAllReplicates",
+    # facet_row="MinTotalCoverage",
+    # facet_col="MinEditingFrequency",
+    # facet_row_spacing=0.05,
+    labels={
+        "MinEditingFrequency": "Min editing frequency",
+        "%OfSitesEditedInAllReplicates": "% of sites edited in all replicates",
+    },
+    markers=True
+)
+
+# # Loop through all facet annotations and modify their text
+# for annotation in fig.layout.annotations:
+#     if "MinTotalCoverage=" in annotation.text:
+#         annotation.text = annotation.text.replace("MinTotalCoverage=", "Coverage / sample ≥ ")
+#     if "MinEditingFrequency=" in annotation.text:
+#         annotation.text = annotation.text.replace("MinEditingFrequency=", "Editing freq / sample ≥ ")
+
+# fig.update_xaxes(dtick=1)
+# fig.update_xaxes(dtick=1, autorange="reversed")
+# fig.update_yaxes(
+#     # range=[0, 105], dtick=25,
+#     type="log",
+#     # range=[1, 3]
+# )
+
+width = 600
+height = 400
+
+fig.update_layout(
+    template=template,
+    width=width,
+    height=height,
+    # title="Cumulative % of edited sites supported<br>by X replicates or less"
+)
+
+# fig.write_image(
+#     Path(
+#         out_dir,
+#         "Cumulative % of edited sites supported by X replicates or less.PacBio3..svg",
+#     ),
+#     width=width,
+#     height=height,
+# )
+
+fig.show()
+
+# %%
 
 # %%
 
@@ -10669,15 +10814,10 @@ min_max_fraction_1_distinct_prots_df.to_csv(
 # ### Comparing isoforms across samples
 
 # %%
-concat_merged_old_to_new_reads_df
-
-# %%
 reads_dfs[0].iloc[:, :reads_first_col_pos]
 
 # %%
 max_expression_df
-
-# %%
 
 # %%
 originally_supporting_max_expression_df = max_expression_df.loc[
@@ -10691,12 +10831,19 @@ originally_supporting_max_expression_df = max_expression_df.loc[
         # "AdditionalWeightedSupportingReads",
         "TotalWeightedSupportingReads",
         # "AdditionalSupportingProteins",
+        "%RelativeExpression"
     ],
 ]
+originally_supporting_max_expression_df[condition_col] = originally_supporting_max_expression_df[condition_col].map(
+    fixed_condition_by_original_condition
+)
 originally_supporting_max_expression_df
 
 # %%
 originally_supporting_max_expression_df["NumOfReads"].sum()
+
+# %%
+concat_merged_old_to_new_reads_df
 
 # %%
 flat_originally_supporting_max_expression_df = (
@@ -10706,13 +10853,16 @@ flat_originally_supporting_max_expression_df = (
     .rename(columns={"Reads": "Read"})
     .merge(
         concat_merged_old_to_new_reads_df.loc[
-            :, ["NewRead", "Sample", condition_col, "Repeat"]
+            :, ["NewRead", condition_col, "Replicate"]
         ],
         left_on=[condition_col, "Read"],
         right_on=[condition_col, "NewRead"],
         how="left",
     )
 )
+
+assert originally_supporting_max_expression_df["NumOfReads"].sum() == flat_originally_supporting_max_expression_df.shape[0]
+
 flat_originally_supporting_max_expression_df
 
 # %%
@@ -10721,18 +10871,47 @@ n_samples_per_isoform_by_originally_supporting_reads_df = (
         ["Chrom", condition_col, "Protein"]
     )
     .agg(
-        NumOfSamples=("Sample", "nunique"),
-        Samples=("Sample", "unique"),
+        NumOfSamples=("Replicate", "nunique"),
+        Samples=("Replicate", "unique"),
     )
     .reset_index()
     # .rename(columns={"Sample": "NumOfSamples"})
 )
+
+assert originally_supporting_max_expression_df.shape[0] == n_samples_per_isoform_by_originally_supporting_reads_df.shape[0]
+
+n_samples_per_isoform_by_originally_supporting_reads_df = n_samples_per_isoform_by_originally_supporting_reads_df.merge(
+    originally_supporting_max_expression_df
+)
+
 n_samples_per_isoform_by_originally_supporting_reads_df
 
 # %%
-n_samples_per_isoform_by_originally_supporting_reads_df.loc[
-    :, [condition_col, "NumOfSamples"]
-].value_counts().reset_index()
+n_samples_per_top_100_isoforms_by_originally_supporting_reads_df = (
+    n_samples_per_isoform_by_originally_supporting_reads_df
+    .groupby(condition_col)
+    .apply(lambda g: g.nlargest(100, '%RelativeExpression'))
+    .reset_index()
+    # .groupby(condition_col)
+    # ["NumOfReads"].describe().round(2)
+)
+n_samples_per_top_100_isoforms_by_originally_supporting_reads_df
+
+# %%
+(
+    n_samples_per_top_100_isoforms_by_originally_supporting_reads_df
+    .groupby(condition_col)
+    ["NumOfReads"].describe().round(2)
+)
+
+# %%
+(
+    n_samples_per_top_100_isoforms_by_originally_supporting_reads_df
+    .groupby(condition_col)
+    ["NumOfSamples"].describe().round(2)
+)
+
+# %%
 
 # %%
 fig = px.histogram(
@@ -10741,8 +10920,9 @@ fig = px.histogram(
     x="NumOfSamples",
     # y="EditingFrequency",
     color=condition_col,
-    color_discrete_map=color_discrete_map,
+    color_discrete_map=fixed_condition_color_discrete_map,
     # category_orders=category_orders | {"PositionInSignature": ["No", "Yes", "NA"]},
+    category_orders={condition_col: fixed_conditions},
     template=template,
     # title="Prosite signatures scores in edited positions",
     # labels={"SignatureScore": "Signature score"},
@@ -10750,11 +10930,174 @@ fig = px.histogram(
 )
 # fig.update_yaxes(dtick=20)
 fig.update_layout(
-    width=600,
+    width=700,
     height=400,
     showlegend=False,
 )
 fig.show()
+
+# %%
+fig = px.box(
+    n_samples_per_isoform_by_originally_supporting_reads_df,
+    facet_col=condition_col,
+    x="NumOfSamples",
+    y="NumOfReads",
+    # y="EditingFrequency",
+    color=condition_col,
+    color_discrete_map=fixed_condition_color_discrete_map,
+    # category_orders=category_orders | {"PositionInSignature": ["No", "Yes", "NA"]},
+    category_orders={condition_col: fixed_conditions},
+    template=template,
+    # title="Prosite signatures scores in edited positions",
+    # labels={"SignatureScore": "Signature score"},
+    # log_y=True,
+)
+# fig.update_yaxes(dtick=20)
+fig.update_layout(
+    width=700,
+    height=400,
+    showlegend=False,
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    n_samples_per_isoform_by_originally_supporting_reads_df,
+    facet_col=condition_col,
+    facet_row="NumOfSamples",
+    x="NumOfReads",
+    # y="EditingFrequency",
+    # color=condition_col,
+    # color_discrete_map=fixed_condition_color_discrete_map,
+    # category_orders=category_orders | {"PositionInSignature": ["No", "Yes", "NA"]},
+    category_orders={condition_col: fixed_conditions, "NumOfSamples": [1, 2, 3]},
+    template=template,
+    # title="Prosite signatures scores in edited positions",
+    # labels={"SignatureScore": "Signature score"},
+    log_y=True,
+)
+# fig.update_yaxes(dtick=20)
+# fig.update_traces(opacity=0.75)
+fig.update_layout(
+    width=1000,
+    height=600,
+    # barmode='overlay'
+    # showlegend=False,
+)
+fig.show()
+
+# %%
+fig = px.box(
+    n_samples_per_isoform_by_originally_supporting_reads_df,
+    facet_col=condition_col,
+    x="NumOfSamples",
+    y="TotalWeightedSupportingReads",
+    # y="EditingFrequency",
+    color=condition_col,
+    color_discrete_map=fixed_condition_color_discrete_map,
+    # category_orders=category_orders | {"PositionInSignature": ["No", "Yes", "NA"]},
+    category_orders={condition_col: fixed_conditions},
+    template=template,
+    # title="Prosite signatures scores in edited positions",
+    # labels={"SignatureScore": "Signature score"},
+    log_y=True,
+)
+# fig.update_yaxes(dtick=20)
+fig.update_layout(
+    width=700,
+    height=400,
+    showlegend=False,
+)
+fig.show()
+
+# %%
+fig = px.box(
+    n_samples_per_isoform_by_originally_supporting_reads_df,
+    facet_col=condition_col,
+    x="NumOfSamples",
+    y="%RelativeExpression",
+    # y="EditingFrequency",
+    color=condition_col,
+    color_discrete_map=fixed_condition_color_discrete_map,
+    # category_orders=category_orders | {"PositionInSignature": ["No", "Yes", "NA"]},
+    category_orders={condition_col: fixed_conditions},
+    template=template,
+    # title="Prosite signatures scores in edited positions",
+    # labels={"SignatureScore": "Signature score"},
+    # log_y=True,
+)
+# fig.update_yaxes(dtick=20)
+fig.update_layout(
+    width=700,
+    height=400,
+    showlegend=False,
+)
+fig.show()
+
+# %%
+rows = 1
+cols = len(fixed_conditions)
+
+fig, axs = plt.subplots(
+    nrows=rows,
+    ncols=cols,
+    figsize=(3.5 * cols, 2.5 * rows),
+    constrained_layout=True,
+    gridspec_kw=dict(hspace=0.2, wspace=0.03),
+    squeeze=False # Prevents matplotlib from collapsing 1D arrays into single objects
+)
+
+# # Set the background color for the entire figure area to white
+# fig.setfacecolor("white")
+
+# Flatten the 2D array returned when squeeze=False
+axs_flat = axs.flatten()
+
+# for condition, ax in zip(fixed_conditions, axs.flat):
+for condition, ax in zip(fixed_conditions, axs_flat):
+    df = flat_originally_supporting_max_expression_df.loc[
+        flat_originally_supporting_max_expression_df[condition_col] == condition
+    ]
+    sets = [
+        set(
+            df.loc[
+                df["Replicate"].eq(replicate),
+                "Protein"
+            ].values
+        )
+        for replicate in replicates
+    ]
+    labels = [
+        f"{replicate} ({len(sets[replicate-1])})"
+        for replicate in replicates
+    ]
+    venn3(sets, set_labels=labels, ax=ax)
+
+fig.canvas.draw()
+label_y = 0.97
+for condition, ax in zip(fixed_conditions, axs_flat):
+    bbox = ax.get_position()
+    fig.text(
+        bbox.x0 + bbox.width / 2,
+        label_y,
+        condition,
+        ha='center',
+        va='bottom',
+        fontsize=14,
+    )
+
+# fig.suptitle(
+#     "Squid's Long-reads",
+#     fontsize="xx-large",
+#     # y=1.2
+# )
+
+# plt.savefig(
+#     Path(out_dir, "Known vs new editing sites - PacBio w UMIs.svg"), 
+#     format="svg", dpi=300
+# )
+
+plt.show()
 
 # %%
 proteins_per_sample_df = (
@@ -10765,7 +11108,8 @@ proteins_per_sample_df = (
             "NumOfSamples",
         ]
     )
-    .groupby(["Chrom", condition_col, "Sample"])
+    # .groupby(["Chrom", condition_col, "Sample"])
+    .groupby([condition_col, "Sample"])
     .agg(ProteinsPerSample=("Protein", "nunique"))
     .reset_index()
 )
@@ -12317,7 +12661,8 @@ for (row, col), condition in zip(
             # ways to get better text positioning:
             # https://community.plotly.com/t/solving-the-problem-of-overlapping-text-labels-in-a-scatterplot-by-manually-assigning-the-position-of-each-label/66159/2
             # https://github.com/plotly/plotly.py/issues/925
-            textposition="middle right",
+            # textposition="middle right",
+            textposition="middle right" if condition != "ADAR1" else ["middle right", "middle right", "middle left"],
             textfont=dict(size=8),
         ),
         row=row,
@@ -12339,6 +12684,7 @@ for (row, col), condition in zip(
 # fig.update_xaxes(tick0=0, dtick=5_000, matches="x")
 
 width = max(650, 250 * cols)
+# width = 800
 height = max(400, 200 * rows)
 
 fig.update_layout(

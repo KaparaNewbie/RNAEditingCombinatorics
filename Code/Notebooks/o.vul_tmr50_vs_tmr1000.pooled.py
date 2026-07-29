@@ -1181,12 +1181,19 @@ concat_all_positions_df.loc[
 
 # %%
 def find_alt_base(
-    ref_base: str, a_count: int, t_count: int, c_count: int, g_count: int
+    ref_base: str, a_count: int, t_count: int, c_count: int, g_count: int,
+    edited: bool
 ):
     """
     Find the base with most supporting reads other than `ref_base`.
     If there are two or more such bases, the function picks one at random.
+    If position is `edited` (and thus its `ref_base` is `A`), its alt base is G by definition.
     """
+    if edited:
+        if ref_base != "A":
+            raise ValueError(f"Edited position should have ref_base 'A', but got {ref_base}")
+        return "G"
+        
     base_counts_dict = {"A": a_count, "T": t_count, "C": c_count, "G": g_count}
     alt_bases = set(base_counts_dict) - {ref_base}
     alt_base_counts_dict = {
@@ -1269,6 +1276,7 @@ mismatches_df.insert(
             x["T"],
             x["C"],
             x["G"],
+            x["EditedFinal"]
         ),
         axis=1,
     ),
@@ -1318,15 +1326,12 @@ mismatches_df = mismatches_df.merge(
     how="left"
 )
 
+mismatches_df["SNP"] = (
+    (mismatches_df["NoisyFinal"])
+    & (mismatches_df["Noise"] >= snp_noise_level)
+)
+
 mismatches_df
-
-# %%
-mismatches_df.columns
-
-# %%
-['Gene', 'Chrom', 'Position', 'Mismatch', 'TotalCoverage',
-       'MismatchFrequency', 'EditingThreshold', 'AboveEditingThreshold',
-       'Edited', 'SNP']
 
 # %%
 # # so it seems that the same data about snps can be extracted from the general positions files and from the 
@@ -1360,6 +1365,71 @@ mismatches_df.columns
 
 # # following that, i can use whatever is convinient for me - 
 # # but it's still good i made ahead the snps reads files
+
+# %%
+tweleve_mismatches_to_save_df = (
+    mismatches_df
+    .loc[
+        :,
+        [
+            'Transcript', 'Chrom', 'Position', 'Mismatch', 'TotalCoverage',
+            'MismatchFrequency', 'NoiseThreshold', 'NoisyFinal', 'EditedFinal',
+            "SNP"
+        ]
+    ]
+    .rename(
+        columns={
+            "NoiseThreshold": "EditingThreshold", 
+            "NoisyFinal": "Noisy", 
+            "EditedFinal": "Edited",
+            "Transcript": "Gene"
+        }
+    )
+    .assign(
+        AboveEditingThreshold=lambda x: x["MismatchFrequency"] >= x["EditingThreshold"]
+    )
+)
+
+# only consider octopus genes in which we detected editing
+edited_octopus_chroms = tweleve_mismatches_to_save_df.loc[
+    tweleve_mismatches_to_save_df["Edited"],
+    "Chrom"
+].unique()
+ic(len(edited_octopus_chroms))
+tweleve_mismatches_to_save_df = tweleve_mismatches_to_save_df.loc[
+    tweleve_mismatches_to_save_df["Chrom"].isin(edited_octopus_chroms)
+].reset_index(drop=True)
+
+tweleve_mismatches_to_save_df
+
+# %%
+# noise_threshold_df.loc[
+#     (noise_threshold_df["NoiseThreshold"].eq(0))
+#     & (noise_threshold_df["Chrom"].isin(edited_octopus_chroms))
+# ]
+
+# %%
+# tweleve_mismatches_to_save_df.loc[
+#     (tweleve_mismatches_to_save_df["Mismatch"].eq("A>G"))
+#     & (tweleve_mismatches_to_save_df["MismatchFrequency"].ge(tweleve_mismatches_to_save_df["EditingThreshold"]))
+#     & (tweleve_mismatches_to_save_df["MismatchFrequency"].gt(0))
+#     # & (~tweleve_mismatches_to_save_df["Edited"])
+# ]
+
+# %%
+# tweleve_mismatches_to_save_df.loc[
+#     (tweleve_mismatches_to_save_df["Mismatch"].eq("A>G"))
+#     & (tweleve_mismatches_to_save_df["MismatchFrequency"].ge(tweleve_mismatches_to_save_df["EditingThreshold"]))
+#     & (tweleve_mismatches_to_save_df["MismatchFrequency"].gt(0))
+#     # & (~tweleve_mismatches_to_save_df["Edited"])
+# ].groupby("Chrom")["Edited"].sum().describe()
+
+# %%
+tweleve_mismatches_to_save_df.to_csv(
+    Path(out_dir, "12Mismatches.Octopus.PacBio.csv"),
+    sep="\t",
+    index=False
+)
 
 # %%
 
@@ -4949,8 +5019,7 @@ def all_haplotypes_permutation_null(
 
 
 # %%
-editing_and_snps_reads_df
-
+# editing_and_snps_reads_df
 
 # %%
 # n_perm=200
@@ -5350,242 +5419,6 @@ for i, chrom in enumerate(chroms):
 fig.show()
 
 # %%
-# for editing_profiles_df in editing_profiles_dfs:
-#     chrom = editing_profiles_df["Chrom"].iloc[0]
-#     fig = px.scatter_matrix(
-#         editing_profiles_df,
-#         dimensions=editing_profiles_df.columns[1:],  # exclude Chrom col
-#     )
-#     # fig.update_xaxes(dtick=10)
-#     # fig.update_yaxes(dtick=10)
-#     fig.update_traces(diagonal_visible=False)
-#     fig.update_layout(
-#         height=500,
-#         width=500,
-#         title=chrom,
-#     )
-#     fig.show()
-
-# %%
-# import numpy as np
-# import pandas as pd
-# import plotly.graph_objects as go
-# from itertools import combinations
-
-# # ---------- helpers (unchanged) ----------
-# def ols_line_and_ci(x, y, x_grid, alpha=0.05):
-#     """
-#     Fit y = a + b x (OLS).
-#     Return y_hat on x_grid and a (1-alpha) CI band for the mean prediction.
-#     """
-#     x = np.asarray(x, dtype=float)
-#     y = np.asarray(y, dtype=float)
-
-#     mask = np.isfinite(x) & np.isfinite(y)
-#     x = x[mask]
-#     y = y[mask]
-
-#     n = x.size
-#     if n < 3 or np.allclose(x.var(), 0):
-#         return None
-
-#     X = np.column_stack([np.ones(n), x])
-#     XtX = X.T @ X
-#     beta = np.linalg.solve(XtX, X.T @ y)
-
-#     y_fit = X @ beta
-#     resid = y - y_fit
-#     dof = n - 2
-#     s2 = (resid @ resid) / dof
-
-#     cov_beta = s2 * np.linalg.inv(XtX)
-
-#     Xg = np.column_stack([np.ones_like(x_grid), x_grid])
-#     y_hat = Xg @ beta
-
-#     se_mean = np.sqrt(np.sum(Xg @ cov_beta * Xg, axis=1))
-
-#     if dof >= 30:
-#         tcrit = 1.96
-#     else:
-#         t_table = {
-#             1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571,
-#             6: 2.447, 7: 2.365, 8: 2.306, 9: 2.262, 10: 2.228,
-#             11: 2.201, 12: 2.179, 13: 2.160, 14: 2.145, 15: 2.131,
-#             16: 2.120, 17: 2.110, 18: 2.101, 19: 2.093, 20: 2.086,
-#             21: 2.080, 22: 2.074, 23: 2.069, 24: 2.064, 25: 2.060,
-#             26: 2.056, 27: 2.052, 28: 2.048, 29: 2.045,
-#         }
-#         tcrit = t_table.get(dof, 1.96)
-
-#     lo = y_hat - tcrit * se_mean
-#     hi = y_hat + tcrit * se_mean
-
-#     return y_hat, lo, hi, beta
-
-
-# def rgba_from_hex(hex_color, alpha):
-#     hex_color = hex_color.lstrip("#")
-#     r = int(hex_color[0:2], 16)
-#     g = int(hex_color[2:4], 16)
-#     b = int(hex_color[4:6], 16)
-#     return f"rgba({r},{g},{b},{alpha})"
-
-
-# # ---------- Chrom → Title mapping ----------
-# chrom_to_title = (
-#     orfs_df
-#     .drop_duplicates("Chrom")
-#     .set_index("Chrom")["Name"]
-#     .to_dict()
-# )
-
-# def chrom_to_plot_title(chrom):
-#     name = chrom_to_title.get(chrom, chrom)
-#     return name.split("_")[0]
-
-
-# # ---------- plotting params ----------
-# pair_palette = [
-#     "#EF553B", "#00CC96", "#AB63FA", "#FFA15A", "#19D3F3",
-#     "#FF6692", "#B6E880", "#FF97FF", "#FECB52", "#636EFA"
-# ]
-
-# show_points = True
-# points_opacity = 0.3
-# band_alpha = 0.15
-# line_width = 2
-# base_line_width = line_width + 1
-
-# axis_max = 100
-# dtick = 10
-
-# # ---------- main loop ----------
-# for editing_profiles in editing_profiles_dfs:
-
-#     chrom = editing_profiles["Chrom"].iloc[0]
-#     hap_cols = list(editing_profiles.iloc[:, 1:].columns)
-
-#     x_grid = np.linspace(0, axis_max, 200)
-
-#     fig = go.Figure()
-
-#     # --- pairwise comparisons ---
-#     for k, (h1, h2) in enumerate(combinations(hap_cols, 2)):
-
-#         color = pair_palette[k % len(pair_palette)]
-#         fill_color = rgba_from_hex(color, band_alpha)
-
-#         x = pd.to_numeric(editing_profiles[h1], errors="coerce").to_numpy()
-#         y = pd.to_numeric(editing_profiles[h2], errors="coerce").to_numpy()
-
-#         res = ols_line_and_ci(x, y, x_grid)
-#         if res is None:
-#             continue
-
-#         y_hat, lo, hi, beta = res
-
-#         lg = f"{h1}__vs__{h2}"
-
-#         # faint points
-#         if show_points:
-#             fig.add_trace(
-#                 go.Scatter(
-#                     x=x, y=y,
-#                     mode="markers",
-#                     marker=dict(color=color, size=6, opacity=points_opacity),
-#                     showlegend=False,
-#                     legendgroup=lg,
-#                     name=f"{h1} vs. {h2}",
-#                 )
-#             )
-
-#         # CI band
-#         fig.add_trace(
-#             go.Scatter(
-#                 x=x_grid, y=hi,
-#                 mode="lines",
-#                 line=dict(width=0),
-#                 showlegend=False,
-#                 legendgroup=lg,
-#                 hoverinfo="skip",
-#             )
-#         )
-#         fig.add_trace(
-#             go.Scatter(
-#                 x=x_grid, y=lo,
-#                 mode="lines",
-#                 line=dict(width=0),
-#                 fill="tonexty",
-#                 fillcolor=fill_color,
-#                 showlegend=False,
-#                 legendgroup=lg,
-#                 hoverinfo="skip",
-#             )
-#         )
-
-#         # regression line (legend entry)
-#         fig.add_trace(
-#             go.Scatter(
-#                 x=x_grid, y=y_hat,
-#                 mode="lines",
-#                 line=dict(color=color, width=line_width),
-#                 name=f"{h1} vs. {h2}",
-#                 showlegend=True,
-#                 legendgroup=lg,
-#             )
-#         )
-
-#     # --- baseline (last in legend) ---
-#     fig.add_trace(
-#         go.Scatter(
-#             x=[0, axis_max],
-#             y=[0, axis_max],
-#             mode="lines",
-#             name="No differential editing<br>(theoretical value)",
-#             line=dict(color="black", width=base_line_width, dash="dash"),
-#         )
-#     )
-
-#     # --- axes ---
-#     fig.update_xaxes(
-#         tick0=0,
-#         dtick=dtick,
-#         range=[0, axis_max],
-#         title_text="Haplotype X mean editing [%]",
-#         constrain="domain",
-#     )
-
-#     fig.update_yaxes(
-#         tick0=0,
-#         dtick=dtick,
-#         range=[0, axis_max],
-#         title_text="Haplotype Y mean editing [%]",
-#         scaleanchor="x",
-#         scaleratio=1,
-#         constrain="domain",
-#     )
-
-#     # --- layout ---
-#     fig.update_layout(
-#         title=chrom_to_plot_title(chrom),
-#         height=500,
-#         width=600,
-#         legend=dict(
-#             x=1.02,
-#             y=1,
-#             xanchor="left",
-#             yanchor="top",
-#             groupclick="togglegroup",
-#         ),
-#         margin=dict(l=80, r=180, t=60, b=60),
-#         # template="simple_white",
-#     )
-
-#     fig.show()
-
-
-# %%
 len(diverse_haplotypes_editing_and_snps_reads_dfs)
 
 # %%
@@ -5608,304 +5441,6 @@ concat_selected_examples_fisher_haplotypes_df.round(5)
 # %%
 editing_and_snps_reads_df = diverse_haplotypes_editing_and_snps_reads_dfs[0].copy()
 editing_and_snps_reads_df
-
-# %%
-
-# %%
-# # -----------------------
-# # Config
-# # -----------------------
-# facet_col_wrap = 3
-# width = 1100
-# height = 750
-
-# axis_max = 100
-# dtick = 10
-# x_grid = np.linspace(0, axis_max, 200)
-
-# show_points = True
-# points_opacity = 0.5     # ← unchanged per your request
-# marker_size = 4          # ← REDUCED (was 5–6 before)
-# band_alpha = 0.15
-# line_width = 2
-# base_line_width = line_width + 1
-
-# pair_palette = [
-#     "#EF553B", "#00CC96", "#AB63FA", "#FFA15A", "#19D3F3",
-#     "#FF6692", "#B6E880", "#FF97FF", "#FECB52", "#636EFA"
-# ]
-
-
-# # ---------- helpers (unchanged) ----------
-# def ols_line_and_ci(x, y, x_grid, alpha=0.05):
-#     """
-#     Fit y = a + b x (OLS).
-#     Return y_hat on x_grid and a (1-alpha) CI band for the mean prediction.
-#     """
-#     x = np.asarray(x, dtype=float)
-#     y = np.asarray(y, dtype=float)
-
-#     mask = np.isfinite(x) & np.isfinite(y)
-#     x = x[mask]
-#     y = y[mask]
-
-#     n = x.size
-#     if n < 3 or np.allclose(x.var(), 0):
-#         return None
-
-#     X = np.column_stack([np.ones(n), x])
-#     XtX = X.T @ X
-#     beta = np.linalg.solve(XtX, X.T @ y)
-
-#     y_fit = X @ beta
-#     resid = y - y_fit
-#     dof = n - 2
-#     s2 = (resid @ resid) / dof
-
-#     cov_beta = s2 * np.linalg.inv(XtX)
-
-#     Xg = np.column_stack([np.ones_like(x_grid), x_grid])
-#     y_hat = Xg @ beta
-
-#     se_mean = np.sqrt(np.sum(Xg @ cov_beta * Xg, axis=1))
-
-#     if dof >= 30:
-#         tcrit = 1.96
-#     else:
-#         t_table = {
-#             1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571,
-#             6: 2.447, 7: 2.365, 8: 2.306, 9: 2.262, 10: 2.228,
-#             11: 2.201, 12: 2.179, 13: 2.160, 14: 2.145, 15: 2.131,
-#             16: 2.120, 17: 2.110, 18: 2.101, 19: 2.093, 20: 2.086,
-#             21: 2.080, 22: 2.074, 23: 2.069, 24: 2.064, 25: 2.060,
-#             26: 2.056, 27: 2.052, 28: 2.048, 29: 2.045,
-#         }
-#         tcrit = t_table.get(dof, 1.96)
-
-#     lo = y_hat - tcrit * se_mean
-#     hi = y_hat + tcrit * se_mean
-
-#     return y_hat, lo, hi, beta
-
-
-# def rgba_from_hex(hex_color, alpha):
-#     hex_color = hex_color.lstrip("#")
-#     r = int(hex_color[0:2], 16)
-#     g = int(hex_color[2:4], 16)
-#     b = int(hex_color[4:6], 16)
-#     return f"rgba({r},{g},{b},{alpha})"
-
-
-# # -----------------------
-# # Prepare panels
-# # -----------------------
-# chroms = [df["Chrom"].iloc[0] for df in editing_profiles_dfs]
-# titles = [chrom_to_plot_title(c) for c in chroms]
-
-# n_panels = len(editing_profiles_dfs)
-# ncols = facet_col_wrap
-# nrows = math.ceil(n_panels / ncols)
-
-# fig = make_subplots(
-#     rows=nrows,
-#     cols=ncols,
-#     subplot_titles=titles,
-#     horizontal_spacing=0.06,
-#     vertical_spacing=0.14,
-# )
-
-# panel_legends = {}
-
-# # -----------------------
-# # Add traces
-# # -----------------------
-# for i, editing_profiles in enumerate(editing_profiles_dfs):
-
-#     chrom = editing_profiles["Chrom"].iloc[0]
-#     hap_cols = list(editing_profiles.iloc[:, 1:].columns)
-
-#     r = i // ncols + 1
-#     c = i % ncols + 1
-
-#     # diagonal baseline
-#     fig.add_trace(
-#         go.Scatter(
-#             x=[0, axis_max],
-#             y=[0, axis_max],
-#             mode="lines",
-#             line=dict(color="black", width=base_line_width, dash="dash"),
-#             showlegend=False,
-#             hoverinfo="skip",
-#         ),
-#         row=r,
-#         col=c,
-#     )
-
-#     legend_items = []
-
-#     for k, (h1, h2) in enumerate(combinations(hap_cols, 2)):
-
-#         color = pair_palette[k % len(pair_palette)]
-#         fill_color = rgba_from_hex(color, band_alpha)
-
-#         x = pd.to_numeric(editing_profiles[h1], errors="coerce").to_numpy()
-#         y = pd.to_numeric(editing_profiles[h2], errors="coerce").to_numpy()
-
-#         res = ols_line_and_ci(x, y, x_grid)
-#         if res is None:
-#             continue
-
-#         y_hat, lo, hi, beta = res
-#         label = f"{h1} vs. {h2}"
-#         legend_items.append((label, color))
-
-#         # ---- points (smaller markers) ----
-#         if show_points:
-#             fig.add_trace(
-#                 go.Scatter(
-#                     x=x,
-#                     y=y,
-#                     mode="markers",
-#                     marker=dict(
-#                         color=color,
-#                         size=marker_size,   # ← reduced
-#                         opacity=points_opacity
-#                     ),
-#                     showlegend=False,
-#                     hoverinfo="skip",
-#                 ),
-#                 row=r,
-#                 col=c,
-#             )
-
-#         # ---- CI band ----
-#         fig.add_trace(
-#             go.Scatter(
-#                 x=x_grid,
-#                 y=hi,
-#                 mode="lines",
-#                 line=dict(width=0),
-#                 showlegend=False,
-#                 hoverinfo="skip",
-#             ),
-#             row=r,
-#             col=c,
-#         )
-#         fig.add_trace(
-#             go.Scatter(
-#                 x=x_grid,
-#                 y=lo,
-#                 mode="lines",
-#                 line=dict(width=0),
-#                 fill="tonexty",
-#                 fillcolor=fill_color,
-#                 showlegend=False,
-#                 hoverinfo="skip",
-#             ),
-#             row=r,
-#             col=c,
-#         )
-
-#         # ---- regression line ----
-#         fig.add_trace(
-#             go.Scatter(
-#                 x=x_grid,
-#                 y=y_hat,
-#                 mode="lines",
-#                 line=dict(color=color, width=line_width),
-#                 showlegend=False,
-#                 hovertemplate=f"{label}<br>x=%{{x:.1f}}<br>y=%{{y:.1f}}<extra></extra>",
-#             ),
-#             row=r,
-#             col=c,
-#         )
-
-#     panel_legends[(r, c)] = legend_items
-
-#     # axes
-#     fig.update_xaxes(
-#         range=[0, axis_max],
-#         tick0=0,
-#         dtick=dtick,
-#         title_text=("Haplotype X mean editing [%]" if r == nrows else None),
-#         constrain="domain",
-#         row=r,
-#         col=c,
-#     )
-
-#     fig.update_yaxes(
-#         range=[0, axis_max],
-#         tick0=0,
-#         dtick=dtick,
-#         title_text=("Haplotype Y mean editing [%]" if c == 1 else None),
-#         scaleanchor=f"x{i+1}",
-#         scaleratio=1,
-#         constrain="domain",
-#         row=r,
-#         col=c,
-#     )
-
-# # -----------------------
-# # Per-panel legends
-# # -----------------------
-# layout = fig.layout
-
-# for i in range(n_panels):
-
-#     r = i // ncols + 1
-#     c = i % ncols + 1
-
-#     axis_index = i + 1
-#     xaxis_name = "xaxis" if axis_index == 1 else f"xaxis{axis_index}"
-#     yaxis_name = "yaxis" if axis_index == 1 else f"yaxis{axis_index}"
-
-#     xdom = getattr(layout, xaxis_name).domain
-#     ydom = getattr(layout, yaxis_name).domain
-
-#     items = panel_legends.get((r, c), [])
-
-#     legend_lines = [
-#         # "<span style='font-size:12px;'><b>Pairs</b></span>",
-#         "<span style='font-size:12px;'><b>Haplotypes</b></span>",
-#         "<span style='color:black;'>— —</span> <span style='font-size:11px;'>y=x</span>"
-#     ]
-
-#     for label, colr in items:
-#         legend_lines.append(
-#             f"<span style='color:{colr};'>—</span> <span style='font-size:11px;'>{label}</span>"
-#         )
-
-#     legend_html = "<br>".join(legend_lines)
-
-#     fig.add_annotation(
-#         x=xdom[0] + 0.02,
-#         y=ydom[1] - 0.01,
-#         xref="paper",
-#         yref="paper",
-#         xanchor="left",
-#         yanchor="top",
-#         text=legend_html,
-#         showarrow=False,
-#         align="left",
-#         bgcolor="rgba(255,255,255,0.75)",
-#         bordercolor="rgba(0,0,0,0.15)",
-#         borderwidth=1,
-#         borderpad=4,
-#     )
-
-
-# # -----------------------
-# # Layout
-# # -----------------------
-# fig.update_layout(
-#     width=width,
-#     height=height,
-#     margin=dict(l=90, r=30, t=70, b=70),
-# )
-
-# fig.update_annotations(font=dict(size=12))
-# fig.show()
-
 
 # %%
 # COMPLETE CODE REPLACEMENT (Plotly) — fixes:
@@ -6304,214 +5839,6 @@ fig.update_layout(
 # fig.update_annotations(font=dict(size=12))
 
 fig.show()
-
-
-# %%
-# import math
-# import numpy as np
-# import pandas as pd
-# import plotly.graph_objects as go
-# from plotly.subplots import make_subplots
-# import plotly.express as px
-
-# # -----------------------
-# # Inputs
-# # -----------------------
-# dfs = haplotype_diffs_dfs  # list[pd.DataFrame]
-# facet_col_wrap = 3
-# width = 1100
-# height = 650
-
-# # If your df uses different gene id column, change this:
-# gene_col = "Chrom"
-
-# # Optional: drop these columns from histogram consideration if present
-# non_value_cols = {gene_col, "EditingSite", "Site", "Pos", "position", "index"}
-
-# # -----------------------
-# # 1) Gene names (subplot titles)
-# # -----------------------
-# gene_names = []
-# for j, d in enumerate(dfs):
-#     if gene_col in d.columns and d[gene_col].nunique() == 1:
-#         gene_names.append(str(d[gene_col].iloc[0]))
-#     else:
-#         gene_names.append(f"Gene {j+1}")
-
-# n_panels = len(dfs)
-# ncols = facet_col_wrap
-# nrows = math.ceil(n_panels / ncols)
-
-# # -----------------------
-# # 2) Determine columns to plot (haplotype pair cols)
-# #    and global binning range
-# # -----------------------
-# pair_cols_per_df = []
-# all_values = []
-
-# for d in dfs:
-#     pair_cols = [c for c in d.columns if c not in non_value_cols]
-#     # keep only numeric-like cols
-#     numeric_pair_cols = []
-#     for c in pair_cols:
-#         if pd.api.types.is_numeric_dtype(d[c]):
-#             numeric_pair_cols.append(c)
-#         else:
-#             # try coercion if they came in as strings
-#             tmp = pd.to_numeric(d[c], errors="coerce")
-#             if tmp.notna().any():
-#                 d[c] = tmp
-#                 numeric_pair_cols.append(c)
-
-#     pair_cols_per_df.append(numeric_pair_cols)
-
-#     vals = d[numeric_pair_cols].to_numpy().ravel()
-#     vals = vals[np.isfinite(vals)]
-#     all_values.append(vals)
-
-# all_values = np.concatenate(all_values) if len(all_values) else np.array([])
-
-# # Robust range for bins (avoid single crazy outlier dominating)
-# if all_values.size == 0:
-#     raise ValueError("No numeric diff values found across haplotype_diffs_dfs.")
-
-# lo, hi = np.quantile(all_values, [0.01, 0.99])
-# # Expand a bit so edges aren't clipped
-# pad = 0.05 * (hi - lo) if hi > lo else 1.0
-# xmin, xmax = lo - pad, hi + pad
-
-# # Choose bin size / count
-# nbins = 35
-# bins = np.linspace(xmin, xmax, nbins + 1)
-
-# # -----------------------
-# # 3) Global color map for haplotype-pair columns
-# #    (same pair -> same color in every subplot)
-# # -----------------------
-# all_pair_cols = sorted({c for cols in pair_cols_per_df for c in cols})
-# palette = px.colors.qualitative.D3
-# if len(all_pair_cols) > len(palette):
-#     palette = (palette * (len(all_pair_cols) // len(palette) + 1))[: len(all_pair_cols)]
-# pair_color = {c: col for c, col in zip(all_pair_cols, palette)}
-
-# # -----------------------
-# # 4) Build figure
-# # -----------------------
-# fig = make_subplots(
-#     rows=nrows,
-#     cols=ncols,
-#     subplot_titles=gene_names,
-#     horizontal_spacing=0.06,
-#     vertical_spacing=0.18,
-# )
-
-# panel_legends = {}  # (r,c) -> list[(pair_col, color)]
-
-# for i, (d, gene) in enumerate(zip(dfs, gene_names)):
-#     r = i // ncols + 1
-#     c = i % ncols + 1
-
-#     pair_cols = pair_cols_per_df[i]
-#     panel_legends[(r, c)] = [(pc, pair_color[pc]) for pc in pair_cols]
-
-#     # Add one histogram trace per pair col
-#     # Use the SAME bins everywhere for comparability.
-#     for pc in pair_cols:
-#         x = d[pc].to_numpy()
-#         x = x[np.isfinite(x)]
-
-#         fig.add_trace(
-#             go.Histogram(
-#                 x=x,
-#                 xbins=dict(start=xmin, end=xmax, size=(xmax - xmin) / nbins),
-#                 histnorm="probability",   # comparable across genes
-#                 opacity=0.45,             # overlay
-#                 marker=dict(color=pair_color[pc]),
-#                 name=pc,
-#                 showlegend=False,         # we’ll do per-panel legend via annotation
-#             ),
-#             row=r,
-#             col=c,
-#         )
-
-#     # zero line
-#     fig.add_vline(
-#         x=0,
-#         line_width=1,
-#         line_dash="dot",
-#         line_color="rgba(0,0,0,0.35)",
-#         row=r,
-#         col=c,
-#     )
-
-#     # axis titles: only bottom row for X, only left col for Y
-#     fig.update_xaxes(
-#         title_text=("Δ mean editing" if r == nrows else None),
-#         range=[xmin, xmax],
-#         row=r,
-#         col=c,
-#     )
-#     fig.update_yaxes(
-#         title_text=("Probability" if c == 1 else None),
-#         row=r,
-#         col=c,
-#     )
-
-# # Overlay mode for histograms within each subplot
-# fig.update_layout(barmode="overlay")
-
-# # -----------------------
-# # 5) Per-panel legend via annotation (like your previous plot)
-# # -----------------------
-# layout = fig.layout
-
-# for i in range(n_panels):
-#     r = i // ncols + 1
-#     c = i % ncols + 1
-
-#     axis_index = i + 1
-#     xaxis_name = "xaxis" if axis_index == 1 else f"xaxis{axis_index}"
-#     yaxis_name = "yaxis" if axis_index == 1 else f"yaxis{axis_index}"
-
-#     xdom = getattr(layout, xaxis_name).domain
-#     ydom = getattr(layout, yaxis_name).domain
-
-#     items = panel_legends[(r, c)]
-#     legend_lines = ["<span style='font-size:12px;'><b>Pair</b></span>"]
-#     for label, colr in items:
-#         legend_lines.append(
-#             f"<span style='color:{colr};'>■</span> <span style='font-size:11px;'>{label}</span>"
-#         )
-#     legend_html = "<br>".join(legend_lines)
-
-#     fig.add_annotation(
-#         x=xdom[1] - 0.01,
-#         y=ydom[1] - 0.01,
-#         xref="paper",
-#         yref="paper",
-#         xanchor="right",
-#         yanchor="top",
-#         text=legend_html,
-#         showarrow=False,
-#         align="left",
-#         bgcolor="rgba(255,255,255,0.75)",
-#         bordercolor="rgba(0,0,0,0.15)",
-#         borderwidth=1,
-#         borderpad=4,
-#     )
-
-# # -----------------------
-# # 6) Layout polish
-# # -----------------------
-# fig.update_layout(
-#     width=width,
-#     height=height,
-#     margin=dict(l=80, r=20, t=70, b=70),
-#     # template="simple_white",
-# )
-
-# fig.update_annotations(font=dict(size=12))
-# fig.show()
 
 
 # %% [markdown]
