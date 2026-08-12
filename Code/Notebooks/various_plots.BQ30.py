@@ -531,6 +531,8 @@ squid_and_octopus_platforms_two_lines = [
 ]
 
 # %%
+
+# %%
 condition_col = "Gene"
 # platforms = ["Long-reads", "Short-reads"]
 
@@ -538,6 +540,7 @@ pacbio_conditions = [
     "GRIA2", "PCLO", 
     # "ADAR1", "IQEC1"
 ]
+pacbio_umi_conditions = ["GRIA2", "ADAR1", "IQEC1"]
 
 illumina_conditions = [
     'RUSC2',
@@ -585,15 +588,89 @@ illumina_chroms = [
 
 # %%
 squid_conditions = sorted(set(pacbio_conditions + illumina_conditions))
+ic(len(squid_conditions))
 squid_conditions
 
 # %%
-squid_color_sequence = px.colors.qualitative.Dark24
-squid_color_discrete_map = {
-    condition: color
-    for condition, color in zip(squid_conditions, squid_color_sequence)
+extended_squid_conditions = sorted(set(pacbio_conditions + illumina_conditions + pacbio_umi_conditions))
+ic(len(extended_squid_conditions))
+extended_squid_conditions
+
+# %%
+
+# %%
+# # squid_color_sequence = px.colors.qualitative.Dark24
+# # squid_color_sequence = np.random.default_rng(seed).permutation(squid_color_sequence)
+
+# squid_color_sequence = ['#FB00D1', '#AF0038', '#0D2A63', '#2E91E5', '#FB0D0D', '#778AAE',
+#        '#FC0080', '#6C7C32', '#1616A7', '#6C4516', '#00A08B', '#750D86',
+#        '#1CA71C', '#EB663B', '#DA60CA', '#862A16', '#E15F99', '#A777F1',
+#        '#222A2A', '#B68100', '#511CFB', '#620042', '#B2828D', '#DA16FF']
+
+# squid_color_sequence
+
+# %%
+# squid_color_discrete_map = {
+#     condition: color
+#     for condition, color in zip(
+#         # squid_conditions, 
+#         extended_squid_conditions,
+#         squid_color_sequence
+# )
+# }
+# ic(len(squid_conditions),len(squid_color_discrete_map))
+# squid_color_discrete_map
+
+# %%
+basic_squid_color_discrete_map = {
+    "GRIA2": "#00A08B",
+    "PCLO":  "#AF0038",
+    "ABL":   "#0D2A63",
+    "ACHA4": "#DA16FF",
+    "ANR17": "#FC0080",
+    "CA2D3": "#6C4516",
+    "CACB2": "#1616A7",
+    "CSKI1": "#222A2A",
+    "DGLA":  "#620042",
+    "DOP1":  "#A777F1",
+    "IQEC1": "#EB663B",
+    "K0513": "#750D86",
+    "KCNAS": "#FB0D0D",
+    "MTUS2": "#1CA71C",
+    "RIMS2": "#FB00D1",
+    "ROBO2": "#2E91E5",
+    "RUSC2": "#B68100",
+    "SCN1":  "#6C7C32",
+    "TRIM2": "#B2828D",
+    "TWK7":  "#862A16",
 }
-ic(len(squid_conditions),len(squid_color_discrete_map))
+
+# %%
+squid_conditions_only_in_extended_conditions = [
+    condition for condition in extended_squid_conditions if condition not in squid_conditions
+]
+squid_conditions_only_in_extended_conditions
+
+# %%
+color_used_in_basic_squid_color_discrete_map = set(basic_squid_color_discrete_map.values())
+unused_plotly_dark24_colors = set(px.colors.qualitative.Dark24) - color_used_in_basic_squid_color_discrete_map
+unused_plotly_dark24_colors
+
+# %%
+assert len(squid_conditions_only_in_extended_conditions) <= len(unused_plotly_dark24_colors), "Not enough unused colors for the new conditions."
+
+# %%
+only_extended_squid_color_discrete_map = {
+    condition: color
+    for condition, color in zip(
+        sorted(squid_conditions_only_in_extended_conditions), 
+        sorted(unused_plotly_dark24_colors)
+    )
+}
+only_extended_squid_color_discrete_map
+
+# %%
+squid_color_discrete_map = basic_squid_color_discrete_map | only_extended_squid_color_discrete_map
 squid_color_discrete_map
 
 # %%
@@ -602,6 +679,13 @@ squid_subcolors_discrete_map = {
     for condition, color in squid_color_discrete_map.items()
 }
 squid_subcolors_discrete_map
+
+# %%
+pacbio_umi_color_discrete_map = {
+    condition: squid_color_discrete_map[condition]
+    for condition in pacbio_umi_conditions
+}
+pacbio_umi_color_discrete_map
 
 # %% [markdown] papermill={"duration": 0.041741, "end_time": "2022-02-01T09:42:47.760215", "exception": false, "start_time": "2022-02-01T09:42:47.718474", "status": "completed"}
 # # Editing levels in PCLO - squid
@@ -2732,45 +2816,47 @@ fig.show()
 # # Combined expression plots for squid
 
 # %%
-condition_col = "Gene"
-platforms = ["Long-reads", "Short-reads"]
+# condition_col = "Gene"
+# platforms = ["Long-reads", "Short-reads"]
 
-pacbio_conditions = ["GRIA2", "PCLO", "ADAR1", "IQEC1"]
+# pacbio_conditions = ["GRIA2", "PCLO", 
+#                     #  "ADAR1", "IQEC1"
+#                      ]
 
-illumina_conditions = [
-    "RUSC2_MOUSE",
-    "TRIM2_BOVIN",
-    "CA2D3_MOUSE",
-    "ABL_DROME",
-    "DGLA_HUMAN",
-    "K0513_MOUSE",
-    "KCNAS_DROME",
-    "ACHA4_MOUSE",
-    "ANR17_HUMAN",
-    "TWK7_CAEEL",
-    "SCN1_HETBL",
-    "CACB2_RABIT",
-    "RIMS2_RAT",
-    "PCLO_CHICK",
-    "DOP1_HUMAN",
-    "IQEC1_HUMAN",
-    "CSKI1_MOUSE",
-    "MTUS2_HUMAN",
-    "ROBO2_HUMAN",
-]
-illumina_conditions = [condition.split("_")[0] for condition in illumina_conditions]
+# illumina_conditions = [
+#     "RUSC2_MOUSE",
+#     "TRIM2_BOVIN",
+#     "CA2D3_MOUSE",
+#     "ABL_DROME",
+#     "DGLA_HUMAN",
+#     "K0513_MOUSE",
+#     "KCNAS_DROME",
+#     "ACHA4_MOUSE",
+#     "ANR17_HUMAN",
+#     "TWK7_CAEEL",
+#     "SCN1_HETBL",
+#     "CACB2_RABIT",
+#     "RIMS2_RAT",
+#     "PCLO_CHICK",
+#     "DOP1_HUMAN",
+#     "IQEC1_HUMAN",
+#     "CSKI1_MOUSE",
+#     "MTUS2_HUMAN",
+#     "ROBO2_HUMAN",
+# ]
+# illumina_conditions = [condition.split("_")[0] for condition in illumina_conditions]
 
-pacbio_color_sequence = px.colors.qualitative.G10
-pacbio_color_discrete_map = {
-    condition: color
-    for condition, color in zip(pacbio_conditions, pacbio_color_sequence)
-}
+# # pacbio_color_sequence = px.colors.qualitative.G10
+# # pacbio_color_discrete_map = {
+# #     condition: color
+# #     for condition, color in zip(pacbio_conditions, pacbio_color_sequence)
+# # }
 
-illumina_color_sequence = px.colors.qualitative.Dark24
-illumina_color_discrete_map = {
-    condition: color
-    for condition, color in zip(illumina_conditions, illumina_color_sequence)
-}
+# # illumina_color_sequence = px.colors.qualitative.Dark24
+# # illumina_color_discrete_map = {
+# #     condition: color
+# #     for condition, color in zip(illumina_conditions, illumina_color_sequence)
+# # }
 
 # %%
 in_dir = Path("/private7/projects/Combinatorics/Code/Notebooks")
@@ -2782,10 +2868,10 @@ pacbio_merged_assignment_file = Path(in_dir, "AssignedExpression.PacBio.tsv")
 # pacbio_umi_merged_assignment_file = Path(
 #     in_dir, "AssignedExpression.PacBio.WithUMIs.tsv"
 # )
-# data 3 w/ duplicates
-pacbio_umi_merged_assignment_file = Path(
-    in_dir, "AssignedExpression.PacBio3.WithUMIs.tsv"
-)
+# # data 3 w/ duplicates
+# pacbio_umi_merged_assignment_file = Path(
+#     in_dir, "AssignedExpression.PacBio3.WithUMIs.tsv"
+# )
 
 # %%
 expression_cols = [
@@ -2809,7 +2895,7 @@ illumina_merged_assignment_df[condition_col] = (
 pacbio_merged_assignment_df = pd.concat(
     [
         pd.read_table(pacbio_merged_assignment_file, usecols=expression_cols),
-        pd.read_table(pacbio_umi_merged_assignment_file, usecols=expression_cols),
+        # pd.read_table(pacbio_umi_merged_assignment_file, usecols=expression_cols),
     ]
 )
 pacbio_merged_assignment_df[condition_col] = pacbio_merged_assignment_df[
@@ -2838,12 +2924,12 @@ ic(len(illumina_assignment_dfs))
 illumina_assignment_dfs[0]
 
 # %%
-platforms_color_map = {
-    platform: color_map
-    for platform, color_map in zip(
-        platforms, [pacbio_color_discrete_map, illumina_color_discrete_map]
-    )
-}
+# platforms_color_map = {
+#     platform: color_map
+#     for platform, color_map in zip(
+#         platforms, [pacbio_color_discrete_map, illumina_color_discrete_map]
+#     )
+# }
 
 # dashes = ["dash", "dot"]
 dashes = ["dash", "solid"]
@@ -2865,244 +2951,247 @@ joined_assignments_dfs = pacbio_assignment_dfs + illumina_assignment_dfs
 # ## All squid genes
 
 # %%
-font_size = 28
+# font_size = 28
 
-fig = make_subplots(
-    rows=1,
-    cols=2,
-    y_title="Relative expression [%]",
-    x_title="Isoform rank",
-    subplot_titles=platforms,
-    shared_yaxes="all",
-    shared_xaxes="all",
-    # vertical_spacing=facet_row_spacing / 2.5,
-    # horizontal_spacing=facet_col_spacing * 1.5,
-    # vertical_spacing=0.05,
-    vertical_spacing=0.03,
-    horizontal_spacing=0.015,
-)
+# fig = make_subplots(
+#     rows=1,
+#     cols=2,
+#     y_title="Relative expression [%]",
+#     x_title="Isoform rank",
+#     subplot_titles=platforms,
+#     shared_yaxes="all",
+#     shared_xaxes="all",
+#     # vertical_spacing=facet_row_spacing / 2.5,
+#     # horizontal_spacing=facet_col_spacing * 1.5,
+#     # vertical_spacing=0.05,
+#     vertical_spacing=0.03,
+#     # horizontal_spacing=0.015,
+#     horizontal_spacing=0.05,
+# )
 
-for platform, condition, assignment_df in zip(
-    joined_platforms, joined_conditions, joined_assignments_dfs
-):
-    x = assignment_df["#Protein"]
-    y = assignment_df["%RelativeExpression"]
+# for platform, condition, assignment_df in zip(
+#     joined_platforms, joined_conditions, joined_assignments_dfs
+# ):
+#     x = assignment_df["#Protein"]
+#     y = assignment_df["%RelativeExpression"]
 
-    color = platforms_color_map[platform][condition]
-    col = 1 if platform == "Long-reads" else 2
+#     # color = platforms_color_map[platform][condition]
+#     color = squid_color_discrete_map[condition]
+#     col = 1 if platform == "Long-reads" else 2
 
-    fig.add_trace(
-        go.Scattergl(
-            x=x,
-            y=y,
-            mode="markers",
-            marker=dict(
-                color=color,
-                # symbol=platforms_symbols[platform],
-                size=3,
-                opacity=0.3,
-            ),
-            # mode="lines",
-            # line=dict(
-            #     color=platforms_color_map[platform][condition],
-            #     dash=platforms_dashes[platform],
-            #     # size=8,
-            # ),
-            # opacity=0.3,
-            legendgrouptitle_text=platform,
-            legendgroup=platform,  # this can be any string
-            name=condition,
-            showlegend=False,
-        ),
-        row=1,
-        col=col,
-    )
+#     fig.add_trace(
+#         go.Scattergl(
+#             x=x,
+#             y=y,
+#             mode="markers",
+#             marker=dict(
+#                 color=color,
+#                 # symbol=platforms_symbols[platform],
+#                 size=3,
+#                 opacity=0.3,
+#             ),
+#             # mode="lines",
+#             # line=dict(
+#             #     color=platforms_color_map[platform][condition],
+#             #     dash=platforms_dashes[platform],
+#             #     # size=8,
+#             # ),
+#             # opacity=0.3,
+#             legendgrouptitle_text=platform,
+#             legendgroup=platform,  # this can be any string
+#             name=condition,
+#             showlegend=False,
+#         ),
+#         row=1,
+#         col=col,
+#     )
 
-    # Add trace for legend so the legened wont be opaque
-    fig.add_trace(
-        go.Scatter(
-            x=[None],
-            y=[None],
-            mode="markers",
-            marker=dict(
-                color=color,
-                # symbol=platforms_symbols[platform],
-                size=5,
-                # size=3,
-            ),
-            legendgrouptitle_text=platform,
-            legendgroup=platform,  # this can be any string
-            name=condition,
-            # name=f"{condition}  ",
-            showlegend=True,
-            # visible="legendonly",
-        ),
-        row=1,
-        col=col,
-    )
+#     # Add trace for legend so the legened wont be opaque
+#     fig.add_trace(
+#         go.Scatter(
+#             x=[None],
+#             y=[None],
+#             mode="markers",
+#             marker=dict(
+#                 color=color,
+#                 # symbol=platforms_symbols[platform],
+#                 size=5,
+#                 # size=3,
+#             ),
+#             legendgrouptitle_text=platform,
+#             legendgroup=platform,  # this can be any string
+#             name=condition,
+#             # name=f"{condition}  ",
+#             showlegend=True,
+#             # visible="legendonly",
+#         ),
+#         row=1,
+#         col=col,
+#     )
 
-# fig.update_xaxes(type="log")
+# # fig.update_xaxes(type="log")
+# # fig.update_yaxes(
+# #     type="log",
+# #     # range=[np.log10(y_min), np.log10(y_max)], nticks=6
+# # )
+
+# fig.update_xaxes(
+#     type="log",
+#     tickfont=dict(size=0.5 * font_size),
+#     tickangle=20,
+# )
 # fig.update_yaxes(
 #     type="log",
+#     tickfont=dict(size=0.5 * font_size),
 #     # range=[np.log10(y_min), np.log10(y_max)], nticks=6
 # )
 
-fig.update_xaxes(
-    type="log",
-    tickfont=dict(size=0.5 * font_size),
-    tickangle=20,
-)
-fig.update_yaxes(
-    # type="log",
-    tickfont=dict(size=0.5 * font_size),
-    # range=[np.log10(y_min), np.log10(y_max)], nticks=6
-)
+# fig.update_annotations(font_size=font_size)
 
-fig.update_annotations(font_size=font_size)
-
-width = 1200
-# height = 650
-height = 700
+# width = 1200
+# # height = 650
+# height = 700
 
 
-fig.update_layout(
-    legend_font=dict(size=10),
-    # legend_grouptitlefont=dict(size=8),
-    legend_grouptitlefont=dict(size=0.5 * font_size),
-    # legend_tracegroupgap=4,
-    # title="Squid",
-    title_x=0.1,
-    template=template,
-    width=width,
-    height=height,
-)
+# fig.update_layout(
+#     legend_font=dict(size=10),
+#     # legend_grouptitlefont=dict(size=8),
+#     legend_grouptitlefont=dict(size=0.5 * font_size),
+#     # legend_tracegroupgap=4,
+#     # title="Squid",
+#     title_x=0.1,
+#     template=template,
+#     width=width,
+#     height=height,
+# )
 
-fig.write_image(
-    Path(
-        out_dir,
-        "Relative expression vs. distinct protein rank - PacBio vs. Illumina fixed.svg",
-    ),
-    width=width,
-    height=height,
-)
+# # fig.write_image(
+# #     Path(
+# #         out_dir,
+# #         "Relative expression vs. distinct protein rank - PacBio vs. Illumina fixed.svg",
+# #     ),
+# #     width=width,
+# #     height=height,
+# # )
 
-fig.show()
+# fig.show()
 
 
 # %%
-font_size = 28
+# font_size = 28
 
-fig = make_subplots(
-    rows=1,
-    cols=2,
-    y_title="Cumulative relative<br>expression [%]",
-    x_title="Isoform rank",
-    subplot_titles=platforms,
-    shared_yaxes="all",
-    shared_xaxes="all",
-    vertical_spacing=0.03,
-    # horizontal_spacing=0.015,
-    horizontal_spacing=0.03,
-)
+# fig = make_subplots(
+#     rows=1,
+#     cols=2,
+#     y_title="Cumulative relative<br>expression [%]",
+#     x_title="Isoform rank",
+#     subplot_titles=platforms,
+#     shared_yaxes="all",
+#     shared_xaxes="all",
+#     vertical_spacing=0.03,
+#     # horizontal_spacing=0.015,
+#     horizontal_spacing=0.05,
+# )
 
-for platform, condition, assignment_df in zip(
-    joined_platforms, joined_conditions, joined_assignments_dfs
-):
-    x = assignment_df["#Protein"]
-    y = assignment_df["%CummulativeRelativeExpression"]
+# for platform, condition, assignment_df in zip(
+#     joined_platforms, joined_conditions, joined_assignments_dfs
+# ):
+#     x = assignment_df["#Protein"]
+#     y = assignment_df["%CummulativeRelativeExpression"]
 
-    color = platforms_color_map[platform][condition]
-    col = 1 if platform == "Long-reads" else 2
+#     # color = platforms_color_map[platform][condition]
+#     color = squid_color_discrete_map[condition]
+#     col = 1 if platform == "Long-reads" else 2
 
-    fig.add_trace(
-        go.Scattergl(
-            x=x,
-            y=y,
-            mode="markers",
-            marker=dict(
-                color=color,
-                # symbol=platforms_symbols[platform],
-                size=3,
-                opacity=0.3,
-            ),
-            # mode="lines",
-            # line=dict(
-            #     color=platforms_color_map[platform][condition],
-            #     dash=platforms_dashes[platform],
-            #     # size=8,
-            # ),
-            # opacity=0.3,
-            legendgrouptitle_text=platform,
-            legendgroup=platform,  # this can be any string
-            name=condition,
-            showlegend=False,
-        ),
-        row=1,
-        col=col,
-    )
+#     fig.add_trace(
+#         go.Scattergl(
+#             x=x,
+#             y=y,
+#             mode="markers",
+#             marker=dict(
+#                 color=color,
+#                 # symbol=platforms_symbols[platform],
+#                 size=3,
+#                 opacity=0.3,
+#             ),
+#             # mode="lines",
+#             # line=dict(
+#             #     color=platforms_color_map[platform][condition],
+#             #     dash=platforms_dashes[platform],
+#             #     # size=8,
+#             # ),
+#             # opacity=0.3,
+#             legendgrouptitle_text=platform,
+#             legendgroup=platform,  # this can be any string
+#             name=condition,
+#             showlegend=False,
+#         ),
+#         row=1,
+#         col=col,
+#     )
 
-    # Add trace for legend so the legened wont be opaque
-    fig.add_trace(
-        go.Scatter(
-            x=[None],
-            y=[None],
-            mode="markers",
-            marker=dict(
-                color=color,
-                # symbol=platforms_symbols[platform],
-                size=5,
-            ),
-            legendgrouptitle_text=platform,
-            legendgroup=platform,  # this can be any string
-            name=condition,
-            showlegend=True,
-            # visible="legendonly",
-        ),
-        row=1,
-        col=col,
-    )
+#     # Add trace for legend so the legened wont be opaque
+#     fig.add_trace(
+#         go.Scatter(
+#             x=[None],
+#             y=[None],
+#             mode="markers",
+#             marker=dict(
+#                 color=color,
+#                 # symbol=platforms_symbols[platform],
+#                 size=5,
+#             ),
+#             legendgrouptitle_text=platform,
+#             legendgroup=platform,  # this can be any string
+#             name=condition,
+#             showlegend=True,
+#             # visible="legendonly",
+#         ),
+#         row=1,
+#         col=col,
+#     )
 
-fig.update_xaxes(
-    type="log",
-    tickfont=dict(size=0.5 * font_size),
-    tickangle=20,
-)
-fig.update_yaxes(
-    # type="log",
-    tickfont=dict(size=0.5 * font_size),
-    # range=[np.log10(y_min), np.log10(y_max)], nticks=6
-)
+# fig.update_xaxes(
+#     type="log",
+#     tickfont=dict(size=0.5 * font_size),
+#     tickangle=20,
+# )
+# fig.update_yaxes(
+#     # type="log",
+#     tickfont=dict(size=0.5 * font_size),
+#     # range=[np.log10(y_min), np.log10(y_max)], nticks=6
+# )
 
-fig.update_annotations(font_size=font_size)
+# fig.update_annotations(font_size=font_size)
 
-width = 1200
-height = 650
+# width = 1200
+# height = 650
 
-fig.update_layout(
-    # legend_font=dict(size=0.5 * font_size),
-    legend_font=dict(size=10),
-    legend_grouptitlefont=dict(size=0.5 * font_size),
-    # legend_font=dict(size=6),
-    # legend_grouptitlefont=dict(size=8),
-    # legend_tracegroupgap=4,
-    # title="Squid",
-    # title_x=0.1,
-    template=template,
-    width=width,
-    height=height,
-    margin=dict(l=120, r=40, t=60, b=80),
-)
+# fig.update_layout(
+#     # legend_font=dict(size=0.5 * font_size),
+#     legend_font=dict(size=10),
+#     legend_grouptitlefont=dict(size=0.5 * font_size),
+#     # legend_font=dict(size=6),
+#     # legend_grouptitlefont=dict(size=8),
+#     # legend_tracegroupgap=4,
+#     # title="Squid",
+#     # title_x=0.1,
+#     template=template,
+#     width=width,
+#     height=height,
+#     margin=dict(l=120, r=40, t=60, b=80),
+# )
 
-fig.write_image(
-    Path(
-        out_dir,
-        "Weighted cumulative expression vs. distinct protein rank - PacBio vs. Illumina fixed.svg",
-    ),
-    width=width,
-    height=height,
-)
+# # fig.write_image(
+# #     Path(
+# #         out_dir,
+# #         "Weighted cumulative expression vs. distinct protein rank - PacBio vs. Illumina fixed.svg",
+# #     ),
+# #     width=width,
+# #     height=height,
+# # )
 
-fig.show()
+# fig.show()
 
 
 # %%
@@ -3118,8 +3207,8 @@ fig = make_subplots(
     shared_xaxes=True,       # sync x across all 4 panels
     shared_yaxes="rows",     # sync y within each row
     column_titles=platforms, # "Long-reads", "Short-reads"
-    horizontal_spacing=0.03,
-    vertical_spacing=0.03,   # tighter gap between rows
+    horizontal_spacing=0.05,
+    vertical_spacing=0.05,   # tighter gap between rows
 )
 
 def platform_to_col(platform: str) -> int:
@@ -3133,7 +3222,8 @@ for platform, condition, assignment_df in zip(
 ):
     col = platform_to_col(platform)
 
-    color = platforms_color_map[platform][condition]
+    # color = platforms_color_map[platform][condition]
+    color = squid_color_discrete_map[condition]
     legend_items[(platform, condition)] = color
 
     # ---------- Row 1: Relative expression ----------
@@ -3261,132 +3351,10 @@ fig.update_layout(
     margin=dict(l=140, r=220, t=80, b=130),
 )
 
-fig.show()
-
 # Optional export:
-fig.write_image(Path(out_dir, "2x2_expression_vs_rank.svg"), width=width, height=height)
+fig.write_image(Path(out_dir, "2x2_expression_vs_rank.PB1 and IL.svg"), width=width, height=height)
 
-
-# %%
-# font_size = 36
-
-# fig = make_subplots(
-#     rows=2,
-#     cols=1,
-#     y_title="Cumulative relative expression [%]",
-#     x_title="Isoform rank",
-#     subplot_titles=platforms,
-#     shared_yaxes="all",
-#     shared_xaxes="all",
-#     vertical_spacing=0.03,
-#     # horizontal_spacing=0.015,
-#     horizontal_spacing=0.03,
-# )
-
-# for platform, condition, assignment_df in zip(
-#     joined_platforms, joined_conditions, joined_assignments_dfs
-# ):
-#     x = assignment_df["#Protein"]
-#     y = assignment_df["%CummulativeRelativeExpression"]
-
-#     color = platforms_color_map[platform][condition]
-#     # col = 1 if platform == "Long-reads" else 2
-#     row = 1 if platform == "Long-reads" else 2
-
-#     fig.add_trace(
-#         go.Scattergl(
-#             x=x,
-#             y=y,
-#             mode="markers",
-#             marker=dict(
-#                 color=color,
-#                 # symbol=platforms_symbols[platform],
-#                 size=3,
-#                 opacity=0.3,
-#             ),
-#             # mode="lines",
-#             # line=dict(
-#             #     color=platforms_color_map[platform][condition],
-#             #     dash=platforms_dashes[platform],
-#             #     # size=8,
-#             # ),
-#             # opacity=0.3,
-#             # legendgrouptitle_text=platform,
-#             legendgrouptitle_text=platform + "  ",
-#             legendgroup=platform,  # this can be any string
-#             name=condition,
-#             showlegend=False,
-#         ),
-#         row=row,
-#         col=1,
-#     )
-
-#     # Add trace for legend so the legened wont be opaque
-#     fig.add_trace(
-#         go.Scatter(
-#             x=[None],
-#             y=[None],
-#             mode="markers",
-#             marker=dict(
-#                 color=color,
-#                 # symbol=platforms_symbols[platform],
-#                 size=5,
-#             ),
-#             # legendgrouptitle_text=platform,
-#             legendgrouptitle_text=platform + "  ",
-#             legendgroup=platform,  # this can be any string
-#             name=condition,
-#             showlegend=True,
-#             # visible="legendonly",
-#         ),
-#         row=row,
-#         col=1,
-#     )
-
-# fig.update_xaxes(
-#     type="log",
-#     tickfont=dict(size=0.7 * font_size),
-#     # tickangle=20,
-# )
-# fig.update_yaxes(
-#     # type="log",
-#     tickfont=dict(size=0.7 * font_size),
-#     # range=[np.log10(y_min), np.log10(y_max)], nticks=6
-# )
-
-# fig.update_annotations(font_size=font_size)
-
-# # width = 650
-# width = 1200
-# height = 1200
-
-
-# fig.update_layout(
-#     # legend_font=dict(size=0.5 * font_size),
-#     legend_font=dict(size=18),
-#     # legend_grouptitlefont=dict(size=0.5 * font_size),
-#     legend_grouptitlefont=dict(size=22),
-#     # legend_font=dict(size=6),
-#     # legend_grouptitlefont=dict(size=8),
-#     # legend_tracegroupgap=4,
-#     # title="Squid",
-#     # title_x=0.1,
-#     template=template,
-#     width=width,
-#     height=height,
-#     margin=dict(l=120, r=60, t=60, b=80),
-# )
-
-# # fig.write_image(
-# #     Path(
-# #         out_dir,
-# #         "Weighted cumulative expression vs. distinct protein rank - vertical - PacBio vs. Illumina.svg",
-# #     ),
-# #     width=width,
-# #     height=height,
-# # )
-
-# fig.show()
+fig.show()
 
 # %% [markdown]
 # ## Combined expression plots for long-reads squid genes
@@ -3583,13 +3551,16 @@ fig.show()
 # TODO reads dedopped assignment dfs and compare them to the non-dedopped ones (ADAR1 and IQEC1)
 
 # %%
-pacbio_umi_conditions = ["GRIA2", "ADAR1", "IQEC1"]
+# pacbio_umi_conditions = ["GRIA2", "ADAR1", "IQEC1"]
 
-umis_subcolors_discrete_map = {
-    condition: two_subcolors_from_hex(pacbio_color_discrete_map[condition])
-    for condition in pacbio_umi_conditions
-}
-umis_subcolors_discrete_map
+# # umis_subcolors_discrete_map = {
+# #     condition: two_subcolors_from_hex(pacbio_color_discrete_map[condition])
+# #     for condition in pacbio_umi_conditions
+# # }
+
+# umis_subcolors_discrete_map = squid_subcolors_discrete_map
+
+# umis_subcolors_discrete_map
 
 # %%
 # in_dir = out_dir
@@ -3679,7 +3650,8 @@ for (row, col), condition in zip(row_col_iter, pacbio_umi_conditions):
     ]
 
     for color, df, legend_y, inner_text in zip(
-        umis_subcolors_discrete_map[condition],
+        # umis_subcolors_discrete_map[condition],
+        squid_subcolors_discrete_map[condition],
         # squid_subcolors_discrete_map[condition],
         [duped_aassignment_df, deduped_aassignment_df],
         legend_ys,
@@ -3758,14 +3730,14 @@ fig.update_layout(
     ),
 )
 
-# fig.write_image(
-#     Path(
-#         out_dir,
-#         "Cumulative expression vs. distinct protein rank - PacBio - full data vs. deduped.svg",
-#     ),
-#     width=width,
-#     height=height,
-# )
+fig.write_image(
+    Path(
+        out_dir,
+        "Cumulative expression vs. distinct protein rank - PacBio - full data vs. deduped.two subcolors.svg",
+    ),
+    width=width,
+    height=height,
+)
 
 fig.show()
 
@@ -3815,7 +3787,8 @@ for col, condition in zip([1, 2, 3], pacbio_umi_conditions):
             & (merged_umi_assignment_df["Gene"] == condition)
         ]
         # color = umis_subcolors_discrete_map[condition][row-1]
-        color = pacbio_color_discrete_map[condition]
+        # color = pacbio_color_discrete_map[condition]
+        color = squid_color_discrete_map[condition]
         x = assignment_df["#Protein"]
         y = assignment_df["%CummulativeRelativeExpression"]
 
@@ -3869,14 +3842,14 @@ fig.update_layout(
     ),
 )
 
-# fig.write_image(
-#     Path(
-#         out_dir,
-#         "Cumulative expression vs. distinct protein rank - PacBio - full data vs. deduped.svg",
-#     ),
-#     width=width,
-#     height=height,
-# )
+fig.write_image(
+    Path(
+        out_dir,
+        "Cumulative expression vs. distinct protein rank - PacBio - full data vs. deduped.two rows.svg",
+    ),
+    width=width,
+    height=height,
+)
 
 fig.show()
 
@@ -3922,7 +3895,8 @@ for col, condition in enumerate(pacbio_umi_conditions, start=1):
     x = pd.to_numeric(sub_df["False"], errors="coerce")  # full / duped data
     y = pd.to_numeric(sub_df["True"], errors="coerce")   # deduped data
 
-    color = pacbio_color_discrete_map[condition]
+    # color = pacbio_color_discrete_map[condition]
+    color = squid_color_discrete_map[condition]
 
     # Data used for both plotting limits and regression
     clean_df = (
@@ -4496,24 +4470,24 @@ fig.show()
 # ## Relative expression of isoforms - 0.1 vs 1 - long-reads
 
 # %%
-pacbio_subcolors_discrete_map = {
-    condition: two_subcolors_from_hex(pacbio_color_discrete_map[condition])
-    for condition in pacbio_conditions
-}
-pacbio_subcolors_discrete_map
+# pacbio_subcolors_discrete_map = {
+#     condition: two_subcolors_from_hex(pacbio_color_discrete_map[condition])
+#     for condition in pacbio_conditions
+# }
+# pacbio_subcolors_discrete_map
 
 # %%
 fraction01_assignment_files = [
     "/private6/projects/Combinatorics/Code/Notebooks/AssignedExpression.Fraction01.PacBio.tsv",
-    "/private6/projects/Combinatorics/Code/Notebooks/AssignedExpression.Fraction01.PacBio.UMIs.tsv"
+    # "/private6/projects/Combinatorics/Code/Notebooks/AssignedExpression.Fraction01.PacBio.UMIs.tsv"
 ]
 frac_1_merged_to_frac_01_files = [
     "/private6/projects/Combinatorics/Code/Notebooks/AssignedExpression.Fractions1Vs01.PacBio.tsv",
-    "/private6/projects/Combinatorics/Code/Notebooks/AssignedExpression.Fractions1Vs01.PacBio.UMIs.tsv"
+    # "/private6/projects/Combinatorics/Code/Notebooks/AssignedExpression.Fractions1Vs01.PacBio.UMIs.tsv"
 ]
 frac_01_merged_to_frac_1_files = [
     "/private6/projects/Combinatorics/Code/Notebooks/AssignedExpression.Fractions01Vs1.PacBio.tsv",
-    "/private6/projects/Combinatorics/Code/Notebooks/AssignedExpression.Fractions01Vs1.PacBio.UMIs.tsv"
+    # "/private6/projects/Combinatorics/Code/Notebooks/AssignedExpression.Fractions01Vs1.PacBio.UMIs.tsv"
 ]
 
 # %%
@@ -4557,8 +4531,8 @@ pacbio_assignment_dfs[0]
 fraction01_assignment_dfs[0]
 
 # %%
-frac_1_merged_to_frac_01_assignment_dfs
-frac_01_merged_to_frac_1_assignment_dfs
+# frac_1_merged_to_frac_01_assignment_dfs
+# frac_01_merged_to_frac_1_assignment_dfs
 
 # %%
 frac_1_merged_to_frac_01_assignment_dfs[0]
@@ -4609,7 +4583,8 @@ for (row, col), assignment_df, fraction01_assignment_df, condition in zip(
     
 
     for color, df, percentile_fraction, legend_y in zip(
-        pacbio_subcolors_discrete_map[condition],
+        # pacbio_subcolors_discrete_map[condition],
+        squid_subcolors_discrete_map[condition],
         [fraction01_assignment_df, assignment_df],
         percentile_fractions,
         legend_ys,
@@ -4673,9 +4648,9 @@ fig.update_xaxes(
     nticks=6,
 )
 
-# width = 900
+width = 900
 # height = 450
-width = 1200
+# width = 1200
 height = 450
 
 fig.update_layout(
@@ -4775,7 +4750,8 @@ for (
             y=frac_1_relative_to_frac_01_y,
             mode="markers",
             marker=dict(
-                color=pacbio_color_discrete_map[condition],
+                # color=pacbio_color_discrete_map[condition],
+                color=squid_color_discrete_map[condition],
                 size=4,
                 # opacity=0.7,
                 # symbol=symbol,
@@ -4860,7 +4836,8 @@ max_x_y = max(max_x, max_y)
 fig.update_xaxes(range=[0, max_x_y*1.1], tick0=0, dtick=0.25)
 fig.update_yaxes(scaleanchor="x", scaleratio=1, range=[0, max_x_y*1.1], tick0=0, dtick=0.25)
 
-width = 1200
+# width = 1200
+width = 900
 height = 450
 
 fig.update_layout(
@@ -5246,7 +5223,9 @@ fig.show()
 condition_col = "Gene"
 platforms = ["Long-reads", "Short-reads"]
 
-pacbio_conditions = ["GRIA2", "PCLO", "ADAR1", "IQEC1"]
+pacbio_conditions = ["GRIA2", "PCLO", 
+                    #  "ADAR1", "IQEC1"
+                     ]
 
 illumina_conditions = [
     "RUSC2_MOUSE",
@@ -5271,26 +5250,26 @@ illumina_conditions = [
 ]
 illumina_conditions = [condition.split("_")[0] for condition in illumina_conditions]
 
-pacbio_color_sequence = px.colors.qualitative.G10
-pacbio_color_discrete_map = {
-    condition: color
-    for condition, color in zip(pacbio_conditions, pacbio_color_sequence)
-}
+# pacbio_color_sequence = px.colors.qualitative.G10
+# pacbio_color_discrete_map = {
+#     condition: color
+#     for condition, color in zip(pacbio_conditions, pacbio_color_sequence)
+# }
 
-illumina_color_sequence = px.colors.qualitative.Dark24
-illumina_color_discrete_map = {
-    condition: color
-    for condition, color in zip(illumina_conditions, illumina_color_sequence)
-}
+# illumina_color_sequence = px.colors.qualitative.Dark24
+# illumina_color_discrete_map = {
+#     condition: color
+#     for condition, color in zip(illumina_conditions, illumina_color_sequence)
+# }
 
 # %%
 in_dir = Path("/private7/projects/Combinatorics/Code/Notebooks")
 
 illumina_merged_distinct_proteins_file = Path(in_dir, "DistinctProteins.Illumina.tsv")
 pacbio_merged_distinct_proteins_file = Path(in_dir, "DistinctProteins.PacBio.tsv")
-pacbio_umi_merged_distinct_proteins_file = Path(
-    in_dir, "DistinctProteins.PacBio.UMI.tsv"
-)
+# pacbio_umi_merged_distinct_proteins_file = Path(
+#     in_dir, "DistinctProteins.PacBio.UMI.tsv"
+# )
 
 illumina_merged_max_distinct_proteins_file = Path(
     in_dir, "MaxDistinctProteinsF1.Illumina.tsv"
@@ -5298,20 +5277,20 @@ illumina_merged_max_distinct_proteins_file = Path(
 pacbio_merged_max_distinct_proteins_file = Path(
     in_dir, "MaxDistinctProteinsF1.PacBio.tsv"
 )
-pacbio_umi_merged_max_distinct_proteins_file = Path(
-    in_dir, "MaxDistinctProteinsF1.PacBio.UMI.tsv"
-)
+# pacbio_umi_merged_max_distinct_proteins_file = Path(
+#     in_dir, "MaxDistinctProteinsF1.PacBio.UMI.tsv"
+# )
 
 # %%
-platforms_color_map = {
-    platform: color_map
-    for platform, color_map in zip(
-        platforms, [pacbio_color_discrete_map, illumina_color_discrete_map]
-    )
-}
+# platforms_color_map = {
+#     platform: color_map
+#     for platform, color_map in zip(
+#         platforms, [pacbio_color_discrete_map, illumina_color_discrete_map]
+#     )
+# }
 
 # %%
-platforms_conditions = [pacbio_conditions, illumina_conditions]
+# platforms_conditions = [pacbio_conditions, illumina_conditions]
 
 # %% [markdown]
 # ## Max distinct
@@ -5321,7 +5300,7 @@ platforms_conditions = [pacbio_conditions, illumina_conditions]
 pacbio_max_distinct_proteins_df = pd.concat(
     [
         pd.read_table(pacbio_merged_max_distinct_proteins_file),
-        pd.read_table(pacbio_umi_merged_max_distinct_proteins_file),
+        # pd.read_table(pacbio_umi_merged_max_distinct_proteins_file),
     ]
 )
 illumina_max_distinct_proteins_df = pd.read_table(
@@ -5331,8 +5310,11 @@ illumina_max_distinct_proteins_df = pd.read_table(
 merged_max_distinct_df = pd.concat(
     [pacbio_max_distinct_proteins_df, illumina_max_distinct_proteins_df]
 )
+# merged_max_distinct_df["Color"] = merged_max_distinct_df.apply(
+#     lambda x: platforms_color_map[x["Platform"]][x[condition_col]], axis=1
+# )
 merged_max_distinct_df["Color"] = merged_max_distinct_df.apply(
-    lambda x: platforms_color_map[x["Platform"]][x[condition_col]], axis=1
+    lambda x: squid_color_discrete_map[x[condition_col]], axis=1
 )
 merged_max_distinct_df
 
@@ -5359,12 +5341,12 @@ fig = make_subplots(
 )
 
 for col, (platform, platform_conditions) in enumerate(
-    zip(platforms, platforms_conditions), start=1
+    zip(platforms, [pacbio_conditions, illumina_conditions]), start=1
 ):
     platform_df = merged_max_distinct_df.loc[
         merged_max_distinct_df["Platform"] == platform
     ]
-    for condition in platform_conditions:
+    for condition in sorted(platform_conditions):
         condition_df = platform_df.loc[platform_df[condition_col] == condition]
         x = condition_df[condition_col]
         y = condition_df["Max"]
@@ -5435,7 +5417,7 @@ fig.show()
 pacbio_distinct_proteins_df = pd.concat(
     [
         pd.read_table(pacbio_merged_distinct_proteins_file),
-        pd.read_table(pacbio_umi_merged_distinct_proteins_file),
+        # pd.read_table(pacbio_umi_merged_distinct_proteins_file),
     ]
 )
 illumina_distinct_proteins_df = pd.read_table(illumina_merged_distinct_proteins_file)
@@ -5499,14 +5481,14 @@ dscam_legend_names = [
 
 
 for col, (platform, platform_conditions) in enumerate(
-    zip(platforms, platforms_conditions), start=1
+    zip(platforms, [pacbio_conditions, illumina_conditions]), start=1
 ):
 
     # add all conditions under a sequencing platform
 
     platform_df = merged_distinct_df.loc[merged_distinct_df["Platform"] == platform]
 
-    for condition in platform_conditions:
+    for condition in sorted(platform_conditions):
 
         condition_df = (
             platform_df.loc[platform_df[condition_col] == condition]
@@ -5516,7 +5498,8 @@ for col, (platform, platform_conditions) in enumerate(
 
         x_measured = condition_df["NumOfReads"]
         y_measured = condition_df["NumOfProteins"]
-        color = platforms_color_map[platform][condition]
+        # color = platforms_color_map[platform][condition]
+        color = squid_color_discrete_map[condition]
         name = condition
 
         fig.add_trace(
@@ -5584,6 +5567,13 @@ for col, (platform, platform_conditions) in enumerate(
         row=1,
         col=col,
     )
+    
+    # fig.update_xaxes(
+    #     row=1,
+    #     col=col,
+    #     tick0=0,
+    #     dtick=20_000 if col == 1 else 200_000,
+    # )
 
 
 fig.update_xaxes(
@@ -5595,12 +5585,14 @@ fig.update_xaxes(
     # type="log"
     title_standoff=100,
     automargin=True,
+    rangemode="tozero",
 )
 
 
 fig.update_yaxes(
     # tickfont=dict(size=0.7 * font_size),
     tickfont=dict(size=0.6 * font_size),
+    rangemode="nonnegative",
     # type="log"
 )
 
@@ -5635,80 +5627,6 @@ fig.show()
 
 
 # %%
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-
-import numpy as np
-
-# Generate synthetic data
-x1 = np.linspace(0, 100, 20)
-y1 = np.random.randint(10, 100, size=20)
-x2 = 
-y2 = np.random.randint(10, 100, size=20)
-
-font_size = 28
-
-fig = make_subplots(
-    rows=1,
-    cols=2,
-    x_title="X-axis title",
-    y_title="Y-axis title",
-    subplot_titles=["Group A", "Group B"],
-    shared_yaxes=True,
-    horizontal_spacing=0.04,
-)
-
-fig.add_trace(
-    go.Scatter(
-        x=x,
-        y=y1,
-        mode="lines+markers",
-        name="A",
-        marker=dict(size=8, color="blue"),
-    ),
-    row=1,
-    col=1,
-)
-fig.add_trace(
-    go.Scatter(
-        x=x,
-        y=y2,
-        mode="lines+markers",
-        name="B",
-        marker=dict(size=8, color="red"),
-    ),
-    row=1,
-    col=2,
-)
-
-fig.update_xaxes(
-    tickfont=dict(size=0.7 * font_size),
-    tickangle=30,
-    title_standoff=100,  # <-- This has no effect!
-    automargin=True,
-)
-fig.update_xaxes(title_standoff=100, automargin=True, row=1, col=1)
-fig.update_xaxes(title_standoff=100, automargin=True, row=1, col=2)
-
-fig.update_yaxes(
-    tickfont=dict(size=0.7 * font_size),
-)
-
-fig.update_annotations(font_size=font_size)
-
-width = 900
-height = 500
-
-fig.update_layout(
-    template="plotly_white",
-    width=width,
-    height=height,
-    margin=dict(l=120, r=40, t=60, b=120),
-)
-
-fig.show()
-
-# %%
 height
 
 # %% [markdown]
@@ -5717,7 +5635,7 @@ height
 # %%
 distinct_dissimlar_files = [
     "/private6/projects/Combinatorics/Code/Notebooks/DistinctDissimilarProteins.PacBio.tsv",
-    "/private6/projects/Combinatorics/Code/Notebooks/DistinctDissimilarProteins.PacBio.UMI.tsv"
+    # "/private6/projects/Combinatorics/Code/Notebooks/DistinctDissimilarProteins.PacBio.UMI.tsv"
 ]
 
 # %%
@@ -5799,30 +5717,203 @@ test_cases = [
 # # round_to_natural_new(*test_cases[5])
 
 # %%
-# assert (
-#     distinct_dissimilar_grantham_proteins_df["CutoffScore"].value_counts()[100]
-#     == distinct_dissimilar_grantham_proteins_df.shape[0]
+# # assert (
+# #     distinct_dissimilar_grantham_proteins_df["CutoffScore"].value_counts()[100]
+# #     == distinct_dissimilar_grantham_proteins_df.shape[0]
+# # )
+
+# # _distinct_dissimilar_dfs = {
+# #     "Miyata": distinct_dissimilar_miyata_proteins_df,
+# #     "Grantham 100": distinct_dissimilar_grantham_proteins_df,
+# # }
+
+# # # _distinctions = {"Miyata": 1, "Grantham": 2}
+# # _distinctions = ["Miyata", "Grantham 100"]
+# # _dissimilar_colormaps = {
+# #     condition: n_repetitions_colormap(
+# #         subcolors_discrete_map, condition, len(_distinct_dissimilar_dfs)
+# #     )
+# #     for condition in conditions
+# # }
+# # symbol_per_distinction = {"Miyata": "square-dot", "Grantham 100": "diamond"}
+# # same_fill_color_per_distinction = {"Miyata": True, "Grantham 100": False}
+# # n_similarities = 2
+# # fill_color_similarities = [True] * n_similarities + [False] * (
+# #     len(symbols) - n_similarities
+# # )
+# _marker_size = 5
+# marker_line_width = 2
+# nticks = 6
+
+# dissimilarities = ['Miyata', 'Grantham 100']
+
+# # maximal_x = 0
+# # maximal_y = 0
+
+# fig = make_subplots(
+#     rows=1,
+#     cols=len(dissimilarities),
+#     print_grid=False,
+#     subplot_titles=dissimilarities,
+#     x_title="Coverage",
+#     y_title="Dissimilar protein isoforms observed",
 # )
 
-# _distinct_dissimilar_dfs = {
-#     "Miyata": distinct_dissimilar_miyata_proteins_df,
-#     "Grantham 100": distinct_dissimilar_grantham_proteins_df,
-# }
 
-# # _distinctions = {"Miyata": 1, "Grantham": 2}
-# _distinctions = ["Miyata", "Grantham 100"]
-# _dissimilar_colormaps = {
-#     condition: n_repetitions_colormap(
-#         subcolors_discrete_map, condition, len(_distinct_dissimilar_dfs)
+# for col, dissimilarity in enumerate(
+#     dissimilarities, start=1
+# ):
+#     for condition in pacbio_conditions:
+
+#         # color = pacbio_color_discrete_map[condition]
+#         color = squid_color_discrete_map[condition]
+
+#         # name = f"{condition} - {_distinction}"
+#         # legendgroup = condition if condition != "GRIA" else "GRIA2"
+#         # name = _distinction
+
+#         df = concat_dissimilar_df.loc[
+#             (concat_dissimilar_df[condition_col] == condition)
+#             & (concat_dissimilar_df["Dissimilarity"] == dissimilarity)
+#         ]
+#         df = df.sort_values(
+#             ["Fraction", "NumOfProteins"], ascending=False
+#         ).drop_duplicates("Fraction", ignore_index=True)
+#         x_measured = df["NumOfReads"]
+#         y_measured = df["NumOfProteins"]
+
+#         fig.add_trace(
+#             go.Scatter(
+#                 x=x_measured,
+#                 y=y_measured,
+#                 mode="markers",
+#                 marker=dict(
+#                     color=color,
+#                     size=_marker_size,
+#                     # symbol=symbol,
+#                     line=dict(width=marker_line_width, color=color),
+#                 ),
+#                 # name=name,
+#                 # legendgroup=legendgroup,  # this can be any string
+#                 # legendgrouptitle_text=legendgroup,
+#                 showlegend=False,
+#             ),
+#             row=1,
+#             col=col,
+#         )
+#         fig.add_trace(
+#             go.Scatter(
+#                 x=x_measured,
+#                 y=y_measured,
+#                 mode="lines",
+#                 line=dict(
+#                     color=color,
+#                     width=_marker_size * 0.2,
+#                 ),
+#                 # name=name,
+#                 showlegend=False,
+#             ),
+#             row=1,
+#             col=col,
+#         )
+
+#         # maximal_x = max(maximal_x, x_measured.max())
+#         # maximal_y = max(maximal_y, y_measured.max())
+
+#     distinction_max_y = concat_dissimilar_df["NumOfProteins"].max()
+#     # distinction_max_y_rounded = round_to_natural_new(distinction_max_y)
+#     dtick = round_to_natural_new(distinction_max_y / nticks)
+
+#     fig.update_yaxes(
+#         row=1,
+#         col=col,
+#         #  range=[0, None],
+#         range=[0, None],
+#         dtick=dtick,
+#         nticks=nticks,
 #     )
-#     for condition in conditions
-# }
-# symbol_per_distinction = {"Miyata": "square-dot", "Grantham 100": "diamond"}
-# same_fill_color_per_distinction = {"Miyata": True, "Grantham 100": False}
-# n_similarities = 2
-# fill_color_similarities = [True] * n_similarities + [False] * (
-#     len(symbols) - n_similarities
+
+#     # distinction_max_y = _distinct_df["NumOfProteins"].max()
+#     # distinction_max_y_rounded = round_to_natural_new(distinction_max_y)
+#     # dtick = int(round_to_natural_new(distinction_max_y / nticks))
+#     # tickvals = list(range(0, distinction_max_y_rounded + dtick, dtick))
+#     # ic(distinction_max_y, distinction_max_y_rounded, dtick, tickvals)
+
+#     # fig.update_yaxes(
+#     #     row=1,
+#     #     col=col,
+#     #     #  range=[0, None],
+#     #     range=[0, distinction_max_y_rounded],
+#     #     tickvals=tickvals,
+#     #     # dtick=dtick,
+#     #     # nticks=nticks,
+#     # )
+
+
+# # add empty traces for legend
+# for condition in pacbio_conditions:
+#     # color = pacbio_color_discrete_map[condition]
+#     color = squid_color_discrete_map[condition]
+#     fig.add_trace(
+#         go.Scatter(
+#             x=[None],
+#             y=[None],
+#             mode="markers",
+#             marker=dict(
+#                 color=color,
+#                 size=_marker_size,
+#                 # symbol=symbol,
+#                 line=dict(width=marker_line_width, color=color),
+#             ),
+#             name=condition,
+#         ),
+#         row=1,
+#         col=1,
+#     )
+
+# width = 800
+# height = 470
+
+# fig.update_layout(
+#     template=template,
+#     # title="Squid's Long-reads",
+#     title="Long-reads",
+#     title_x=0.15,
+#     #     autosize=False,
+#     #     # margin_r=200,
+#     # legend=dict(
+#     #     orientation="h",
+#     #     entrywidth=90,
+#     #     yanchor="bottom",
+#     #     # y=1.02,
+#     #     y=0.15,
+#     #     xanchor="right",
+#     #     x=0.8,
+#     #     # # orientation="h",
+#     #     # yanchor="bottom",
+#     #     # y=0.1,
+#     #     # xanchor="left",
+#     #     # # x=0.95,
+#     #     # x=0.1,
+#     #     # # itemsizing='constant'
+#     # ),
+#     # # legend_grouptitlefont_size=12,
+#     # # legend_font=dict(size=12),
+#     # legend_tracegroupgap=0,
+#     height=height,
+#     width=width,
 # )
+# # fig.write_image(
+# #     "Distinct dissimilar proteins vs. sequencing depth - PacBio.svg",
+# #     height=height,
+# #     width=width,
+# # )
+# fig.show()
+
+# %%
+concat_dissimilar_df
+
+# %%
 _marker_size = 5
 marker_line_width = 2
 nticks = 6
@@ -5847,7 +5938,8 @@ for col, dissimilarity in enumerate(
 ):
     for condition in pacbio_conditions:
 
-        color = pacbio_color_discrete_map[condition]
+        # color = pacbio_color_discrete_map[condition]
+        color = squid_color_discrete_map[condition]
 
         # name = f"{condition} - {_distinction}"
         # legendgroup = condition if condition != "GRIA" else "GRIA2"
@@ -5855,7 +5947,7 @@ for col, dissimilarity in enumerate(
 
         df = concat_dissimilar_df.loc[
             (concat_dissimilar_df[condition_col] == condition)
-            & (concat_dissimilar_df["Dissimilarity"] == "dissimilarity")
+            & (concat_dissimilar_df["Dissimilarity"] == dissimilarity)
         ]
         df = df.sort_values(
             ["Fraction", "NumOfProteins"], ascending=False
@@ -5901,7 +5993,10 @@ for col, dissimilarity in enumerate(
         # maximal_x = max(maximal_x, x_measured.max())
         # maximal_y = max(maximal_y, y_measured.max())
 
-    distinction_max_y = concat_dissimilar_df["NumOfProteins"].max()
+    distinction_max_y = concat_dissimilar_df.loc[
+        concat_dissimilar_df["Dissimilarity"].eq(dissimilarity),
+        "NumOfProteins",
+    ].max()
     # distinction_max_y_rounded = round_to_natural_new(distinction_max_y)
     dtick = round_to_natural_new(distinction_max_y / nticks)
 
@@ -5914,26 +6009,10 @@ for col, dissimilarity in enumerate(
         nticks=nticks,
     )
 
-    # distinction_max_y = _distinct_df["NumOfProteins"].max()
-    # distinction_max_y_rounded = round_to_natural_new(distinction_max_y)
-    # dtick = int(round_to_natural_new(distinction_max_y / nticks))
-    # tickvals = list(range(0, distinction_max_y_rounded + dtick, dtick))
-    # ic(distinction_max_y, distinction_max_y_rounded, dtick, tickvals)
-
-    # fig.update_yaxes(
-    #     row=1,
-    #     col=col,
-    #     #  range=[0, None],
-    #     range=[0, distinction_max_y_rounded],
-    #     tickvals=tickvals,
-    #     # dtick=dtick,
-    #     # nticks=nticks,
-    # )
-
-
 # add empty traces for legend
 for condition in pacbio_conditions:
-    color = pacbio_color_discrete_map[condition]
+    # color = pacbio_color_discrete_map[condition]
+    color = squid_color_discrete_map[condition]
     fig.add_trace(
         go.Scatter(
             x=[None],
@@ -5959,35 +6038,17 @@ fig.update_layout(
     # title="Squid's Long-reads",
     title="Long-reads",
     title_x=0.15,
-    #     autosize=False,
-    #     # margin_r=200,
-    # legend=dict(
-    #     orientation="h",
-    #     entrywidth=90,
-    #     yanchor="bottom",
-    #     # y=1.02,
-    #     y=0.15,
-    #     xanchor="right",
-    #     x=0.8,
-    #     # # orientation="h",
-    #     # yanchor="bottom",
-    #     # y=0.1,
-    #     # xanchor="left",
-    #     # # x=0.95,
-    #     # x=0.1,
-    #     # # itemsizing='constant'
-    # ),
-    # # legend_grouptitlefont_size=12,
-    # # legend_font=dict(size=12),
-    # legend_tracegroupgap=0,
     height=height,
     width=width,
 )
-# fig.write_image(
-#     "Distinct dissimilar proteins vs. sequencing depth - PacBio.svg",
-#     height=height,
-#     width=width,
-# )
+fig.write_image(
+    Path(
+        out_dir,
+        "Distinct dissimilar proteins vs. sequencing depth - PacBio1.svg",
+    ),
+    height=height,
+    width=width,
+)
 fig.show()
 
 # %%
@@ -6859,7 +6920,11 @@ fig.show()
 platforms = ["Long-reads", "Short-reads"]
 
 # %%
-conditions = ["GRIA2","ADAR1", "IQEC1"]
+# conditions = ["GRIA2","ADAR1", "IQEC1"]
+conditions = [
+    "GRIA2",
+    # "ADAR1", "IQEC1"
+]
 
 # %%
 corr_files = [
@@ -6964,11 +7029,11 @@ fig.update_layout(
     ),
 )
 
-fig.write_image(
-    Path(out_dir, "Pearson's r between editing sites in squid except PCLO - pacbio.svg"),
-    width=width,
-    height=height,
-)
+# fig.write_image(
+#     Path(out_dir, "Pearson's r between editing sites in squid except PCLO - pacbio.svg"),
+#     width=width,
+#     height=height,
+# )
 
 fig.show()
 
@@ -7042,63 +7107,434 @@ fig.write_image(
 
 fig.show()
 
+# %%
+from pathlib import Path
+
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
+
+# GRIA2 is the first condition
+condition_idx = 0
+
+condition = conditions[condition_idx]
+corr = corrs[condition_idx]
+mi = mis[condition_idx]
+
+
+fig = make_subplots(
+    rows=2,
+    cols=1,
+    subplot_titles=[
+        # f"Site-site correlations ({condition})",
+        # f"Normalized mutual information ({condition})",
+        f"Site-site correlations",
+        f"Normalized mutual information",
+    ],
+    vertical_spacing=0.10,
+)
+
+
+# Panel a: Pearson correlations
+fig.add_trace(
+    go.Heatmap(
+        z=corr,
+        xgap=1,
+        ygap=1,
+        coloraxis="coloraxis",
+        hovertemplate=(
+            "Site 1: %{x}<br>"
+            "Site 2: %{y}<br>"
+            "Pearson's r: %{z:.3f}"
+            "<extra></extra>"
+        ),
+    ),
+    row=1,
+    col=1,
+)
+
+
+# Panel b: normalized mutual information
+fig.add_trace(
+    go.Heatmap(
+        z=mi,
+        xgap=1,
+        ygap=1,
+        coloraxis="coloraxis2",
+        hovertemplate=(
+            "Site 1: %{x}<br>"
+            "Site 2: %{y}<br>"
+            "Normalized MI: %{z:.3f}"
+            "<extra></extra>"
+        ),
+    ),
+    row=2,
+    col=1,
+)
+
+
+fig.update_xaxes(
+    showticklabels=False,
+    showgrid=False,
+    zeroline=False,
+)
+
+fig.update_yaxes(
+    showticklabels=False,
+    showgrid=False,
+    zeroline=False,
+    autorange="reversed",
+)
+
+
+# Preserve square heatmap cells
+fig.update_yaxes(
+    scaleanchor="x",
+    scaleratio=1,
+    row=1,
+    col=1,
+)
+
+fig.update_yaxes(
+    scaleanchor="x2",
+    scaleratio=1,
+    row=2,
+    col=1,
+)
+
+
+width = 700
+# height = 1250
+height = 1000
+
+# width = 600
+# height = width * 900/1250
+
+fig.update_layout(
+    width=width,
+    height=height,
+    template=template,
+
+    # Correlation color scale
+    coloraxis=dict(
+        colorscale=corrs_final_colorscale,
+        cmin=-1,
+        cmax=1,
+        cmid=0,
+        colorbar=dict(
+            # title="Pearson's r",
+            dtick=0.25,
+            thickness=20,
+            len=0.34,
+            x=1.02,
+            y=0.78,
+        ),
+    ),
+
+    # Mutual-information color scale
+    coloraxis2=dict(
+        colorscale=mi_final_colorscale,
+        cmin=0,
+        cmax=1,
+        colorbar=dict(
+            # title="NMI",
+            dtick=0.2,
+            thickness=20,
+            len=0.34,
+            x=1.02,
+            y=0.22,
+        ),
+    ),
+
+    title=dict(
+        text=f"Editing-site interdependencies in {condition} (Long-reads)",
+        x=0.5,
+        xanchor="center",
+    ),
+
+    margin=dict(
+        l=80,
+        r=150,
+        t=110,
+        b=50,
+    ),
+)
+
+
+# Panel labels
+fig.add_annotation(
+    text="<b>a</b>",
+    x=-0.08,
+    y=1.02,
+    xref="paper",
+    yref="paper",
+    showarrow=False,
+    font=dict(size=24),
+)
+
+fig.add_annotation(
+    text="<b>b</b>",
+    x=-0.08,
+    y=0.47,
+    xref="paper",
+    yref="paper",
+    showarrow=False,
+    font=dict(size=24),
+)
+
+
+# out_file = Path(
+#     out_dir,
+#     "GRIA2 site-site correlations and normalized mutual information - pacbio.svg",
+# )
+
+# fig.write_image(
+#     out_file,
+#     width=width,
+#     height=height,
+# )
+
+fig.show()
+
+# %%
+# GRIA2 is the first condition
+condition_idx = 0
+
+condition = conditions[condition_idx]
+corr = corrs[condition_idx]
+mi = mis[condition_idx]
+
+
+fig = make_subplots(
+    rows=2,
+    cols=1,
+    subplot_titles=[
+        "Site-site correlations",
+        "Normalized mutual information",
+    ],
+    vertical_spacing=0.045,
+)
+
+
+# Panel a: Pearson correlations
+fig.add_trace(
+    go.Heatmap(
+        z=corr,
+        xgap=1,
+        ygap=1,
+        coloraxis="coloraxis",
+        hovertemplate=(
+            "Site 1: %{x}<br>"
+            "Site 2: %{y}<br>"
+            "Pearson's r: %{z:.3f}"
+            "<extra></extra>"
+        ),
+    ),
+    row=1,
+    col=1,
+)
+
+
+# Panel b: normalized mutual information
+fig.add_trace(
+    go.Heatmap(
+        z=mi,
+        xgap=1,
+        ygap=1,
+        coloraxis="coloraxis2",
+        hovertemplate=(
+            "Site 1: %{x}<br>"
+            "Site 2: %{y}<br>"
+            "Normalized MI: %{z:.3f}"
+            "<extra></extra>"
+        ),
+    ),
+    row=2,
+    col=1,
+)
+
+
+fig.update_xaxes(
+    showticklabels=False,
+    showgrid=False,
+    zeroline=False,
+)
+
+fig.update_yaxes(
+    showticklabels=False,
+    showgrid=False,
+    zeroline=False,
+    autorange="reversed",
+)
+
+
+# Preserve square heatmap cells
+fig.update_yaxes(
+    scaleanchor="x",
+    scaleratio=1,
+    constrain="domain",
+    row=1,
+    col=1,
+)
+
+fig.update_yaxes(
+    scaleanchor="x2",
+    scaleratio=1,
+    constrain="domain",
+    row=2,
+    col=1,
+)
+
+
+width = 520
+height = 850
+
+
+fig.update_layout(
+    width=width,
+    height=height,
+    template=template,
+
+    coloraxis=dict(
+        colorscale=corrs_final_colorscale,
+        cmin=-1,
+        cmax=1,
+        cmid=0,
+        colorbar=dict(
+            dtick=0.25,
+            thickness=15,
+            len=0.39,
+            x=0.91,
+            xanchor="left",
+            y=0.77,
+        ),
+    ),
+
+    coloraxis2=dict(
+        colorscale=mi_final_colorscale,
+        cmin=0,
+        cmax=1,
+        colorbar=dict(
+            dtick=0.2,
+            thickness=15,
+            len=0.39,
+            x=0.91,
+            xanchor="left",
+            y=0.23,
+        ),
+    ),
+
+    title=dict(
+        text=f"Editing-site interdependencies in {condition} (Long-reads)",
+        x=0.5,
+        xanchor="center",
+        y=0.99,
+        yanchor="top",
+    ),
+
+    margin=dict(
+        l=38,
+        r=68,
+        t=58,
+        b=8,
+    ),
+)
+
+
+# Panel labels
+fig.add_annotation(
+    text="<b>a</b>",
+    x=-0.045,
+    y=1.015,
+    xref="paper",
+    yref="paper",
+    showarrow=False,
+    font=dict(size=22),
+)
+
+fig.add_annotation(
+    text="<b>b</b>",
+    x=-0.045,
+    y=0.475,
+    xref="paper",
+    yref="paper",
+    showarrow=False,
+    font=dict(size=22),
+)
+
+
+# out_file = Path(
+#     out_dir,
+#     "GRIA2 site-site correlations and normalized mutual information - pacbio.svg",
+# )
+
+# fig.write_image(
+#     out_file,
+#     width=width,
+#     height=height,
+# )
+
+fig.show()
+
 # %% [markdown]
 # # Combined entropy plots
 
 # %%
-condition_col = "Gene"
-platforms = ["Long-reads", "Short-reads"]
+# condition_col = "Gene"
+# platforms = ["Long-reads", "Short-reads"]
 
-pacbio_conditions = ["GRIA2", "PCLO", "ADAR1", "IQEC1"]
+# pacbio_conditions = ["GRIA2", "PCLO",
+#                      "ADAR1", "IQEC1"
+#                      ]
 
-illumina_conditions = [
-    "RUSC2_MOUSE",
-    "TRIM2_BOVIN",
-    "CA2D3_MOUSE",
-    "ABL_DROME",
-    "DGLA_HUMAN",
-    "K0513_MOUSE",
-    "KCNAS_DROME",
-    "ACHA4_MOUSE",
-    "ANR17_HUMAN",
-    "TWK7_CAEEL",
-    "SCN1_HETBL",
-    "CACB2_RABIT",
-    "RIMS2_RAT",
-    "PCLO_CHICK",
-    "DOP1_HUMAN",
-    "IQEC1_HUMAN",
-    "CSKI1_MOUSE",
-    "MTUS2_HUMAN",
-    "ROBO2_HUMAN",
-]
-illumina_conditions = [condition.split("_")[0] for condition in illumina_conditions]
+# illumina_conditions = [
+#     "RUSC2_MOUSE",
+#     "TRIM2_BOVIN",
+#     "CA2D3_MOUSE",
+#     "ABL_DROME",
+#     "DGLA_HUMAN",
+#     "K0513_MOUSE",
+#     "KCNAS_DROME",
+#     "ACHA4_MOUSE",
+#     "ANR17_HUMAN",
+#     "TWK7_CAEEL",
+#     "SCN1_HETBL",
+#     "CACB2_RABIT",
+#     "RIMS2_RAT",
+#     "PCLO_CHICK",
+#     "DOP1_HUMAN",
+#     "IQEC1_HUMAN",
+#     "CSKI1_MOUSE",
+#     "MTUS2_HUMAN",
+#     "ROBO2_HUMAN",
+# ]
+# illumina_conditions = [condition.split("_")[0] for condition in illumina_conditions]
 
 platforms_conditions = [pacbio_conditions, illumina_conditions]
 
-pacbio_color_sequence = px.colors.qualitative.G10
-pacbio_color_discrete_map = {
-    condition: color
-    for condition, color in zip(pacbio_conditions, pacbio_color_sequence)
-}
+# pacbio_color_sequence = px.colors.qualitative.G10
+# pacbio_color_discrete_map = {
+#     condition: color
+#     for condition, color in zip(pacbio_conditions, pacbio_color_sequence)
+# }
 
-illumina_color_sequence = px.colors.qualitative.Dark24
-illumina_color_discrete_map = {
-    condition: color
-    for condition, color in zip(illumina_conditions, illumina_color_sequence)
-}
+# illumina_color_sequence = px.colors.qualitative.Dark24
+# illumina_color_discrete_map = {
+#     condition: color
+#     for condition, color in zip(illumina_conditions, illumina_color_sequence)
+# }
 
-platforms_color_map = {
-    platform: color_map
-    for platform, color_map in zip(
-        platforms, [pacbio_color_discrete_map, illumina_color_discrete_map]
-    )
-}
+# platforms_color_map = {
+#     platform: color_map
+#     for platform, color_map in zip(
+#         platforms, [pacbio_color_discrete_map, illumina_color_discrete_map]
+#     )
+# }
 
 # %%
 pacbio_files = [
     Path(out_dir, "ShanonEntropy.PacBio.tsv"),
-    Path(out_dir, "ShanonEntropy.NewPacBio.tsv")
+    # Path(out_dir, "ShanonEntropy.NewPacBio.tsv")
 ]
 # illumina_file = Path(out_dir, "ShanonEntropy.Illumina.tsv")
 illumina_file = Path(out_dir, "ShanonEntropy.Illumina.FixedExpression.tsv")
@@ -7140,7 +7576,8 @@ shannon_dfs = [pacbio_df, illumina_df]
 
 for col, (shannon_df, platform, conditions) in enumerate(zip(shannon_dfs, platforms, platforms_conditions), start=1):
     
-    colors = [platforms_color_map[platform][condition] for condition in conditions]
+    # colors = [platforms_color_map[platform][condition] for condition in conditions]
+    colors = [squid_color_discrete_map[condition] for condition in conditions]
 
     fig.add_trace(
         go.Bar(
@@ -7300,55 +7737,55 @@ fig.show()
 # # Combined kmeans silhouette scores for squid long-reads
 
 # %%
-condition_col = "Gene"
-platforms = ["Long-reads", "Short-reads"]
+# condition_col = "Gene"
+# platforms = ["Long-reads", "Short-reads"]
 
-pacbio_conditions = [
-    "GRIA2", "PCLO", 
-    # "ADAR1", "IQEC1"
-]
-
-# illumina_conditions = [
-#     "RUSC2_MOUSE",
-#     "TRIM2_BOVIN",
-#     "CA2D3_MOUSE",
-#     "ABL_DROME",
-#     "DGLA_HUMAN",
-#     "K0513_MOUSE",
-#     "KCNAS_DROME",
-#     "ACHA4_MOUSE",
-#     "ANR17_HUMAN",
-#     "TWK7_CAEEL",
-#     "SCN1_HETBL",
-#     "CACB2_RABIT",
-#     "RIMS2_RAT",
-#     "PCLO_CHICK",
-#     "DOP1_HUMAN",
-#     "IQEC1_HUMAN",
-#     "CSKI1_MOUSE",
-#     "MTUS2_HUMAN",
-#     "ROBO2_HUMAN",
+# pacbio_conditions = [
+#     "GRIA2", "PCLO", 
+#     # "ADAR1", "IQEC1"
 # ]
-# illumina_conditions = [condition.split("_")[0] for condition in illumina_conditions]
 
-pacbio_color_sequence = px.colors.qualitative.G10
-pacbio_color_discrete_map = {
-    condition: color
-    for condition, color in zip(pacbio_conditions, pacbio_color_sequence)
-}
+# # illumina_conditions = [
+# #     "RUSC2_MOUSE",
+# #     "TRIM2_BOVIN",
+# #     "CA2D3_MOUSE",
+# #     "ABL_DROME",
+# #     "DGLA_HUMAN",
+# #     "K0513_MOUSE",
+# #     "KCNAS_DROME",
+# #     "ACHA4_MOUSE",
+# #     "ANR17_HUMAN",
+# #     "TWK7_CAEEL",
+# #     "SCN1_HETBL",
+# #     "CACB2_RABIT",
+# #     "RIMS2_RAT",
+# #     "PCLO_CHICK",
+# #     "DOP1_HUMAN",
+# #     "IQEC1_HUMAN",
+# #     "CSKI1_MOUSE",
+# #     "MTUS2_HUMAN",
+# #     "ROBO2_HUMAN",
+# # ]
+# # illumina_conditions = [condition.split("_")[0] for condition in illumina_conditions]
+
+# pacbio_color_sequence = px.colors.qualitative.G10
+# pacbio_color_discrete_map = {
+#     condition: color
+#     for condition, color in zip(pacbio_conditions, pacbio_color_sequence)
+# }
 
 # %%
-platforms_color_map = {
-    platform: color_map
-    for platform, color_map in zip(
-        platforms,
-        [
-            pacbio_color_discrete_map,
-            # illumina_color_discrete_map
-        ],
-    )
-}
-platforms_color_map
+# platforms_color_map = {
+#     platform: color_map
+#     for platform, color_map in zip(
+#         platforms,
+#         [
+#             pacbio_color_discrete_map,
+#             # illumina_color_discrete_map
+#         ],
+#     )
+# }
+# platforms_color_map
 
 # %%
 platforms_conditions = [
@@ -7369,9 +7806,7 @@ pacbio_kmeans_silhouette_scores_file = Path(in_dir, "KMeansMeanSilhouetteScores.
 #     "KMeansMeanSilhouetteScores.PacBio.WithUMIs.tsv",
 # )
 
-# illumina_merged_max_distinct_proteins_file = Path(
-#     in_dir, "MaxDistinctProteinsF1.Illumina.tsv"
-# )
+illumina_kmeans_silhouette_scores_file = Path(in_dir, "KMeansMeanSilhouetteScores.Illumina.UpdatedExpression.tsv")
 
 # %%
 # pacbio_max_distinct_proteins_df = pd.read_table(pacbio_merged_max_distinct_proteins_file)
@@ -7389,17 +7824,6 @@ pacbio_concat_kmeans_silhouette_scores_df = pd.concat(
         # ),
     ]
 )
-# illumina_max_distinct_proteins_df = pd.read_table(
-#     illumina_merged_max_distinct_proteins_file
-# )
-
-# merged_max_distinct_df = pd.concat(
-#     [pacbio_max_distinct_proteins_df, illumina_max_distinct_proteins_df]
-# )
-# merged_max_distinct_df["Color"] = merged_max_distinct_df.apply(
-#     lambda x: platforms_color_map[x["Platform"]][x[condition_col]], axis=1
-# )
-# merged_max_distinct_df
 
 pacbio_concat_kmeans_silhouette_scores_df[condition_col] = pacbio_concat_kmeans_silhouette_scores_df[condition_col].apply(
     lambda x: x if x != "GRIA" else "GRIA2"
@@ -7407,12 +7831,43 @@ pacbio_concat_kmeans_silhouette_scores_df[condition_col] = pacbio_concat_kmeans_
 
 pacbio_concat_kmeans_silhouette_scores_df["Color"] = (
     pacbio_concat_kmeans_silhouette_scores_df.apply(
-        lambda x: platforms_color_map[x["Platform"]][x[condition_col]],
+        # lambda x: platforms_color_map[x["Platform"]][x[condition_col]],
+        lambda x: squid_color_discrete_map[x[condition_col]],
         axis=1,
     )
 )
 
 pacbio_concat_kmeans_silhouette_scores_df
+
+# %%
+illumina_concat_kmeans_silhouette_scores_df = pd.read_table(
+    illumina_kmeans_silhouette_scores_file,
+    # dtype={"Edited": bool, "PositionInSignature": str},
+    # na_filter=False,
+    
+)
+
+illumina_concat_kmeans_silhouette_scores_df["Color"] = (
+    illumina_concat_kmeans_silhouette_scores_df.apply(
+        # lambda x: platforms_color_map[x["Platform"]][x[condition_col]],
+        lambda x: squid_color_discrete_map[x[condition_col]],
+        axis=1,
+    )
+)
+
+illumina_concat_kmeans_silhouette_scores_df
+
+# %%
+concat_squid_kmeans_silhouette_scores_df = pd.concat(
+    [
+        pacbio_concat_kmeans_silhouette_scores_df,
+        illumina_concat_kmeans_silhouette_scores_df,
+    ],
+    ignore_index=True
+)
+concat_squid_kmeans_silhouette_scores_df
+
+# %%
 
 # %%
 # title_font_size = 24
@@ -7479,19 +7934,26 @@ pacbio_concat_kmeans_silhouette_scores_df
 title_font_size = 24
 
 fig = px.line(
-    pacbio_concat_kmeans_silhouette_scores_df,
+    concat_squid_kmeans_silhouette_scores_df,
     x="ClusterSize",
     y="MeanSilhouetteScore",
     color=condition_col,
-    color_discrete_map=platforms_color_map[platforms[0]],
+    color_discrete_map=squid_color_discrete_map,
+    facet_col="Platform",
     # opacity=0.7,
     labels={
         # "ClusterSize": "Number of clusters (k)",
         # "MeanSilhouetteScore": "Mean silhouette score<br>of MiniBatchKMeans"
-        "ClusterSize": "Number of MiniBatchKMeans clusters (k)",
-        "MeanSilhouetteScore": "Mean silhouette score"
+        # "ClusterSize": "Number of MiniBatchKMeans clusters (k)",
+        # "MeanSilhouetteScore": "Mean silhouette score",
+        "ClusterSize": "Number of clusters (k)",
+        "MeanSilhouetteScore": "Mean silhouette score of MiniBatchKMeans"
     },
-    markers=True
+    category_orders={
+        condition_col: squid_conditions,
+    },
+    facet_col_spacing=0.05,
+    # markers=True
 )
 
 # fig.update_xaxes(dtick=100, title_font=dict(size=title_font_size))
@@ -7499,28 +7961,27 @@ fig = px.line(
 
 fig.update_xaxes(
     dtick=100, 
+    rangemode="tozero",
     # title_font=dict(size=title_font_size)
 )
 fig.update_yaxes(
     rangemode="tozero", 
     tick0=0.0, 
     # dtick=0.01
-    # dtick=0.05,
-    dtick=0.025,
+    dtick=0.05,
+    # dtick=0.025,
     # title_font=dict(size=title_font_size)
 )
 
-# width = 500
-# width = 700
-width = 1000
-# height = 350
-# height = 300
-height = 0.6 * width
+width = 1200
+height = 600
 
 # fig.update_annotations(font_size=title_font_size)
 
+fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+
 fig.update_layout(
-    title_text="Long-reads",
+    # title_text="Long-reads",
     title_x=0.15,
     # title_y=0.95,
     template=template,
@@ -7534,7 +7995,7 @@ fig.update_layout(
 
 
 fig.write_image(
-    Path(out_dir, "Mean silhouette score of MiniBatchKMeans vs. K size - PacBio - dense.svg",),
+    Path(out_dir, "Mean silhouette score of MiniBatchKMeans vs. K size - PacBio1 vs. Illumina - dense.svg",),
     width=width,
     height=height,
 )
@@ -7542,83 +8003,149 @@ fig.write_image(
 fig.show()
 
 # %%
-cols = min(facet_col_wrap, len(conditions), 5)
-rows = ceil(len(conditions) / cols)
-row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
+# title_font_size = 24
 
-fig = make_subplots(
-    rows=rows,
-    cols=cols,
-    subplot_titles=fixed_conditions,
-    shared_xaxes=True,
-    shared_yaxes=True,
-    # x_title="Number of clusters (k)",
-    # y_title="Mean silhouette score<br>of MiniBatchKMeans",
-    x_title="Number of MiniBatchKMeans clusters (k)",
-    y_title="Mean silhouette score",
-    # column_titles=["Mean silhouette score", "Inertia score"],
-    # row_titles=conditions
-)
+# fig = px.line(
+#     pacbio_concat_kmeans_silhouette_scores_df,
+#     x="ClusterSize",
+#     y="MeanSilhouetteScore",
+#     color=condition_col,
+#     color_discrete_map=platforms_color_map[platforms[0]],
+#     # opacity=0.7,
+#     labels={
+#         # "ClusterSize": "Number of clusters (k)",
+#         # "MeanSilhouetteScore": "Mean silhouette score<br>of MiniBatchKMeans"
+#         "ClusterSize": "Number of MiniBatchKMeans clusters (k)",
+#         "MeanSilhouetteScore": "Mean silhouette score"
+#     },
+#     markers=True
+# )
 
-# min_x = None
-# max_x = 0
-# max_y = 0
+# # fig.update_xaxes(dtick=100, title_font=dict(size=title_font_size))
+# # fig.update_yaxes(rangemode="tozero", tick0=0.0, dtick=0.01, title_font=dict(size=title_font_size))
 
-marker_size = 3
-line_width = 0.5
+# fig.update_xaxes(
+#     dtick=100, 
+#     # title_font=dict(size=title_font_size)
+# )
+# fig.update_yaxes(
+#     rangemode="tozero", 
+#     tick0=0.0, 
+#     # dtick=0.01
+#     # dtick=0.05,
+#     dtick=0.025,
+#     # title_font=dict(size=title_font_size)
+# )
 
-x = cluster_sizes
+# # width = 500
+# # width = 700
+# width = 1000
+# # height = 350
+# # height = 300
+# height = 0.6 * width
 
-for (
-    (row, col),
-    condition,
-    kmeans,
-    kmeans_silhouette_scores,
-) in zip(
-    row_col_iter,
-    conditions,
-    conditions_kmeans,
-    conditions_kmeans_silhouette_scores,
-):
-    color = color_discrete_map[condition]
+# # fig.update_annotations(font_size=title_font_size)
 
-    fig.add_trace(
-        go.Scattergl(
-            # go.Scatter(
-            x=x,
-            y=kmeans_silhouette_scores,
-            mode="markers",
-            marker=dict(
-                color=color,
-                # color=labels[clustered],
-                # colorscale="Blackbody",
-                line_width=line_width,
-                size=marker_size,
-            ),
-        ),
-        row=row,
-        col=col,
-    )
+# fig.update_layout(
+#     title_text="Long-reads",
+#     title_x=0.15,
+#     # title_y=0.95,
+#     template=template,
+#     # showlegend=False,
+#     width=width,
+#     height=height,
+#     # title_font=dict(size=title_font_size+4)
+#     # legend_font=dict(size=18),
+#     # legend_grouptitlefont=dict(size=22),
+# )
 
-fig.update_yaxes(rangemode="tozero", tick0=0.0, dtick=0.01)
 
-fig.update_layout(
-    title_text="Long-reads",
-    title_x=0.15,
-    # title_y=0.95,
-    template=template,
-    showlegend=False,
-    width=600,
-    height=350,
-)
+# # fig.write_image(
+# #     Path(out_dir, "Mean silhouette score of MiniBatchKMeans vs. K size - PacBio - dense.svg",),
+# #     width=width,
+# #     height=height,
+# # )
 
-# fig.write_image(
-#     "Mean silhouette score of MiniBatchKMeans vs. K size - PacBio.svg",
+# fig.show()
+
+# %%
+# cols = min(facet_col_wrap, len(conditions), 5)
+# rows = ceil(len(conditions) / cols)
+# row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
+
+# fig = make_subplots(
+#     rows=rows,
+#     cols=cols,
+#     subplot_titles=fixed_conditions,
+#     shared_xaxes=True,
+#     shared_yaxes=True,
+#     # x_title="Number of clusters (k)",
+#     # y_title="Mean silhouette score<br>of MiniBatchKMeans",
+#     x_title="Number of MiniBatchKMeans clusters (k)",
+#     y_title="Mean silhouette score",
+#     # column_titles=["Mean silhouette score", "Inertia score"],
+#     # row_titles=conditions
+# )
+
+# # min_x = None
+# # max_x = 0
+# # max_y = 0
+
+# marker_size = 3
+# line_width = 0.5
+
+# x = cluster_sizes
+
+# for (
+#     (row, col),
+#     condition,
+#     kmeans,
+#     kmeans_silhouette_scores,
+# ) in zip(
+#     row_col_iter,
+#     conditions,
+#     conditions_kmeans,
+#     conditions_kmeans_silhouette_scores,
+# ):
+#     color = color_discrete_map[condition]
+
+#     fig.add_trace(
+#         go.Scattergl(
+#             # go.Scatter(
+#             x=x,
+#             y=kmeans_silhouette_scores,
+#             mode="markers",
+#             marker=dict(
+#                 color=color,
+#                 # color=labels[clustered],
+#                 # colorscale="Blackbody",
+#                 line_width=line_width,
+#                 size=marker_size,
+#             ),
+#         ),
+#         row=row,
+#         col=col,
+#     )
+
+# fig.update_yaxes(rangemode="tozero", tick0=0.0, dtick=0.01)
+
+# fig.update_layout(
+#     title_text="Long-reads",
+#     title_x=0.15,
+#     # title_y=0.95,
+#     template=template,
+#     showlegend=False,
 #     width=600,
 #     height=350,
 # )
 
-fig.show()
+# # fig.write_image(
+# #     "Mean silhouette score of MiniBatchKMeans vs. K size - PacBio.svg",
+# #     width=600,
+# #     height=350,
+# # )
+
+# fig.show()
 
 # %% [markdown]
 # ## Dissimilar
@@ -7655,7 +8182,8 @@ pacbio_concat_dissimilar_kmeans_silhouette_scores_df[condition_col] = pacbio_con
 
 pacbio_concat_dissimilar_kmeans_silhouette_scores_df["Color"] = (
     pacbio_concat_dissimilar_kmeans_silhouette_scores_df.apply(
-        lambda x: platforms_color_map[x["Platform"]][x[condition_col]],
+        # lambda x: platforms_color_map[x["Platform"]][x[condition_col]],
+        lambda x: squid_color_discrete_map[x[condition_col]],
         axis=1,
     )
 )
@@ -7685,7 +8213,9 @@ fig = make_subplots(
     shared_xaxes=True,
     shared_yaxes=True,
     x_title="Number of dissimilar clusters (k)",
-    y_title="Mean silhouette score<br>of MiniBatchKMeans",
+    # y_title="Mean silhouette score<br>of MiniBatchKMeans",
+    y_title="Mean silhouette score of MiniBatchKMeans",
+    horizontal_spacing=0.05,
 )
 
 
@@ -7728,7 +8258,7 @@ for col, dissimilarity in enumerate(dissimilarities, start=1):
 
 # add empty traces for legend
 for condition in pacbio_conditions:
-    color = pacbio_color_discrete_map[condition]
+    color = squid_color_discrete_map[condition]
     fig.add_trace(
         go.Scatter(
             x=[None],
@@ -7760,8 +8290,9 @@ fig.update_yaxes(
     #  tick0=0.0, dtick=0.01
 )
 
-width = 800
-height = 470
+width = 850
+# height = 470
+height = 500
 
 fig.update_layout(
     template=template,
@@ -7802,154 +8333,6 @@ fig.write_image(
 #     Path(out_dir, "Mean silhouette score of MiniBatchKMeans vs. K size - PacBio w UMIs - dissimilar.svg"),
 #     height=height,
 #     width=width,
-# )
-
-fig.show()
-
-# %%
-pacbio_concat_dissimilar_kmeans_silhouette_scores_df
-
-# %%
-title_font_size = 24
-
-fig = px.line(
-    pacbio_concat_dissimilar_kmeans_silhouette_scores_df,
-    x="ClusterSize",
-    y="MeanSilhouetteScore",
-    color=condition_col,
-    color_discrete_map=platforms_color_map[platforms[0]],
-    # opacity=0.7,
-    labels={
-        # "ClusterSize": "Number of clusters (k)",
-        # "MeanSilhouetteScore": "Mean silhouette score<br>of MiniBatchKMeans"
-        "ClusterSize": "Number of MiniBatchKMeans clusters (k)",
-        "MeanSilhouetteScore": "Mean silhouette score"
-    },
-    markers=True
-)
-
-# fig.update_xaxes(dtick=100, title_font=dict(size=title_font_size))
-# fig.update_yaxes(rangemode="tozero", tick0=0.0, dtick=0.01, title_font=dict(size=title_font_size))
-
-fig.update_xaxes(
-    dtick=100, 
-    # title_font=dict(size=title_font_size)
-)
-fig.update_yaxes(
-    rangemode="tozero", 
-    tick0=0.0, 
-    # dtick=0.01
-    # dtick=0.05,
-    dtick=0.025,
-    # title_font=dict(size=title_font_size)
-)
-
-# width = 500
-# width = 700
-width = 1000
-# height = 350
-# height = 300
-height = 0.6 * width
-
-# fig.update_annotations(font_size=title_font_size)
-
-fig.update_layout(
-    title_text="Long-reads",
-    title_x=0.15,
-    # title_y=0.95,
-    template=template,
-    # showlegend=False,
-    width=width,
-    height=height,
-    # title_font=dict(size=title_font_size+4)
-    # legend_font=dict(size=18),
-    # legend_grouptitlefont=dict(size=22),
-)
-
-
-fig.write_image(
-    Path(out_dir, "Mean silhouette score of dissimilar MiniBatchKMeans vs. K size - PacBio - dense.svg",),
-    width=width,
-    height=height,
-)
-
-fig.show()
-
-# %%
-cols = min(facet_col_wrap, len(pacbio_conditions), 5)
-rows = ceil(len(pacbio_conditions) / cols)
-row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(pacbio_conditions)]
-
-fig = make_subplots(
-    rows=rows,
-    cols=cols,
-    subplot_titles=pacbio_conditions,
-    shared_xaxes=True,
-    shared_yaxes=True,
-    # x_title="Number of clusters (k)",
-    # y_title="Mean silhouette score<br>of MiniBatchKMeans",
-    x_title="Number of MiniBatchKMeans clusters (k)",
-    y_title="Mean silhouette score",
-    # column_titles=["Mean silhouette score", "Inertia score"],
-    # row_titles=conditions
-)
-
-# min_x = None
-# max_x = 0
-# max_y = 0
-
-marker_size = 3
-line_width = 0.5
-
-x = cluster_sizes
-
-for (
-    (row, col),
-    condition,
-    kmeans,
-    kmeans_silhouette_scores,
-) in zip(
-    row_col_iter,
-    conditions,
-    conditions_kmeans,
-    conditions_kmeans_silhouette_scores,
-):
-    color = color_discrete_map[condition]
-
-    fig.add_trace(
-        go.Scattergl(
-            # go.Scatter(
-            x=x,
-            y=kmeans_silhouette_scores,
-            mode="markers",
-            marker=dict(
-                color=color,
-                # color=labels[clustered],
-                # colorscale="Blackbody",
-                line_width=line_width,
-                size=marker_size,
-            ),
-        ),
-        row=row,
-        col=col,
-    )
-
-fig.update_yaxes(rangemode="tozero", tick0=0.0, dtick=0.01)
-
-fig.update_layout(
-    title_text="Long-reads",
-    title_x=0.15,
-    # title_y=0.95,
-    template=template,
-    showlegend=False,
-    width=600,
-    height=350,
-)
-
-# fig.write_image(
-#     "Mean silhouette score of MiniBatchKMeans vs. K size - PacBio.svg",
-#     width=600,
-#     height=350,
 # )
 
 fig.show()
@@ -9575,6 +9958,118 @@ concat_12_mismatches_df.loc[
 ]
 
 # %%
+
+# %%
+
+# %%
+fig = px.histogram(
+    concat_12_mismatches_df.loc[
+        (
+            concat_12_mismatches_df["Platform"].eq("Whole-transcriptome octopus data")
+            & concat_12_mismatches_df["MismatchFrequency"].lt(0.05)
+            & (
+                concat_12_mismatches_df["Edited"]
+                | concat_12_mismatches_df["Noisy"]
+            )
+        )
+    ],
+    x="Mismatch",
+    color="Mismatch",
+    color_discrete_map=mismatch_dolor_map,
+    facet_col="Platform",
+    facet_col_spacing=0.04,
+    facet_row="AboveEditingThreshold",
+    log_y=True,
+    template=template,
+    category_orders={"Mismatch": mismatches},
+)
+def return_updated_platform_and_threshold_annotation(a):
+    split_text = a.text.split("=")
+    if len(split_text) > 2:
+        raise ValueError("Annotations are expected to be of x=y shape")
+    x, y = split_text
+    if x == "Platform":
+        return y
+    elif x == "AboveEditingThreshold":
+        if y == "True":
+            return "Above editing threshold"
+        else:
+            return "Below editing threshold"
+    else:
+        raise ValueError(f"Unexpected annotation: {a.text}")
+fig.for_each_annotation(
+    lambda a: a.update(
+        text=return_updated_platform_and_threshold_annotation(a)
+    )
+)
+width = 600
+height = 600
+fig.update_xaxes(tickangle=35)
+fig.update_layout(
+    width=width,
+    height=height,
+    showlegend=False,
+    title="Final noise and editing sites below SNP levels"
+)
+fig.show()
+
+# %%
+fig = px.histogram(
+    concat_12_mismatches_df.loc[
+        (
+            concat_12_mismatches_df["Platform"].eq("Whole-transcriptome octopus data")
+            & concat_12_mismatches_df["MismatchFrequency"].lt(0.05)
+            # & (
+            #     concat_12_mismatches_df["Edited"]
+            #     | concat_12_mismatches_df["Noisy"]
+            # )
+        )
+    ],
+    x="Mismatch",
+    color="Mismatch",
+    color_discrete_map=mismatch_dolor_map,
+    facet_col="Platform",
+    facet_col_spacing=0.04,
+    facet_row="AboveEditingThreshold",
+    log_y=True,
+    template=template,
+    category_orders={"Mismatch": mismatches},
+)
+def return_updated_platform_and_threshold_annotation(a):
+    split_text = a.text.split("=")
+    if len(split_text) > 2:
+        raise ValueError("Annotations are expected to be of x=y shape")
+    x, y = split_text
+    if x == "Platform":
+        return y
+    elif x == "AboveEditingThreshold":
+        if y == "True":
+            return "Above editing threshold"
+        else:
+            return "Below editing threshold"
+    else:
+        raise ValueError(f"Unexpected annotation: {a.text}")
+fig.for_each_annotation(
+    lambda a: a.update(
+        text=return_updated_platform_and_threshold_annotation(a)
+    )
+)
+width = 600
+height = 600
+fig.update_xaxes(tickangle=35)
+fig.update_layout(
+    width=width,
+    height=height,
+    showlegend=False,
+    title="All sites below SNP levels"
+)
+fig.show()
+
+# %%
+
+# %%
+
+# %%
 concat_12_mismatches_below_snp_levels_df = concat_12_mismatches_df.loc[
     (
         concat_12_mismatches_df["Platform"].eq("Whole-transcriptome octopus data")
@@ -9592,6 +10087,25 @@ concat_12_mismatches_below_snp_levels_df = concat_12_mismatches_df.loc[
 assert concat_12_mismatches_below_snp_levels_df["SNP"].eq(False).all()
 
 concat_12_mismatches_below_snp_levels_df
+
+# %%
+concat_permissive_12_mismatches_below_snp_levels_df = concat_12_mismatches_df.loc[
+    (
+        concat_12_mismatches_df["Platform"].eq("Whole-transcriptome octopus data")
+        & concat_12_mismatches_df["MismatchFrequency"].lt(0.05)
+        # & (
+        #     concat_12_mismatches_df["Edited"]
+        #     | concat_12_mismatches_df["Noisy"]
+        # )
+    ) | (
+        concat_12_mismatches_df["Platform"].ne("Whole-transcriptome octopus data")
+        & concat_12_mismatches_df["MismatchFrequency"].lt(0.1)
+    )
+]
+
+assert concat_permissive_12_mismatches_below_snp_levels_df["SNP"].eq(False).all()
+
+concat_permissive_12_mismatches_below_snp_levels_df
 
 # %%
 concat_12_mismatches_below_snp_levels_relative_abundance_df = (
@@ -9634,7 +10148,25 @@ width = 1400
 height = 600
 
 # Use for_each_annotation to customize each title (i.e., remove the "Platform=" prefix)
-# fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+def return_updated_platform_and_threshold_annotation(a):
+    split_text = a.text.split("=")
+    if len(split_text) > 2:
+        raise ValueError("Annotations are expected to be of x=y shape")
+    x, y = split_text
+    if x == "Platform":
+        return y
+    elif x == "AboveEditingThreshold":
+        if y == "True":
+            return "Above editing threshold"
+        else:
+            return "Below editing threshold"
+    else:
+        raise ValueError(f"Unexpected annotation: {a.text}")
+fig.for_each_annotation(
+    lambda a: a.update(
+        text=return_updated_platform_and_threshold_annotation(a)
+    )
+)
 
 fig.update_xaxes(tickangle=35)
 # fig.update_yaxes(dtick=10)
@@ -9642,7 +10174,66 @@ fig.update_xaxes(tickangle=35)
 fig.update_layout(
     width=width,
     height=height,
-    showlegend=False
+    showlegend=False,
+    title="Final noise and editing sites below SNP levels"
+)
+
+# fig.write_image(
+#     Path(out_dir, "12 npn-SNP mismatches distribution - absolute - combined.svg"),
+#     width=width,
+#     height=height,
+# )
+
+fig.show()
+
+# %%
+fig = px.histogram(
+    concat_permissive_12_mismatches_below_snp_levels_df,
+    x="Mismatch",
+    color="Mismatch",
+    color_discrete_map=mismatch_dolor_map,
+    facet_col="Platform",
+    facet_col_spacing=0.04,
+    facet_row="AboveEditingThreshold",
+    log_y=True,
+    template=template,
+    category_orders={"Mismatch": mismatches},
+    # title="Absolute number of editing and non-SNP sites above editing threshold",
+)
+
+width = 1400
+# height = 500
+height = 600
+
+# Use for_each_annotation to customize each title (i.e., remove the "Platform=" prefix)
+def return_updated_platform_and_threshold_annotation(a):
+    split_text = a.text.split("=")
+    if len(split_text) > 2:
+        raise ValueError("Annotations are expected to be of x=y shape")
+    x, y = split_text
+    if x == "Platform":
+        return y
+    elif x == "AboveEditingThreshold":
+        if y == "True":
+            return "Above editing threshold"
+        else:
+            return "Below editing threshold"
+    else:
+        raise ValueError(f"Unexpected annotation: {a.text}")
+fig.for_each_annotation(
+    lambda a: a.update(
+        text=return_updated_platform_and_threshold_annotation(a)
+    )
+)
+
+fig.update_xaxes(tickangle=35)
+# fig.update_yaxes(dtick=10)
+
+fig.update_layout(
+    width=width,
+    height=height,
+    showlegend=False,
+    title="All sites below SNP levels"
 )
 
 # fig.write_image(

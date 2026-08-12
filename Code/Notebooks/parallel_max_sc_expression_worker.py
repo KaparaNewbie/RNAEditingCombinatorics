@@ -71,7 +71,11 @@ def write_gzip_dataframe_atomically(dataframe, out_file, sep):
             temporary_path,
             sep=sep,
             index=False,
-            compression="gzip",
+            # compression="gzip",
+            compression={
+                "method": "gzip",
+                "compresslevel": 1,
+            }
         )
         temporary_path.replace(out_path)
     finally:
@@ -235,16 +239,63 @@ def simplified_get_f1_exapnded_max_expression_df(
         dtype={"OldRead": str, "NewRead": str},
     )
 
-    one_chrom_new_reads_info_df = (
-        one_chrom_raw_reads_info_df.merge(
-            one_chrom_old_to_new_reads_df,
-            how="left",
-            left_on="ReadID",
-            right_on="OldRead",
+    # The mapping must be one-to-one.
+    if not one_chrom_old_to_new_reads_df["OldRead"].is_unique:
+        raise ValueError(
+            f"OldRead is not unique in the read-name mapping for {chrom=}"
         )
-        .drop(columns=["ReadID", "OldRead"])
+
+    if not one_chrom_old_to_new_reads_df["NewRead"].is_unique:
+        raise ValueError(
+            f"NewRead is not unique in the read-name mapping for {chrom=}"
+        )
+
+    # Each raw molecule/read should have one metadata record within the gene.
+    if not one_chrom_raw_reads_info_df["ReadID"].is_unique:
+        duplicated_raw_metadata = one_chrom_raw_reads_info_df.loc[
+            one_chrom_raw_reads_info_df["ReadID"].duplicated(keep=False)
+        ].sort_values("ReadID")
+
+        raise ValueError(
+            f"ReadID is not unique in the raw metadata for {chrom=}:\n"
+            f"{duplicated_raw_metadata.head(20)}"
+        )
+
+    # Start from the mapping rather than from all raw reads.
+    # This keeps only reads that received a shortened NewRead identifier.
+    one_chrom_new_reads_info_df = (
+        one_chrom_old_to_new_reads_df.merge(
+            one_chrom_raw_reads_info_df,
+            left_on="OldRead",
+            right_on="ReadID",
+            how="left",
+            validate="one_to_one",
+            indicator=True,
+        )
+    )
+
+    # Every mapped read should have corresponding cell metadata.
+    missing_metadata = one_chrom_new_reads_info_df["_merge"].ne("both")
+
+    if missing_metadata.any():
+        missing_old_reads = one_chrom_new_reads_info_df.loc[
+            missing_metadata,
+            "OldRead",
+        ].head(20).tolist()
+
+        raise ValueError(
+            f"Mapped reads without raw metadata for {chrom=}: "
+            f"{missing_old_reads}"
+        )
+
+    one_chrom_new_reads_info_df = (
+        one_chrom_new_reads_info_df
+        .drop(columns=["OldRead", "ReadID", "_merge"])
         .rename(columns={"NewRead": "Read"})
     )
+
+    assert one_chrom_new_reads_info_df["Read"].notna().all()
+    assert one_chrom_new_reads_info_df["Read"].is_unique
 
     max_expression_df = get_f1_max_expression_df(
         expression_file,
@@ -324,12 +375,68 @@ def simplified_get_f1_exapnded_max_expression_df(
         == expanded_max_expression_df.drop_duplicates().shape[0]
     )
 
-    expanded_max_expression_df = (
-        expanded_max_expression_df.merge(
-            one_chrom_new_reads_info_df,
-            how="left",
-        )
+    # expanded_max_expression_df = (
+    #     expanded_max_expression_df.merge(
+    #         one_chrom_new_reads_info_df,
+    #         how="left",
+    #     )
+    # )
+    
+    join_cols = ["Chrom", "Read"]
+
+    # Every old/new read identifier should occur only once in the mapping.
+    assert one_chrom_old_to_new_reads_df["OldRead"].is_unique
+    assert one_chrom_old_to_new_reads_df["NewRead"].is_unique
+
+    # The same read must not have more than one metadata record.
+    duplicated_read_metadata = one_chrom_new_reads_info_df.duplicated(
+        subset=join_cols,
+        keep=False,
     )
+
+    if duplicated_read_metadata.any():
+        duplicated_rows = one_chrom_new_reads_info_df.loc[
+            duplicated_read_metadata
+        ].sort_values(join_cols)
+
+        raise ValueError(
+            f"More than one metadata record was found for a read in {chrom=}:\n"
+            f"{duplicated_rows.head(20)}"
+        )
+
+    expanded_max_expression_df = expanded_max_expression_df.merge(
+        one_chrom_new_reads_info_df,
+        on=join_cols,
+        how="left",
+        validate="many_to_one",
+    )
+    
+    # Detect expression reads for which the metadata merge found no match.
+    metadata_cols = ["Sample", "CB", "UB"]
+
+    missing_joined_metadata = (
+        expanded_max_expression_df[metadata_cols]
+        .isna()
+        .all(axis=1)
+    )
+
+    if missing_joined_metadata.any():
+        missing_reads = (
+            expanded_max_expression_df.loc[
+                missing_joined_metadata,
+                ["Chrom", "Read", "ReadStatus"],
+            ]
+            .drop_duplicates()
+            .head(20)
+        )
+
+        raise ValueError(
+            f"Expression reads without cell metadata for {chrom=}:\n"
+            f"{missing_reads}"
+        )
+
+    # The metadata merge must not create completely duplicated rows.
+    assert not expanded_max_expression_df.duplicated().any()
 
     if expanded_max_expression_df.empty:
         raise RuntimeError(
@@ -397,3 +504,14 @@ def process_chromosome(job):
 
     elapsed = perf_counter() - start
     return index, expanded_max_expression_df, elapsed
+
+
+def process_chromosome_to_file(job):
+    """
+    Process one chromosome and write its expanded DataFrame to disk.
+
+    Return only lightweight metadata, rather than sending the complete
+    DataFrame back to the parent process.
+    """
+    index, _expanded_df, elapsed = process_chromosome(job)
+    return index, elapsed

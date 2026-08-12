@@ -2575,9 +2575,6 @@ concat_edited_positions_df = concat_all_positions_df.loc[
 concat_edited_positions_df
 
 # %%
-len(chroms)
-
-# %%
 concat_edited_positions_df["Chrom"].nunique()
 
 # %%
@@ -2690,10 +2687,8 @@ fig.update_layout(
 fig.show()
 
 # %%
-# min_tot_covs = [5, 50, 500]
-# min_tot_covs = [10, 50, 250]
 min_tot_covs = [0, 10, 50, 250]
-min_editing_freqs = [0.001, 0.01, 0.1]
+min_editing_freqs = [0.001, 0.003, 0.005, 0.01]
 
 # %%
 num_of_sites_per_sample_per_min_cov_and_editing_freq_dfs = []
@@ -2769,151 +2764,676 @@ concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df = pd.concat(
 concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df
 
 # %%
-# aggreated measure with num of sites supported by numer of samples
 
-num_of_samples_per_sites_per_min_cov_and_editing_freq_dfs = []
-for min_tot_cov, min_editing_freq in product(min_tot_covs, min_editing_freqs):
-    print(f"Min total coverage: {min_tot_cov}, min editing frequency: {min_editing_freq}")
-    num_of_samples_per_sites_per_min_cov_and_editing_freq_df = per_sample_agged_expanded_concat_edited_positions_df.loc[
+# %%
+per_sample_agged_expanded_concat_edited_positions_df
+
+# %%
+
+# %%
+# # min_tot_cov = min_tot_covs[0]
+# # min_editing_freq = min_editing_freqs[0]
+
+# min_tot_cov = min_tot_covs[1]
+# min_editing_freq = min_editing_freqs[1]
+
+# %%
+# per_sample_agged_expanded_concat_edited_positions_df
+
+# %%
+# # create a df with 5 cols (MinTotalCoverage, MinEditingFrequency, condition_col, Position, Replicates)
+# # denoting for each gene-position the replicates that have at least min_tot_cov coverage and at least min_editing_freq editing frequency
+# replicates_per_gene_per_position_per_min_cov_and_editing_freq_df = (
+#     per_sample_agged_expanded_concat_edited_positions_df
+#     .loc[
+#         (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
+#         & (per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"].ge(min_editing_freq))
+#     ]
+#     .groupby(["Chrom", condition_col, "Position"])
+#     ["Sample"].apply(list)
+#     .reset_index(name="Samples")
+# )
+# replicates_per_gene_per_position_per_min_cov_and_editing_freq_df["Samples"] = (
+#         replicates_per_gene_per_position_per_min_cov_and_editing_freq_df["Samples"].apply(
+#         lambda x: x + ["All"] if len(x) == 7 else x
+#     )
+# )
+# replicates_per_gene_per_position_per_min_cov_and_editing_freq_df.insert(0, "MinTotalCoverage", min_tot_cov)
+# replicates_per_gene_per_position_per_min_cov_and_editing_freq_df.insert(1, "MinEditingFrequency", min_editing_freq)
+# replicates_per_gene_per_position_per_min_cov_and_editing_freq_df
+
+# %%
+# replicates_per_gene_per_position_per_min_cov_and_editing_freq_df["Chrom"].nunique()
+
+# %%
+# replicates_per_gene_per_position_per_min_cov_and_editing_freq_df["Samples"].apply(
+#     len
+# ).sum()
+
+# %%
+# # create a df with 6 cols (MinTotalCoverage, MinEditingFrequency, condition_col, Replicate, NumOfEditingSitesPerReplicate)
+# # denoting for each gene-replicate the number of editing sites that have at least min_tot_cov coverage and at least min_editing_freq editing frequency
+# num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df = (
+#     replicates_per_gene_per_position_per_min_cov_and_editing_freq_df
+#     .explode("Samples")
+#     .rename(
+#         columns={"Samples": "Sample"}
+#     )
+#     .groupby(
+#         ["MinTotalCoverage", "MinEditingFrequency", "Chrom", condition_col, "Sample",]
+#     )
+#     .size()
+#     .reset_index(name="NumOfEditingSitesPerSample")
+# )
+# num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df
+
+# %%
+# num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df["Chrom"].nunique()
+
+# %%
+# num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df["NumOfEditingSitesPerSample"].sum()
+
+# %%
+# # get all sites, across all genes, that have at least min_tot_cov coverage, per each individual replicate
+# # (regardless of their editing frequency)
+# sites_covered_per_gene_per_sample_per_individual_replicate_df = (
+#     per_sample_agged_expanded_concat_edited_positions_df
+#     .loc[
+#         (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
+#     ]
+#     .groupby(["Chrom", condition_col, "Sample"])
+#     .size()
+#     .reset_index(name="NumOfSitesCoveredPerSample")
+# )
+# sites_covered_per_gene_per_sample_per_individual_replicate_df
+
+# %%
+# sites_covered_per_gene_per_sample_per_individual_replicate_df["Chrom"].nunique()
+
+# %%
+# sites_covered_per_gene_per_sample_in_all_replicates_df = (
+#     per_sample_agged_expanded_concat_edited_positions_df
+#     .loc[
+#         (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
+#     ]
+#     .groupby(["Chrom", condition_col, "Position"])
+#     .size()
+#     .reset_index(name="NumOfSitesCoveredPerSample")
+#     .loc[lambda x: x["NumOfSitesCoveredPerSample"].eq(7)]
+#     .assign(Sample="All")
+#     .groupby(["Chrom", condition_col, "Sample"])
+#     .size()
+#     .reset_index(name="NumOfSitesCoveredPerSample")
+# )
+# chroms_with_at_least_one_site_covered_in_all_replicates = set(sites_covered_per_gene_per_sample_in_all_replicates_df["Chrom"].unique())
+# chroms = set(complete_data_df["Chrom"].tolist())
+# chroms_with_not_even_one_site_covered_in_all_replicates = chroms - chroms_with_at_least_one_site_covered_in_all_replicates
+# no_sites_covered_per_gene_per_sample_in_all_replicates_df = (
+#     pd.DataFrame(
+#         {
+#             "Chrom": list(chroms_with_not_even_one_site_covered_in_all_replicates),
+#         }
+#     )
+#     .merge(
+#         orfs_df.loc[:, ["Chrom", "Name"]], 
+#         on="Chrom", 
+#         how="left"
+#     )
+#     .rename(
+#         columns={"Name": condition_col}
+#     )
+#     .assign(
+#         Sample="All",
+#         NumOfSitesCoveredPerSample=0
+#     )
+# )
+# sites_covered_per_gene_per_sample_in_all_replicates_df = (
+#     pd.concat(
+#         [
+#             sites_covered_per_gene_per_sample_in_all_replicates_df,
+#             no_sites_covered_per_gene_per_sample_in_all_replicates_df
+#         ]
+#     )
+#     .sort_values("Chrom", ignore_index=True)
+# )
+# sites_covered_per_gene_per_sample_in_all_replicates_df
+
+# %%
+# sites_covered_per_gene_per_sample_in_all_replicates_df["Chrom"].nunique()
+
+# %%
+# # finally, we have a df with num of covered sites per gene per sample, 
+# # including the counts for each individual replicate and the counts for all replicates together
+# sites_covered_per_gene_per_sample_df = (
+#     pd.concat(
+#         [
+#             sites_covered_per_gene_per_sample_per_individual_replicate_df,
+#             sites_covered_per_gene_per_sample_in_all_replicates_df,
+#         ]
+#     )
+#     .sort_values(
+#         ["Chrom", condition_col, "Sample"],
+#         ignore_index=True
+#     )
+# )
+# sites_covered_per_gene_per_sample_df
+
+# %%
+# sites_covered_per_gene_per_sample_df["Chrom"].nunique()
+
+# %%
+# sites_covered_per_gene_per_sample_df.loc[
+#     sites_covered_per_gene_per_sample_df["Sample"].eq("All"),
+#     "NumOfSitesCoveredPerSample"
+# ].describe().round(2)
+
+# %%
+# # merge the two dfs to get a df with 7 cols 
+# # (MinTotalCoverage, MinEditingFrequency, condition_col, Replicate, NumOfEditingSitesPerReplicate, NumOfSitesCoveredPerReplicate, %EditedOfCoveredSites)
+# num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df = num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df.merge(
+#     sites_covered_per_gene_per_sample_df, 
+#     on=["Chrom", condition_col, "Sample"]
+# )
+# # normalize the number of editing sites by the number of covered sites to get the percentage of edited sites out of the covered sites
+# num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df["%EditedOfCoveredSites"] = (
+#     100
+#     * num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df["NumOfEditingSitesPerSample"]
+#     / num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df["NumOfEditingSitesPerSample"]
+# )
+# num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df
+
+# %%
+# num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df.groupby("Sample")["%EditedOfCoveredSites"].describe().round(2)
+
+# %%
+
+# %%
+per_sample_agged_expanded_concat_edited_positions_df
+
+# %%
+# min_tot_cov = min_tot_covs[0]
+# min_editing_freq = min_editing_freqs[0]
+
+min_tot_cov = min_tot_covs[1]
+min_editing_freq = min_editing_freqs[1]
+
+# %%
+# create a df with 5 cols (MinTotalCoverage, MinEditingFrequency, condition_col, Position, Replicates)
+# denoting for each gene-position the replicates that have at least min_tot_cov coverage and at least min_editing_freq editing frequency
+replicates_per_gene_per_position_per_min_cov_and_editing_freq_df = (
+    per_sample_agged_expanded_concat_edited_positions_df
+    .loc[
         (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
         & (per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"].ge(min_editing_freq))
-    ].groupby(
-        ["Chrom", "Transcript", "Position"]
-    )["Sample"].nunique().value_counts().reset_index()
-    num_of_samples_per_sites_per_min_cov_and_editing_freq_df.insert(0, "MinTotalCoverage", min_tot_cov)
-    num_of_samples_per_sites_per_min_cov_and_editing_freq_df.insert(1, "MinEditingFrequency", min_editing_freq)
-    
-    # num_of_all_sites_covered_by_at_least_one_sample = per_sample_agged_expanded_concat_edited_positions_df.loc[
-    #     (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
-    # ].drop_duplicates(
-    #     ["Chrom", "Transcript", "Position"]
-    # ).shape[0]
-    # num_of_samples_per_sites_per_min_cov_and_editing_freq_df["NumOfSitesCoveredByAtLeastOneSample"] = num_of_all_sites_covered_by_at_least_one_sample
-    
-    num_of_samples_per_sites_per_min_cov_and_editing_freq_df = num_of_samples_per_sites_per_min_cov_and_editing_freq_df.rename(
-        columns={
-            "count": "NumOfEditingSites",
-            "Sample": "NumOfSamples"
+    ]
+    .groupby(["Chrom", condition_col, "Position"])
+    ["Sample"].apply(list)
+    .reset_index(name="Samples")
+)
+replicates_per_gene_per_position_per_min_cov_and_editing_freq_df["Samples"] = (
+        replicates_per_gene_per_position_per_min_cov_and_editing_freq_df["Samples"].apply(
+        lambda x: x + ["All"] if len(x) == 7 else x
+    )
+)
+replicates_per_gene_per_position_per_min_cov_and_editing_freq_df.insert(0, "MinTotalCoverage", min_tot_cov)
+replicates_per_gene_per_position_per_min_cov_and_editing_freq_df.insert(1, "MinEditingFrequency", min_editing_freq)
+replicates_per_gene_per_position_per_min_cov_and_editing_freq_df
+
+# %%
+replicates_per_gene_per_position_per_min_cov_and_editing_freq_df["Chrom"].nunique()
+
+# %%
+replicates_per_gene_per_position_per_min_cov_and_editing_freq_df["Samples"].apply(len).sum()
+
+# %%
+# create a df with 5 cols (MinTotalCoverage, MinEditingFrequency, Replicate, NumOfEditingSitesPerReplicate)
+# denoting for each replicate the number of editing sites that have at least min_tot_cov coverage and at least min_editing_freq editing frequency
+# across all 3 genes
+num_of_sites_per_sample_per_min_cov_and_editing_freq_df = (
+    replicates_per_gene_per_position_per_min_cov_and_editing_freq_df
+    .explode("Samples")
+    .rename(
+        columns={"Samples": "Sample"}
+    )
+    .groupby(
+        ["MinTotalCoverage", "MinEditingFrequency", "Sample",]
+    )
+    .size()
+    .reset_index(name="NumOfEditingSitesPerSample")
+)
+num_of_sites_per_sample_per_min_cov_and_editing_freq_df
+
+# %%
+num_of_sites_per_sample_per_min_cov_and_editing_freq_df["NumOfEditingSitesPerSample"].sum()
+
+# %%
+# get all sites, across all genes, that have at least min_tot_cov coverage, per each individual replicate
+# (regardless of their editing frequency)
+sites_covered_per_individual_replicate_df = (
+    per_sample_agged_expanded_concat_edited_positions_df
+    .loc[
+        (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
+    ]
+    .groupby("Sample")
+    .size()
+    .reset_index(name="NumOfSitesCoveredPerSample")
+)
+sites_covered_per_individual_replicate_df
+
+# %%
+# sites_covered_per_sample_in_all_replicates_df = (
+#     per_sample_agged_expanded_concat_edited_positions_df
+#     .loc[
+#         (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
+#     ]
+#     # .groupby(["Chrom", condition_col, "Position"])
+#     # .size()
+#     # .reset_index(name="NumOfSitesCoveredPerSample")
+#     # .loc[lambda x: x["NumOfSitesCoveredPerSample"].eq(7)]
+#     # .assign(Sample="All")
+#     # .groupby(["Chrom", condition_col, "Sample"])
+#     # .size()
+#     # .reset_index(name="NumOfSitesCoveredPerSample")
+# )
+# sites_covered_per_sample_in_all_replicates_df
+
+# %%
+sites_covered_per_gene_per_sample_in_all_replicates_df = (
+    per_sample_agged_expanded_concat_edited_positions_df
+    .loc[
+        (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
+    ]
+    .groupby(["Chrom", condition_col, "Position"])
+    .size()
+    .reset_index(name="NumOfSitesCoveredPerSample")
+    .loc[lambda x: x["NumOfSitesCoveredPerSample"].eq(7)]
+    .assign(Sample="All")
+    .groupby(["Chrom", condition_col, "Sample"])
+    .size()
+    .reset_index(name="NumOfSitesCoveredPerSample")
+)
+sites_covered_per_gene_per_sample_in_all_replicates_df
+
+# %%
+chroms_with_at_least_one_site_covered_in_all_replicates = set(sites_covered_per_gene_per_sample_in_all_replicates_df["Chrom"].unique())
+chroms = set(complete_data_df["Chrom"].tolist())
+chroms_with_not_even_one_site_covered_in_all_replicates = chroms - chroms_with_at_least_one_site_covered_in_all_replicates
+
+
+# %%
+
+no_sites_covered_per_gene_per_sample_in_all_replicates_df = (
+    pd.DataFrame(
+        {
+            "Chrom": list(chroms_with_not_even_one_site_covered_in_all_replicates),
         }
     )
-    num_of_samples_per_sites_per_min_cov_and_editing_freq_df = num_of_samples_per_sites_per_min_cov_and_editing_freq_df.sort_values(
-        "NumOfSamples", ascending=False, ignore_index=True
+    .merge(
+        orfs_df.loc[:, ["Chrom", "Name"]], 
+        on="Chrom", 
+        how="left"
     )
-    num_of_samples_per_sites_per_min_cov_and_editing_freq_df["ReverseCumulativeNumOfEditingSites"] = (
-        num_of_samples_per_sites_per_min_cov_and_editing_freq_df["NumOfEditingSites"].cumsum()
+    .rename(
+        columns={"Name": condition_col}
     )
-    num_of_samples_per_sites_per_min_cov_and_editing_freq_df["%ReverseCumulativeNumOfEditingSites"] = (
-        100
-        * num_of_samples_per_sites_per_min_cov_and_editing_freq_df["ReverseCumulativeNumOfEditingSites"]
-        / num_of_samples_per_sites_per_min_cov_and_editing_freq_df["NumOfEditingSites"].sum()
+    .assign(
+        Sample="All",
+        NumOfSitesCoveredPerSample=0
     )
-    
-    num_of_samples_per_sites_per_min_cov_and_editing_freq_dfs.append(num_of_samples_per_sites_per_min_cov_and_editing_freq_df)
-    
-concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df = pd.concat(
-    num_of_samples_per_sites_per_min_cov_and_editing_freq_dfs, ignore_index=True
 )
 
-# concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df["%EditedSitesOfAllSitesCoveredByAtLeastOneSample"] = (
-#         100 
-#         * concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df["NumOfEditingSites"] 
-#         / concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df["NumOfSitesCoveredByAtLeastOneSample"]
+# %%
+
+# %%
+
+# %%
+site_covered_by_all_replicates = (
+    per_sample_agged_expanded_concat_edited_positions_df
+    .loc[
+        (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
+    ]
+    .groupby(["Chrom", condition_col, "Position"])["Sample"]
+    .nunique()
+    .eq(7)
+    .sum()
+)
+site_covered_by_all_replicates
+
+# %%
+sites_covered_per_sample_in_all_replicates_df = pd.DataFrame(
+    {
+        "Sample": ["All"],
+        "NumOfSitesCoveredPerSample": [site_covered_by_all_replicates.sum()]
+    }
+)
+# finally, we have a df with num of covered sites per sample, 
+# including the counts for each individual replicate and the counts for all replicates together
+sites_covered_per_sample_df = (
+    pd.concat(
+        [
+            sites_covered_per_individual_replicate_df,
+            sites_covered_per_sample_in_all_replicates_df,
+        ]
+    )
+    .sort_values(
+        "Sample",
+        ignore_index=True
+    )
+)
+sites_covered_per_sample_df
+
+# %%
+# merge the two dfs to get a df with 6 cols 
+# (MinTotalCoverage, MinEditingFrequency, Replicate, NumOfEditingSitesPerReplicate, NumOfSitesCoveredPerReplicate, %EditedOfCoveredSites)
+num_of_sites_per_sample_per_min_cov_and_editing_freq_df = num_of_sites_per_sample_per_min_cov_and_editing_freq_df.merge(
+    sites_covered_per_sample_df, on="Sample"
+)
+# normalize the number of editing sites by the number of covered sites to get the percentage of edited sites out of the covered sites
+num_of_sites_per_sample_per_min_cov_and_editing_freq_df["%EditedOfCoveredSites"] = (
+    100
+    * num_of_sites_per_sample_per_min_cov_and_editing_freq_df["NumOfEditingSitesPerSample"]
+    / num_of_sites_per_sample_per_min_cov_and_editing_freq_df["NumOfSitesCoveredPerSample"]
+)
+num_of_sites_per_sample_per_min_cov_and_editing_freq_df
+
+# %%
+
+# %%
+
+# %%
+
+# %%
+# num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_dfs = []
+num_of_sites_per_sample_per_min_cov_and_editing_freq_dfs = []
+
+for min_tot_cov, min_editing_freq in product(min_tot_covs, min_editing_freqs):
+    
+    # print(f"Min total coverage: {min_tot_cov}, min editing frequency: {min_editing_freq}")
+    
+    # create a df with 5 cols (MinTotalCoverage, MinEditingFrequency, condition_col, Position, Replicates)
+    # denoting for each gene-position the replicates that have at least min_tot_cov coverage and at least min_editing_freq editing frequency
+    replicates_per_gene_per_position_per_min_cov_and_editing_freq_df = (
+        per_sample_agged_expanded_concat_edited_positions_df
+        .loc[
+            (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
+            & (per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"].ge(min_editing_freq))
+        ]
+        .groupby(["Chrom", condition_col, "Position"])
+        ["Sample"].apply(list)
+        .reset_index(name="Samples")
+    )
+    replicates_per_gene_per_position_per_min_cov_and_editing_freq_df["Samples"] = (
+            replicates_per_gene_per_position_per_min_cov_and_editing_freq_df["Samples"].apply(
+            lambda x: x + ["All"] if len(x) == 7 else x
+        )
+    )
+    replicates_per_gene_per_position_per_min_cov_and_editing_freq_df.insert(0, "MinTotalCoverage", min_tot_cov)
+    replicates_per_gene_per_position_per_min_cov_and_editing_freq_df.insert(1, "MinEditingFrequency", min_editing_freq)
+
+    # # create a df with 6 cols (MinTotalCoverage, MinEditingFrequency, condition_col, Replicate, NumOfEditingSitesPerReplicate)
+    # # denoting for each gene-replicate the number of editing sites that have at least min_tot_cov coverage and at least min_editing_freq editing frequency
+    # num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df = (
+    #     replicates_per_gene_per_position_per_min_cov_and_editing_freq_df
+    #     .explode("Samples")
+    #     .rename(
+    #         columns={"Samples": "Sample"}
+    #     )
+    #     .groupby(
+    #         ["MinTotalCoverage", "MinEditingFrequency", "Chrom", condition_col, "Sample",]
+    #     )
+    #     .size()
+    #     .reset_index(name="NumOfEditingSitesPerSample")
+    # )
+    # # get all sites, across all genes, that have at least min_tot_cov coverage, per each individual replicate
+    # # (regardless of their editing frequency)
+    # sites_covered_per_gene_per_sample_per_individual_replicate_df = (
+    #     per_sample_agged_expanded_concat_edited_positions_df
+    #     .loc[
+    #         (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
+    #     ]
+    #     .groupby(["Chrom", condition_col, "Sample"])
+    #     .size()
+    #     .reset_index(name="NumOfSitesCoveredPerSample")
+    # )
+    # sites_covered_per_gene_per_sample_in_all_replicates_df = (
+    #     per_sample_agged_expanded_concat_edited_positions_df
+    #     .loc[
+    #         (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
+    #     ]
+    #     .groupby(["Chrom", condition_col, "Position"])
+    #     .size()
+    #     .reset_index(name="NumOfSitesCoveredPerSample")
+    #     .loc[lambda x: x["NumOfSitesCoveredPerSample"].eq(7)]
+    #     .assign(Sample="All")
+    #     .groupby(["Chrom", condition_col, "Sample"])
+    #     .size()
+    #     .reset_index(name="NumOfSitesCoveredPerSample")
+    # )
+    # chroms_with_at_least_one_site_covered_in_all_replicates = set(sites_covered_per_gene_per_sample_in_all_replicates_df["Chrom"].unique())
+    # chroms = set(complete_data_df["Chrom"].tolist())
+    # chroms_with_not_even_one_site_covered_in_all_replicates = chroms - chroms_with_at_least_one_site_covered_in_all_replicates
+    # no_sites_covered_per_gene_per_sample_in_all_replicates_df = (
+    #     pd.DataFrame(
+    #         {
+    #             "Chrom": list(chroms_with_not_even_one_site_covered_in_all_replicates),
+    #         }
+    #     )
+    #     .merge(
+    #         orfs_df.loc[:, ["Chrom", "Name"]], 
+    #         on="Chrom", 
+    #         how="left"
+    #     )
+    #     .rename(
+    #         columns={"Name": condition_col}
+    #     )
+    #     .assign(
+    #         Sample="All",
+    #         NumOfSitesCoveredPerSample=0
+    #     )
+    # )
+    # sites_covered_per_gene_per_sample_in_all_replicates_df = (
+    #     pd.concat(
+    #         [
+    #             sites_covered_per_gene_per_sample_in_all_replicates_df,
+    #             no_sites_covered_per_gene_per_sample_in_all_replicates_df
+    #         ]
+    #     )
+    #     .sort_values("Chrom", ignore_index=True)
+    # )
+    # # finally, we have a df with num of covered sites per gene per sample, 
+    # # including the counts for each individual replicate and the counts for all replicates together
+    # sites_covered_per_gene_per_sample_df = (
+    #     pd.concat(
+    #         [
+    #             sites_covered_per_gene_per_sample_per_individual_replicate_df,
+    #             sites_covered_per_gene_per_sample_in_all_replicates_df,
+    #         ]
+    #     )
+    #     .sort_values(
+    #         ["Chrom", condition_col, "Sample"],
+    #         ignore_index=True
+    #     )
+    # )
+    # # merge the two dfs to get a df with 7 cols 
+    # # (MinTotalCoverage, MinEditingFrequency, condition_col, Replicate, NumOfEditingSitesPerReplicate, NumOfSitesCoveredPerReplicate, %EditedOfCoveredSites)
+    # num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df = num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df.merge(
+    #     sites_covered_per_gene_per_sample_df, 
+    #     on=["Chrom", condition_col, "Sample"]
+    # )
+    # # normalize the number of editing sites by the number of covered sites to get the percentage of edited sites out of the covered sites
+    # num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df["%EditedOfCoveredSites"] = (
+    #     100
+    #     * num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df["NumOfEditingSitesPerSample"]
+    #     / num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df["NumOfEditingSitesPerSample"]
+    # )
+
+    # create a df with 5 cols (MinTotalCoverage, MinEditingFrequency, Replicate, NumOfEditingSitesPerReplicate)
+    # denoting for each replicate the number of editing sites that have at least min_tot_cov coverage and at least min_editing_freq editing frequency
+    # across all 3 genes
+    num_of_sites_per_sample_per_min_cov_and_editing_freq_df = (
+        replicates_per_gene_per_position_per_min_cov_and_editing_freq_df
+        .explode("Samples")
+        .rename(
+            columns={"Samples": "Sample"}
+        )
+        .groupby(
+            ["MinTotalCoverage", "MinEditingFrequency", "Sample",]
+        )
+        .size()
+        .reset_index(name="NumOfEditingSitesPerSample")
+    )
+    # get all sites, across all genes, that have at least min_tot_cov coverage, per each individual replicate
+    # (regardless of their editing frequency)
+    sites_covered_per_individual_replicate_df = (
+        per_sample_agged_expanded_concat_edited_positions_df
+        .loc[
+            (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
+        ]
+        .groupby("Sample")
+        .size()
+        .reset_index(name="NumOfSitesCoveredPerSample")
+    )
+    site_covered_by_all_replicates = (
+        per_sample_agged_expanded_concat_edited_positions_df
+        .loc[
+            (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
+        ]
+        .groupby(["Chrom", condition_col, "Position"])["Sample"]
+        .nunique()
+        .eq(7)
+        .sum()
+    )
+    sites_covered_per_sample_in_all_replicates_df = pd.DataFrame(
+        {
+            "Sample": ["All"],
+            "NumOfSitesCoveredPerSample": [site_covered_by_all_replicates.sum()]
+        }
+    )
+    # finally, we have a df with num of covered sites per sample, 
+    # including the counts for each individual replicate and the counts for all replicates together
+    sites_covered_per_sample_df = (
+        pd.concat(
+            [
+                sites_covered_per_individual_replicate_df,
+                sites_covered_per_sample_in_all_replicates_df,
+            ]
+        )
+        .sort_values(
+            "Sample",
+            ignore_index=True
+        )
+    )
+    # merge the two dfs to get a df with 6 cols 
+    # (MinTotalCoverage, MinEditingFrequency, Replicate, NumOfEditingSitesPerReplicate, NumOfSitesCoveredPerReplicate, %EditedOfCoveredSites)
+    num_of_sites_per_sample_per_min_cov_and_editing_freq_df = num_of_sites_per_sample_per_min_cov_and_editing_freq_df.merge(
+        sites_covered_per_sample_df, on="Sample"
+    )
+    # normalize the number of editing sites by the number of covered sites to get the percentage of edited sites out of the covered sites
+    num_of_sites_per_sample_per_min_cov_and_editing_freq_df["%EditedOfCoveredSites"] = (
+        100
+        * num_of_sites_per_sample_per_min_cov_and_editing_freq_df["NumOfEditingSitesPerSample"]
+        / num_of_sites_per_sample_per_min_cov_and_editing_freq_df["NumOfSitesCoveredPerSample"]
+    )
+    
+    # num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_dfs.append(num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df)
+    num_of_sites_per_sample_per_min_cov_and_editing_freq_dfs.append(num_of_sites_per_sample_per_min_cov_and_editing_freq_df)
+    
+    # break 
+
+# concat_num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df = pd.concat(
+#     num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_dfs, 
+#     ignore_index=True
+# )
+concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df = pd.concat(
+    num_of_sites_per_sample_per_min_cov_and_editing_freq_dfs, 
+    ignore_index=True
+)
+
+# %%
+# concat_num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df
+
+# %%
+# concat_num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df.groupby("Sample")["%EditedOfCoveredSites"].describe().round(2)
+
+# %%
+concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df
+
+# %%
+# concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df.groupby("Sample")["%EditedOfCoveredSites"].describe().round(2)
+
+# %%
+# per_sample_agged_expanded_concat_edited_positions_df
+
+# %%
+# # aggreated measure with num of sites supported by numer of samples
+
+# num_of_samples_per_sites_per_min_cov_and_editing_freq_dfs = []
+# for min_tot_cov, min_editing_freq in product(min_tot_covs, min_editing_freqs):
+#     print(f"Min total coverage: {min_tot_cov}, min editing frequency: {min_editing_freq}")
+#     num_of_samples_per_sites_per_min_cov_and_editing_freq_df = per_sample_agged_expanded_concat_edited_positions_df.loc[
+#         (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
+#         & (per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"].ge(min_editing_freq))
+#     ].groupby(
+#         ["Chrom", "Transcript", "Position"]
+#     )["Sample"].nunique().value_counts().reset_index()
+#     num_of_samples_per_sites_per_min_cov_and_editing_freq_df.insert(0, "MinTotalCoverage", min_tot_cov)
+#     num_of_samples_per_sites_per_min_cov_and_editing_freq_df.insert(1, "MinEditingFrequency", min_editing_freq)
+    
+#     # num_of_all_sites_covered_by_at_least_one_sample = per_sample_agged_expanded_concat_edited_positions_df.loc[
+#     #     (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
+#     # ].drop_duplicates(
+#     #     ["Chrom", "Transcript", "Position"]
+#     # ).shape[0]
+#     # num_of_samples_per_sites_per_min_cov_and_editing_freq_df["NumOfSitesCoveredByAtLeastOneSample"] = num_of_all_sites_covered_by_at_least_one_sample
+    
+#     num_of_samples_per_sites_per_min_cov_and_editing_freq_df = num_of_samples_per_sites_per_min_cov_and_editing_freq_df.rename(
+#         columns={
+#             "count": "NumOfEditingSites",
+#             "Sample": "NumOfSamples"
+#         }
 #     )
-
-concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df
-
-# %%
-# fig = px.bar(
-#     concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df,
-#     x="Sample",
-#     y="NumOfEditingSitesPerSample",
-#     facet_row="MinTotalCoverage",
-#     facet_col="MinEditingFrequency",
-#     labels={
-#         # "NumOfSamples": "Samples",
-#         "NumOfEditingSitesPerSample": "Editing sites",
-#         # "MinTotalCoverage": "Min tot coverage",
-#         # "MinEditingFrequency": "Min editing freq"
-#     },
-#     color="Sample",
-#     color_discrete_map=samples_color_discrete_map,
-#     # log_y=True
+#     num_of_samples_per_sites_per_min_cov_and_editing_freq_df = num_of_samples_per_sites_per_min_cov_and_editing_freq_df.sort_values(
+#         "NumOfSamples", ascending=False, ignore_index=True
+#     )
+#     num_of_samples_per_sites_per_min_cov_and_editing_freq_df["ReverseCumulativeNumOfEditingSites"] = (
+#         num_of_samples_per_sites_per_min_cov_and_editing_freq_df["NumOfEditingSites"].cumsum()
+#     )
+#     num_of_samples_per_sites_per_min_cov_and_editing_freq_df["%ReverseCumulativeNumOfEditingSites"] = (
+#         100
+#         * num_of_samples_per_sites_per_min_cov_and_editing_freq_df["ReverseCumulativeNumOfEditingSites"]
+#         / num_of_samples_per_sites_per_min_cov_and_editing_freq_df["NumOfEditingSites"].sum()
+#     )
+    
+#     num_of_samples_per_sites_per_min_cov_and_editing_freq_dfs.append(num_of_samples_per_sites_per_min_cov_and_editing_freq_df)
+    
+# concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df = pd.concat(
+#     num_of_samples_per_sites_per_min_cov_and_editing_freq_dfs, ignore_index=True
 # )
 
-# # Loop through all facet annotations and modify their text
-# for annotation in fig.layout.annotations:
-#     if "MinTotalCoverage=" in annotation.text:
-#         annotation.text = annotation.text.replace("MinTotalCoverage=", "Coverage / sample ≥ ")
-#     if "MinEditingFrequency=" in annotation.text:
-#         annotation.text = annotation.text.replace("MinEditingFrequency=", "Editing freq / sample ≥ ")
-        
-# # fig.update_yaxes(dtick=5000)
+# # concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df["%EditedSitesOfAllSitesCoveredByAtLeastOneSample"] = (
+# #         100 
+# #         * concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df["NumOfEditingSites"] 
+# #         / concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df["NumOfSitesCoveredByAtLeastOneSample"]
+# #     )
 
-# fig.update_layout(
-#     template=template,
-#     width=800,
-#     height=1000,
-#     title="Number of sites edited per sample",
-#     showlegend=False
-# )
-# fig.show()
-
-# %%
-# fig = px.bar(
-#     concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df,
-#     x="Sample",
-#     y="%EditedOfCoveredSites",
-#     facet_row="MinTotalCoverage",
-#     facet_col="MinEditingFrequency",
-#     facet_row_spacing=0.05,
-#     labels={
-#         # "NumOfSamples": "Samples",
-#         "%EditedOfCoveredSites": "Edited /<br>covered sites [%]",
-#         # "MinTotalCoverage": "Min tot coverage",
-#         # "MinEditingFrequency": "Min editing freq"
-#     },
-#     color="Sample",
-#     color_discrete_map=samples_color_discrete_map,
-#     # log_y=True
-# )
-
-# # Loop through all facet annotations and modify their text
-# for annotation in fig.layout.annotations:
-#     if "MinTotalCoverage=" in annotation.text:
-#         annotation.text = annotation.text.replace("MinTotalCoverage=", "Coverage / sample ≥ ")
-#     if "MinEditingFrequency=" in annotation.text:
-#         annotation.text = annotation.text.replace("MinEditingFrequency=", "Editing freq / sample ≥ ")
-        
-# fig.update_yaxes(dtick=25)
-
-# fig.update_layout(
-#     template=template,
-#     width=800,
-#     height=800,
-#     title="Number of sites edited per sample",
-#     showlegend=False
-# )
-# fig.show()
+# concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df
 
 # %%
 fig = px.bar(
-    concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df.loc[
-        concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df["MinEditingFrequency"] == 0.001],
+    concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df,
     x="Sample",
     y="%EditedOfCoveredSites",
-    # facet_row="MinTotalCoverage",
-    # facet_col="MinEditingFrequency",
-    facet_col="MinTotalCoverage",
-    # facet_row_spacing=0.05,
+    facet_row="MinTotalCoverage",
+    facet_col="MinEditingFrequency",
     labels={
-        # "NumOfSamples": "Samples",
-        # "%EditedOfCoveredSites": "Edited /<br>covered sites [%]",
-        "%EditedOfCoveredSites": "Edited / covered sites [%]",
-        # "MinTotalCoverage": "Min tot coverage",
-        # "MinEditingFrequency": "Min editing freq"
+        # "NumOfEditingSitesPerSample": "Editing sites",
+        "%EditedOfCoveredSites": "Edited /<br>covered sites [%]",
     },
     color="Sample",
     color_discrete_map=samples_color_discrete_map,
+    category_orders={
+        "Sample": samples.tolist() + ["All"],
+    }
     # log_y=True
 )
 
@@ -2921,18 +3441,18 @@ fig = px.bar(
 for annotation in fig.layout.annotations:
     if "MinTotalCoverage=" in annotation.text:
         annotation.text = annotation.text.replace("MinTotalCoverage=", "Coverage / sample ≥ ")
-    # if "MinEditingFrequency=" in annotation.text:
-    #     annotation.text = annotation.text.replace("MinEditingFrequency=", "Editing freq / sample ≥ ")
+    if "MinEditingFrequency=" in annotation.text:
+        annotation.text = annotation.text.replace("MinEditingFrequency=", "Editing frequency / sample ≥ ")
         
-fig.update_yaxes(dtick=25)
+# fig.update_yaxes(dtick=5000)
 
-width = 800
-height = 400
+width = 1200
+height = 900
 
 fig.update_layout(
     template=template,
     width=width,
-    height=height,
+        height=height,
     title="Number of sites edited per sample",
     showlegend=False
 )
@@ -2949,19 +3469,18 @@ fig.write_image(
 fig.show()
 
 # %%
-# fig = px.bar(
+# fig = px.line(
 #     concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df,
 #     x="NumOfSamples",
-#     y="NumOfEditingSites",
+#     y="%ReverseCumulativeNumOfEditingSites",
 #     facet_row="MinTotalCoverage",
 #     facet_col="MinEditingFrequency",
 #     facet_row_spacing=0.05,
 #     labels={
 #         "NumOfSamples": "Samples",
-#         "NumOfEditingSites": "Edited sites",
+#         "%ReverseCumulativeNumOfEditingSites": "% of edited sites",
 #     },
-#     # cumulative=True,
-#     # log_y=True
+#     markers=True
 # )
 
 # # Loop through all facet annotations and modify their text
@@ -2971,110 +3490,70 @@ fig.show()
 #     if "MinEditingFrequency=" in annotation.text:
 #         annotation.text = annotation.text.replace("MinEditingFrequency=", "Editing freq / sample ≥ ")
 
-# # fig.update_traces(marker_color='black') # Set all bar colors to black
-
-# fig.update_xaxes(dtick=1)
+# # fig.update_xaxes(dtick=1)
+# fig.update_xaxes(dtick=1, autorange="reversed")
+# fig.update_yaxes(range=[0, 105], dtick=25)
 
 # fig.update_layout(
 #     template=template,
 #     width=800,
 #     height=800,
-#     title="Number of samples editing each site"
+#     title="Cumulative % of edited sites supported by X samples or less"
 # )
 # fig.show()
 
 # %%
-fig = px.line(
-    concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df,
-    x="NumOfSamples",
-    y="%ReverseCumulativeNumOfEditingSites",
-    facet_row="MinTotalCoverage",
-    facet_col="MinEditingFrequency",
-    facet_row_spacing=0.05,
-    labels={
-        "NumOfSamples": "Samples",
-        "%ReverseCumulativeNumOfEditingSites": "% of edited sites",
-    },
-    markers=True
-)
+# fig = px.line(
+#     concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df.loc[
+#         (concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df["MinTotalCoverage"] == 0)
+#         & (concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df["MinEditingFrequency"] == 0.01)
+#     ],
+#     x="NumOfSamples",
+#     y="%ReverseCumulativeNumOfEditingSites",
+#     # facet_row="MinTotalCoverage",
+#     # facet_col="MinEditingFrequency",
+#     # facet_row_spacing=0.05,
+#     labels={
+#         "NumOfSamples": "Samples",
+#         "%ReverseCumulativeNumOfEditingSites": "% of edited sites",
+#     },
+#     markers=True
+# )
 
-# Loop through all facet annotations and modify their text
-for annotation in fig.layout.annotations:
-    if "MinTotalCoverage=" in annotation.text:
-        annotation.text = annotation.text.replace("MinTotalCoverage=", "Coverage / sample ≥ ")
-    if "MinEditingFrequency=" in annotation.text:
-        annotation.text = annotation.text.replace("MinEditingFrequency=", "Editing freq / sample ≥ ")
+# # # Loop through all facet annotations and modify their text
+# # for annotation in fig.layout.annotations:
+# #     if "MinTotalCoverage=" in annotation.text:
+# #         annotation.text = annotation.text.replace("MinTotalCoverage=", "Coverage / sample ≥ ")
+# #     if "MinEditingFrequency=" in annotation.text:
+# #         annotation.text = annotation.text.replace("MinEditingFrequency=", "Editing freq / sample ≥ ")
 
-# fig.update_xaxes(dtick=1)
-fig.update_xaxes(dtick=1, autorange="reversed")
-fig.update_yaxes(range=[0, 105], dtick=25)
+# # fig.update_xaxes(dtick=1)
+# fig.update_xaxes(dtick=1, autorange="reversed")
+# fig.update_yaxes(range=[0, 105], dtick=25)
 
-fig.update_layout(
-    template=template,
-    width=800,
-    height=800,
-    title="Cumulative % of edited sites supported by X samples or less"
-)
-fig.show()
+# width = 400
+# height = 400
 
-# %%
-concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df.loc[
-        (concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df["MinTotalCoverage"] == 0)
-        & (concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df["MinEditingFrequency"] == 0.001)
-    ]
+# fig.update_layout(
+#     template=template,
+#     width=width,
+#     height=height,
+#     title="Cumulative % of edited sites supported<br>by X samples or less"
+# )
 
-# %%
-fig = px.line(
-    concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df.loc[
-        (concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df["MinTotalCoverage"] == 0)
-        & (concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df["MinEditingFrequency"] == 0.001)
-    ],
-    x="NumOfSamples",
-    y="%ReverseCumulativeNumOfEditingSites",
-    # facet_row="MinTotalCoverage",
-    # facet_col="MinEditingFrequency",
-    # facet_row_spacing=0.05,
-    labels={
-        "NumOfSamples": "Samples",
-        "%ReverseCumulativeNumOfEditingSites": "% of edited sites",
-    },
-    markers=True
-)
+# fig.write_image(
+#     Path(
+#         out_dir,
+#         "Cumulative % of edited sites supported by X samples or less - Octopus - pooled.svg",
+#     ),
+#     width=width,
+#     height=height,
+# )
 
-# # Loop through all facet annotations and modify their text
-# for annotation in fig.layout.annotations:
-#     if "MinTotalCoverage=" in annotation.text:
-#         annotation.text = annotation.text.replace("MinTotalCoverage=", "Coverage / sample ≥ ")
-#     if "MinEditingFrequency=" in annotation.text:
-#         annotation.text = annotation.text.replace("MinEditingFrequency=", "Editing freq / sample ≥ ")
-
-# fig.update_xaxes(dtick=1)
-fig.update_xaxes(dtick=1, autorange="reversed")
-fig.update_yaxes(range=[0, 105], dtick=25)
-
-width = 400
-height = 400
-
-fig.update_layout(
-    template=template,
-    width=width,
-    height=height,
-    title="Cumulative % of edited sites supported<br>by X samples or less"
-)
-
-fig.write_image(
-    Path(
-        out_dir,
-        "Cumulative % of edited sites supported by X samples or less - Octopus - pooled.svg",
-    ),
-    width=width,
-    height=height,
-)
-
-fig.show()
+# fig.show()
 
 # %%
-raise Exception("Stop notebook execution here")
+# raise Exception("Stop notebook execution here")
 
 # %% [markdown]
 # ### Noise in positions

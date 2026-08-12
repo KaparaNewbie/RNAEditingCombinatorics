@@ -363,19 +363,19 @@ ic(conditions);
 # color_sequence = px.colors.qualitative.Pastel
 # color_sequence = px.colors.qualitative.D3
 # color_sequence = px.colors.qualitative.G10
-color_sequence = px.colors.qualitative.Dark24
-color_discrete_map = {
-    condition: color for condition, color in zip(conditions, color_sequence)
-}
-shortened_color_discrete_map = {
-    condition: color for condition, color in zip(shortened_conditions, color_sequence)
-}
-ic(color_discrete_map)
-subcolors_discrete_map = {
-    condition: two_subcolors_from_hex(color_discrete_map[condition])
-    for condition in conditions
-}
-ic(subcolors_discrete_map)
+# color_sequence = px.colors.qualitative.Dark24
+# color_discrete_map = {
+#     condition: color for condition, color in zip(conditions, color_sequence)
+# }
+# shortened_color_discrete_map = {
+#     condition: color for condition, color in zip(shortened_conditions, color_sequence)
+# }
+# ic(color_discrete_map)
+# subcolors_discrete_map = {
+#     condition: two_subcolors_from_hex(color_discrete_map[condition])
+#     for condition in conditions
+# }
+# ic(subcolors_discrete_map)
 category_orders = {condition_col: conditions}
 horizontal_category_orders = {
     category: list(reversed(category_orders[category])) for category in category_orders
@@ -389,6 +389,38 @@ facet_col_wrap = 6
 facet_row_spacing = facet_col_spacing * 6
 template = "plotly_white"
 zerolinewidth = 4
+
+# %%
+shortened_color_discrete_map = {
+    # 'GRIA2': '#00A08B',
+    'PCLO': '#AF0038',
+    'ABL': '#0D2A63',
+    'ACHA4': '#DA16FF',
+    'ANR17': '#FC0080',
+    'CA2D3': '#6C4516',
+    'CACB2': '#1616A7',
+    'CSKI1': '#222A2A',
+    'DGLA': '#620042',
+    'DOP1': '#A777F1',
+    'IQEC1': '#EB663B',
+    'K0513': '#750D86',
+    'KCNAS': '#FB0D0D',
+    'MTUS2': '#1CA71C',
+    'RIMS2': '#FB00D1',
+    'ROBO2': '#2E91E5',
+    'RUSC2': '#B68100',
+    'SCN1': '#6C7C32',
+    'TRIM2': '#B2828D',
+    'TWK7': '#862A16',
+    # 'ADAR1': '#511CFB'
+}
+shortened_subcolors_discrete_map = {
+    condition: two_subcolors_from_hex(color)
+    for condition, color in shortened_color_discrete_map.items()
+}
+sorted_shortened_conditions = sorted(shortened_color_discrete_map.keys())
+ic(len(sorted_shortened_conditions))
+sorted_shortened_conditions
 
 
 # %% [markdown]
@@ -408,8 +440,7 @@ def n_repetitions_colormap(subcolors_discrete_map, condition, n_repetitions):
 
 
 # %%
-n_repetitions_colormap(subcolors_discrete_map, conditions[0], 10)
-
+# n_repetitions_colormap(subcolors_discrete_map, conditions[0], 10)
 
 # %%
 def tickfont_size_from_n_ticks(
@@ -6998,9 +7029,21 @@ avg_of_min_estimate_of_non_syns_per_isoforms
 # %%
 
 # %%
+assignment_df_per_shortened_condition = {
+    condition: assignment_df
+    for assignment_df, condition in zip(
+        assignment_dfs, shortened_conditions
+    )
+}
+sorted(assignment_df_per_shortened_condition.keys())
+
+# %%
+row_col_iter
+
+# %%
 x_axis_name = "Distinct protein rank"
-y_axis_name = "Cummulative relative<br>expression (%)"
-head_title = "Weighted cummulative expression vs. distinct protein rank"
+y_axis_name = "Cumulative relative expression [%]"
+head_title = "Weighted cumulative expression vs. distinct protein rank"
 
 cols = min(facet_col_wrap, len(conditions), 5)
 rows = ceil(len(conditions) / cols)
@@ -7010,6 +7053,8 @@ fig = make_subplots(
     rows=rows,
     cols=cols,
     subplot_titles=shortened_conditions,
+    # subplot_titles=sorted(assignment_df_per_shortened_condition.keys()),
+    # subplot_titles=sorted_shortened_conditions,
     shared_yaxes=True,
     x_title=x_axis_name,
     y_title=y_axis_name,
@@ -7019,9 +7064,17 @@ fig = make_subplots(
     horizontal_spacing=0.025,
 )
 
-for (row, col), assignment_df, condition in zip(
-    row_col_iter, assignment_dfs, conditions
+# for (row, col), assignment_df, condition in zip(
+#     row_col_iter, assignment_dfs, shortened_conditions
+# ):
+
+for (row, col), condition in zip(
+    row_col_iter, shortened_conditions
 ):
+    ic(row, col, condition)
+    
+    assignment_df = assignment_df_per_shortened_condition[condition]
+    
     x = assignment_df["#Protein"]
     y = assignment_df["%CummulativeRelativeExpression"]
 
@@ -7033,7 +7086,8 @@ for (row, col), assignment_df, condition in zip(
             # mode="markers",
             mode="lines",
             marker=dict(
-                color=color_discrete_map[condition],
+                # color=color_discrete_map[condition],
+                color=shortened_color_discrete_map[condition],
                 size=1.5,
                 opacity=0.7,
             ),
@@ -7624,7 +7678,7 @@ fit_texts = [
 # subplot_titles = conditions
 subplot_titles = shortened_conditions
 x_axis_name = "Distinct protein rank"
-y_axis_name = "Relative expression (%)"
+y_axis_name = "Relative expression [%]"
 # head_title = f"Relative expression of proteins considering a largest solution in each {str(condition_col).lower()}"
 head_title = "Relative expression vs. distinct protein rank"
 
@@ -7665,7 +7719,7 @@ for (
     formulate_equation,
 ) in zip(
     row_col_iter,
-    conditions,
+    shortened_conditions,
     # maximal_dfs,
     assignment_dfs,
     linear_spaces,
@@ -7702,7 +7756,8 @@ for (
             # legendgroup=condition,
             # name=assignment_method,
             mode="markers",
-            marker_color=color_discrete_map[condition],
+            # marker_color=color_discrete_map[condition],
+            marker_color=shortened_color_discrete_map[condition],
             marker_size=data_marker_size,
             marker=dict(
                 opacity=data_opacity,
@@ -9046,7 +9101,7 @@ concat_kmeans_silhouette_scores_df
 
 # %%
 concat_kmeans_silhouette_scores_df.to_csv(
-    Path(out_dir, "KMeansMeanSilhouetteScores.Illumina.tsv"),
+    Path(out_dir, "KMeansMeanSilhouetteScores.Illumina.UpdatedExpression.tsv"),
     sep="\t",
     index=False
 )

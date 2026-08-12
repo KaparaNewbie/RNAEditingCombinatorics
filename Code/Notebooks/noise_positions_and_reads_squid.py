@@ -1287,6 +1287,17 @@ noise_positions_df = noise_positions_dfs[0]
 noise_positions_df
 
 # %%
+for sample, noise_positions_df in zip(samples, noise_positions_dfs):
+    ic(
+        sample,
+        noise_positions_df.loc[
+            (noise_positions_df["RefBase"].eq("A"))
+            & (noise_positions_df["AltBase"].eq("G")),
+            & (noise_positions_df["Noise"].ge(noise_positions_df["EditingThreshold"]))
+        ].shape[0]
+    )
+
+# %%
 noise_positions_df.loc[
     (noise_positions_df["RefBase"].eq("A"))
     & (noise_positions_df["AltBase"].eq("G")),

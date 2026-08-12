@@ -4178,6 +4178,48 @@ Code/Simulations/expressionlevels.jl \
 - alu18
 - 19:51
 
+Calculating expression levels with entropy consideration, and only for maximal solutions:
+
+```bash
+OUT_DIR=O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50/ExpressionLevels.EntropyConsidered.MaxDistinct
+
+MKDIR $OUT_DIR
+
+# mkdir O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50/ExpressionLevels.EntropyConsidered.MaxDistinct
+
+python \
+Code/Simulations/prepare_fofns_for_expression.py \
+--reads_dir O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50/ReadsFiles \
+--proteins_dir O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50/ProteinsFiles \
+--distinct_proteins_dir O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50/DistinctProteins \
+--proteins_postfix ".gz" \
+--reads_postfix ".gz" \
+--out_dir $OUT_DIR
+
+# DISTINCTFILES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50/DistinctProteins/DistinctProteinsForExpressionLevels.txt)
+# ALLROTSFILES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50/DistinctProteins/UniqueProteinsForExpressionLevels.txt)
+# SAMPLESNAMES=$(cat O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50/DistinctProteins/ChromsNamesForExpressionLevels.txt)
+
+nohup \
+julia \
+--project=. \
+--threads 40 \
+Code/Simulations/expressionlevels.jl \
+--distinctfilesfofn $OUT_DIR/DistinctProteinsForExpressionLevels.txt \
+--allprotsfilesfofn $OUT_DIR/UniqueProteinsForExpressionLevels.txt \
+--allreadsfilesfofn $OUT_DIR/ReadsForExpressionLevels.txt \
+--samplenamesfile $OUT_DIR/ChromsNamesForExpressionLevels.txt \
+--firstcolpos 16 \
+--considerentropy \
+--innerthreadedassignment \
+--onlymaxdistinct \
+--outdir $OUT_DIR \
+> O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50/expressionlevels.EntropyConsidered.MaxDistinct.27.7.2026.out &
+```
+* alu 18
+* pid 1807498
+* 14:48
+
 ### total_mapped_reads 1000
 
 #### Pileup

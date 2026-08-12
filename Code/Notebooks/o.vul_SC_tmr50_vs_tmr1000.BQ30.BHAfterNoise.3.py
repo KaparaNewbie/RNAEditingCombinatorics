@@ -198,6 +198,8 @@ positions_data_df = pd.DataFrame(
     }
 )
 
+assert positions_data_df["Chrom"].nunique() == positions_data_df.shape[0]
+
 positions_data_df
 
 # %%
@@ -209,10 +211,14 @@ tmr50_alignment_stats_df.loc[
 reads_files = list(reads_dir.glob("*.reads.csv.gz"))
 chroms_in_reads_files = [reads_file.name.split(".")[0] for reads_file in reads_files]
 
+assert len(chroms_in_reads_files) == len(set(chroms_in_reads_files))
+
 unique_reads_files = list(reads_dir.glob("*.unique_reads.csv.gz"))
 chroms_in_unique_reads_files = [
     unique_reads_file.name.split(".")[0] for unique_reads_file in unique_reads_files
 ]
+
+assert len(chroms_in_unique_reads_files) == len(set(chroms_in_unique_reads_files))
 
 reads_data_df = pd.DataFrame(
     {
@@ -243,22 +249,29 @@ chroms_in_proteins_files = [
     proteins_file.name.split(".")[0] for proteins_file in proteins_files
 ]
 
+assert len(chroms_in_proteins_files) == len(set(chroms_in_proteins_files))
+
 unique_proteins_files = list(proteins_dir.glob("*.unique_proteins.csv.gz"))
 chroms_in_unique_proteins_files = [
     unique_proteins_file.name.split(".")[0]
     for unique_proteins_file in unique_proteins_files
 ]
 
+assert len(chroms_in_unique_proteins_files) == len(set(chroms_in_unique_proteins_files))
+
 # distinct_proteins_files = list(distinct_proteins_dir.glob("*DistinctUniqueProteins.*.csv"))
 distinct_proteins_files = [
     f
     for f in distinct_proteins_dir.glob("*DistinctUniqueProteins.*.csv")
     if "expression" not in f.name.lower()
+    and "Updated" not in f.name
 ]
 chroms_in_distinct_proteins_files = [
     distinct_proteins_file.name.split(".")[0]
     for distinct_proteins_file in distinct_proteins_files
 ]
+
+assert len(chroms_in_distinct_proteins_files) == len(set(chroms_in_distinct_proteins_files))
 
 expression_files = list(
     expression_dir.glob("*.DistinctUniqueProteins.ExpressionLevels.csv")
@@ -266,6 +279,8 @@ expression_files = list(
 chroms_in_expression_files = [
     expression_file.name.split(".")[0] for expression_file in expression_files
 ]
+
+assert len(chroms_in_expression_files) == len(set(chroms_in_expression_files))
 
 
 proteins_data_df = pd.DataFrame(
@@ -390,6 +405,30 @@ expression_files[0].exists()
 
 # %%
 expression_files[0].name
+
+# %%
+source_tables = {
+    "orfs": orfs_df,
+    "alignment": tmr50_alignment_stats_df,
+    "positions": positions_data_df,
+    "reads": reads_data_df,
+    "proteins": proteins_data_df,
+    "distinct_proteins": distinct_proteins_data_df,
+    "expression": expression_data_df,
+    "complete": complete_data_df,
+}
+
+for name, df in source_tables.items():
+    duplicated_chroms = df.loc[
+        df["Chrom"].duplicated(keep=False)
+    ].sort_values("Chrom")
+
+    print(
+        name,
+        "rows =", len(df),
+        "unique chroms =", df["Chrom"].nunique(),
+        "duplicated rows =", len(duplicated_chroms),
+    )
 
 # %%
 # len(data_df["UniqueReadsFile"])
@@ -3077,245 +3116,6 @@ ic(len(chroms_with_at_least_5_isoforms));
 
 
 # %%
-# chroms_and_exp_files_of_chroms_with_at_least_5_isoforms_sorted_as_all_chroms = [
-#     (chrom, expression_file)
-#     for chrom, expression_file in zip(chroms, expression_files)
-#     if chrom in chroms_with_at_least_5_isoforms
-# ]
-
-# %%
-# chrom
-
-# %%
-# concat_f1_5plus_max_expression_df
-
-# %%
-# concat_f1_5plus_max_expression_df["Chrom"].nunique()
-
-# %% jupyter={"source_hidden": true}
-# def get_f1_max_expression_df(
-#     expression_file, chrom, max_distinct_proteins_df, sep, condition_col
-# ):
-#     expression_df = pd.read_csv(
-#         expression_file,
-#         sep=sep,
-#         dtype={
-#             "#Solution": str,
-#             "AdditionalSupportingReadsIDs": str,
-#             "AdditionalSupportingProteinsIDs": str,
-#         },
-#     )
-#     expression_df = expression_df.loc[expression_df["Fraction"] == 1].reset_index(
-#         drop=True
-#     )
-
-#     expression_df = expression_df.drop(
-#         columns=[
-#             "#Solution",
-#             "AmbigousPositions",
-#             "EditedPositions",
-#             "EditingFrequency",
-#             "Index",
-#             "NumOfUniqueReads",
-#             "Samples",
-#             "UneditedPositions",
-#             "UniqueReads",
-#             "AdditionalEqualSupportingReads",
-#             "TotalEqualSupportingReads",
-#             "MinNonSyns",
-#             "MaxNonSyns",
-#             "MinNonSynsFrequency",
-#             "MaxNonSynsFrequency",
-#             "AdditionalWeightedSupportingReads",
-#             "TotalWeightedSupportingReads",
-#             # "TotalAdditionalSupportingProteins"
-#         ]
-#     )
-
-#     expression_df.insert(0, "Chrom", chrom)
-#     expression_df = expression_df.merge(
-#         max_distinct_proteins_df.loc[
-#             max_distinct_proteins_df["Chrom"] == chrom,
-#             [
-#                 "Chrom",
-#                 condition_col,
-#                 "Fraction",
-#                 "FractionRepetition",
-#                 "Algorithm",
-#                 "AlgorithmRepetition",
-#             ],
-#         ],
-#         how="right",
-#     )
-
-#     expression_df = expression_df.drop(
-#         columns=["Fraction", "FractionRepetition", "Algorithm", "AlgorithmRepetition"]
-#     )
-
-#     expression_df["Reads"] = (
-#         expression_df["Reads"]
-#         .str.removeprefix("SubString{String}[")
-#         .str.removesuffix("]")
-#         .str.split(", ")
-#         .apply(remove_wrapping_quote_marks_from_elements)
-#     )
-#     expression_df["AdditionalSupportingReadsIDs"] = expression_df[
-#         "AdditionalSupportingReadsIDs"
-#     ].apply(lambda x: "" if pd.isna(x) else [y.split(",") for y in x.split(";")])
-#     expression_df["AdditionalSupportingProteinsIDs"] = expression_df[
-#         "AdditionalSupportingProteinsIDs"
-#     ].apply(lambda x: "" if pd.isna(x) else x.split(","))
-
-#     return expression_df
-
-# %% jupyter={"source_hidden": true}
-# def get_f1_5plus_exapnded_max_expression_df(
-#     chrom,
-#     expression_file,
-#     positions_dir,
-#     one_chrom_raw_reads_info_df,
-#     max_distinct_proteins_df,
-#     sep,
-#     condition_col,
-#     out_file=None,
-#     try_using_existing_out_file=True,
-# ):
-#     if out_file is not None and try_using_existing_out_file:
-#         try:
-#             expanded_max_expression_df = pd.read_csv(
-#                 out_file, sep=sep, dtype={"Protein": str, "Read": str}
-#             )
-#             if not expanded_max_expression_df.empty:
-#                 return expanded_max_expression_df
-#         except (FileNotFoundError, EOFError):
-#             pass
-
-#     one_chrom_old_to_new_reads_file = Path(
-#         positions_dir, f"{chrom}.OldToNewReads.csv.gz"
-#     )
-#     one_chrom_old_to_new_reads_df = pd.read_table(
-#         one_chrom_old_to_new_reads_file, dtype={"OldRead": str, "NewRead": str}
-#     )
-#     one_chrom_new_reads_info_df = (
-#         one_chrom_raw_reads_info_df.merge(
-#             one_chrom_old_to_new_reads_df,
-#             how="left",
-#             left_on="ReadID",
-#             right_on="OldRead",
-#         )
-#         .drop(columns=["ReadID", "OldRead"])
-#         .rename(columns={"NewRead": "Read"})
-#     )
-
-#     max_expression_df = get_f1_max_expression_df(
-#         expression_file, chrom, max_distinct_proteins_df, sep, condition_col
-#     )
-
-#     # explode per additional supporting protein
-#     supposed_num_of_rows_after_explosion = (
-#         max_expression_df["AdditionalSupportingProteins"].sum()
-#         + max_expression_df.loc[
-#             max_expression_df["AdditionalSupportingProteins"] == 0
-#         ].shape[0]
-#     )
-#     expanded_max_expression_df = (
-#         max_expression_df.explode(
-#             ["AdditionalSupportingReadsIDs", "AdditionalSupportingProteinsIDs"],
-#             ignore_index=True,
-#         ).drop(
-#             columns=["AdditionalSupportingProteins", "AdditionalSupportingProteinsIDs"]
-#         )
-#         # .rename(
-#         #     columns={
-#         #         "AdditionalSupportingProteinsIDs": "AdditionalSupportingProteinID",
-#         #         # "AdditionalSupportingProteins": "TotalAdditionalSupportingProteins",
-#         #     }
-#         # )
-#     )
-#     assert expanded_max_expression_df.shape[0] == supposed_num_of_rows_after_explosion
-
-#     # further explode the df s.t. for each protein,
-#     # there are (newly_supporting_proteins x newly_supproting_reads) rows
-#     supposed_num_of_rows_after_explosion = (
-#         expanded_max_expression_df["AdditionalSupportingReadsIDs"].apply(len).sum()
-#     ) + expanded_max_expression_df.loc[
-#         expanded_max_expression_df["AdditionalSupportingReadsIDs"].apply(len).eq(0)
-#     ].shape[
-#         0
-#     ]
-#     expanded_max_expression_df = expanded_max_expression_df.explode(
-#         ["AdditionalSupportingReadsIDs"], ignore_index=True
-#     ).rename(columns={"AdditionalSupportingReadsIDs": "AdditionalSupportingReadID"})
-#     assert expanded_max_expression_df.shape[0] == supposed_num_of_rows_after_explosion
-
-#     # further explode the df by theoriginally supporting reads
-#     # s.t. there's a row for each original read of
-#     # each protein and each of that protein's newly supporting reads
-#     supposed_num_of_rows_after_explosion = expanded_max_expression_df[
-#         "NumOfReads"
-#     ].sum()
-#     expanded_max_expression_df = (
-#         expanded_max_expression_df.explode(["Reads"], ignore_index=True)
-#         .rename(columns={"Reads": "Read"})
-#         .drop(columns=["NumOfReads"])
-#     )
-#     assert expanded_max_expression_df.shape[0] == supposed_num_of_rows_after_explosion
-#     assert (
-#         expanded_max_expression_df.groupby(["Protein", "Read"])
-#         .size()
-#         .eq(
-#             expanded_max_expression_df.groupby(["Protein", "Read"])[
-#                 "AdditionalSupportingReadID"
-#             ].nunique()
-#         )
-#         .all()
-#     )
-
-#     # now melt the df s.t. for each protein,
-#     # each row consists of one read - an original or an additional one
-#     supposed_num_of_rows_after_melt = expanded_max_expression_df.shape[0] * 2
-#     expanded_max_expression_df = expanded_max_expression_df.melt(
-#         id_vars=[
-#             "Chrom",
-#             condition_col,
-#             "Protein",
-#         ],
-#         value_vars=["Read", "AdditionalSupportingReadID"],
-#         var_name="ReadStatus",
-#     )
-#     expanded_max_expression_df["ReadStatus"] = expanded_max_expression_df[
-#         "ReadStatus"
-#     ].replace({"Read": "Original", "AdditionalSupportingReadID": "Additional"})
-#     expanded_max_expression_df = expanded_max_expression_df.rename(
-#         columns={"value": "Read"}
-#     )
-#     assert expanded_max_expression_df.shape[0] == supposed_num_of_rows_after_melt
-#     # some proteins are not supported by additional reads
-#     expanded_max_expression_df = expanded_max_expression_df.loc[
-#         ~(
-#             (expanded_max_expression_df["Read"].eq(""))
-#             & (expanded_max_expression_df["ReadStatus"].eq("Additional"))
-#         )
-#     ]
-#     # due to the melt, some original/additional reads shows more than once
-#     expanded_max_expression_df = expanded_max_expression_df.drop_duplicates(
-#         ignore_index=True
-#     )
-
-#     # merge info per read - new and additional ones alike
-#     expanded_max_expression_df = expanded_max_expression_df.merge(
-#         one_chrom_new_reads_info_df, how="left"
-#     )
-
-#     if expanded_max_expression_df.empty:
-#         raise Exception(f"the resulting df of {chrom = } is empty!")
-
-#     if out_file is not None:
-#         expanded_max_expression_df.to_csv(out_file, sep=sep, index=False)
-
-#     return expanded_max_expression_df
-
-# %%
 def simplified_get_f1_exapnded_max_expression_df(
     chrom,
     expression_file,
@@ -3421,142 +3221,26 @@ def simplified_get_f1_exapnded_max_expression_df(
 
     return expanded_max_expression_df
 
-
-# %%
-# chroms_with_at_least_5_isoforms
-
-# %% jupyter={"source_hidden": true}
-# # x = 1130
-# x = 1129
-
-# (
-#     chrom,
-#     expression_file,
-# ) = chroms_and_exp_files_of_chroms_with_at_least_5_isoforms_sorted_as_all_chroms[x]
-# chrom, expression_file
-
-# %% jupyter={"source_hidden": true}
-# one_chrom_raw_reads_info_df = raw_reads_info_df.loc[raw_reads_info_df["Chrom"] == chrom]
-# one_chrom_raw_reads_info_df
-
-# %% jupyter={"source_hidden": true}
-# one_chrom_raw_reads_info_df["Neuronal"].value_counts(dropna=False)
-
 # %% jupyter={"source_hidden": true}
 # copies_df
 
-# %% jupyter={"source_hidden": true}
-# out_file = Path(max_expression_dir, f"{chrom}.gz")
-# ic(out_file)
-# # assert not out_file.exists()
-# assert out_file.exists()
-
-# %% jupyter={"source_hidden": true}
-# one_chrom_old_to_new_reads_file = Path(positions_dir, f"{chrom}.OldToNewReads.csv.gz")
-# one_chrom_old_to_new_reads_df = pd.read_table(
-#     one_chrom_old_to_new_reads_file, dtype={"OldRead": str, "NewRead": str}
-# )
-# one_chrom_new_reads_info_df = (
-#     one_chrom_raw_reads_info_df.merge(
-#         one_chrom_old_to_new_reads_df,
-#         how="left",
-#         left_on="ReadID",
-#         right_on="OldRead",
-#     )
-#     .drop(columns=["ReadID", "OldRead"])
-#     .rename(columns={"NewRead": "Read"})
-# )
-
-# %% jupyter={"source_hidden": true}
-# max_expression_df = get_f1_max_expression_df(
-#     expression_file, chrom, max_distinct_proteins_df, sep, condition_col
-# )
-# max_expression_df = max_expression_df.drop(
-#     columns=[
-#         "NumOfReads",
-#         "AdditionalSupportingProteinsIDs",
-#         "AdditionalSupportingProteins",
-#     ]
-# )
-# max_expression_df["AdditionalSupportingReadsIDs"] = max_expression_df[
-#     "AdditionalSupportingReadsIDs"
-# ].apply(lambda x: sorted(set(chain.from_iterable(x))))
-# max_expression_df["AllReads"] = max_expression_df.apply(
-#     lambda x: x["Reads"] + x["AdditionalSupportingReadsIDs"], axis=1
-# )
-# max_expression_df["AllReadsStatuses"] = max_expression_df.apply(
-#     lambda x: ["Original"] * len(x["Reads"])
-#     + ["Additional"] * len(x["AdditionalSupportingReadsIDs"]),
-#     axis=1,
-# )
-# max_expression_df = max_expression_df.drop(
-#     columns=[
-#         "Reads",
-#         "AdditionalSupportingReadsIDs",
-#     ]
-# )
-# assert max_expression_df["AllReads"].apply(len).eq(max_expression_df["AllReadsStatuses"].apply(len)).all()
-# max_expression_df
-
-# %% jupyter={"source_hidden": true}
-# expanded_max_expression_df = (
-#     max_expression_df.explode(
-#         ["AllReads", "AllReadsStatuses"],
-#         ignore_index=True,
-#     )
-#     # .drop(columns=["AdditionalSupportingProteins", "AdditionalSupportingProteinsIDs"])
-#     .rename(
-#         columns={
-#             "AllReads": "Read",
-#             "AllReadsStatuses": "ReadStatus",
-#         }
-#     )
-# )
-
-# # some proteins are not supported by additional reads
-# expanded_max_expression_df = expanded_max_expression_df.loc[
-#     ~(
-#         (expanded_max_expression_df["Read"].eq(""))
-#         & (expanded_max_expression_df["ReadStatus"].eq("Additional"))
-#     )
-# ]
-
-# assert expanded_max_expression_df.shape[0] == expanded_max_expression_df.drop_duplicates().shape[0]
-
-# # merge info per read - new and additional ones alike
-# expanded_max_expression_df = expanded_max_expression_df.merge(
-#     one_chrom_new_reads_info_df, how="left"
-# )
-# expanded_max_expression_df
-
-# %% jupyter={"source_hidden": true}
-# f1_5plus_exapnded_max_expression_dfs = []
-# # f1_5plus_exapnded_max_expression_dfs_2 = []
+# %%
+# f1_exapnded_max_expression_dfs = []
 
 # start_time = time.time()  # Start time of the whole cell
 # loop_times = []
 
-# # i = 0
-# # i = 1119
-# # j = 1
-
 # try_using_previous_out_file = True
+# strictly_use_previous_out_file_wo_verification = True
 
 # for i, (chrom, expression_file) in enumerate(
-#     chroms_and_exp_files_of_chroms_with_at_least_5_isoforms_sorted_as_all_chroms,
+#     zip(chroms, expression_files),
 #     start=1,
 # ):
 #     loop_start = time.time()  # Start time of each loop iteration
 
-#     # i += 1
 #     state = "start"
-#     # if i >= 1120:
-#     #     ic(i, state, chrom)
-#     # elif i % 50 == 0:
-#     #     ic(i, state)
-#     if i % 50 == 0 or i == len(
-#         chroms_and_exp_files_of_chroms_with_at_least_5_isoforms_sorted_as_all_chroms
-#     ):
+#     if i % 50 == 0 or i == len(chroms):
 #         ic(i, state)
 
 #     one_chrom_raw_reads_info_df = raw_reads_info_df.loc[
@@ -3565,42 +3249,35 @@ def simplified_get_f1_exapnded_max_expression_df(
 
 #     out_file = Path(max_expression_dir, f"{chrom}.gz")
 
-#     # exapnded_max_expression_df = get_f1_5plus_exapnded_max_expression_df(
-#     exapnded_max_expression_df = simplified_get_f1_exapnded_max_expression_df(
-#         chrom,
-#         expression_file,
-#         positions_dir,
-#         one_chrom_raw_reads_info_df,
-#         max_distinct_proteins_df,
-#         sep,
-#         condition_col,
-#         out_file,
-#         try_using_previous_out_file,
-#     )
+#     if strictly_use_previous_out_file_wo_verification:
+        
+#         expanded_max_expression_df = pd.read_csv(
+#             out_file, sep=sep, dtype={"Protein": str, "Read": str}
+#         )
 
-#     f1_5plus_exapnded_max_expression_dfs.append(exapnded_max_expression_df)
-#     # f1_5plus_exapnded_max_expression_dfs_2.append(expanded_max_expression_df)
+#     else:
+
+#         expanded_max_expression_df = simplified_get_f1_exapnded_max_expression_df(
+#             chrom,
+#             expression_file,
+#             positions_dir,
+#             one_chrom_raw_reads_info_df,
+#             max_distinct_proteins_df,
+#             sep,
+#             condition_col,
+#             out_file,
+#             try_using_previous_out_file,
+#         )
+
+#     f1_exapnded_max_expression_dfs.append(expanded_max_expression_df)
 
 #     state = "end"
-#     # if i >= 1140:
-#     #     ic(i, state, chrom)
-#     # elif i % 50 == 0:
-#     #     ic(i, state)
-#     if i % 50 == 0 or i == len(
-#         chroms_and_exp_files_of_chroms_with_at_least_5_isoforms_sorted_as_all_chroms
-#     ):
+#     if i % 50 == 0 or i == len(chroms):
 #         ic(i, state)
-#     # i += 1
-#     # j += 1
 
 #     loop_end = time.time()  # End time of each loop iteration
 #     loop_times.append(loop_end - loop_start)
-#     # if i == 10:
-#     #     break
-#     # if j == 30:
-#     #     break
 
-#     # break
 
 # end_time = time.time()  # End time of the whole cell
 # loop_times = pd.Series(loop_times)
@@ -3609,263 +3286,189 @@ def simplified_get_f1_exapnded_max_expression_df(
 # print(f"Median execution time: {loop_times.median():.2f} seconds")
 
 # ic(
-#     len(f1_5plus_exapnded_max_expression_dfs),
-#     len(chroms_with_at_least_5_isoforms),
-#     len(f1_5plus_exapnded_max_expression_dfs) == len(chroms_with_at_least_5_isoforms),
+#     len(f1_exapnded_max_expression_dfs),
+#     len(chroms),
+#     len(f1_exapnded_max_expression_dfs) == len(chroms),
 # )
 
-# f1_5plus_exapnded_max_expression_dfs[0]
-# # f1_5plus_exapnded_max_expression_dfs_2[0]
+# f1_exapnded_max_expression_dfs[0]
 
 # %%
-f1_exapnded_max_expression_dfs = []
-
-start_time = time.time()  # Start time of the whole cell
-loop_times = []
-
-try_using_previous_out_file = True
-strictly_use_previous_out_file_wo_verification = True
-
-for i, (chrom, expression_file) in enumerate(
-    zip(chroms, expression_files),
-    start=1,
-):
-    loop_start = time.time()  # Start time of each loop iteration
-
-    state = "start"
-    if i % 50 == 0 or i == len(chroms):
-        ic(i, state)
-
-    one_chrom_raw_reads_info_df = raw_reads_info_df.loc[
-        raw_reads_info_df["Chrom"] == chrom
-    ]
-
-    out_file = Path(max_expression_dir, f"{chrom}.gz")
-
-    if strictly_use_previous_out_file_wo_verification:
-        
-        expanded_max_expression_df = pd.read_csv(
-            out_file, sep=sep, dtype={"Protein": str, "Read": str}
-        )
-
-    else:
-
-        expanded_max_expression_df = simplified_get_f1_exapnded_max_expression_df(
-            chrom,
-            expression_file,
-            positions_dir,
-            one_chrom_raw_reads_info_df,
-            max_distinct_proteins_df,
-            sep,
-            condition_col,
-            out_file,
-            try_using_previous_out_file,
-        )
-
-    f1_exapnded_max_expression_dfs.append(expanded_max_expression_df)
-
-    state = "end"
-    if i % 50 == 0 or i == len(chroms):
-        ic(i, state)
-
-    loop_end = time.time()  # End time of each loop iteration
-    loop_times.append(loop_end - loop_start)
-
-
-end_time = time.time()  # End time of the whole cell
-loop_times = pd.Series(loop_times)
-print(f"Total execution time: {end_time - start_time:.2f} seconds")
-print(f"Mean execution time: {loop_times.mean():.2f} seconds")
-print(f"Median execution time: {loop_times.median():.2f} seconds")
-
-ic(
-    len(f1_exapnded_max_expression_dfs),
-    len(chroms),
-    len(f1_exapnded_max_expression_dfs) == len(chroms),
-)
-
-f1_exapnded_max_expression_dfs[0]
-
-# %%
-len(f1_exapnded_max_expression_dfs)
-
-# %%
-
-# %%
-import multiprocessing as mp
-import os
-import sys
-import time
-from concurrent.futures import (
-    FIRST_COMPLETED,
-    ProcessPoolExecutor,
-    wait,
-)
-from pathlib import Path
-
-import pandas as pd
-
-notebooks_dir = Path(
-    "/private7/projects/Combinatorics/Code/Notebooks"
-)
-
-if str(notebooks_dir) not in sys.path:
-    sys.path.insert(0, str(notebooks_dir))
-
-from parallel_max_sc_expression_worker import process_chromosome
-
-# %%
-import importlib
-import parallel_max_sc_expression_worker as worker
-
-importlib.reload(worker)
-process_chromosome = worker.process_chromosome
-
-# %%
-try_using_previous_out_file = True
-# strictly_use_previous_out_file_wo_verification = True
-strictly_use_previous_out_file_wo_verification = False
-
-start_time = time.time()
-
-num_jobs = len(chroms)
-f1_exapnded_max_expression_dfs = [None] * num_jobs
-loop_times = [None] * num_jobs
-
-# max_workers = min(
-#     4,
-#     os.cpu_count() or 1,
-#     num_jobs,
+# import multiprocessing as mp
+# import os
+# import sys
+# import time
+# from concurrent.futures import (
+#     FIRST_COMPLETED,
+#     ProcessPoolExecutor,
+#     wait,
 # )
-# max_workers = 20
-max_workers = 40
+# from pathlib import Path
 
-# Keep only a small number of DataFrame slices waiting to be serialized.
-max_pending_jobs = max_workers * 2
+# import pandas as pd
 
+# notebooks_dir = Path(
+#     "/private7/projects/Combinatorics/Code/Notebooks"
+# )
 
-def make_job(index):
-    chrom = chroms[index]
-    expression_file = expression_files[index]
-    out_file = Path(max_expression_dir, f"{chrom}.gz")
+# if str(notebooks_dir) not in sys.path:
+#     sys.path.insert(0, str(notebooks_dir))
 
-    if strictly_use_previous_out_file_wo_verification:
-        # These inputs are unnecessary in the direct-read branch.
-        one_chrom_raw_reads_info_df = None
-        one_chrom_max_distinct_proteins_df = None
-    else:
-        one_chrom_raw_reads_info_df = (
-            raw_reads_info_df.loc[
-                raw_reads_info_df["Chrom"] == chrom
-            ].copy()
-        )
+# from parallel_max_sc_expression_worker import process_chromosome
 
-        # Send only this chromosome's rows, not the complete DataFrame.
-        one_chrom_max_distinct_proteins_df = (
-            max_distinct_proteins_df.loc[
-                max_distinct_proteins_df["Chrom"] == chrom
-            ].copy()
-        )
+# %%
+# import importlib
+# import parallel_max_sc_expression_worker as worker
 
-    return (
-        index,
-        chrom,
-        str(expression_file),
-        str(positions_dir),
-        one_chrom_raw_reads_info_df,
-        one_chrom_max_distinct_proteins_df,
-        sep,
-        condition_col,
-        str(out_file),
-        try_using_previous_out_file,
-        strictly_use_previous_out_file_wo_verification,
-    )
+# importlib.reload(worker)
+# process_chromosome = worker.process_chromosome
 
+# %%
+# # try_using_previous_out_file = True
+# # strictly_use_previous_out_file_wo_verification = True
+# try_using_previous_out_file = False
+# strictly_use_previous_out_file_wo_verification = False
 
-spawn_context = mp.get_context("spawn")
-next_index = 0
-completed_count = 0
+# start_time = time.time()
 
-with ProcessPoolExecutor(
-    max_workers=max_workers,
-    mp_context=spawn_context,
-) as executor:
-    pending = set()
+# num_jobs = len(chroms)
+# f1_exapnded_max_expression_dfs = [None] * num_jobs
+# loop_times = [None] * num_jobs
 
-    # Fill the initial bounded queue.
-    while (
-        next_index < num_jobs
-        and len(pending) < max_pending_jobs
-    ):
-        pending.add(
-            executor.submit(
-                process_chromosome,
-                make_job(next_index),
-            )
-        )
-        next_index += 1
+# # max_workers = min(
+# #     4,
+# #     os.cpu_count() or 1,
+# #     num_jobs,
+# # )
+# # max_workers = 20
+# max_workers = 40
 
-    while pending:
-        finished, pending = wait(
-            pending,
-            return_when=FIRST_COMPLETED,
-        )
-
-        for future in finished:
-            index, expanded_df, elapsed = future.result()
-
-            # Preserve the original chroms/expression_files order.
-            f1_exapnded_max_expression_dfs[index] = expanded_df
-            loop_times[index] = elapsed
-            completed_count += 1
-
-            if (
-                completed_count % 50 == 0
-                or completed_count == num_jobs
-            ):
-                ic(completed_count, "completed")
-
-        # Refill only after completed tasks release their inputs.
-        while (
-            next_index < num_jobs
-            and len(pending) < max_pending_jobs
-        ):
-            pending.add(
-                executor.submit(
-                    process_chromosome,
-                    make_job(next_index),
-                )
-            )
-            next_index += 1
+# # Keep only a small number of DataFrame slices waiting to be serialized.
+# max_pending_jobs = max_workers * 2
 
 
-end_time = time.time()
-loop_times = pd.Series(loop_times)
+# def make_job(index):
+#     chrom = chroms[index]
+#     expression_file = expression_files[index]
+#     out_file = Path(max_expression_dir, f"{chrom}.gz")
 
-print(
-    f"Total execution time: "
-    f"{end_time - start_time:.2f} seconds"
-)
-print(
-    f"Mean execution time: "
-    f"{loop_times.mean():.2f} seconds"
-)
-print(
-    f"Median execution time: "
-    f"{loop_times.median():.2f} seconds"
-)
+#     if strictly_use_previous_out_file_wo_verification:
+#         # These inputs are unnecessary in the direct-read branch.
+#         one_chrom_raw_reads_info_df = None
+#         one_chrom_max_distinct_proteins_df = None
+#     else:
+#         one_chrom_raw_reads_info_df = (
+#             raw_reads_info_df.loc[
+#                 raw_reads_info_df["Chrom"] == chrom
+#             ].copy()
+#         )
 
-ic(
-    len(f1_exapnded_max_expression_dfs),
-    len(chroms),
-    len(f1_exapnded_max_expression_dfs) == len(chroms),
-    all(
-        df is not None
-        for df in f1_exapnded_max_expression_dfs
-    ),
-)
+#         # Send only this chromosome's rows, not the complete DataFrame.
+#         one_chrom_max_distinct_proteins_df = (
+#             max_distinct_proteins_df.loc[
+#                 max_distinct_proteins_df["Chrom"] == chrom
+#             ].copy()
+#         )
 
-f1_exapnded_max_expression_dfs[0]
+#     return (
+#         index,
+#         chrom,
+#         str(expression_file),
+#         str(positions_dir),
+#         one_chrom_raw_reads_info_df,
+#         one_chrom_max_distinct_proteins_df,
+#         sep,
+#         condition_col,
+#         str(out_file),
+#         try_using_previous_out_file,
+#         strictly_use_previous_out_file_wo_verification,
+#     )
+
+
+# spawn_context = mp.get_context("spawn")
+# next_index = 0
+# completed_count = 0
+
+# with ProcessPoolExecutor(
+#     max_workers=max_workers,
+#     mp_context=spawn_context,
+# ) as executor:
+#     pending = set()
+
+#     # Fill the initial bounded queue.
+#     while (
+#         next_index < num_jobs
+#         and len(pending) < max_pending_jobs
+#     ):
+#         pending.add(
+#             executor.submit(
+#                 process_chromosome,
+#                 make_job(next_index),
+#             )
+#         )
+#         next_index += 1
+
+#     while pending:
+#         finished, pending = wait(
+#             pending,
+#             return_when=FIRST_COMPLETED,
+#         )
+
+#         for future in finished:
+#             index, expanded_df, elapsed = future.result()
+
+#             # Preserve the original chroms/expression_files order.
+#             f1_exapnded_max_expression_dfs[index] = expanded_df
+#             loop_times[index] = elapsed
+#             completed_count += 1
+
+#             if (
+#                 completed_count % 50 == 0
+#                 or completed_count == num_jobs
+#             ):
+#                 ic(completed_count, "completed")
+
+#         # Refill only after completed tasks release their inputs.
+#         while (
+#             next_index < num_jobs
+#             and len(pending) < max_pending_jobs
+#         ):
+#             pending.add(
+#                 executor.submit(
+#                     process_chromosome,
+#                     make_job(next_index),
+#                 )
+#             )
+#             next_index += 1
+
+
+# end_time = time.time()
+# loop_times = pd.Series(loop_times)
+
+# print(
+#     f"Total execution time: "
+#     f"{end_time - start_time:.2f} seconds"
+# )
+# print(
+#     f"Mean execution time: "
+#     f"{loop_times.mean():.2f} seconds"
+# )
+# print(
+#     f"Median execution time: "
+#     f"{loop_times.median():.2f} seconds"
+# )
+
+# ic(
+#     len(f1_exapnded_max_expression_dfs),
+#     len(chroms),
+#     len(f1_exapnded_max_expression_dfs) == len(chroms),
+#     all(
+#         df is not None
+#         for df in f1_exapnded_max_expression_dfs
+#     ),
+# )
+
+# f1_exapnded_max_expression_dfs[0]
 
 # %%
 # try_using_previous_out_file = True
@@ -3911,6 +3514,356 @@ f1_exapnded_max_expression_dfs[0]
 
 # ic(len(f1_5plus_exapnded_max_expression_dfs_2))
 # f1_5plus_exapnded_max_expression_dfs_2[0]
+
+# %%
+import importlib
+import multiprocessing as mp
+import time
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+import pandas as pd
+
+import parallel_max_sc_expression_worker as worker
+
+
+# ---------------------------------------------------------
+# Reload the worker module so spawned processes use
+# the most recent version of the file.
+# ---------------------------------------------------------
+
+importlib.reload(worker)
+process_chromosome_to_file = worker.process_chromosome_to_file
+
+
+# ---------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------
+
+try_using_previous_out_file = False
+strictly_use_previous_out_file_wo_verification = False
+
+max_workers = 20
+chunksize = 8
+num_loading_threads = 4
+
+max_expression_dir = Path(max_expression_dir)
+max_expression_dir.mkdir(parents=True, exist_ok=True)
+
+
+# ---------------------------------------------------------
+# Validate the input tables
+# ---------------------------------------------------------
+
+assert complete_data_df["Chrom"].is_unique
+assert len(chroms) == len(set(chroms))
+assert len(chroms) == len(expression_files)
+assert max_distinct_proteins_df["Chrom"].is_unique
+
+missing_expression_files = [
+    expression_file
+    for expression_file in expression_files
+    if not Path(expression_file).exists()
+]
+
+if missing_expression_files:
+    raise FileNotFoundError(
+        f"{len(missing_expression_files)} expression files are missing. "
+        f"Examples: {missing_expression_files[:10]}"
+    )
+
+missing_max_distinct_chroms = (
+    set(chroms)
+    - set(max_distinct_proteins_df["Chrom"])
+)
+
+if missing_max_distinct_chroms:
+    raise ValueError(
+        f"{len(missing_max_distinct_chroms)} chromosomes are missing "
+        "from max_distinct_proteins_df. "
+        f"Examples: {list(missing_max_distinct_chroms)[:10]}"
+    )
+
+
+# ---------------------------------------------------------
+# Index the input tables once.
+#
+# This avoids scanning the complete DataFrames separately
+# for every chromosome.
+# ---------------------------------------------------------
+
+raw_row_indices_by_chrom = (
+    raw_reads_info_df
+    .groupby("Chrom", sort=False)
+    .indices
+)
+
+max_distinct_row_indices_by_chrom = (
+    max_distinct_proteins_df
+    .groupby("Chrom", sort=False)
+    .indices
+)
+
+
+# ---------------------------------------------------------
+# Create jobs lazily.
+#
+# Each job contains only the rows needed for one chromosome.
+# ---------------------------------------------------------
+
+def iter_jobs():
+    for index, (chrom, expression_file) in enumerate(
+        zip(chroms, expression_files)
+    ):
+        raw_indices = raw_row_indices_by_chrom.get(chrom)
+
+        if raw_indices is None:
+            one_chrom_raw_reads_info_df = (
+                raw_reads_info_df
+                .iloc[0:0]
+                .copy()
+            )
+        else:
+            one_chrom_raw_reads_info_df = (
+                raw_reads_info_df
+                .take(raw_indices)
+                .copy()
+            )
+
+        max_distinct_indices = (
+            max_distinct_row_indices_by_chrom.get(chrom)
+        )
+
+        if max_distinct_indices is None:
+            raise ValueError(
+                "No max-distinct-proteins row was found "
+                f"for {chrom=}"
+            )
+
+        one_chrom_max_distinct_proteins_df = (
+            max_distinct_proteins_df
+            .take(max_distinct_indices)
+            .copy()
+        )
+
+        out_file = max_expression_dir / f"{chrom}.gz"
+
+        yield (
+            index,
+            chrom,
+            str(expression_file),
+            str(positions_dir),
+            one_chrom_raw_reads_info_df,
+            one_chrom_max_distinct_proteins_df,
+            sep,
+            condition_col,
+            str(out_file),
+            try_using_previous_out_file,
+            strictly_use_previous_out_file_wo_verification,
+        )
+
+
+# ---------------------------------------------------------
+# Process chromosomes and write one output file per chromosome.
+#
+# Workers return only lightweight timing metadata rather than
+# transferring the complete DataFrames back to the notebook.
+# ---------------------------------------------------------
+
+processing_start_time = time.time()
+
+spawn_context = mp.get_context("spawn")
+
+with spawn_context.Pool(
+    processes=max_workers,
+) as pool:
+    result_metadata = list(
+        pool.imap_unordered(
+            process_chromosome_to_file,
+            iter_jobs(),
+            chunksize=chunksize,
+        )
+    )
+
+processing_elapsed = time.time() - processing_start_time
+
+print(
+    "Processing and writing time: "
+    f"{processing_elapsed:.2f} seconds"
+)
+
+assert len(result_metadata) == len(chroms)
+
+result_metadata_df = (
+    pd.DataFrame(
+        result_metadata,
+        columns=[
+            "Index",
+            "ElapsedSeconds",
+        ],
+    )
+    .sort_values("Index")
+    .reset_index(drop=True)
+)
+
+
+# ---------------------------------------------------------
+# Confirm that every expected output file was created.
+# ---------------------------------------------------------
+
+output_files = [
+    max_expression_dir / f"{chrom}.gz"
+    for chrom in chroms
+]
+
+missing_output_files = [
+    output_file
+    for output_file in output_files
+    if not output_file.exists()
+]
+
+if missing_output_files:
+    raise FileNotFoundError(
+        f"{len(missing_output_files)} output files are missing. "
+        f"Examples: {missing_output_files[:10]}"
+    )
+
+empty_output_files = [
+    output_file
+    for output_file in output_files
+    if output_file.stat().st_size == 0
+]
+
+if empty_output_files:
+    raise ValueError(
+        f"{len(empty_output_files)} output files are empty. "
+        f"Examples: {empty_output_files[:10]}"
+    )
+
+
+# ---------------------------------------------------------
+# Load the output files back into the notebook.
+#
+# executor.map preserves the order of output_files, which is
+# the same as the order of chroms.
+# ---------------------------------------------------------
+
+def read_expanded_expression_file(output_file):
+    return pd.read_csv(
+        output_file,
+        sep=sep,
+        dtype={
+            "Protein": str,
+            "Read": str,
+        },
+    )
+
+
+loading_start_time = time.time()
+
+with ThreadPoolExecutor(
+    max_workers=num_loading_threads,
+) as executor:
+    f1_exapnded_max_expression_dfs = list(
+        executor.map(
+            read_expanded_expression_file,
+            output_files,
+        )
+    )
+
+loading_elapsed = time.time() - loading_start_time
+
+print(
+    f"Loaded {len(f1_exapnded_max_expression_dfs):,} tables "
+    f"in {loading_elapsed:.2f} seconds"
+)
+
+assert len(f1_exapnded_max_expression_dfs) == len(chroms)
+
+assert all(
+    dataframe is not None
+    for dataframe in f1_exapnded_max_expression_dfs
+)
+
+assert all(
+    not dataframe.empty
+    for dataframe in f1_exapnded_max_expression_dfs
+)
+
+assert all(
+    dataframe["Chrom"].nunique() == 1
+    for dataframe in f1_exapnded_max_expression_dfs
+)
+
+assert all(
+    dataframe["Chrom"].iloc[0] == chrom
+    for dataframe, chrom in zip(
+        f1_exapnded_max_expression_dfs,
+        chroms,
+    )
+)
+
+
+# ---------------------------------------------------------
+# Combine all per-chromosome tables into one output table.
+# ---------------------------------------------------------
+
+concat_f1_expanded_max_expression_df = pd.concat(
+    f1_exapnded_max_expression_dfs,
+    axis=0,
+    ignore_index=True,
+)
+
+print(
+    "Combined table shape: "
+    f"{concat_f1_expanded_max_expression_df.shape}"
+)
+
+print(
+    "Completely duplicated rows: "
+    f"{concat_f1_expanded_max_expression_df.duplicated().sum():,}"
+)
+
+
+# ---------------------------------------------------------
+# Verify that each directly supporting read occurs once
+# within its chromosome.
+#
+# This restriction is intentionally applied only to
+# ReadStatus == "Original", not to additionally assigned reads.
+# ---------------------------------------------------------
+
+original_reads_df = (
+    concat_f1_expanded_max_expression_df.loc[
+        concat_f1_expanded_max_expression_df[
+            "ReadStatus"
+        ].eq("Original")
+    ]
+)
+
+duplicated_original_reads_df = original_reads_df.loc[
+    original_reads_df.duplicated(
+        subset=["Chrom", "Read"],
+        keep=False,
+    )
+]
+
+if not duplicated_original_reads_df.empty:
+    raise ValueError(
+        f"{len(duplicated_original_reads_df):,} rows belong to "
+        "duplicated original Chrom–Read combinations. "
+        "Examples:\n"
+        f"{duplicated_original_reads_df.head(20)}"
+    )
+
+
+print(
+    "Total execution time, including loading: "
+    f"{time.time() - processing_start_time:.2f} seconds"
+)
+
+
+concat_f1_expanded_max_expression_df
 
 # %% [markdown]
 # ### Distinct unique proteins - TMR 1000
@@ -9352,57 +9305,9 @@ concat_per_chrom_per_annotation_copies_df_pivoted_df.reset_index()["Chrom"].nuni
 # %%
 
 # %%
-def calc_exact_fisher_for_chrom(
-    chrom, df
-):
-    # try:
-    #     res = scipy.stats.fisher_exact(
-    #         df.fillna(0).values
-    #     )
-    #     statistic, pval = res.statistic, res.pvalue
-    #     if (
-    #         type(statistic) == type(pval) == np.ndarray
-    #         and len(statistic) == len(pval) == 1
-    #     ):
-    #         statistic, pval = statistic[0], pval[0]
-    #     test_completed = True
-    #     return (chrom, test_completed, statistic, pval)
-    # except:
-    #     ic(chrom)
-    #     raise
-    
-    try:
-        res = scipy.stats.fisher_exact(
-            df.fillna(0).values
-        )
-        statistic, pval = res.statistic, res.pvalue
-        if (
-            type(statistic) == type(pval) == np.ndarray
-            and len(statistic) == len(pval) == 1
-        ):
-            statistic, pval = statistic[0], pval[0]
-        test_completed = True
-        
-    except:
-        res = statistic = pval = np.nan
-        test_completed = False
-    
-    return chrom, test_completed, statistic, pval
-
-
-# %%
 def calc_chi_square_for_chrom(
     chrom, df
 ):
-    # try:
-    #     res = scipy.stats.chi2_contingency(df.fillna(0).values)
-    #     statistic, pval = res.statistic, res.pvalue
-    #     test_completed = True
-    #     return (chrom, test_completed, statistic, pval)
-    # except:
-    #     ic(chrom)
-    #     raise
-    
     try:
         res = scipy.stats.chi2_contingency(df.fillna(0).values)
         statistic, pval = res.statistic, res.pvalue
@@ -9414,77 +9319,506 @@ def calc_chi_square_for_chrom(
 
 
 # %%
+# ?scipy.stats.fisher_exact
 
 # %%
-# # %time
+# def calc_exact_fisher_for_chrom(
+#     chrom, df
+# ):
+#     try:
+#         res = scipy.stats.fisher_exact(
+#             df.fillna(0).values
+#         )
+#         statistic, pval = res.statistic, res.pvalue
+#         if (
+#             type(statistic) == type(pval) == np.ndarray
+#             and len(statistic) == len(pval) == 1
+#         ):
+#             statistic, pval = statistic[0], pval[0]
+#         test_completed = True
+        
+#     except:
+#         res = statistic = pval = np.nan
+#         test_completed = False
+    
+#     return chrom, test_completed, statistic, pval
 
-# gene_diversity_of_isoforms_per_annotation_results = []
+# %%
+import zlib
 
-# i = 0
-# for chrom in unique_chroms_of_ge5_genes_with_well_clustered_annotations:
-#     df = concat_per_chrom_per_annotation_copies_df_pivoted_df.loc[(chrom)]
+import numpy as np
+import scipy.stats
 
-#     # ic(sample, chrom)
-#     # res = scipy.stats.chi2_contingency(df.fillna(0).values)
-#     # statistic, pval = res.statistic, res.pvalue
-#     # res = scipy.stats.fisher_exact(df.fillna(0).values)
-#     # statistic, pval = res.statistic[0], res.pvalue[0]
-#     # test_completed = True
-#     chrom, test_completed, statistic, pval = calc_exact_fisher_for_chrom(chrom, df)
 
-#     gene_diversity_of_isoforms_per_annotation_results.append(
-#         (chrom, test_completed, statistic, pval)
-#         # (chrom, statistic, pval)
-#     )
+FISHER_N_RESAMPLES = 100_000
+FISHER_BASE_SEED = 20260730
 
-#     i += 1
-#     if i == 10:
-#         ic(i)
 
-with Pool(processes=8) as pool:
-    gene_diversity_of_isoforms_per_annotation_results = pool.starmap(
-        calc_exact_fisher_for_chrom,
-        # calc_chi_square_for_chrom,
-        [
-            (chrom, concat_per_chrom_per_annotation_copies_df_pivoted_df.loc[(chrom)])
-            for chrom in unique_chroms_of_ge5_genes_with_well_clustered_annotations
-        ]
+def as_scalar_float(value):
+    """
+    Convert a scalar or a one-element NumPy array to a Python float.
+
+    Some SciPy versions return the statistic and p-value as one-element
+    arrays when using Monte Carlo sampling for contingency tables.
+    """
+    array = np.asarray(value)
+
+    if array.size != 1:
+        raise ValueError(
+            "Expected a scalar or a one-element array, "
+            f"but received an object with shape {array.shape}"
+        )
+
+    return float(array.reshape(-1)[0])
+
+
+def calc_exact_fisher_for_chrom(chrom, df):
+    """
+    Test association between protein-isoform identity and cell-type
+    annotation for one gene using a generalized Fisher exact test.
+
+    Parameters
+    ----------
+    chrom : str
+        Gene/transcript identifier.
+
+    df : pandas.DataFrame
+        Contingency table whose rows are inferred protein isoforms,
+        columns are cell-type annotations, and values are molecule counts.
+
+    Returns
+    -------
+    tuple
+        Chrom,
+        Testable,
+        Statistic,
+        PVal,
+        NumObservedIsoforms,
+        NumObservedAnnotations,
+        TotalMolecules
+    """
+
+    # Fisher requires a table of non-negative integer counts.
+    table = df.fillna(0).astype(np.int64)
+
+    if (table.to_numpy() < 0).any():
+        raise ValueError(
+            f"Negative contingency-table values were found for {chrom=}"
+        )
+
+    # Remove isoforms and annotations that contain no observations
+    # for this particular gene.
+    table = table.loc[
+        table.sum(axis=1).gt(0),
+        table.sum(axis=0).gt(0),
+    ]
+
+    num_observed_isoforms = table.shape[0]
+    num_observed_annotations = table.shape[1]
+    total_molecules = int(table.to_numpy().sum())
+
+    # An independence test requires at least two isoforms and
+    # at least two annotations.
+    if (
+        num_observed_isoforms < 2
+        or num_observed_annotations < 2
+        or total_molecules == 0
+    ):
+        return (
+            chrom,
+            False,
+            np.nan,
+            np.nan,
+            num_observed_isoforms,
+            num_observed_annotations,
+            total_molecules,
+        )
+
+    # Deterministic but gene-specific seed.
+    # This makes the Monte Carlo results reproducible without giving
+    # every gene exactly the same random-number stream.
+    gene_seed = (
+        FISHER_BASE_SEED
+        + zlib.crc32(str(chrom).encode("utf-8"))
+    ) % (2**32)
+
+    monte_carlo_method = scipy.stats.MonteCarloMethod(
+        n_resamples=FISHER_N_RESAMPLES,
+        batch=10_000,
+        rng=np.random.default_rng(gene_seed),
     )
 
-gene_diversity_of_isoforms_per_annotation_results_df = pd.DataFrame(
-    gene_diversity_of_isoforms_per_annotation_results,
-    columns=["Chrom", "TestCompleted", "Statistic", "PVal"],
+    result = scipy.stats.fisher_exact(
+        table.to_numpy(),
+        method=monte_carlo_method,
+    )
+
+    # In the current SciPy environment these may be returned as
+    # one-element arrays rather than ordinary scalar values.
+    statistic = as_scalar_float(result.statistic)
+    pvalue = as_scalar_float(result.pvalue)
+
+    if not 0 <= pvalue <= 1:
+        raise ValueError(
+            f"Invalid Fisher p-value for {chrom=}: {pvalue}"
+        )
+
+    return (
+        chrom,
+        True,
+        statistic,
+        pvalue,
+        num_observed_isoforms,
+        num_observed_annotations,
+        total_molecules,
+    )
+
+# %%
+# with Pool(processes=8) as pool:
+#     gene_diversity_of_isoforms_per_annotation_results = pool.starmap(
+#         calc_exact_fisher_for_chrom,
+#         # calc_chi_square_for_chrom,
+#         [
+#             (chrom, concat_per_chrom_per_annotation_copies_df_pivoted_df.loc[(chrom)])
+#             for chrom in unique_chroms_of_ge5_genes_with_well_clustered_annotations
+#         ]
+#     )
+
+# gene_diversity_of_isoforms_per_annotation_results_df = pd.DataFrame(
+#     gene_diversity_of_isoforms_per_annotation_results,
+#     columns=["Chrom", "TestCompleted", "Statistic", "PVal"],
+# )
+
+
+# rejected, corrected_pval = fdrcorrection(gene_diversity_of_isoforms_per_annotation_results_df["PVal"])
+# gene_diversity_of_isoforms_per_annotation_results_df["RejectedAfterCorrection"] = rejected
+# gene_diversity_of_isoforms_per_annotation_results_df["CorrectedPVal"] = corrected_pval
+
+
+# # ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_results_df = (
+# #     ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_results_df.merge(
+# #         copies_df.loc[:, ["Sample", "Chrom", condition_col]].drop_duplicates(),
+# #         how="left",
+# #     ).loc[
+# #         :,
+# #         [
+# #             "Sample",
+# #             "Chrom",
+# #             condition_col,
+# #             "TestCompleted",
+# #             "Statistic",
+# #             "PVal",
+# #             "RejectedAfterCorrection",
+# #             "CorrectedPVal",
+# #         ],
+# #     ]
+# # )
+
+# gene_diversity_of_isoforms_per_annotation_results_df
+
+# %%
+import multiprocessing as mp
+
+import numpy as np
+import pandas as pd
+from statsmodels.stats.multitest import fdrcorrection
+
+
+# ---------------------------------------------------------
+# Prepare one contingency table per gene.
+# ---------------------------------------------------------
+
+fisher_chroms = (
+    concat_per_chrom_per_annotation_copies_df_pivoted_df
+    .index
+    .get_level_values("Chrom")
+    .unique()
+    .tolist()
 )
 
 
-rejected, corrected_pval = fdrcorrection(gene_diversity_of_isoforms_per_annotation_results_df["PVal"])
-gene_diversity_of_isoforms_per_annotation_results_df["RejectedAfterCorrection"] = rejected
-gene_diversity_of_isoforms_per_annotation_results_df["CorrectedPVal"] = corrected_pval
+fisher_jobs = [
+    (
+        chrom,
+        concat_per_chrom_per_annotation_copies_df_pivoted_df.loc[
+            chrom
+        ],
+    )
+    for chrom in fisher_chroms
+]
 
 
-# ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_results_df = (
-#     ge5_per_sample_and_gene_diversity_of_isoforms_per_cell_results_df.merge(
-#         copies_df.loc[:, ["Sample", "Chrom", condition_col]].drop_duplicates(),
-#         how="left",
-#     ).loc[
-#         :,
-#         [
-#             "Sample",
-#             "Chrom",
-#             condition_col,
-#             "TestCompleted",
-#             "Statistic",
-#             "PVal",
-#             "RejectedAfterCorrection",
-#             "CorrectedPVal",
-#         ],
-#     ]
-# )
+# ---------------------------------------------------------
+# Run the generalized Fisher exact tests.
+#
+# The function returns only lightweight tuples, so there is
+# no need for the more elaborate disk-based multiprocessing
+# approach used for the expression tables.
+# ---------------------------------------------------------
+
+num_fisher_processes = 8
+
+with mp.Pool(
+    processes=num_fisher_processes,
+) as pool:
+    gene_diversity_of_isoforms_per_annotation_results = (
+        pool.starmap(
+            calc_exact_fisher_for_chrom,
+            fisher_jobs,
+        )
+    )
+
+
+# ---------------------------------------------------------
+# Build a clean results table.
+# ---------------------------------------------------------
+
+gene_diversity_of_isoforms_per_annotation_results_df = (
+    pd.DataFrame(
+        gene_diversity_of_isoforms_per_annotation_results,
+        columns=[
+            "Chrom",
+            "Testable",
+            "Statistic",
+            "PVal",
+            "NumObservedIsoforms",
+            "NumObservedAnnotations",
+            "TotalMolecules",
+        ],
+    )
+)
+
+
+# Force predictable column types.
+gene_diversity_of_isoforms_per_annotation_results_df[
+    "Testable"
+] = (
+    gene_diversity_of_isoforms_per_annotation_results_df[
+        "Testable"
+    ]
+    .astype(bool)
+)
+
+for column in [
+    "Statistic",
+    "PVal",
+]:
+    gene_diversity_of_isoforms_per_annotation_results_df[
+        column
+    ] = pd.to_numeric(
+        gene_diversity_of_isoforms_per_annotation_results_df[
+            column
+        ],
+        errors="coerce",
+    ).astype(float)
+
+for column in [
+    "NumObservedIsoforms",
+    "NumObservedAnnotations",
+    "TotalMolecules",
+]:
+    gene_diversity_of_isoforms_per_annotation_results_df[
+        column
+    ] = pd.to_numeric(
+        gene_diversity_of_isoforms_per_annotation_results_df[
+            column
+        ],
+        errors="raise",
+    ).astype(int)
+
+
+# ---------------------------------------------------------
+# Validate the raw Fisher results.
+# ---------------------------------------------------------
+
+testable_mask = (
+    gene_diversity_of_isoforms_per_annotation_results_df[
+        "Testable"
+    ]
+)
+
+if gene_diversity_of_isoforms_per_annotation_results_df.loc[
+    testable_mask,
+    "PVal",
+].isna().any():
+    raise ValueError(
+        "At least one testable gene has a missing Fisher p-value"
+    )
+
+if not gene_diversity_of_isoforms_per_annotation_results_df.loc[
+    testable_mask,
+    "PVal",
+].between(0, 1).all():
+    raise ValueError(
+        "At least one Fisher p-value is outside the interval [0, 1]"
+    )
+
+if gene_diversity_of_isoforms_per_annotation_results_df.loc[
+    ~testable_mask,
+    "PVal",
+].notna().any():
+    raise ValueError(
+        "At least one untestable gene unexpectedly has a p-value"
+    )
+
+
+# ---------------------------------------------------------
+# Initialize multiple-testing correction columns with
+# explicit dtypes.
+# ---------------------------------------------------------
+
+gene_diversity_of_isoforms_per_annotation_results_df[
+    "RejectedAfterCorrection"
+] = pd.Series(
+    False,
+    index=(
+        gene_diversity_of_isoforms_per_annotation_results_df.index
+    ),
+    dtype=bool,
+)
+
+gene_diversity_of_isoforms_per_annotation_results_df[
+    "CorrectedPVal"
+] = pd.Series(
+    np.nan,
+    index=(
+        gene_diversity_of_isoforms_per_annotation_results_df.index
+    ),
+    dtype=float,
+)
+
+
+# ---------------------------------------------------------
+# Apply Benjamini–Hochberg correction only to genes for
+# which a valid Fisher test was performed.
+# ---------------------------------------------------------
+
+valid_test_mask = (
+    gene_diversity_of_isoforms_per_annotation_results_df[
+        "Testable"
+    ]
+    & gene_diversity_of_isoforms_per_annotation_results_df[
+        "PVal"
+    ].notna()
+)
+
+raw_pvalues = (
+    gene_diversity_of_isoforms_per_annotation_results_df.loc[
+        valid_test_mask,
+        "PVal",
+    ]
+    .to_numpy(dtype=float)
+)
+
+if raw_pvalues.size > 0:
+    rejected, corrected_pvalues = fdrcorrection(
+        raw_pvalues,
+        alpha=0.05,
+        method="indep",
+    )
+
+    gene_diversity_of_isoforms_per_annotation_results_df.loc[
+        valid_test_mask,
+        "RejectedAfterCorrection",
+    ] = rejected.astype(bool)
+
+    gene_diversity_of_isoforms_per_annotation_results_df.loc[
+        valid_test_mask,
+        "CorrectedPVal",
+    ] = corrected_pvalues.astype(float)
+
+
+# ---------------------------------------------------------
+# Sort primarily by raw p-value while keeping untestable
+# genes at the bottom.
+# ---------------------------------------------------------
+
+gene_diversity_of_isoforms_per_annotation_results_df = (
+    gene_diversity_of_isoforms_per_annotation_results_df
+    .sort_values(
+        [
+            "Testable",
+            "PVal",
+        ],
+        ascending=[
+            False,
+            True,
+        ],
+        na_position="last",
+    )
+    .reset_index(drop=True)
+)
+
+
+# ---------------------------------------------------------
+# Summary diagnostics.
+# ---------------------------------------------------------
+
+num_testable_genes = int(
+    gene_diversity_of_isoforms_per_annotation_results_df[
+        "Testable"
+    ].sum()
+)
+
+num_untestable_genes = int(
+    (
+        ~gene_diversity_of_isoforms_per_annotation_results_df[
+            "Testable"
+        ]
+    ).sum()
+)
+
+num_nominally_significant = int(
+    gene_diversity_of_isoforms_per_annotation_results_df[
+        "PVal"
+    ].lt(0.05).sum()
+)
+
+num_significant_after_bh = int(
+    gene_diversity_of_isoforms_per_annotation_results_df[
+        "RejectedAfterCorrection"
+    ].sum()
+)
+
+
+print(
+    f"Genes submitted: "
+    f"{len(gene_diversity_of_isoforms_per_annotation_results_df):,}"
+)
+
+print(
+    f"Testable genes: "
+    f"{num_testable_genes:,}"
+)
+
+print(
+    f"Untestable genes: "
+    f"{num_untestable_genes:,}"
+)
+
+print(
+    f"Nominal P < 0.05: "
+    f"{num_nominally_significant:,}"
+)
+
+print(
+    f"Significant after Benjamini–Hochberg correction: "
+    f"{num_significant_after_bh:,}"
+)
+
+
+display(
+    gene_diversity_of_isoforms_per_annotation_results_df
+    .nsmallest(
+        20,
+        "PVal",
+    )
+)
 
 gene_diversity_of_isoforms_per_annotation_results_df
 
 # %%
-gene_diversity_of_isoforms_per_annotation_results_df["TestCompleted"].value_counts()
+gene_diversity_of_isoforms_per_annotation_results_df["Testable"].value_counts()
 
 # %%
 # unique_chroms_of_ge5_genes_with_well_clustered_annotations_with_at_least_2_copies_per_annotation = [
@@ -9572,6 +9906,297 @@ gene_diversity_of_isoforms_per_annotation_results_df.loc[
         "RejectedAfterCorrection"
     ]
 ]
+
+# %%
+significant_results_df = (
+    gene_diversity_of_isoforms_per_annotation_results_df.loc[
+        gene_diversity_of_isoforms_per_annotation_results_df[
+            "RejectedAfterCorrection"
+        ]
+    ]
+)
+
+display(significant_results_df)
+
+assert len(significant_results_df) == 1
+
+significant_chrom = significant_results_df["Chrom"].iloc[0]
+
+significant_gene_table = (
+    concat_per_chrom_per_annotation_copies_df_pivoted_df
+    .loc[significant_chrom]
+    .fillna(0)
+    .astype(int)
+)
+
+# Remove completely empty isoforms and annotations.
+significant_gene_table = significant_gene_table.loc[
+    significant_gene_table.sum(axis=1).gt(0),
+    significant_gene_table.sum(axis=0).gt(0),
+]
+
+display(significant_gene_table)
+
+display(
+    pd.DataFrame(
+        {
+            "IsoformTotal": significant_gene_table.sum(axis=1),
+        }
+    ).sort_values("IsoformTotal", ascending=False)
+)
+
+display(
+    pd.DataFrame(
+        {
+            "AnnotationTotal": significant_gene_table.sum(axis=0),
+        }
+    ).sort_values("AnnotationTotal", ascending=False)
+)
+
+# %%
+significant_gene_reads_df = (
+    ge5_well_clustered_concat_f1_expanded_max_expression_df.loc[
+        ge5_well_clustered_concat_f1_expanded_max_expression_df[
+            "Chrom"
+        ].eq(significant_chrom)
+    ]
+    .copy()
+)
+
+# Sample is included because the same CB string may theoretically occur
+# in different libraries.
+significant_gene_reads_df["CellID"] = (
+    significant_gene_reads_df["Sample"].astype(str)
+    + "::"
+    + significant_gene_reads_df["CB"].astype(str)
+)
+
+cell_support_df = (
+    significant_gene_reads_df
+    .groupby(
+        [
+            "Protein",
+            "Annotation",
+        ],
+        dropna=False,
+    )
+    .agg(
+        Molecules=("Read", "size"),
+        SupportingCells=("CellID", "nunique"),
+    )
+    .reset_index()
+)
+
+display(
+    cell_support_df.sort_values(
+        [
+            "SupportingCells",
+            "Molecules",
+        ],
+        ascending=False,
+    )
+)
+
+# %%
+molecules_per_cell_df = (
+    significant_gene_reads_df
+    .groupby(
+        [
+            "CellID",
+            "Annotation",
+            "Protein",
+        ],
+        dropna=False,
+    )
+    .size()
+    .reset_index(name="Molecules")
+)
+
+display(
+    molecules_per_cell_df.sort_values(
+        "Molecules",
+        ascending=False,
+    ).head(30)
+)
+
+# %%
+cell_presence_table = (
+    significant_gene_reads_df
+    .drop_duplicates(
+        subset=[
+            "CellID",
+            "Protein",
+            "Annotation",
+        ]
+    )
+    .groupby(
+        [
+            "Protein",
+            "Annotation",
+        ]
+    )
+    .size()
+    .unstack(
+        fill_value=0
+    )
+)
+
+cell_presence_table = cell_presence_table.loc[
+    cell_presence_table.sum(axis=1).gt(0),
+    cell_presence_table.sum(axis=0).gt(0),
+]
+
+display(cell_presence_table)
+
+# %%
+cell_level_result = calc_exact_fisher_for_chrom(
+    significant_chrom,
+    cell_presence_table,
+)
+
+cell_level_result
+
+# %%
+per_sample_tables = {}
+
+for sample, sample_df in significant_gene_reads_df.groupby("Sample"):
+
+    sample_table = (
+        sample_df
+        .groupby(
+            [
+                "Protein",
+                "Annotation",
+            ]
+        )
+        .size()
+        .unstack(fill_value=0)
+    )
+
+    sample_table = sample_table.loc[
+        sample_table.sum(axis=1).gt(0),
+        sample_table.sum(axis=0).gt(0),
+    ]
+
+    per_sample_tables[sample] = sample_table
+
+    print(f"\nSample: {sample}")
+    display(sample_table)
+
+    if sample_table.shape[0] >= 2 and sample_table.shape[1] >= 2:
+        print(
+            calc_exact_fisher_for_chrom(
+                f"{significant_chrom}::{sample}",
+                sample_table,
+            )
+        )
+    else:
+        print("Not testable separately")
+
+# %%
+for sample, table in per_sample_tables.items():
+    relative_table = table.div(
+        table.sum(axis=0).replace(0, np.nan),
+        axis=1,
+    )
+
+    print(f"\nRelative isoform composition: {sample}")
+    display(relative_table)
+
+
+# %%
+def rerun_significant_gene_fisher(
+    table,
+    seed,
+    n_resamples=1_000_000,
+):
+    table = table.fillna(0).astype(np.int64)
+
+    table = table.loc[
+        table.sum(axis=1).gt(0),
+        table.sum(axis=0).gt(0),
+    ]
+
+    method = scipy.stats.MonteCarloMethod(
+        n_resamples=n_resamples,
+        batch=10_000,
+        rng=np.random.default_rng(seed),
+    )
+
+    result = scipy.stats.fisher_exact(
+        table.to_numpy(),
+        method=method,
+    )
+
+    return float(np.asarray(result.pvalue).reshape(-1)[0])
+
+
+# %%
+stability_pvalues = pd.Series(
+    {
+        seed: rerun_significant_gene_fisher(
+            significant_gene_table,
+            seed=seed,
+        )
+        for seed in [
+            101,
+            202,
+            303,
+            404,
+            505,
+        ]
+    },
+    name="PVal",
+)
+
+stability_pvalues
+
+# %%
+fisher_results_df = (
+    gene_diversity_of_isoforms_per_annotation_results_df
+)
+
+testable_results_df = fisher_results_df.loc[
+    fisher_results_df["Testable"]
+]
+
+global_fisher_summary = pd.Series(
+    {
+        "CandidateGenes": len(fisher_results_df),
+        "TestableGenes": len(testable_results_df),
+        "UntestableGenes": (~fisher_results_df["Testable"]).sum(),
+        "NominalPBelow0.05": testable_results_df["PVal"].lt(0.05).sum(),
+        "SignificantAfterBH": (
+            testable_results_df["RejectedAfterCorrection"].sum()
+        ),
+        "PercentSignificantAmongTestable": (
+            100
+            * testable_results_df[
+                "RejectedAfterCorrection"
+            ].mean()
+        ),
+    },
+    name="Value",
+)
+
+display(global_fisher_summary)
+
+display(
+    testable_results_df[
+        [
+            "TotalMolecules",
+            "NumObservedIsoforms",
+            "NumObservedAnnotations",
+        ]
+    ].describe(
+        percentiles=[
+            0.25,
+            0.5,
+            0.75,
+            0.9,
+        ]
+    )
+)
 
 # %%
 # ge5_chi_2_assumptions.loc[ge5_chi_2_assumptions["NumOfCells"] <= 20]
