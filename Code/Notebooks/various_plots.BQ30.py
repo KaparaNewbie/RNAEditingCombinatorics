@@ -4663,12 +4663,15 @@ fig.update_layout(
 )
 
 fig.write_image(
-    Path(out_dir, f"Cumulative expression vs. distinct protein rank: fractions 0.1 and 1 - PacBio w UMIs.svg"),
+    Path(out_dir, f"Cumulative expression vs. distinct protein rank: fractions 0.1 and 1 - PacBio1.svg"),
     width=width,
     height=height,
 )
 
 fig.show()
+
+# %%
+facet_col_spacing
 
 # %%
 # x_axis_name = "Subsampled data (10%)"
@@ -4698,6 +4701,7 @@ fig = make_subplots(
     y_title=y_axis_name,
     # vertical_spacing=0.01,
     horizontal_spacing=facet_col_spacing,
+    
 )
 
 equations = []
@@ -4833,8 +4837,20 @@ for col, equation in enumerate(equations, start=1):
 
 max_x_y = max(max_x, max_y)
 
-fig.update_xaxes(range=[0, max_x_y*1.1], tick0=0, dtick=0.25)
-fig.update_yaxes(scaleanchor="x", scaleratio=1, range=[0, max_x_y*1.1], tick0=0, dtick=0.25)
+fig.update_xaxes(
+    range=[0, max_x_y*1.1], 
+    tick0=0, 
+    dtick=0.1, 
+    constrain="domain",
+)
+fig.update_yaxes(
+    scaleanchor="x", 
+    scaleratio=1, 
+    range=[0, max_x_y*1.1], 
+    tick0=0, 
+    dtick=0.1, 
+    constrain="domain",
+)
 
 # width = 1200
 width = 900
@@ -4850,7 +4866,7 @@ fig.update_layout(
 )
 
 fig.write_image(
-    Path(out_dir, "Fraction 0.1 expression vs. fraction 1 expression - PacBio w UMIs.svg"),
+    Path(out_dir, "Fraction 0.1 expression vs. fraction 1 expression - PacBio1.svg"),
     width=width,
     height=height,
 )

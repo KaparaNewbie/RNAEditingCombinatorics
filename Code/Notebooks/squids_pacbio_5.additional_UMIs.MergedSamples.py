@@ -304,12 +304,12 @@ def two_subcolors_from_hex(hex_color, d_r=4, d_g=20, d_b=22, scale_1=1, scale_2=
 # }
 color_discrete_map = {
     'GRIA': np.str_('#00A08B'),
-    'ADAR1': np.str_('#DA60CA'),
+    'ADAR1': np.str_('#511CFB'),
     'IQEC1': np.str_('#EB663B')
 }
 fixed_condition_color_discrete_map = {
     'GRIA2': np.str_('#00A08B'),
-    'ADAR1': np.str_('#DA60CA'),
+    'ADAR1': np.str_('#511CFB'),
     'IQEC1': np.str_('#EB663B')
 }
 replicates_color_discrete_map = {
@@ -7096,6 +7096,15 @@ fig.show()
 # ### Editing per-site per-sample
 
 # %%
+min_tot_covs = [0, 500, 1000, 1500]
+min_editing_freqs = [0.001, 0.003, 0.005, 0.01]
+
+min_pooled_editing_freqs = [0, 0.01, 0.05]
+min_pooled_editing_freq_cols = [
+    f"PooledEditingFrequency>={min_pooled_editing_freq}" for min_pooled_editing_freq in min_pooled_editing_freqs
+]
+
+# %%
 concat_edited_positions_df = pd.concat(
     [
         df.loc[df["Edited"]]
@@ -7103,6 +7112,12 @@ concat_edited_positions_df = pd.concat(
     ],
     ignore_index=True
 )
+
+for min_pooled_editing_freq, min_pooled_editing_freq_col in zip(min_pooled_editing_freqs, min_pooled_editing_freq_cols):
+    concat_edited_positions_df[min_pooled_editing_freq_col] = (
+        concat_edited_positions_df["EditingFrequency"].ge(min_pooled_editing_freq)
+    )
+
 concat_edited_positions_df
 
 # %%
@@ -7195,15 +7210,6 @@ concat_expanded_edited_positions_df.groupby(condition_col)["Position"].nunique()
 concat_expanded_edited_positions_df.groupby(condition_col)["Position"].nunique().sum()
 
 # %%
-# concat_expanded_edited_positions_df.loc[
-#     (
-#         concat_expanded_edited_positions_df[condition_col].eq("ADAR1")
-#         & concat_expanded_edited_positions_df["Position"].eq(291)
-#         & concat_expanded_edited_positions_df["Replicate"].eq("1")
-#     )
-# ]
-
-# %%
 per_sample_agged_expanded_concat_edited_positions_df = concat_expanded_edited_positions_df.pivot(
     index=[condition_col, "Chrom", "Position", "Replicate"],
     columns="MappedBase",
@@ -7217,7 +7223,24 @@ per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"] = (
     per_sample_agged_expanded_concat_edited_positions_df["G"] / per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"]
 )
 
+per_sample_agged_expanded_concat_edited_positions_df = per_sample_agged_expanded_concat_edited_positions_df.merge(
+    concat_edited_positions_df.loc[
+        :,
+        ["Chrom", "Position"] + min_pooled_editing_freq_cols
+    ],
+    how="left"
+)
+
+# only retain sites which show the lowest pooled editing frequency
+# (this is a general step unrelated to the per-sample analysis, but rather a step to filter out low-confidence sites)
+per_sample_agged_expanded_concat_edited_positions_df = per_sample_agged_expanded_concat_edited_positions_df.loc[
+    per_sample_agged_expanded_concat_edited_positions_df[min_pooled_editing_freq_cols].any(axis=1)
+]
+
 per_sample_agged_expanded_concat_edited_positions_df
+
+# %%
+per_sample_agged_expanded_concat_edited_positions_df[min_pooled_editing_freq_cols].value_counts().reset_index()
 
 # %%
 per_sample_agged_expanded_concat_edited_positions_df.groupby(condition_col)["Position"].nunique()
@@ -7227,21 +7250,6 @@ per_sample_agged_expanded_concat_edited_positions_df.groupby(condition_col)["Pos
 
 # %%
 per_sample_agged_expanded_concat_edited_positions_df.groupby(condition_col)["EditingFrequency"].describe().round(2)
-
-# %%
-# per_sample_agged_expanded_concat_edited_positions_df.loc[
-#     per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"].ge(0.001),
-# ].shape[0]
-
-# %%
-# per_sample_agged_expanded_concat_edited_positions_df.loc[
-#     per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"].ge(0.01),
-# ].shape[0]
-
-# %%
-# per_sample_agged_expanded_concat_edited_positions_df.loc[
-#     per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"].ge(0.1),
-# ].shape[0]
 
 # %%
 per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].describe()
@@ -7257,432 +7265,61 @@ per_sample_agged_expanded_concat_edited_positions_df.groupby(
 # )["TotalCoverage"].mean().describe()
 
 # %%
-fig = px.ecdf(
-    per_sample_agged_expanded_concat_edited_positions_df,
-    x="TotalCoverage",
-    facet_col=condition_col,
-    # color=condition_col,
-    # color_discrete_map=fixed_condition_color_discrete_map,
-    color="Replicate",
-    color_discrete_map=replicates_color_discrete_map,
-    log_x=True,
-    # log_y=True,
-    ecdfnorm="percent",
-    # cumulative=True,
-)
-fig.update_yaxes(dtick=25)
-# fig.update_traces(opacity=0.75)
-fig.for_each_annotation(
-    lambda a: a.update(
-        text=a.text.split("=")[-1].upper(),           # remove "condition=" from the annotation text
-        )
-)
-
-fig.update_layout(
-    template=template,
-    width=1200,
-    height=400,
-    # barmode='overlay'
-    # showlegend=False,
-    title="Cumulative distribution of total A+G coverage per editing site in each replicate",
-)
-fig.show()
-
-# %%
-min_tot_covs = [0, 500, 1000, 1500]
-min_editing_freqs = [0.001, 0.003, 0.005, 0.01]
-
-# %%
-# num_of_sites_per_sample_per_min_cov_and_editing_freq_dfs = []
-# for min_tot_cov, min_editing_freq in product(min_tot_covs, min_editing_freqs):
-#     print(f"Min total coverage: {min_tot_cov}, min editing frequency: {min_editing_freq}")
-#     num_of_sites_per_sample_per_min_cov_and_editing_freq_df = (
-#         per_sample_agged_expanded_concat_edited_positions_df
-#         .loc[
-#             (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
-#             & (per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"].ge(min_editing_freq))
-#         ]
-#         .groupby(
-#             [condition_col, "Position"]
+# fig = px.ecdf(
+#     per_sample_agged_expanded_concat_edited_positions_df,
+#     x="TotalCoverage",
+#     facet_col=condition_col,
+#     # color=condition_col,
+#     # color_discrete_map=fixed_condition_color_discrete_map,
+#     color="Replicate",
+#     color_discrete_map=replicates_color_discrete_map,
+#     log_x=True,
+#     # log_y=True,
+#     ecdfnorm="percent",
+#     # cumulative=True,
+# )
+# fig.update_yaxes(dtick=25)
+# # fig.update_traces(opacity=0.75)
+# fig.for_each_annotation(
+#     lambda a: a.update(
+#         text=a.text.split("=")[-1].upper(),           # remove "condition=" from the annotation text
 #         )
-#         ["Replicate"].apply(list)
-#         .reset_index(name="Replicates")
-#     )
-#     num_of_sites_per_sample_per_min_cov_and_editing_freq_df.insert(0, "MinTotalCoverage", min_tot_cov)
-#     num_of_sites_per_sample_per_min_cov_and_editing_freq_df.insert(1, "MinEditingFrequency", min_editing_freq)
-#     num_of_sites_per_sample_per_min_cov_and_editing_freq_df = (
-#         num_of_sites_per_sample_per_min_cov_and_editing_freq_df
-#         .explode("Replicates")
-#         .rename(
-#             columns={"Replicates": "Replicate"}
-#         )
-#         .groupby(
-#             ["MinTotalCoverage", "MinEditingFrequency", "Replicate",]
-#         )
-#         .size()
-#         .reset_index(name="NumOfEditingSitesPerReplicate")
-#     )
-    
-#     sites_covered_per_sample_df = per_sample_agged_expanded_concat_edited_positions_df.loc[
-#         (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
-#     ].groupby("Replicate").size().reset_index(name="NumOfSitesCoveredPerReplicate")
-
-#     num_of_sites_per_sample_per_min_cov_and_editing_freq_df = num_of_sites_per_sample_per_min_cov_and_editing_freq_df.merge(
-#         sites_covered_per_sample_df, on="Replicate"
-#     )
-#     num_of_sites_per_sample_per_min_cov_and_editing_freq_df["%EditedOfCoveredSites"] = (
-#         100
-#         * num_of_sites_per_sample_per_min_cov_and_editing_freq_df["NumOfEditingSitesPerReplicate"]
-#         / num_of_sites_per_sample_per_min_cov_and_editing_freq_df["NumOfSitesCoveredPerReplicate"]
-#     )
-    
-#     num_of_sites_per_sample_per_min_cov_and_editing_freq_dfs.append(num_of_sites_per_sample_per_min_cov_and_editing_freq_df)
-    
-#     # break
-    
-# concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df = pd.concat(
-#     num_of_sites_per_sample_per_min_cov_and_editing_freq_dfs, ignore_index=True
 # )
 
-# # concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df["Replicate"] = concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df["Replicate"].astype(str)
-
-# concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df
-
-# %%
-# num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_dfs = []
-# num_of_sites_per_sample_per_min_cov_and_editing_freq_dfs = []
-
-# for min_tot_cov, min_editing_freq in product(min_tot_covs, min_editing_freqs):
-    
-#     # print(f"Min total coverage: {min_tot_cov}, min editing frequency: {min_editing_freq}")
-    
-#     # create a df with 5 cols (MinTotalCoverage, MinEditingFrequency, condition_col, Position, Replicates)
-#     # denoting for each gene-position the replicates that have at least min_tot_cov coverage and at least min_editing_freq editing frequency
-#     replicates_per_gene_per_position_per_min_cov_and_editing_freq_df = (
-#         per_sample_agged_expanded_concat_edited_positions_df
-#         .loc[
-#             (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
-#             & (per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"].ge(min_editing_freq))
-#         ]
-#         .groupby([condition_col, "Position"])
-#         ["Replicate"].apply(list)
-#         .reset_index(name="Replicates")
-#     )
-#     replicates_per_gene_per_position_per_min_cov_and_editing_freq_df.insert(0, "MinTotalCoverage", min_tot_cov)
-#     replicates_per_gene_per_position_per_min_cov_and_editing_freq_df.insert(1, "MinEditingFrequency", min_editing_freq)
-    
-#     # create a df with 6 cols (MinTotalCoverage, MinEditingFrequency, condition_col, Replicate, NumOfEditingSitesPerReplicate)
-#     # denoting for each gene-replicate the number of editing sites that have at least min_tot_cov coverage and at least min_editing_freq editing frequency
-#     num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df = (
-#         replicates_per_gene_per_position_per_min_cov_and_editing_freq_df
-#         .explode("Replicates")
-#         .rename(
-#             columns={"Replicates": "Replicate"}
-#         )
-#         .groupby(
-#             ["MinTotalCoverage", "MinEditingFrequency", condition_col, "Replicate",]
-#         )
-#         .size()
-#         .reset_index(name="NumOfEditingSitesPerReplicate")
-#     )
-#     # get all sites, across all genes, that have at least min_tot_cov coverage in each replicate
-#     # (regardless of their editing frequency)
-#     sites_covered_per_gene_per_sample_df = (
-#         per_sample_agged_expanded_concat_edited_positions_df
-#         .loc[
-#             (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
-#         ]
-#         .groupby([condition_col, "Replicate"])
-#         .size()
-#         .reset_index(name="NumOfSitesCoveredPerReplicate")
-#     )
-#     # merge the two dfs to get a df with 7 cols 
-#     # (MinTotalCoverage, MinEditingFrequency, condition_col, Replicate, NumOfEditingSitesPerReplicate, NumOfSitesCoveredPerReplicate, %EditedOfCoveredSites)
-#     num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df = num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df.merge(
-#         sites_covered_per_gene_per_sample_df, 
-#         on=[condition_col, "Replicate"]
-#     )
-#     # normalize the number of editing sites by the number of covered sites to get the percentage of edited sites out of the covered sites
-#     num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df["%EditedOfCoveredSites"] = (
-#         100
-#         * num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df["NumOfEditingSitesPerReplicate"]
-#         / num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df["NumOfSitesCoveredPerReplicate"]
-#     )
-    
-#     # create a df with 5 cols (MinTotalCoverage, MinEditingFrequency, Replicate, NumOfEditingSitesPerReplicate)
-#     # denoting for each replicate the number of editing sites that have at least min_tot_cov coverage and at least min_editing_freq editing frequency
-#     # across all 3 genes
-#     num_of_sites_per_sample_per_min_cov_and_editing_freq_df = (
-#         replicates_per_gene_per_position_per_min_cov_and_editing_freq_df
-#         .explode("Replicates")
-#         .rename(
-#             columns={"Replicates": "Replicate"}
-#         )
-#         .groupby(
-#             ["MinTotalCoverage", "MinEditingFrequency", "Replicate",]
-#         )
-#         .size()
-#         .reset_index(name="NumOfEditingSitesPerReplicate")
-#     )
-#     # get all sites, across all genes, that have at least min_tot_cov coverage in each replicate
-#     # (regardless of their editing frequency)
-#     sites_covered_per_sample_df = (
-#         per_sample_agged_expanded_concat_edited_positions_df
-#         .loc[
-#             (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
-#         ]
-#         .groupby("Replicate")
-#         .size()
-#         .reset_index(name="NumOfSitesCoveredPerReplicate")
-#     )
-#     # merge the two dfs to get a df with 6 cols 
-#     # (MinTotalCoverage, MinEditingFrequency, Replicate, NumOfEditingSitesPerReplicate, NumOfSitesCoveredPerReplicate, %EditedOfCoveredSites)
-#     num_of_sites_per_sample_per_min_cov_and_editing_freq_df = num_of_sites_per_sample_per_min_cov_and_editing_freq_df.merge(
-#         sites_covered_per_sample_df, on="Replicate"
-#     )
-#     # normalize the number of editing sites by the number of covered sites to get the percentage of edited sites out of the covered sites
-#     num_of_sites_per_sample_per_min_cov_and_editing_freq_df["%EditedOfCoveredSites"] = (
-#         100
-#         * num_of_sites_per_sample_per_min_cov_and_editing_freq_df["NumOfEditingSitesPerReplicate"]
-#         / num_of_sites_per_sample_per_min_cov_and_editing_freq_df["NumOfSitesCoveredPerReplicate"]
-#     )
-    
-#     num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_dfs.append(num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df)
-#     num_of_sites_per_sample_per_min_cov_and_editing_freq_dfs.append(num_of_sites_per_sample_per_min_cov_and_editing_freq_df)
-    
-#     # break
-    
-# concat_num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df = pd.concat(
-#     num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_dfs, 
-#     ignore_index=True
+# fig.update_layout(
+#     template=template,
+#     width=1200,
+#     height=400,
+#     # barmode='overlay'
+#     # showlegend=False,
+#     title="Cumulative distribution of total A+G coverage per editing site in each replicate",
 # )
-# concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df = pd.concat(
-#     num_of_sites_per_sample_per_min_cov_and_editing_freq_dfs, 
-#     ignore_index=True
-# )
-
-# # concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df["Replicate"] = concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df["Replicate"].astype(str)
-
-# # concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df
-
-# %%
-# concat_num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df
-
-# %%
-# concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df
-
-# %%
-# per_sample_agged_expanded_concat_edited_positions_df
-
-# %%
-# min_tot_cov = min_tot_covs[0]
-# min_editing_freq = min_editing_freqs[0]
-
-# # min_tot_cov = min_tot_covs[2]
-# # min_editing_freq = min_editing_freqs[2]
-
-# %%
-# # create a df with 5 cols (MinTotalCoverage, MinEditingFrequency, condition_col, Position, Replicates)
-# # denoting for each gene-position the replicates that have at least min_tot_cov coverage and at least min_editing_freq editing frequency
-# replicates_per_gene_per_position_per_min_cov_and_editing_freq_df = (
-#     per_sample_agged_expanded_concat_edited_positions_df
-#     .loc[
-#         (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
-#         & (per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"].ge(min_editing_freq))
-#     ]
-#     .groupby([condition_col, "Position"])
-#     ["Replicate"].apply(list)
-#     .reset_index(name="Replicates")
-# )
-# replicates_per_gene_per_position_per_min_cov_and_editing_freq_df["Replicates"] = (
-#         replicates_per_gene_per_position_per_min_cov_and_editing_freq_df["Replicates"].apply(
-#         lambda x: x + ["All"] if len(x) == 3 else x
-#     )
-# )
-# replicates_per_gene_per_position_per_min_cov_and_editing_freq_df.insert(0, "MinTotalCoverage", min_tot_cov)
-# replicates_per_gene_per_position_per_min_cov_and_editing_freq_df.insert(1, "MinEditingFrequency", min_editing_freq)
-# replicates_per_gene_per_position_per_min_cov_and_editing_freq_df
-
-# %%
-# replicates_per_gene_per_position_per_min_cov_and_editing_freq_df["Replicates"].value_counts()
-
-# %%
-# # create a df with 6 cols (MinTotalCoverage, MinEditingFrequency, condition_col, Replicate, NumOfEditingSitesPerReplicate)
-# # denoting for each gene-replicate the number of editing sites that have at least min_tot_cov coverage and at least min_editing_freq editing frequency
-# num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df = (
-#     replicates_per_gene_per_position_per_min_cov_and_editing_freq_df
-#     .explode("Replicates")
-#     .rename(
-#         columns={"Replicates": "Replicate"}
-#     )
-#     .groupby(
-#         ["MinTotalCoverage", "MinEditingFrequency", condition_col, "Replicate",]
-#     )
-#     .size()
-#     .reset_index(name="NumOfEditingSitesPerReplicate")
-# )
-# num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df
-
-# %%
-# # get all sites, across all genes, that have at least min_tot_cov coverage, per each individual replicate
-# # (regardless of their editing frequency)
-# sites_covered_per_gene_per_sample_per_individual_replicate_df = (
-#     per_sample_agged_expanded_concat_edited_positions_df
-#     .loc[
-#         (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
-#     ]
-#     .groupby([condition_col, "Replicate"])
-#     .size()
-#     .reset_index(name="NumOfSitesCoveredPerReplicate")
-# )
-# sites_covered_per_gene_per_sample_per_individual_replicate_df
-
-# %%
-# sites_covered_per_gene_per_sample_in_all_replicates_df = (
-#     per_sample_agged_expanded_concat_edited_positions_df
-#     .loc[
-#         (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
-#     ]
-#     .groupby([condition_col, "Position"])
-#     .size()
-#     .reset_index(name="NumOfSitesCoveredPerReplicate")
-#     .loc[lambda x: x["NumOfSitesCoveredPerReplicate"].eq(3)]
-#     .assign(Replicate="All")
-#     .groupby([condition_col, "Replicate"])
-#     .size()
-#     .reset_index(name="NumOfSitesCoveredPerReplicate")
-# )
-# sites_covered_per_gene_per_sample_in_all_replicates_df
-
-
-# %%
-# # finally, we have a df with num of covered sites per gene per sample, 
-# # including the counts for each individual replicate and the counts for all replicates together
-# sites_covered_per_gene_per_sample_df = (
-#     pd.concat(
-#         [
-#             sites_covered_per_gene_per_sample_per_individual_replicate_df,
-#             sites_covered_per_gene_per_sample_in_all_replicates_df,
-#         ]
-#     )
-#     .sort_values(
-#         [condition_col, "Replicate"],
-#         ignore_index=True
-#     )
-# )
-# # merge the two dfs to get a df with 7 cols 
-# # (MinTotalCoverage, MinEditingFrequency, condition_col, Replicate, NumOfEditingSitesPerReplicate, NumOfSitesCoveredPerReplicate, %EditedOfCoveredSites)
-# num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df = num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df.merge(
-#     sites_covered_per_gene_per_sample_df, 
-#     on=[condition_col, "Replicate"]
-# )
-# # normalize the number of editing sites by the number of covered sites to get the percentage of edited sites out of the covered sites
-# num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df["%EditedOfCoveredSites"] = (
-#     100
-#     * num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df["NumOfEditingSitesPerReplicate"]
-#     / num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df["NumOfSitesCoveredPerReplicate"]
-# )
-# num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df
-
-# %%
-# replicates_per_gene_per_position_per_min_cov_and_editing_freq_df
-
-# %%
-# # create a df with 5 cols (MinTotalCoverage, MinEditingFrequency, Replicate, NumOfEditingSitesPerReplicate)
-# # denoting for each replicate the number of editing sites that have at least min_tot_cov coverage and at least min_editing_freq editing frequency
-# # across all 3 genes
-# num_of_sites_per_sample_per_min_cov_and_editing_freq_df = (
-#     replicates_per_gene_per_position_per_min_cov_and_editing_freq_df
-#     .explode("Replicates")
-#     .rename(
-#         columns={"Replicates": "Replicate"}
-#     )
-#     .groupby(
-#         ["MinTotalCoverage", "MinEditingFrequency", "Replicate",]
-#     )
-#     .size()
-#     .reset_index(name="NumOfEditingSitesPerReplicate")
-# )
-# num_of_sites_per_sample_per_min_cov_and_editing_freq_df
-
-# %%
-# # get all sites, across all genes, that have at least min_tot_cov coverage, per each individual replicate
-# # (regardless of their editing frequency)
-# sites_covered_per_individual_replicate_df = (
-#     per_sample_agged_expanded_concat_edited_positions_df
-#     .loc[
-#         (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
-#     ]
-#     .groupby("Replicate")
-#     .size()
-#     .reset_index(name="NumOfSitesCoveredPerReplicate")
-# )
-# sites_covered_per_individual_replicate_df
-
-# %%
-# per_sample_agged_expanded_concat_edited_positions_df
-
-# %%
-# site_covered_by_all_replicates = (
-#     per_sample_agged_expanded_concat_edited_positions_df
-#     .loc[
-#         (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
-#     ]
-#     .groupby([condition_col, "Position"])["Replicate"]
-#     .nunique()
-#     .eq(3)
-#     .sum()
-# )
-# sites_covered_per_sample_in_all_replicates_df = pd.DataFrame(
-#     {
-#         "Replicate": ["All"],
-#         "NumOfSitesCoveredPerReplicate": [site_covered_by_all_replicates.sum()]
-#     }
-# )
-# sites_covered_per_sample_in_all_replicates_df
-
-# %%
-# # finally, we have a df with num of covered sites per sample, 
-# # including the counts for each individual replicate and the counts for all replicates together
-# sites_covered_per_sample_df = (
-#     pd.concat(
-#         [
-#             sites_covered_per_individual_replicate_df,
-#             sites_covered_per_sample_in_all_replicates_df,
-#         ]
-#     )
-#     .sort_values(
-#         "Replicate",
-#         ignore_index=True
-#     )
-# )
-# # merge the two dfs to get a df with 6 cols 
-# # (MinTotalCoverage, MinEditingFrequency, Replicate, NumOfEditingSitesPerReplicate, NumOfSitesCoveredPerReplicate, %EditedOfCoveredSites)
-# num_of_sites_per_sample_per_min_cov_and_editing_freq_df = num_of_sites_per_sample_per_min_cov_and_editing_freq_df.merge(
-#     sites_covered_per_sample_df, on="Replicate"
-# )
-# # normalize the number of editing sites by the number of covered sites to get the percentage of edited sites out of the covered sites
-# num_of_sites_per_sample_per_min_cov_and_editing_freq_df["%EditedOfCoveredSites"] = (
-#     100
-#     * num_of_sites_per_sample_per_min_cov_and_editing_freq_df["NumOfEditingSitesPerReplicate"]
-#     / num_of_sites_per_sample_per_min_cov_and_editing_freq_df["NumOfSitesCoveredPerReplicate"]
-# )
+# fig.show()
 
 # %%
 num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_dfs = []
 num_of_sites_per_sample_per_min_cov_and_editing_freq_dfs = []
 
-for min_tot_cov, min_editing_freq in product(min_tot_covs, min_editing_freqs):
+for (
+    min_tot_cov,
+    min_editing_freq,
+    (min_pooled_editing_freq, min_pooled_editing_freq_col),
+) in product(
+    min_tot_covs,
+    min_editing_freqs,
+    zip(min_pooled_editing_freqs, min_pooled_editing_freq_cols),
+):
     
     # print(f"Min total coverage: {min_tot_cov}, min editing frequency: {min_editing_freq}")
     
-    # create a df with 5 cols (MinTotalCoverage, MinEditingFrequency, condition_col, Position, Replicates)
-    # denoting for each gene-position the replicates that have at least min_tot_cov coverage and at least min_editing_freq editing frequency
+    # create a df with 6 cols (MinTotalCoverage, MinEditingFrequency, MinPooledEditingFrequency, condition_col, Position, Replicates)
+    # denoting for each gene-position the replicates that pass the pooled-site filter and have at least min_tot_cov coverage and min_editing_freq editing frequency
     replicates_per_gene_per_position_per_min_cov_and_editing_freq_df = (
         per_sample_agged_expanded_concat_edited_positions_df
         .loc[
             (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
             & (per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"].ge(min_editing_freq))
+            & per_sample_agged_expanded_concat_edited_positions_df[min_pooled_editing_freq_col]
         ]
         .groupby([condition_col, "Position"])
         ["Replicate"].apply(list)
@@ -7695,6 +7332,7 @@ for min_tot_cov, min_editing_freq in product(min_tot_covs, min_editing_freqs):
     )
     replicates_per_gene_per_position_per_min_cov_and_editing_freq_df.insert(0, "MinTotalCoverage", min_tot_cov)
     replicates_per_gene_per_position_per_min_cov_and_editing_freq_df.insert(1, "MinEditingFrequency", min_editing_freq)
+    replicates_per_gene_per_position_per_min_cov_and_editing_freq_df.insert(2, "MinPooledEditingFrequency", min_pooled_editing_freq)
 
     # create a df with 6 cols (MinTotalCoverage, MinEditingFrequency, condition_col, Replicate, NumOfEditingSitesPerReplicate)
     # denoting for each gene-replicate the number of editing sites that have at least min_tot_cov coverage and at least min_editing_freq editing frequency
@@ -7705,7 +7343,7 @@ for min_tot_cov, min_editing_freq in product(min_tot_covs, min_editing_freqs):
             columns={"Replicates": "Replicate"}
         )
         .groupby(
-            ["MinTotalCoverage", "MinEditingFrequency", condition_col, "Replicate",]
+            ["MinTotalCoverage", "MinEditingFrequency", "MinPooledEditingFrequency", condition_col, "Replicate",]
         )
         .size()
         .reset_index(name="NumOfEditingSitesPerReplicate")
@@ -7716,6 +7354,7 @@ for min_tot_cov, min_editing_freq in product(min_tot_covs, min_editing_freqs):
         per_sample_agged_expanded_concat_edited_positions_df
         .loc[
             (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
+            & per_sample_agged_expanded_concat_edited_positions_df[min_pooled_editing_freq_col]
         ]
         .groupby([condition_col, "Replicate"])
         .size()
@@ -7726,6 +7365,7 @@ for min_tot_cov, min_editing_freq in product(min_tot_covs, min_editing_freqs):
         per_sample_agged_expanded_concat_edited_positions_df
         .loc[
             (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
+            & per_sample_agged_expanded_concat_edited_positions_df[min_pooled_editing_freq_col]
         ]
         .groupby([condition_col, "Position"])
         .size()
@@ -7750,8 +7390,8 @@ for min_tot_cov, min_editing_freq in product(min_tot_covs, min_editing_freqs):
             ignore_index=True
         )
     )
-    # merge the two dfs to get a df with 7 cols 
-    # (MinTotalCoverage, MinEditingFrequency, condition_col, Replicate, NumOfEditingSitesPerReplicate, NumOfSitesCoveredPerReplicate, %EditedOfCoveredSites)
+    # merge the two dfs to get a df with 8 cols 
+    # (MinTotalCoverage, MinEditingFrequency, MinPooledEditingFrequency, condition_col, Replicate, NumOfEditingSitesPerReplicate, NumOfSitesCoveredPerReplicate, %EditedOfCoveredSites)
     num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df = num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df.merge(
         sites_covered_per_gene_per_sample_df, 
         on=[condition_col, "Replicate"]
@@ -7763,8 +7403,8 @@ for min_tot_cov, min_editing_freq in product(min_tot_covs, min_editing_freqs):
         / num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df["NumOfSitesCoveredPerReplicate"]
     )
 
-    # create a df with 5 cols (MinTotalCoverage, MinEditingFrequency, Replicate, NumOfEditingSitesPerReplicate)
-    # denoting for each replicate the number of editing sites that have at least min_tot_cov coverage and at least min_editing_freq editing frequency
+    # create a df with 5 cols (MinTotalCoverage, MinEditingFrequency, MinPooledEditingFrequency, Replicate, NumOfEditingSitesPerReplicate)
+    # denoting for each replicate the number of editing sites that pass the pooled-site filter and have at least min_tot_cov coverage and min_editing_freq editing frequency
     # across all 3 genes
     num_of_sites_per_sample_per_min_cov_and_editing_freq_df = (
         replicates_per_gene_per_position_per_min_cov_and_editing_freq_df
@@ -7773,7 +7413,7 @@ for min_tot_cov, min_editing_freq in product(min_tot_covs, min_editing_freqs):
             columns={"Replicates": "Replicate"}
         )
         .groupby(
-            ["MinTotalCoverage", "MinEditingFrequency", "Replicate",]
+            ["MinTotalCoverage", "MinEditingFrequency", "MinPooledEditingFrequency", "Replicate",]
         )
         .size()
         .reset_index(name="NumOfEditingSitesPerReplicate")
@@ -7784,6 +7424,7 @@ for min_tot_cov, min_editing_freq in product(min_tot_covs, min_editing_freqs):
         per_sample_agged_expanded_concat_edited_positions_df
         .loc[
             (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
+            & per_sample_agged_expanded_concat_edited_positions_df[min_pooled_editing_freq_col]
         ]
         .groupby("Replicate")
         .size()
@@ -7794,6 +7435,7 @@ for min_tot_cov, min_editing_freq in product(min_tot_covs, min_editing_freqs):
         per_sample_agged_expanded_concat_edited_positions_df
         .loc[
             (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
+            & per_sample_agged_expanded_concat_edited_positions_df[min_pooled_editing_freq_col]
         ]
         .groupby([condition_col, "Position"])["Replicate"]
         .nunique()
@@ -7820,8 +7462,8 @@ for min_tot_cov, min_editing_freq in product(min_tot_covs, min_editing_freqs):
             ignore_index=True
         )
     )
-    # merge the two dfs to get a df with 6 cols 
-    # (MinTotalCoverage, MinEditingFrequency, Replicate, NumOfEditingSitesPerReplicate, NumOfSitesCoveredPerReplicate, %EditedOfCoveredSites)
+    # merge the two dfs to get a df with 7 cols 
+    # (MinTotalCoverage, MinEditingFrequency, MinPooledEditingFrequency, Replicate, NumOfEditingSitesPerReplicate, NumOfSitesCoveredPerReplicate, %EditedOfCoveredSites)
     num_of_sites_per_sample_per_min_cov_and_editing_freq_df = num_of_sites_per_sample_per_min_cov_and_editing_freq_df.merge(
         sites_covered_per_sample_df, on="Replicate"
     )
@@ -7848,221 +7490,187 @@ concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df = pd.concat(
 
 # concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df["Replicate"] = concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df["Replicate"].astype(str)
 
-# concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df
-
-# %%
-concat_num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df
-
-# %%
 concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df
 
 # %%
-# # aggreated measure with num of sites supported by numer of samples
-
-# num_of_samples_per_sites_per_min_cov_and_editing_freq_dfs = []
-# for min_tot_cov, min_editing_freq in product(min_tot_covs, min_editing_freqs):
-#     print(f"Min total coverage: {min_tot_cov}, min editing frequency: {min_editing_freq}")
-#     num_of_samples_per_sites_per_min_cov_and_editing_freq_df = (
-#         per_sample_agged_expanded_concat_edited_positions_df
-#         .loc[
-#             (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
-#             & (per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"].ge(min_editing_freq))
-#         ]
-#         .groupby(
-#             [condition_col, "Position"]
-#         )["Replicate"].nunique().value_counts()
-#         .reset_index()
-#         .rename(
-#             columns={
-#                 "Replicate": "NumOfReplicates",
-#                 "count": "NumOfEditingSites",
-#             }
-#         )
-#         .sort_values(
-#             "NumOfReplicates", ascending=False, ignore_index=True
-#         )
-#     )
-
-#     if num_of_samples_per_sites_per_min_cov_and_editing_freq_df.empty:
-#         num_of_samples_per_sites_per_min_cov_and_editing_freq_df = pd.DataFrame(
-#             {
-#                 "NumOfReplicates": reversed(replicates),
-#                 "NumOfEditingSites": 0
-#             }
-#         )
-
-#     num_of_samples_per_sites_per_min_cov_and_editing_freq_df.insert(0, "MinTotalCoverage", min_tot_cov)
-#     num_of_samples_per_sites_per_min_cov_and_editing_freq_df.insert(1, "MinEditingFrequency", min_editing_freq)
-
-
-#     num_of_samples_per_sites_per_min_cov_and_editing_freq_df["ReverseCumulativeNumOfEditingSites"] = (
-#         num_of_samples_per_sites_per_min_cov_and_editing_freq_df["NumOfEditingSites"].cumsum()
-#     )
-#     num_of_samples_per_sites_per_min_cov_and_editing_freq_df["%ReverseCumulativeNumOfEditingSites"] = (
-#         100
-#         * num_of_samples_per_sites_per_min_cov_and_editing_freq_df["ReverseCumulativeNumOfEditingSites"]
-#         / num_of_samples_per_sites_per_min_cov_and_editing_freq_df["NumOfEditingSites"].sum()
-#     ).fillna(0)
-    
-#     num_of_samples_per_sites_per_min_cov_and_editing_freq_dfs.append(num_of_samples_per_sites_per_min_cov_and_editing_freq_df)
-    
-# concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df = pd.concat(
-#     num_of_samples_per_sites_per_min_cov_and_editing_freq_dfs, ignore_index=True
-# )
-
-# concat_num_of_samples_per_sites_per_min_cov_and_editing_freq_df
 
 # %%
-min_total_coverage = 0
+# min_total_coverage = 0
 
-editing_frequency_thresholds = sorted(
-    concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df.loc[
-        concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df[
-            "MinTotalCoverage"
-        ].eq(min_total_coverage),
-        "MinEditingFrequency",
-    ]
-    .dropna()
-    .unique()
-)
+# editing_frequency_thresholds = sorted(
+#     concat_num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df.loc[
+#         concat_num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df[
+#             "MinTotalCoverage"
+#         ].eq(min_total_coverage),
+#         "MinEditingFrequency",
+#     ]
+#     .dropna()
+#     .unique()
+# )
 
-replicate_order = list(
-    dict.fromkeys(
-        concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df.loc[
-            concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df[
-                "MinTotalCoverage"
-            ].eq(min_total_coverage),
-            "Replicate",
-        ].dropna()
-    )
-)
+# replicate_order = list(
+#     dict.fromkeys(
+#         concat_num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df.loc[
+#             concat_num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df[
+#                 "MinTotalCoverage"
+#             ].eq(min_total_coverage),
+#             "Replicate",
+#         ].dropna()
+#     )
+# )
 
-num_cols = len(editing_frequency_thresholds)
+# num_cols = len(editing_frequency_thresholds)
 
-fig = make_subplots(
-    rows=2,
-    cols=num_cols,
-    # shared_xaxes=True,
-    shared_xaxes="all",
-    shared_yaxes=True,
-    # shared_yaxes="all",
-    subplot_titles=[
-        f"Editing frequency / sample ≥ {threshold:g}"
-        for threshold in editing_frequency_thresholds
-    ]
-    + [""] * num_cols,
-    # horizontal_spacing=0.04,
-    horizontal_spacing=0.02,
-    vertical_spacing=0.12,
-    # vertical_spacing=0.06,
-)
+# fig = make_subplots(
+#     rows=1,
+#     cols=num_cols,
+#     shared_xaxes="all",
+#     shared_yaxes=True,
+#     # subplot_titles=[
+#     #     # f"Editing frequency / sample ≥ {threshold:g}"
+#     #     f"Editing / sample ≥ {100 * threshold:g}%"
+#     #     for threshold in editing_frequency_thresholds
+#     # ] + [""] * num_cols,
+#     column_titles=[
+#         f"Editing / sample ≥ {100 * threshold:g}%"
+#         for threshold in editing_frequency_thresholds
+#     ],
+#     # horizontal_spacing=0.04,
+#     horizontal_spacing=0.02,
+#     vertical_spacing=0.12,
+# )
 
-for col, editing_frequency_threshold in enumerate(
-    editing_frequency_thresholds,
-    start=1,
-):
-    mask = (
-        concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df[
-            "MinTotalCoverage"
-        ].eq(min_total_coverage)
-        & concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df[
-            "MinEditingFrequency"
-        ].eq(editing_frequency_threshold)
-    )
+# for col, editing_frequency_threshold in enumerate(
+#     editing_frequency_thresholds,
+#     start=1,
+# ):
+#     sub_df = concat_num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df.loc[
+#         (
+#             concat_num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df[
+#                 "MinTotalCoverage"
+#             ].eq(min_total_coverage)
+#         )
+#         & (
+#             concat_num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df[
+#                 "MinEditingFrequency"
+#             ].eq(editing_frequency_threshold)
+#         )
+#     ].copy()
 
-    # First row: number of editing sites
-    fig.add_trace(
-        go.Bar(
-            x=concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df.loc[
-                mask,
-                "Replicate",
-            ],
-            y=concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df.loc[
-                mask,
-                "NumOfEditingSitesPerReplicate",
-            ],
-            marker_color=concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df.loc[
-                mask,
-                "Replicate",
-            ].map(replicates_color_discrete_map),
-            customdata=concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df.loc[
-                mask,
-                ["Replicate"],
-            ],
-            hovertemplate=(
-                "Replicate: %{customdata[0]}<br>"
-                "Editing sites: %{y}<extra></extra>"
-            ),
-            showlegend=False,
-        ),
-        row=1,
-        col=col,
-    )
+#     for replicate in replicate_order:
+#         rep_df = sub_df.loc[sub_df["Replicate"].eq(replicate)].copy()
 
-    # Second row: editing sites normalized by coverage
-    fig.add_trace(
-        go.Bar(
-            x=concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df.loc[
-                mask,
-                "Replicate",
-            ],
-            y=concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df.loc[
-                mask,
-                "%EditedOfCoveredSites",
-            ],
-            marker_color=concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df.loc[
-                mask,
-                "Replicate",
-            ].map(replicates_color_discrete_map),
-            customdata=concat_num_of_sites_per_sample_per_min_cov_and_editing_freq_df.loc[
-                mask,
-                ["Replicate"],
-            ],
-            hovertemplate=(
-                "Replicate: %{customdata[0]}<br>"
-                "Edited / covered sites: %{y:.2f}%<extra></extra>"
-            ),
-            showlegend=False,
-        ),
-        row=2,
-        col=col,
-    )
+#         rep_df[condition_col] = pd.Categorical(
+#             rep_df[condition_col],
+#             categories=fixed_conditions,
+#             ordered=True,
+#         )
+#         rep_df = rep_df.sort_values(condition_col)
 
-    for row in (1, 2):
-        fig.update_xaxes(
-            categoryorder="array",
-            categoryarray=replicate_order,
-            row=row,
-            col=col,
-        )
+#         show_legend_here = (col == 1)
 
-    fig.update_yaxes(dtick=50, row=1, col=col)
-    fig.update_yaxes(dtick=10, row=2, col=col)
+#         # fig.add_trace(
+#         #     go.Bar(
+#         #         x=rep_df[condition_col],
+#         #         y=rep_df["NumOfEditingSitesPerReplicate"],
+#         #         name=replicate,
+#         #         legendgroup=replicate,
+#         #         showlegend=show_legend_here,
+#         #         marker_color=replicates_color_discrete_map.get(replicate),
+#         #         offsetgroup=replicate,
+#         #         hovertemplate=(
+#         #             f"{condition_col}: %{{x}}<br>"
+#         #             f"Replicate: {replicate}<br>"
+#         #             "Editing sites: %{y}<extra></extra>"
+#         #         ),
+#         #     ),
+#         #     row=1,
+#         #     col=col,
+#         # )
 
-fig.update_yaxes(
-    title_text="Editing sites",
-    row=1,
-    col=1,
-)
+#         fig.add_trace(
+#             go.Bar(
+#                 x=rep_df[condition_col],
+#                 y=rep_df["%EditedOfCoveredSites"],
+#                 name=replicate,
+#                 legendgroup=replicate,
+#                 # showlegend=False,
+#                 showlegend=show_legend_here,
+#                 marker_color=replicates_color_discrete_map.get(replicate),
+#                 offsetgroup=replicate,
+#                 hovertemplate=(
+#                     f"{condition_col}: %{{x}}<br>"
+#                     f"Replicate: {replicate}<br>"
+#                     "Edited / covered sites: %{y:.2f}%<extra></extra>"
+#                 ),
+#             ),
+#             # row=2,
+#             row=1,
+#             col=col,
+#         )
 
-fig.update_yaxes(
-    title_text="Edited /<br>covered sites [%]",
-    row=2,
-    col=1,
-)
+#     # fig.update_xaxes(
+#     #     categoryorder="array",
+#     #     categoryarray=fixed_conditions,
+#     #     # tickangle=45,
+#     #     row=1,
+#     #     col=col,
+#     # )
+#     fig.update_xaxes(
+#         categoryorder="array",
+#         categoryarray=fixed_conditions,
+#         # tickangle=45,
+#         # row=2,
+#         row=1,
+#         col=col,
+#     )
 
-fig.update_layout(
-    template=template,
-    width=max(1400, 320 * num_cols),
-    # height=800,
-    height=500,
-    title=f"Sites edited per replicate — coverage / sample ≥ {min_total_coverage}",
-    showlegend=False,
-    bargap=0.2,
-    margin=dict(l=90, r=30, t=110, b=80),
-)
+#     # fig.update_yaxes(dtick=50, row=1, col=col)
+#     # fig.update_yaxes(dtick=10, row=2, col=col)
+#     fig.update_yaxes(dtick=10, row=1, col=col)
 
-fig.show()
+# # fig.update_yaxes(
+# #     title_text="Editing sites",
+# #     row=1,
+# #     col=1,
+# # )
+# fig.update_yaxes(
+#     # title_text="Edited /<br>covered sites [%]",
+#     title_text="Edited / covered sites [%]",
+#     # row=2,
+#     row=1,
+#     col=1,
+# )
+
+# width = max(1200, 320 * num_cols)
+# # height = 600
+# height = 400
+
+# title = f"Number of sites edited per sample, per gene — coverage / sample ≥ {min_total_coverage}"
+
+# fig.update_layout(
+#     template=template,
+#     width=width,
+#     height=height,
+#     title=title,
+#     barmode="group",
+#     # margin=dict(l=90, r=30, t=110, b=100),
+#     legend=dict(
+#         title_text="Sample",
+#         tracegroupgap=0,
+#     )
+# )
+
+# fig.write_image(
+#     Path(
+#         out_dir,
+#         f"{title.replace('/', 'per')}.PacBio3.svg"
+#     ),
+#     height=height,
+#     width=width,
+# )
+
+# fig.show()
 
 # %%
 min_total_coverage = 0
@@ -8090,126 +7698,148 @@ replicate_order = list(
 )
 
 num_cols = len(editing_frequency_thresholds)
+num_rows = len(min_pooled_editing_freqs)
 
 fig = make_subplots(
-    rows=2,
+    rows=num_rows,
     cols=num_cols,
     shared_xaxes="all",
     shared_yaxes=True,
-    subplot_titles=[
-        f"Editing frequency / sample ≥ {threshold:g}"
+    column_titles=[
+        f"Editing / sample ≥ {100 * threshold:g}%"
         for threshold in editing_frequency_thresholds
-    ] + [""] * num_cols,
+    ],
+    row_titles=[
+        # f"Pooled editing ≥ {100 * min_pooled_editing_freq:g}%"
+        # f"Pooled editing ≥ {100 * min_pooled_editing_freq:g}%" if min_pooled_editing_freq > 0 else "All sites"
+        f"Editing ≥ {100 * min_pooled_editing_freq:g}%" if min_pooled_editing_freq > 0 else "All sites"
+        for min_pooled_editing_freq in min_pooled_editing_freqs
+    ],
+    y_title="Edited / covered sites [%]",
     # horizontal_spacing=0.04,
     horizontal_spacing=0.02,
-    vertical_spacing=0.12,
+    vertical_spacing=0.02,
 )
 
 for col, editing_frequency_threshold in enumerate(
     editing_frequency_thresholds,
     start=1,
 ):
-    sub_df = concat_num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df.loc[
-        (
-            concat_num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df[
-                "MinTotalCoverage"
-            ].eq(min_total_coverage)
-        )
-        & (
-            concat_num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df[
-                "MinEditingFrequency"
-            ].eq(editing_frequency_threshold)
-        )
-    ].copy()
+    for row, min_pooled_editing_freq in enumerate(
+        min_pooled_editing_freqs,
+        start=1,
+    ):
+        sub_df = concat_num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df.loc[
+            (
+                concat_num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df[
+                    "MinTotalCoverage"
+                ].eq(min_total_coverage)
+            )
+            & (
+                concat_num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df[
+                    "MinEditingFrequency"
+                ].eq(editing_frequency_threshold)
+            )
+            & (
+                concat_num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df[
+                    "MinPooledEditingFrequency"
+                ].eq(min_pooled_editing_freq)
+            )
+        ].copy()
 
-    for replicate in replicate_order:
-        rep_df = sub_df.loc[sub_df["Replicate"].eq(replicate)].copy()
+        for replicate in replicate_order:
+            rep_df = sub_df.loc[sub_df["Replicate"].eq(replicate)].copy()
 
-        rep_df[condition_col] = pd.Categorical(
-            rep_df[condition_col],
-            categories=fixed_conditions,
-            ordered=True,
-        )
-        rep_df = rep_df.sort_values(condition_col)
+            rep_df[condition_col] = pd.Categorical(
+                rep_df[condition_col],
+                categories=fixed_conditions,
+                ordered=True,
+            )
+            rep_df = rep_df.sort_values(condition_col)
 
-        show_legend_here = (col == 1)
+            show_legend_here = (col == 1 and row == 1)
 
-        fig.add_trace(
-            go.Bar(
-                x=rep_df[condition_col],
-                y=rep_df["NumOfEditingSitesPerReplicate"],
-                name=replicate,
-                legendgroup=replicate,
-                showlegend=show_legend_here,
-                marker_color=replicates_color_discrete_map.get(replicate),
-                offsetgroup=replicate,
-                hovertemplate=(
-                    f"{condition_col}: %{{x}}<br>"
-                    f"Replicate: {replicate}<br>"
-                    "Editing sites: %{y}<extra></extra>"
+            fig.add_trace(
+                go.Bar(
+                    x=rep_df[condition_col],
+                    y=rep_df["%EditedOfCoveredSites"],
+                    name=replicate,
+                    legendgroup=replicate,
+                    # showlegend=False,
+                    showlegend=show_legend_here,
+                    marker_color=replicates_color_discrete_map.get(replicate),
+                    offsetgroup=replicate,
+                    hovertemplate=(
+                        f"{condition_col}: %{{x}}<br>"
+                        f"Replicate: {replicate}<br>"
+                        "Edited / covered sites: %{y:.2f}%<extra></extra>"
+                    ),
                 ),
-            ),
-            row=1,
-            col=col,
-        )
+                # row=2,
+                row=row,
+                col=col,
+            )
 
-        fig.add_trace(
-            go.Bar(
-                x=rep_df[condition_col],
-                y=rep_df["%EditedOfCoveredSites"],
-                name=replicate,
-                legendgroup=replicate,
-                showlegend=False,
-                marker_color=replicates_color_discrete_map.get(replicate),
-                offsetgroup=replicate,
-                hovertemplate=(
-                    f"{condition_col}: %{{x}}<br>"
-                    f"Replicate: {replicate}<br>"
-                    "Edited / covered sites: %{y:.2f}%<extra></extra>"
-                ),
-            ),
-            row=2,
-            col=col,
-        )
+        # fig.update_xaxes(
+        #     categoryorder="array",
+        #     categoryarray=fixed_conditions,
+        #     # tickangle=45,
+        #     row=1,
+        #     col=col,
+        # )
+        # fig.update_xaxes(
+        #     categoryorder="array",
+        #     categoryarray=fixed_conditions,
+        #     # tickangle=45,
+        #     # row=2,
+        #     row=row,
+        #     col=col,
+        # )
 
-    fig.update_xaxes(
-        categoryorder="array",
-        categoryarray=fixed_conditions,
-        # tickangle=45,
-        row=1,
-        col=col,
-    )
-    fig.update_xaxes(
-        categoryorder="array",
-        categoryarray=fixed_conditions,
-        # tickangle=45,
-        row=2,
-        col=col,
-    )
+    # fig.update_yaxes(dtick=50, row=1, col=col)
+    # fig.update_yaxes(dtick=10, row=2, col=col)
+    # fig.update_yaxes(dtick=10, row=1, col=col)
 
-    fig.update_yaxes(dtick=50, row=1, col=col)
-    fig.update_yaxes(dtick=10, row=2, col=col)
-
+# fig.update_yaxes(
+#     title_text="Editing sites",
+#     row=1,
+#     col=1,
+# )
 fig.update_yaxes(
-    title_text="Editing sites",
-    row=1,
-    col=1,
+    # title_text="Edited /<br>covered sites [%]",
+    # title_text="Edited / covered sites [%]",
+    dtick=10,
+    # row=2,
+    # row=1,
+    # col=1,
 )
 
-fig.update_yaxes(
-    title_text="Edited /<br>covered sites [%]",
-    row=2,
-    col=1,
-)
+width = max(1200, 320 * num_cols)
+# height = 600
+height = 800
+
+# title = f"Number of sites edited per sample, per gene — coverage / sample ≥ {min_total_coverage}"
 
 fig.update_layout(
     template=template,
-    width=max(1500, 320 * num_cols),
-    # height=800,
-    height=600,
-    title=f"Number of sites edited per replicate, per gene — coverage / sample ≥ {min_total_coverage}",
+    width=width,
+    height=height,
+    # title=title,
     barmode="group",
-    margin=dict(l=90, r=30, t=110, b=100),
+    # margin=dict(l=90, r=30, t=110, b=100),
+    legend=dict(
+        title_text="Sample",
+        tracegroupgap=0,
+    )
+)
+
+fig.write_image(
+    Path(
+        out_dir,
+        f"Number of sites edited per sample, per gene.PacBio3.svg"
+    ),
+    height=height,
+    width=width,
 )
 
 fig.show()
@@ -12856,6 +12486,10 @@ for condition in fixed_conditions:
         .sum(axis=1)
         .value_counts()
     )
+    prots_with_0_replicates_considering_original_reads = (
+        num_of_proteins_covered_by_x_replicates_considering_original_reads
+        .get(0, 0)
+    )
     prots_with_1_replicates_considering_original_reads = num_of_proteins_covered_by_x_replicates_considering_original_reads.get(1, 0)
     prots_with_2_replicates_considering_original_reads = num_of_proteins_covered_by_x_replicates_considering_original_reads.get(2, 0)
     prots_with_3_replicates_considering_original_reads = num_of_proteins_covered_by_x_replicates_considering_original_reads.get(3, 0)
@@ -13085,80 +12719,80 @@ ic(
 wide_prct_min_proteins_with_x_replicate_per_min_total_reads_contribution_df.head()
 
 # %%
-fig = px.line(
-    wide_min_proteins_with_x_replicate_per_min_total_reads_contribution_df,
-    facet_col=condition_col,
-    line_dash="ContributionLabel",
-    color="ContributionLabel",
-    x="NumOfReplicates",
-    y="NumOfProteins",
-    labels={
-        "NumOfReplicates": "Number of replicates",
-        "NumOfProteins": "Number of distinct proteins",
+# fig = px.line(
+#     wide_min_proteins_with_x_replicate_per_min_total_reads_contribution_df,
+#     facet_col=condition_col,
+#     line_dash="ContributionLabel",
+#     color="ContributionLabel",
+#     x="NumOfReplicates",
+#     y="NumOfProteins",
+#     labels={
+#         "NumOfReplicates": "Number of replicates",
+#         "NumOfProteins": "Number of distinct proteins",
     
-        "ContributionLabel": ""
-    },
-    color_discrete_sequence=px.colors.qualitative.G10,
-    category_orders={
-        condition_col: fixed_conditions,
-    },
-)
-fig.update_traces(marker=dict(opacity=0.7))
-fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
-fig.update_layout(
-    width=1200,
-    height=400,
-    # height=600,
-    template=template,
-)
-fig.show()
+#         "ContributionLabel": ""
+#     },
+#     color_discrete_sequence=px.colors.qualitative.G10,
+#     category_orders={
+#         condition_col: fixed_conditions,
+#     },
+# )
+# fig.update_traces(marker=dict(opacity=0.7))
+# fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+# fig.update_layout(
+#     width=1200,
+#     height=400,
+#     # height=600,
+#     template=template,
+# )
+# fig.show()
 
 # %%
-fig = px.line(
-    wide_prct_min_proteins_with_x_replicate_per_min_total_reads_contribution_df,
-    facet_col=condition_col,
-    line_dash="ContributionLabel",
-    color="ContributionLabel",
-    x="NumOfReplicates",
-    y="%NumOfProteins",
-    labels={
-        "NumOfReplicates": "Number of replicates",
-        "%NumOfProteins": "% of distinct proteins",
-        "ContributionLabel": ""
-    },
-    color_discrete_sequence=px.colors.qualitative.G10,
-    category_orders={
-        condition_col: fixed_conditions,
-    },
-)
-fig.update_traces(marker=dict(opacity=0.7))
-fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
-fig.update_yaxes(
-    range=[0, 100],
-    dtick=10,
-)
-fig.update_layout(
-    width=1200,
-    height=400,
-    # height=600,
-    template=template,
-)
-fig.show()
+# fig = px.line(
+#     wide_prct_min_proteins_with_x_replicate_per_min_total_reads_contribution_df,
+#     facet_col=condition_col,
+#     line_dash="ContributionLabel",
+#     color="ContributionLabel",
+#     x="NumOfReplicates",
+#     y="%NumOfProteins",
+#     labels={
+#         "NumOfReplicates": "Number of replicates",
+#         "%NumOfProteins": "% of distinct proteins",
+#         "ContributionLabel": ""
+#     },
+#     color_discrete_sequence=px.colors.qualitative.G10,
+#     category_orders={
+#         condition_col: fixed_conditions,
+#     },
+# )
+# fig.update_traces(marker=dict(opacity=0.7))
+# fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+# fig.update_yaxes(
+#     range=[0, 100],
+#     dtick=10,
+# )
+# fig.update_layout(
+#     width=1200,
+#     height=400,
+#     # height=600,
+#     template=template,
+# )
+# fig.show()
 
 # %%
-(
-    wide_prct_min_proteins_with_x_replicate_per_min_total_reads_contribution_df
-    .loc[
-        wide_prct_min_proteins_with_x_replicate_per_min_total_reads_contribution_df["ContributionLabel"].isin(
-            ["Total contribution ≥ 0.25", "Total contribution ≥ 0.5"]
-        )
-    ]
-    .groupby(["NumOfReplicates"])
-    .apply(
-        lambda x: x["%NumOfProteins"].mean()
-    )
-    .round(2)
-)
+# (
+#     wide_prct_min_proteins_with_x_replicate_per_min_total_reads_contribution_df
+#     .loc[
+#         wide_prct_min_proteins_with_x_replicate_per_min_total_reads_contribution_df["ContributionLabel"].isin(
+#             ["Total contribution ≥ 0.25", "Total contribution ≥ 0.5"]
+#         )
+#     ]
+#     .groupby(["NumOfReplicates"])
+#     .apply(
+#         lambda x: x["%NumOfProteins"].mean()
+#     )
+#     .round(2)
+# )
 
 # %%
 
@@ -13737,1564 +13371,6 @@ top_x_wide_prct_min_proteins_with_x_replicate_per_min_total_reads_contribution_d
 )
 
 # %%
-# contribution_order = [
-#     "Original reads only",
-#     # "Total contribution > 0",  # Too permissive for the main comparison
-#     "Total contribution ≥ 0.25",
-#     "Total contribution ≥ 0.5",
-#     "Total contribution ≥ 1",
-# ]
-
-# top_x_order = [
-#     5,
-#     10,
-#     50,
-#     100,
-# ]
-
-# top_x_labels = [
-#     f"Top {top_x}"
-#     for top_x in top_x_order
-# ]
-
-
-# # Convert the exact 0/1/2/3-replicate distribution into
-# # biologically clearer cumulative recurrence measurements.
-# top_x_recurrence_comparison_df = (
-#     top_x_wide_prct_min_proteins_with_x_replicate_per_min_total_reads_contribution_df
-#     .loc[
-#         lambda x: x["ContributionLabel"].isin(contribution_order)
-#     ]
-#     .pivot_table(
-#         index=[
-#             "TopXIsoforms",
-#             condition_col,
-#             "ContributionLabel",
-#         ],
-#         columns="NumOfReplicates",
-#         values="%NumOfProteins",
-#         aggfunc="first",
-#         fill_value=0,
-#     )
-#     .rename_axis(columns=None)
-#     .reset_index()
-# )
-
-
-# # Ensure that all four replicate-count columns exist,
-# # even if one category is absent from the data.
-# for num_of_replicates in range(4):
-#     if num_of_replicates not in top_x_recurrence_comparison_df.columns:
-#         top_x_recurrence_comparison_df[num_of_replicates] = 0.0
-
-
-# top_x_recurrence_comparison_df = (
-#     top_x_recurrence_comparison_df
-#     .assign(
-#         AtLeast2Replicates=lambda x: (
-#             x[2] + x[3]
-#         ),
-#         All3Replicates=lambda x: x[3],
-#         TopXIsoformsLabel=lambda x: (
-#             "Top " + x["TopXIsoforms"].astype(str)
-#         ),
-#     )
-# )
-
-
-# top_x_recurrence_comparison_long_df = (
-#     top_x_recurrence_comparison_df
-#     .melt(
-#         id_vars=[
-#             "TopXIsoforms",
-#             "TopXIsoformsLabel",
-#             condition_col,
-#             "ContributionLabel",
-#         ],
-#         value_vars=[
-#             "AtLeast2Replicates",
-#             "All3Replicates",
-#         ],
-#         var_name="RecurrenceDefinition",
-#         value_name="%NumOfProteins",
-#     )
-#     .replace(
-#         {
-#             "RecurrenceDefinition": {
-#                 "AtLeast2Replicates": "At least 2 replicates",
-#                 "All3Replicates": "All 3 replicates",
-#             }
-#         }
-#     )
-# )
-
-
-# fig = px.line(
-#     top_x_recurrence_comparison_long_df,
-#     facet_col=condition_col,
-#     facet_row="RecurrenceDefinition",
-#     x="TopXIsoformsLabel",
-#     y="%NumOfProteins",
-#     color="ContributionLabel",
-#     line_dash="ContributionLabel",
-#     markers=True,
-#     category_orders={
-#         condition_col: fixed_conditions,
-#         "TopXIsoformsLabel": top_x_labels,
-#         "ContributionLabel": contribution_order,
-#         "RecurrenceDefinition": [
-#             "At least 2 replicates",
-#             "All 3 replicates",
-#         ],
-#     },
-#     labels={
-#         # "TopXIsoformsLabel": "Top expressed isoforms",
-#         "TopXIsoformsLabel": "Most highly expressed isoforms",
-#         "%NumOfProteins": "% of top isoforms",
-#         "ContributionLabel": "",
-#         "RecurrenceDefinition": "",
-#     },
-#     color_discrete_sequence=px.colors.qualitative.G10,
-#     facet_col_spacing=0.05,
-#     facet_row_spacing=0.12,
-# )
-
-
-# fig.for_each_annotation(
-#     lambda annotation: annotation.update(
-#         text=(
-#             annotation.text.split("=")[-1]
-#         )
-#     )
-# )
-
-
-# fig.update_traces(
-#     marker={
-#         "size": 7,
-#         "opacity": 0.8,
-#     },
-#     line={
-#         "width": 2.5,
-#     },
-# )
-
-
-# fig.update_yaxes(
-#     range=[0, 102],
-#     dtick=10,
-# )
-
-
-# fig.update_layout(
-#     width=1200,
-#     height=650,
-#     template=template,
-#     legend_title_text="",
-# )
-
-
-# fig.show()
-
-# %%
-# contribution_order = [
-#     "Original reads only",
-#     # "Total contribution > 0",  # Too permissive for the main comparison
-#     "Total contribution ≥ 0.25",
-#     "Total contribution ≥ 0.5",
-#     "Total contribution ≥ 1",
-# ]
-
-# top_x_order = [
-#     5,
-#     10,
-#     50,
-#     100,
-#     # 200
-# ]
-
-# top_x_position_map = {
-#     5: 0,
-#     10: 1,
-#     50: 2,
-#     100: 3,
-# }
-
-# x_tick_values = [
-#     0,
-#     1,
-#     2,
-#     3,
-#     5,
-# ]
-
-# x_tick_labels = [
-#     "Top 5",
-#     "Top 10",
-#     "Top 50",
-#     "Top 100",
-#     "All isoforms",
-# ]
-
-
-# def create_cumulative_recurrence_df(
-#     source_df,
-#     pivot_index_cols,
-# ):
-#     """
-#     Convert the exact percentages of proteins supported by
-#     0/1/2/3 replicates into two cumulative recurrence measures:
-
-#     1. Supported by at least 2 replicates.
-#     2. Supported by all 3 replicates.
-#     """
-
-#     recurrence_df = (
-#         source_df
-#         .loc[
-#             lambda x: x["ContributionLabel"].isin(
-#                 contribution_order
-#             )
-#         ]
-#         .pivot_table(
-#             index=pivot_index_cols,
-#             columns="NumOfReplicates",
-#             values="%NumOfProteins",
-#             aggfunc="first",
-#             fill_value=0,
-#         )
-#         .rename_axis(columns=None)
-#         .reset_index()
-#     )
-
-#     # Ensure that all four exact replicate-count columns exist.
-#     for num_of_replicates in range(4):
-#         if num_of_replicates not in recurrence_df.columns:
-#             recurrence_df[num_of_replicates] = 0.0
-
-#     recurrence_df = (
-#         recurrence_df
-#         .assign(
-#             AtLeast2Replicates=lambda x: (
-#                 x[2] + x[3]
-#             ),
-#             All3Replicates=lambda x: x[3],
-#         )
-#         .melt(
-#             id_vars=pivot_index_cols,
-#             value_vars=[
-#                 "AtLeast2Replicates",
-#                 "All3Replicates",
-#             ],
-#             var_name="RecurrenceDefinition",
-#             value_name="%NumOfProteins",
-#         )
-#         .replace(
-#             {
-#                 "RecurrenceDefinition": {
-#                     "AtLeast2Replicates": (
-#                         "At least 2 replicates"
-#                     ),
-#                     "All3Replicates": (
-#                         "All 3 replicates"
-#                     ),
-#                 }
-#             }
-#         )
-#     )
-
-#     return recurrence_df
-
-
-# # ================================================================
-# # Top 5 / 10 / 50 / 100 isoforms
-# # ================================================================
-
-# top_x_recurrence_comparison_long_df = (
-#     create_cumulative_recurrence_df(
-#         source_df=(
-#             top_x_wide_prct_min_proteins_with_x_replicate_per_min_total_reads_contribution_df
-#         ),
-#         pivot_index_cols=[
-#             "TopXIsoforms",
-#             condition_col,
-#             "ContributionLabel",
-#             "AllProts",
-#         ],
-#     )
-#     .assign(
-#         XPosition=lambda x: (
-#             x["TopXIsoforms"]
-#             .map(top_x_position_map)
-#         ),
-#         IsoformSetLabel=lambda x: (
-#             "Top "
-#             + x["TopXIsoforms"].astype(str)
-#         ),
-#     )
-# )
-
-
-# # ================================================================
-# # All inferred isoforms in each gene
-# # ================================================================
-
-# all_isoforms_recurrence_comparison_long_df = (
-#     create_cumulative_recurrence_df(
-#         source_df=(
-#             wide_prct_min_proteins_with_x_replicate_per_min_total_reads_contribution_df
-#         ),
-#         pivot_index_cols=[
-#             condition_col,
-#             "ContributionLabel",
-#             "AllProts",
-#         ],
-#     )
-#     .assign(
-#         TopXIsoforms=np.nan,
-#         XPosition=5,
-#         IsoformSetLabel="All isoforms",
-#     )
-# )
-
-
-# # ================================================================
-# # Combine Top-X and all-isoform results
-# # ================================================================
-
-# recurrence_comparison_with_all_isoforms_df = (
-#     pd.concat(
-#         [
-#             top_x_recurrence_comparison_long_df,
-#             all_isoforms_recurrence_comparison_long_df,
-#         ],
-#         ignore_index=True,
-#     )
-# )
-
-
-# # Insert a missing-value point between Top 100 and All isoforms.
-# # Plotly will therefore not connect the All-isoforms point to
-# # the Top-X line.
-# separator_df = (
-#     recurrence_comparison_with_all_isoforms_df
-#     .loc[
-#         :,
-#         [
-#             condition_col,
-#             "ContributionLabel",
-#             "RecurrenceDefinition",
-#         ],
-#     ]
-#     .drop_duplicates()
-#     .assign(
-#         TopXIsoforms=np.nan,
-#         AllProts=np.nan,
-#         XPosition=4,
-#         IsoformSetLabel="",
-#         **{
-#             "%NumOfProteins": np.nan,
-#         },
-#     )
-# )
-
-
-# recurrence_comparison_with_all_isoforms_df = (
-#     pd.concat(
-#         [
-#             recurrence_comparison_with_all_isoforms_df,
-#             separator_df,
-#         ],
-#         ignore_index=True,
-#     )
-#     .sort_values(
-#         [
-#             "RecurrenceDefinition",
-#             condition_col,
-#             "ContributionLabel",
-#             "XPosition",
-#         ],
-#         ignore_index=True,
-#     )
-# )
-# recurrence_comparison_with_all_isoforms_df
-
-# %%
-# # ================================================================
-# # Plot
-# # ================================================================
-
-# fig = px.line(
-#     recurrence_comparison_with_all_isoforms_df,
-#     facet_col=condition_col,
-#     facet_row="RecurrenceDefinition",
-#     x="XPosition",
-#     y="%NumOfProteins",
-#     color="ContributionLabel",
-#     line_dash="ContributionLabel",
-#     markers=True,
-#     category_orders={
-#         condition_col: fixed_conditions,
-#         "ContributionLabel": contribution_order,
-#         "RecurrenceDefinition": [
-#             "At least 2 replicates",
-#             "All 3 replicates",
-#         ],
-#     },
-#     labels={
-#         "XPosition": "Analyzed isoform set",
-#         "%NumOfProteins": "% of isoforms in set",
-#         "ContributionLabel": "",
-#         "RecurrenceDefinition": "",
-#         "AllProts": "Isoforms in set",
-#     },
-#     hover_data={
-#         "IsoformSetLabel": True,
-#         "AllProts": ":.0f",
-#         "XPosition": False,
-#         "TopXIsoforms": False,
-#     },
-#     color_discrete_sequence=px.colors.qualitative.G10,
-#     facet_col_spacing=0.05,
-#     facet_row_spacing=0.12,
-# )
-
-
-# fig.for_each_annotation(
-#     lambda annotation: annotation.update(
-#         text=annotation.text.split("=")[-1]
-#     )
-# )
-
-
-# fig.update_traces(
-#     marker={
-#         "size": 7,
-#         "opacity": 0.8,
-#     },
-#     line={
-#         "width": 2.5,
-#     },
-#     connectgaps=False,
-# )
-
-
-# fig.update_xaxes(
-#     tickmode="array",
-#     tickvals=x_tick_values,
-#     ticktext=x_tick_labels,
-#     range=[-0.25, 5.3],
-# )
-
-
-# fig.update_yaxes(
-#     range=[0, 102],
-#     dtick=10,
-# )
-
-
-# # Visually separate the Top-X analysis from all inferred isoforms.
-# fig.add_vline(
-#     x=4,
-#     # line_width=1.2,
-#     line_width=4,
-#     # line_color="black",
-#     line_dash="dot",
-#     opacity=0.55,
-#     # opacity=0.7,
-#     row="all",
-#     col="all",
-# )
-
-
-# fig.update_layout(
-#     width=1250,
-#     height=650,
-#     template=template,
-#     legend_title_text="",
-# )
-
-
-# fig.show()
-
-# %%
-# import numpy as np
-# import plotly.express as px
-# import plotly.graph_objects as go
-
-# from plotly.subplots import make_subplots
-
-
-# recurrence_order = [
-#     "At least 2 replicates",
-#     "All 3 replicates",
-# ]
-
-# contribution_order = [
-#     "Original reads only",
-#     "Total contribution ≥ 0.25",
-#     "Total contribution ≥ 0.5",
-#     "Total contribution ≥ 1",
-# ]
-
-# top_x_positions = {
-#     5: 0,
-#     10: 1,
-#     50: 2,
-#     100: 3,
-# }
-
-# top_x_tickvals = [
-#     0,
-#     1,
-#     2,
-#     3,
-# ]
-
-# top_x_ticktext = [
-#     "Top 5",
-#     "Top 10",
-#     "Top 50",
-#     "Top 100",
-# ]
-
-
-# # Keep only actual observations and remove the artificial NaN separator rows.
-# plot_df = (
-#     recurrence_comparison_with_all_isoforms_df
-#     .loc[
-#         recurrence_comparison_with_all_isoforms_df[
-#             "%NumOfProteins"
-#         ].notna()
-#     ]
-#     .loc[
-#         lambda x: x["ContributionLabel"].isin(
-#             contribution_order
-#         )
-#     ]
-#     .copy()
-# )
-
-
-# top_isoforms_plot_df = (
-#     plot_df
-#     .loc[
-#         plot_df["IsoformSetLabel"].ne("All isoforms")
-#     ]
-#     .assign(
-#         TopXPosition=lambda x: (
-#             x["TopXIsoforms"]
-#             .astype(int)
-#             .map(top_x_positions)
-#         )
-#     )
-# )
-
-
-# all_isoforms_plot_df = (
-#     plot_df
-#     .loc[
-#         plot_df["IsoformSetLabel"].eq("All isoforms")
-#     ]
-#     .copy()
-# )
-
-
-# # Consistent visual mapping across all panels.
-# contribution_colors = dict(
-#     zip(
-#         contribution_order,
-#         px.colors.qualitative.G10[
-#             :len(contribution_order)
-#         ],
-#     )
-# )
-
-# contribution_dashes = {
-#     "Original reads only": "solid",
-#     "Total contribution ≥ 0.25": "dot",
-#     "Total contribution ≥ 0.5": "dash",
-#     "Total contribution ≥ 1": "longdash",
-# }
-
-
-# # For each gene:
-# #   wide Top-X panel
-# #   narrow All-isoforms panel
-# #
-# # Blank columns separate the gene groups.
-# gene_panel_columns = {
-#     condition: (
-#         1 + gene_idx * 3,
-#         2 + gene_idx * 3,
-#     )
-#     for gene_idx, condition in enumerate(fixed_conditions)
-# }
-
-
-# subplot_specs = [
-#     [
-#         {"type": "xy"},
-#         {"type": "xy"},
-#         None,
-#         {"type": "xy"},
-#         {"type": "xy"},
-#         None,
-#         {"type": "xy"},
-#         {"type": "xy"},
-#     ],
-#     [
-#         {"type": "xy"},
-#         {"type": "xy"},
-#         None,
-#         {"type": "xy"},
-#         {"type": "xy"},
-#         None,
-#         {"type": "xy"},
-#         {"type": "xy"},
-#     ],
-# ]
-
-
-# fig = make_subplots(
-#     rows=2,
-#     cols=8,
-#     specs=subplot_specs,
-#     shared_yaxes="rows",
-
-#     # Small gap within each gene pair, while blank columns provide
-#     # a clearer separation between genes.
-#     horizontal_spacing=0.006,
-#     vertical_spacing=0.13,
-
-#     column_widths=[
-#         0.245,  # gene 1: Top-X
-#         0.045,  # gene 1: All
-#         0.035,  # spacer
-
-#         0.245,  # gene 2: Top-X
-#         0.045,  # gene 2: All
-#         0.035,  # spacer
-
-#         0.245,  # gene 3: Top-X
-#         0.045,  # gene 3: All
-#     ],
-
-#     x_title="Isoforms",
-#     y_title="% of isoforms in set",
-# )
-
-
-# for recurrence_idx, recurrence_definition in enumerate(
-#     recurrence_order,
-#     start=1,
-# ):
-#     for gene_idx, condition in enumerate(fixed_conditions):
-
-#         top_x_col, all_isoforms_col = (
-#             gene_panel_columns[condition]
-#         )
-
-#         gene_top_x_df = (
-#             top_isoforms_plot_df
-#             .loc[
-#                 top_isoforms_plot_df[
-#                     condition_col
-#                 ].eq(condition)
-#                 & top_isoforms_plot_df[
-#                     "RecurrenceDefinition"
-#                 ].eq(recurrence_definition)
-#             ]
-#         )
-
-#         gene_all_isoforms_df = (
-#             all_isoforms_plot_df
-#             .loc[
-#                 all_isoforms_plot_df[
-#                     condition_col
-#                 ].eq(condition)
-#                 & all_isoforms_plot_df[
-#                     "RecurrenceDefinition"
-#                 ].eq(recurrence_definition)
-#             ]
-#         )
-
-#         for contribution_label in contribution_order:
-
-#             top_x_subset = (
-#                 gene_top_x_df
-#                 .loc[
-#                     gene_top_x_df[
-#                         "ContributionLabel"
-#                     ].eq(contribution_label)
-#                 ]
-#                 .sort_values("TopXPosition")
-#             )
-
-#             all_isoforms_subset = (
-#                 gene_all_isoforms_df
-#                 .loc[
-#                     gene_all_isoforms_df[
-#                         "ContributionLabel"
-#                     ].eq(contribution_label)
-#                 ]
-#             )
-
-#             # Show every legend item only once.
-#             show_legend = (
-#                 recurrence_idx == 1
-#                 and gene_idx == 0
-#             )
-
-#             if not top_x_subset.empty:
-#                 fig.add_trace(
-#                     go.Scatter(
-#                         x=top_x_subset["TopXPosition"],
-#                         y=top_x_subset["%NumOfProteins"],
-#                         mode="lines+markers",
-#                         name=contribution_label,
-#                         legendgroup=contribution_label,
-#                         showlegend=show_legend,
-#                         line={
-#                             "color": contribution_colors[
-#                                 contribution_label
-#                             ],
-#                             "dash": contribution_dashes[
-#                                 contribution_label
-#                             ],
-#                             "width": 2.5,
-#                         },
-#                         marker={
-#                             "color": contribution_colors[
-#                                 contribution_label
-#                             ],
-#                             "size": 7,
-#                             "opacity": 0.8,
-#                         },
-#                         customdata=np.column_stack(
-#                             [
-#                                 top_x_subset[
-#                                     "TopXIsoforms"
-#                                 ],
-#                                 top_x_subset[
-#                                     "AllProts"
-#                                 ],
-#                             ]
-#                         ),
-#                         hovertemplate=(
-#                             f"{condition}<br>"
-#                             f"{recurrence_definition}<br>"
-#                             f"{contribution_label}<br>"
-#                             "Isoform set: Top %{customdata[0]:.0f}<br>"
-#                             "Isoforms in set: %{customdata[1]:.0f}<br>"
-#                             "% supported: %{y:.2f}%"
-#                             "<extra></extra>"
-#                         ),
-#                     ),
-#                     row=recurrence_idx,
-#                     col=top_x_col,
-#                 )
-
-#             if not all_isoforms_subset.empty:
-#                 all_isoforms_row = (
-#                     all_isoforms_subset.iloc[0]
-#                 )
-
-#                 fig.add_trace(
-#                     go.Scatter(
-#                         x=[0],
-#                         y=[
-#                             all_isoforms_row[
-#                                 "%NumOfProteins"
-#                             ]
-#                         ],
-#                         mode="markers",
-#                         name=contribution_label,
-#                         legendgroup=contribution_label,
-#                         showlegend=False,
-#                         marker={
-#                             "color": contribution_colors[
-#                                 contribution_label
-#                             ],
-#                             "size": 8,
-#                             "opacity": 0.85,
-#                             "symbol": "circle",
-#                         },
-#                         customdata=[
-#                             [
-#                                 all_isoforms_row[
-#                                     "AllProts"
-#                                 ]
-#                             ]
-#                         ],
-#                         hovertemplate=(
-#                             f"{condition}<br>"
-#                             f"{recurrence_definition}<br>"
-#                             f"{contribution_label}<br>"
-#                             "Isoform set: All isoforms<br>"
-#                             "Isoforms in set: %{customdata[0]:.0f}<br>"
-#                             "% supported: %{y:.2f}%"
-#                             "<extra></extra>"
-#                         ),
-#                     ),
-#                     row=recurrence_idx,
-#                     col=all_isoforms_col,
-#                 )
-
-
-# # ===============================================================
-# # Axes
-# # ===============================================================
-
-# for recurrence_idx in range(1, 3):
-#     for condition in fixed_conditions:
-
-#         top_x_col, all_isoforms_col = (
-#             gene_panel_columns[condition]
-#         )
-
-#         # Top-X panels
-#         fig.update_xaxes(
-#             tickmode="array",
-#             tickvals=top_x_tickvals,
-#             ticktext=top_x_ticktext,
-#             range=[-0.25, 3.25],
-#             showgrid=False,
-#             showline=True,
-#             linewidth=1,
-#             ticks="outside",
-#             showticklabels=True,
-#             title_text="",
-#             row=recurrence_idx,
-#             col=top_x_col,
-#         )
-
-#         # Narrow All-isoforms panels
-#         fig.update_xaxes(
-#             tickmode="array",
-#             tickvals=[0],
-#             ticktext=["All"],
-#             range=[-0.32, 0.32],
-#             showgrid=False,
-#             showline=True,
-#             linewidth=1,
-#             ticks="outside",
-#             showticklabels=True,
-#             title_text="",
-#             row=recurrence_idx,
-#             col=all_isoforms_col,
-#         )
-
-#         # Main Top-X panel
-#         fig.update_yaxes(
-#             range=[0, 102],
-#             dtick=10,
-#             showgrid=True,
-#             zeroline=False,
-#             title_text="",
-#             row=recurrence_idx,
-#             col=top_x_col,
-#         )
-
-#         # Narrow All panel with a very light horizontal grid
-#         fig.update_yaxes(
-#             range=[0, 102],
-#             dtick=10,
-#             showgrid=True,
-#             gridcolor="rgba(42, 63, 95, 0.10)",
-#             gridwidth=0.5,
-#             zeroline=False,
-#             showticklabels=False,
-#             title_text="",
-#             row=recurrence_idx,
-#             col=all_isoforms_col,
-#         )
-
-
-# # Only the first panel in each row shows Y tick labels.
-# for recurrence_idx in range(1, 3):
-
-#     fig.update_yaxes(
-#         showticklabels=True,
-#         row=recurrence_idx,
-#         col=1,
-#     )
-
-#     for col in [
-#         2,
-#         4,
-#         5,
-#         7,
-#         8,
-#     ]:
-#         fig.update_yaxes(
-#             showticklabels=False,
-#             row=recurrence_idx,
-#             col=col,
-#         )
-
-
-# # ===============================================================
-# # Gene titles centered above each Top-X + All panel pair
-# # ===============================================================
-
-# def get_layout_axis_name(axis_prefix, axis_number):
-#     if axis_number == 1:
-#         return f"{axis_prefix}axis"
-
-#     return f"{axis_prefix}axis{axis_number}"
-
-
-# for gene_idx, condition in enumerate(fixed_conditions):
-
-#     top_axis_number = gene_idx * 2 + 1
-#     all_axis_number = gene_idx * 2 + 2
-
-#     top_axis_name = get_layout_axis_name(
-#         "x",
-#         top_axis_number,
-#     )
-
-#     all_axis_name = get_layout_axis_name(
-#         "x",
-#         all_axis_number,
-#     )
-
-#     left_edge = fig.layout[
-#         top_axis_name
-#     ].domain[0]
-
-#     right_edge = fig.layout[
-#         all_axis_name
-#     ].domain[1]
-
-#     fig.add_annotation(
-#         x=(left_edge + right_edge) / 2,
-#         y=1.035,
-#         xref="paper",
-#         yref="paper",
-#         text=condition,
-#         showarrow=False,
-#         xanchor="center",
-#         yanchor="middle",
-#         font={
-#             "size": 13,
-#         },
-#     )
-
-
-# # ===============================================================
-# # Row labels centered vertically within each row
-# # ===============================================================
-
-# top_row_domain = fig.layout.yaxis.domain
-# bottom_row_domain = fig.layout.yaxis7.domain
-
-# top_row_center = (
-#     top_row_domain[0]
-#     + top_row_domain[1]
-# ) / 2
-
-# bottom_row_center = (
-#     bottom_row_domain[0]
-#     + bottom_row_domain[1]
-# ) / 2
-
-
-# fig.add_annotation(
-#     x=1.012,
-#     y=top_row_center,
-#     xref="paper",
-#     yref="paper",
-#     text="At least 2 replicates",
-#     textangle=90,
-#     showarrow=False,
-#     xanchor="left",
-#     yanchor="middle",
-#     font={
-#         "size": 12,
-#     },
-# )
-
-# fig.add_annotation(
-#     x=1.012,
-#     y=bottom_row_center,
-#     xref="paper",
-#     yref="paper",
-#     text="All 3 replicates",
-#     textangle=90,
-#     showarrow=False,
-#     xanchor="left",
-#     yanchor="middle",
-#     font={
-#         "size": 12,
-#     },
-# )
-
-
-# fig.update_layout(
-#     width=1320,
-#     height=650,
-#     template=template,
-#     legend_title_text="",
-#     legend={
-#         "x": 1.048,
-#         "y": 1,
-#         "xanchor": "left",
-#         "yanchor": "top",
-#     },
-#     margin={
-#         "l": 85,
-#         "r": 240,
-#         "t": 70,
-#         "b": 70,
-#     },
-# )
-
-
-# fig.show()
-
-# %%
-# import numpy as np
-# import plotly.express as px
-# import plotly.graph_objects as go
-
-# from plotly.subplots import make_subplots
-
-
-# recurrence_order = [
-#     "At least 2 replicates",
-#     "All 3 replicates",
-# ]
-
-# # Legend order: permissive → stringent
-# contribution_order = [
-#     "Total contribution ≥ 0.25",
-#     "Total contribution ≥ 0.5",
-#     "Total contribution ≥ 1",
-#     "Original reads only",
-# ]
-
-# top_x_positions = {
-#     5: 0,
-#     10: 1,
-#     50: 2,
-#     100: 3,
-# }
-
-# top_x_tickvals = [
-#     0,
-#     1,
-#     2,
-#     3,
-# ]
-
-# top_x_ticktext = [
-#     "Top 5",
-#     "Top 10",
-#     "Top 50",
-#     "Top 100",
-# ]
-
-
-# # Keep only actual observations and remove the artificial NaN separator rows.
-# plot_df = (
-#     recurrence_comparison_with_all_isoforms_df
-#     .loc[
-#         recurrence_comparison_with_all_isoforms_df[
-#             "%NumOfProteins"
-#         ].notna()
-#     ]
-#     .loc[
-#         lambda x: x["ContributionLabel"].isin(
-#             contribution_order
-#         )
-#     ]
-#     .copy()
-# )
-
-
-# top_isoforms_plot_df = (
-#     plot_df
-#     .loc[
-#         plot_df["IsoformSetLabel"].ne("All isoforms")
-#     ]
-#     .assign(
-#         TopXPosition=lambda x: (
-#             x["TopXIsoforms"]
-#             .astype(int)
-#             .map(top_x_positions)
-#         )
-#     )
-# )
-
-
-# all_isoforms_plot_df = (
-#     plot_df
-#     .loc[
-#         plot_df["IsoformSetLabel"].eq("All isoforms")
-#     ]
-#     .copy()
-# )
-
-
-# # Explicit mappings preserve the previous colors even though
-# # the legend order has changed.
-# contribution_colors = {
-#     "Original reads only": px.colors.qualitative.G10[0],
-#     "Total contribution ≥ 0.25": px.colors.qualitative.G10[1],
-#     "Total contribution ≥ 0.5": px.colors.qualitative.G10[2],
-#     "Total contribution ≥ 1": px.colors.qualitative.G10[3],
-# }
-
-# contribution_dashes = {
-#     "Original reads only": "solid",
-#     "Total contribution ≥ 0.25": "dot",
-#     "Total contribution ≥ 0.5": "dash",
-#     "Total contribution ≥ 1": "longdash",
-# }
-
-
-# # For each gene:
-# #   wide Top-X panel
-# #   narrow All-isoforms panel
-# #
-# # Blank columns separate the gene groups.
-# gene_panel_columns = {
-#     condition: (
-#         1 + gene_idx * 3,
-#         2 + gene_idx * 3,
-#     )
-#     for gene_idx, condition in enumerate(fixed_conditions)
-# }
-
-
-# subplot_specs = [
-#     [
-#         {"type": "xy"},
-#         {"type": "xy"},
-#         None,
-#         {"type": "xy"},
-#         {"type": "xy"},
-#         None,
-#         {"type": "xy"},
-#         {"type": "xy"},
-#     ],
-#     [
-#         {"type": "xy"},
-#         {"type": "xy"},
-#         None,
-#         {"type": "xy"},
-#         {"type": "xy"},
-#         None,
-#         {"type": "xy"},
-#         {"type": "xy"},
-#     ],
-# ]
-
-
-# fig = make_subplots(
-#     rows=2,
-#     cols=8,
-#     specs=subplot_specs,
-#     shared_yaxes="rows",
-
-#     # Small gap within each gene pair, while blank columns provide
-#     # a clearer separation between genes.
-#     horizontal_spacing=0.006,
-#     vertical_spacing=0.13,
-
-#     column_widths=[
-#         0.245,  # gene 1: Top-X
-#         0.045,  # gene 1: All
-#         0.035,  # spacer
-
-#         0.245,  # gene 2: Top-X
-#         0.045,  # gene 2: All
-#         0.035,  # spacer
-
-#         0.245,  # gene 3: Top-X
-#         0.045,  # gene 3: All
-#     ],
-
-#     x_title="Isoforms",
-#     y_title="% of isoforms in set",
-# )
-
-
-# for recurrence_idx, recurrence_definition in enumerate(
-#     recurrence_order,
-#     start=1,
-# ):
-#     for gene_idx, condition in enumerate(fixed_conditions):
-
-#         top_x_col, all_isoforms_col = (
-#             gene_panel_columns[condition]
-#         )
-
-#         gene_top_x_df = (
-#             top_isoforms_plot_df
-#             .loc[
-#                 top_isoforms_plot_df[
-#                     condition_col
-#                 ].eq(condition)
-#                 & top_isoforms_plot_df[
-#                     "RecurrenceDefinition"
-#                 ].eq(recurrence_definition)
-#             ]
-#         )
-
-#         gene_all_isoforms_df = (
-#             all_isoforms_plot_df
-#             .loc[
-#                 all_isoforms_plot_df[
-#                     condition_col
-#                 ].eq(condition)
-#                 & all_isoforms_plot_df[
-#                     "RecurrenceDefinition"
-#                 ].eq(recurrence_definition)
-#             ]
-#         )
-
-#         for contribution_label in contribution_order:
-
-#             top_x_subset = (
-#                 gene_top_x_df
-#                 .loc[
-#                     gene_top_x_df[
-#                         "ContributionLabel"
-#                     ].eq(contribution_label)
-#                 ]
-#                 .sort_values("TopXPosition")
-#             )
-
-#             all_isoforms_subset = (
-#                 gene_all_isoforms_df
-#                 .loc[
-#                     gene_all_isoforms_df[
-#                         "ContributionLabel"
-#                     ].eq(contribution_label)
-#                 ]
-#             )
-
-#             # Show every legend item only once.
-#             # Since traces are added according to contribution_order,
-#             # this also determines the legend order.
-#             show_legend = (
-#                 recurrence_idx == 1
-#                 and gene_idx == 0
-#             )
-
-#             if not top_x_subset.empty:
-#                 fig.add_trace(
-#                     go.Scatter(
-#                         x=top_x_subset["TopXPosition"],
-#                         y=top_x_subset["%NumOfProteins"],
-#                         mode="lines+markers",
-#                         name=contribution_label,
-#                         legendgroup=contribution_label,
-#                         showlegend=show_legend,
-#                         line={
-#                             "color": contribution_colors[
-#                                 contribution_label
-#                             ],
-#                             "dash": contribution_dashes[
-#                                 contribution_label
-#                             ],
-#                             "width": 2.5,
-#                         },
-#                         marker={
-#                             "color": contribution_colors[
-#                                 contribution_label
-#                             ],
-#                             "size": 7,
-#                             "opacity": 0.8,
-#                         },
-#                         customdata=np.column_stack(
-#                             [
-#                                 top_x_subset[
-#                                     "TopXIsoforms"
-#                                 ],
-#                                 top_x_subset[
-#                                     "AllProts"
-#                                 ],
-#                             ]
-#                         ),
-#                         hovertemplate=(
-#                             f"{condition}<br>"
-#                             f"{recurrence_definition}<br>"
-#                             f"{contribution_label}<br>"
-#                             "Isoform set: Top %{customdata[0]:.0f}<br>"
-#                             "Isoforms in set: %{customdata[1]:.0f}<br>"
-#                             "% supported: %{y:.2f}%"
-#                             "<extra></extra>"
-#                         ),
-#                     ),
-#                     row=recurrence_idx,
-#                     col=top_x_col,
-#                 )
-
-#             if not all_isoforms_subset.empty:
-#                 all_isoforms_row = (
-#                     all_isoforms_subset.iloc[0]
-#                 )
-
-#                 fig.add_trace(
-#                     go.Scatter(
-#                         x=[0],
-#                         y=[
-#                             all_isoforms_row[
-#                                 "%NumOfProteins"
-#                             ]
-#                         ],
-#                         mode="markers",
-#                         name=contribution_label,
-#                         legendgroup=contribution_label,
-#                         showlegend=False,
-#                         marker={
-#                             "color": contribution_colors[
-#                                 contribution_label
-#                             ],
-#                             "size": 8,
-#                             "opacity": 0.85,
-#                             "symbol": "circle",
-#                         },
-#                         customdata=[
-#                             [
-#                                 all_isoforms_row[
-#                                     "AllProts"
-#                                 ]
-#                             ]
-#                         ],
-#                         hovertemplate=(
-#                             f"{condition}<br>"
-#                             f"{recurrence_definition}<br>"
-#                             f"{contribution_label}<br>"
-#                             "Isoform set: All isoforms<br>"
-#                             "Isoforms in set: %{customdata[0]:.0f}<br>"
-#                             "% supported: %{y:.2f}%"
-#                             "<extra></extra>"
-#                         ),
-#                     ),
-#                     row=recurrence_idx,
-#                     col=all_isoforms_col,
-#                 )
-
-
-# # ===============================================================
-# # Axes
-# # ===============================================================
-
-# for recurrence_idx in range(1, 3):
-#     for condition in fixed_conditions:
-
-#         top_x_col, all_isoforms_col = (
-#             gene_panel_columns[condition]
-#         )
-
-#         # Top-X panels
-#         fig.update_xaxes(
-#             tickmode="array",
-#             tickvals=top_x_tickvals,
-#             ticktext=top_x_ticktext,
-#             range=[-0.25, 3.25],
-#             showgrid=False,
-#             showline=True,
-#             linewidth=1,
-#             ticks="outside",
-#             showticklabels=True,
-#             title_text="",
-#             row=recurrence_idx,
-#             col=top_x_col,
-#         )
-
-#         # Narrow All-isoforms panels
-#         fig.update_xaxes(
-#             tickmode="array",
-#             tickvals=[0],
-#             ticktext=["All"],
-#             range=[-0.32, 0.32],
-#             showgrid=False,
-#             showline=True,
-#             linewidth=1,
-#             ticks="outside",
-#             showticklabels=True,
-#             title_text="",
-#             row=recurrence_idx,
-#             col=all_isoforms_col,
-#         )
-
-#         # Main Top-X panel
-#         fig.update_yaxes(
-#             range=[0, 102],
-#             dtick=10,
-#             showgrid=True,
-#             zeroline=False,
-#             title_text="",
-#             row=recurrence_idx,
-#             col=top_x_col,
-#         )
-
-#         # Narrow All panel with a very light horizontal grid
-#         fig.update_yaxes(
-#             range=[0, 102],
-#             dtick=10,
-#             showgrid=True,
-#             gridcolor="rgba(42, 63, 95, 0.10)",
-#             gridwidth=0.5,
-#             zeroline=False,
-#             showticklabels=False,
-#             title_text="",
-#             row=recurrence_idx,
-#             col=all_isoforms_col,
-#         )
-
-
-# # Only the first panel in each row shows Y tick labels.
-# for recurrence_idx in range(1, 3):
-
-#     fig.update_yaxes(
-#         showticklabels=True,
-#         row=recurrence_idx,
-#         col=1,
-#     )
-
-#     for col in [
-#         2,
-#         4,
-#         5,
-#         7,
-#         8,
-#     ]:
-#         fig.update_yaxes(
-#             showticklabels=False,
-#             row=recurrence_idx,
-#             col=col,
-#         )
-
-
-# # ===============================================================
-# # Gene titles centered above each Top-X + All panel pair
-# # ===============================================================
-
-# def get_layout_axis_name(axis_prefix, axis_number):
-#     if axis_number == 1:
-#         return f"{axis_prefix}axis"
-
-#     return f"{axis_prefix}axis{axis_number}"
-
-
-# for gene_idx, condition in enumerate(fixed_conditions):
-
-#     top_axis_number = gene_idx * 2 + 1
-#     all_axis_number = gene_idx * 2 + 2
-
-#     top_axis_name = get_layout_axis_name(
-#         "x",
-#         top_axis_number,
-#     )
-
-#     all_axis_name = get_layout_axis_name(
-#         "x",
-#         all_axis_number,
-#     )
-
-#     left_edge = fig.layout[
-#         top_axis_name
-#     ].domain[0]
-
-#     right_edge = fig.layout[
-#         all_axis_name
-#     ].domain[1]
-
-#     fig.add_annotation(
-#         x=(left_edge + right_edge) / 2,
-#         y=1.035,
-#         xref="paper",
-#         yref="paper",
-#         text=condition,
-#         showarrow=False,
-#         xanchor="center",
-#         yanchor="middle",
-#         font={
-#             "size": 13,
-#         },
-#     )
-
-
-# # ===============================================================
-# # Row labels centered vertically within each row
-# # ===============================================================
-
-# top_row_domain = fig.layout.yaxis.domain
-# bottom_row_domain = fig.layout.yaxis7.domain
-
-# top_row_center = (
-#     top_row_domain[0]
-#     + top_row_domain[1]
-# ) / 2
-
-# bottom_row_center = (
-#     bottom_row_domain[0]
-#     + bottom_row_domain[1]
-# ) / 2
-
-
-# fig.add_annotation(
-#     x=1.012,
-#     y=top_row_center,
-#     xref="paper",
-#     yref="paper",
-#     text="At least 2 replicates",
-#     textangle=90,
-#     showarrow=False,
-#     xanchor="left",
-#     yanchor="middle",
-#     font={
-#         "size": 12,
-#     },
-# )
-
-# fig.add_annotation(
-#     x=1.012,
-#     y=bottom_row_center,
-#     xref="paper",
-#     yref="paper",
-#     text="All 3 replicates",
-#     textangle=90,
-#     showarrow=False,
-#     xanchor="left",
-#     yanchor="middle",
-#     font={
-#         "size": 12,
-#     },
-# )
-
-
-# fig.update_layout(
-#     width=1320,
-#     height=650,
-#     template=template,
-#     legend_title_text="",
-#     legend={
-#         "x": 1.048,
-#         "y": 1,
-#         "xanchor": "left",
-#         "yanchor": "top",
-#         "traceorder": "normal",
-#     },
-#     margin={
-#         "l": 85,
-#         "r": 240,
-#         "t": 70,
-#         "b": 70,
-#     },
-# )
-
-
-# fig.show()
-
-# %%
 import numpy as np
 import pandas as pd
 
@@ -15551,728 +13627,6 @@ recurrence_comparison_with_all_isoforms_df = (
 
 
 recurrence_comparison_with_all_isoforms_df
-
-# %%
-# import numpy as np
-# import pandas as pd
-# import plotly.express as px
-# import plotly.graph_objects as go
-
-# from plotly.subplots import make_subplots
-
-
-# recurrence_order = [
-#     "At least 2 replicates",
-#     "All 3 replicates",
-# ]
-
-# # Legend order: permissive → stringent
-# contribution_order = [
-#     "Total contribution ≥ 0.25",
-#     "Total contribution ≥ 0.5",
-#     "Total contribution ≥ 1",
-#     "Original reads only",
-# ]
-
-
-# # Keep only real observations and remove artificial separator rows.
-# plot_df = (
-#     recurrence_comparison_with_all_isoforms_df
-#     .loc[
-#         recurrence_comparison_with_all_isoforms_df[
-#             "%NumOfProteins"
-#         ].notna()
-#     ]
-#     .loc[
-#         lambda x: x["ContributionLabel"].isin(
-#             contribution_order
-#         )
-#     ]
-#     .copy()
-# )
-
-
-# # Detect all Top-X values dynamically.
-# top_x_order = sorted(
-#     pd.to_numeric(
-#         plot_df.loc[
-#             plot_df["IsoformSetLabel"].ne("All isoforms"),
-#             "TopXIsoforms",
-#         ].dropna(),
-#         errors="raise",
-#     )
-#     .astype(int)
-#     .unique()
-#     .tolist()
-# )
-
-# if not top_x_order:
-#     raise ValueError(
-#         "No TopXIsoforms values were found in the plotting table."
-#     )
-
-
-# top_x_positions = {
-#     top_x: position
-#     for position, top_x in enumerate(top_x_order)
-# }
-
-# top_x_tickvals = list(
-#     range(len(top_x_order))
-# )
-
-# top_x_ticktext = [
-#     f"Top {top_x}"
-#     for top_x in top_x_order
-# ]
-
-# top_x_axis_range = [
-#     -0.25,
-#     len(top_x_order) - 0.75,
-# ]
-
-# top_x_tickangle = (
-#     -30
-#     if len(top_x_order) > 6
-#     else 0
-# )
-
-
-# top_isoforms_plot_df = (
-#     plot_df
-#     .loc[
-#         plot_df["IsoformSetLabel"].ne("All isoforms")
-#     ]
-#     .assign(
-#         TopXIsoforms=lambda x: (
-#             pd.to_numeric(
-#                 x["TopXIsoforms"],
-#                 errors="raise",
-#             )
-#             .astype(int)
-#         ),
-#         TopXPosition=lambda x: (
-#             x["TopXIsoforms"]
-#             .map(top_x_positions)
-#         ),
-#     )
-# )
-
-
-# all_isoforms_plot_df = (
-#     plot_df
-#     .loc[
-#         plot_df["IsoformSetLabel"].eq("All isoforms")
-#     ]
-#     .copy()
-# )
-
-
-# if top_isoforms_plot_df["TopXPosition"].isna().any():
-#     missing_top_x_values = sorted(
-#         top_isoforms_plot_df.loc[
-#             top_isoforms_plot_df[
-#                 "TopXPosition"
-#             ].isna(),
-#             "TopXIsoforms",
-#         ]
-#         .dropna()
-#         .unique()
-#         .tolist()
-#     )
-
-#     raise ValueError(
-#         "Some TopXIsoforms values could not be mapped to plotting "
-#         f"positions: {missing_top_x_values}"
-#     )
-
-
-# # Use only genes that occur in the plotting data,
-# # while preserving fixed_conditions order.
-# available_conditions = set(
-#     plot_df[condition_col].dropna().unique()
-# )
-
-# conditions_for_plot = [
-#     condition
-#     for condition in fixed_conditions
-#     if condition in available_conditions
-# ]
-
-# if not conditions_for_plot:
-#     raise ValueError(
-#         "None of the fixed_conditions values were found in the plotting table."
-#     )
-
-
-# num_genes = len(
-#     conditions_for_plot
-# )
-
-
-# # Explicit mappings preserve the established colors.
-# contribution_colors = {
-#     "Original reads only": px.colors.qualitative.G10[0],
-#     "Total contribution ≥ 0.25": px.colors.qualitative.G10[1],
-#     "Total contribution ≥ 0.5": px.colors.qualitative.G10[2],
-#     "Total contribution ≥ 1": px.colors.qualitative.G10[3],
-# }
-
-# contribution_dashes = {
-#     "Original reads only": "solid",
-#     "Total contribution ≥ 0.25": "dot",
-#     "Total contribution ≥ 0.5": "dash",
-#     "Total contribution ≥ 1": "longdash",
-# }
-
-
-# # ===============================================================
-# # Dynamically construct subplot columns
-# #
-# # For each gene:
-# #   1. Wide Top-X panel
-# #   2. Narrow All-isoforms panel
-# #   3. Empty spacer column, except after the final gene
-# # ===============================================================
-
-# gene_panel_columns = {}
-
-# subplot_row_specs = []
-# column_widths = []
-
-# # Increase the Top-X panel width when more Top-X categories are added.
-# top_panel_width = max(
-#     5.0,
-#     len(top_x_order) + 1.0,
-# )
-
-# all_panel_width = 1.0
-# gene_spacer_width = 0.8
-
-
-# current_col = 1
-
-# for gene_idx, condition in enumerate(
-#     conditions_for_plot
-# ):
-#     top_x_col = current_col
-#     all_isoforms_col = current_col + 1
-
-#     gene_panel_columns[condition] = (
-#         top_x_col,
-#         all_isoforms_col,
-#     )
-
-#     subplot_row_specs.extend(
-#         [
-#             {"type": "xy"},
-#             {"type": "xy"},
-#         ]
-#     )
-
-#     column_widths.extend(
-#         [
-#             top_panel_width,
-#             all_panel_width,
-#         ]
-#     )
-
-#     current_col += 2
-
-#     if gene_idx < num_genes - 1:
-#         subplot_row_specs.append(None)
-#         column_widths.append(
-#             gene_spacer_width
-#         )
-#         current_col += 1
-
-
-# num_subplot_cols = len(
-#     subplot_row_specs
-# )
-
-# subplot_specs = [
-#     subplot_row_specs.copy(),
-#     subplot_row_specs.copy(),
-# ]
-
-
-# fig = make_subplots(
-#     rows=2,
-#     cols=num_subplot_cols,
-#     specs=subplot_specs,
-#     shared_yaxes="rows",
-#     horizontal_spacing=0.006,
-#     vertical_spacing=0.13,
-#     column_widths=column_widths,
-#     x_title="Isoforms",
-#     y_title="% of isoforms in set",
-# )
-
-
-# # ===============================================================
-# # Add traces
-# # ===============================================================
-
-# for recurrence_idx, recurrence_definition in enumerate(
-#     recurrence_order,
-#     start=1,
-# ):
-#     for gene_idx, condition in enumerate(
-#         conditions_for_plot
-#     ):
-#         top_x_col, all_isoforms_col = (
-#             gene_panel_columns[condition]
-#         )
-
-#         gene_top_x_df = (
-#             top_isoforms_plot_df
-#             .loc[
-#                 top_isoforms_plot_df[
-#                     condition_col
-#                 ].eq(condition)
-#                 & top_isoforms_plot_df[
-#                     "RecurrenceDefinition"
-#                 ].eq(recurrence_definition)
-#             ]
-#         )
-
-#         gene_all_isoforms_df = (
-#             all_isoforms_plot_df
-#             .loc[
-#                 all_isoforms_plot_df[
-#                     condition_col
-#                 ].eq(condition)
-#                 & all_isoforms_plot_df[
-#                     "RecurrenceDefinition"
-#                 ].eq(recurrence_definition)
-#             ]
-#         )
-
-#         for legend_rank, contribution_label in enumerate(
-#             contribution_order
-#         ):
-#             top_x_subset = (
-#                 gene_top_x_df
-#                 .loc[
-#                     gene_top_x_df[
-#                         "ContributionLabel"
-#                     ].eq(contribution_label)
-#                 ]
-#                 .sort_values("TopXPosition")
-#             )
-
-#             all_isoforms_subset = (
-#                 gene_all_isoforms_df
-#                 .loc[
-#                     gene_all_isoforms_df[
-#                         "ContributionLabel"
-#                     ].eq(contribution_label)
-#                 ]
-#             )
-
-#             # Show each legend item once.
-#             show_legend = (
-#                 recurrence_idx == 1
-#                 and gene_idx == 0
-#             )
-
-#             if not top_x_subset.empty:
-#                 fig.add_trace(
-#                     go.Scatter(
-#                         x=top_x_subset[
-#                             "TopXPosition"
-#                         ],
-#                         y=top_x_subset[
-#                             "%NumOfProteins"
-#                         ],
-#                         mode="lines+markers",
-#                         name=contribution_label,
-#                         legendgroup=contribution_label,
-#                         legendrank=legend_rank,
-#                         showlegend=show_legend,
-#                         line={
-#                             "color": contribution_colors[
-#                                 contribution_label
-#                             ],
-#                             "dash": contribution_dashes[
-#                                 contribution_label
-#                             ],
-#                             "width": 2.5,
-#                         },
-#                         marker={
-#                             "color": contribution_colors[
-#                                 contribution_label
-#                             ],
-#                             "size": 7,
-#                             "opacity": 0.8,
-#                         },
-#                         customdata=np.column_stack(
-#                             [
-#                                 top_x_subset[
-#                                     "TopXIsoforms"
-#                                 ],
-#                                 top_x_subset[
-#                                     "AllProts"
-#                                 ],
-#                             ]
-#                         ),
-#                         hovertemplate=(
-#                             f"{condition}<br>"
-#                             f"{recurrence_definition}<br>"
-#                             f"{contribution_label}<br>"
-#                             "Isoform set: Top %{customdata[0]:.0f}<br>"
-#                             "Isoforms in set: %{customdata[1]:.0f}<br>"
-#                             "% supported: %{y:.2f}%"
-#                             "<extra></extra>"
-#                         ),
-#                     ),
-#                     row=recurrence_idx,
-#                     col=top_x_col,
-#                 )
-
-#             if not all_isoforms_subset.empty:
-#                 if all_isoforms_subset.shape[0] != 1:
-#                     raise ValueError(
-#                         "Expected exactly one All-isoforms row for "
-#                         f"{condition=}, {recurrence_definition=}, "
-#                         f"{contribution_label=}; found "
-#                         f"{all_isoforms_subset.shape[0]}."
-#                     )
-
-#                 all_isoforms_row = (
-#                     all_isoforms_subset.iloc[0]
-#                 )
-
-#                 fig.add_trace(
-#                     go.Scatter(
-#                         x=[0],
-#                         y=[
-#                             all_isoforms_row[
-#                                 "%NumOfProteins"
-#                             ]
-#                         ],
-#                         mode="markers",
-#                         name=contribution_label,
-#                         legendgroup=contribution_label,
-#                         legendrank=legend_rank,
-#                         showlegend=False,
-#                         marker={
-#                             "color": contribution_colors[
-#                                 contribution_label
-#                             ],
-#                             "size": 8,
-#                             "opacity": 0.85,
-#                             "symbol": "circle",
-#                         },
-#                         customdata=[
-#                             [
-#                                 all_isoforms_row[
-#                                     "AllProts"
-#                                 ]
-#                             ]
-#                         ],
-#                         hovertemplate=(
-#                             f"{condition}<br>"
-#                             f"{recurrence_definition}<br>"
-#                             f"{contribution_label}<br>"
-#                             "Isoform set: All isoforms<br>"
-#                             "Isoforms in set: %{customdata[0]:.0f}<br>"
-#                             "% supported: %{y:.2f}%"
-#                             "<extra></extra>"
-#                         ),
-#                     ),
-#                     row=recurrence_idx,
-#                     col=all_isoforms_col,
-#                 )
-
-
-# # ===============================================================
-# # Axes
-# # ===============================================================
-
-# for recurrence_idx in range(1, 3):
-#     for condition in conditions_for_plot:
-#         top_x_col, all_isoforms_col = (
-#             gene_panel_columns[condition]
-#         )
-
-#         fig.update_xaxes(
-#             tickmode="array",
-#             tickvals=top_x_tickvals,
-#             ticktext=top_x_ticktext,
-#             tickangle=top_x_tickangle,
-#             range=top_x_axis_range,
-#             showgrid=False,
-#             showline=True,
-#             linewidth=1,
-#             ticks="outside",
-#             showticklabels=True,
-#             title_text="",
-#             row=recurrence_idx,
-#             col=top_x_col,
-#         )
-
-#         fig.update_xaxes(
-#             tickmode="array",
-#             tickvals=[0],
-#             ticktext=["All"],
-#             range=[-0.32, 0.32],
-#             showgrid=False,
-#             showline=True,
-#             linewidth=1,
-#             ticks="outside",
-#             showticklabels=True,
-#             title_text="",
-#             row=recurrence_idx,
-#             col=all_isoforms_col,
-#         )
-
-#         fig.update_yaxes(
-#             range=[0, 102],
-#             dtick=10,
-#             showgrid=True,
-#             zeroline=False,
-#             title_text="",
-#             row=recurrence_idx,
-#             col=top_x_col,
-#         )
-
-#         fig.update_yaxes(
-#             range=[0, 102],
-#             dtick=10,
-#             showgrid=True,
-#             gridcolor="rgba(42, 63, 95, 0.10)",
-#             gridwidth=0.5,
-#             zeroline=False,
-#             showticklabels=False,
-#             title_text="",
-#             row=recurrence_idx,
-#             col=all_isoforms_col,
-#         )
-
-
-# # Only the first Top-X panel in each row displays Y tick labels.
-# first_gene_top_x_col = (
-#     gene_panel_columns[
-#         conditions_for_plot[0]
-#     ][0]
-# )
-
-# all_active_subplot_cols = [
-#     subplot_col
-#     for condition in conditions_for_plot
-#     for subplot_col in gene_panel_columns[condition]
-# ]
-
-# for recurrence_idx in range(1, 3):
-#     fig.update_yaxes(
-#         showticklabels=True,
-#         row=recurrence_idx,
-#         col=first_gene_top_x_col,
-#     )
-
-#     for subplot_col in all_active_subplot_cols:
-#         if subplot_col == first_gene_top_x_col:
-#             continue
-
-#         fig.update_yaxes(
-#             showticklabels=False,
-#             row=recurrence_idx,
-#             col=subplot_col,
-#         )
-
-
-# # ===============================================================
-# # Helpers for dynamically named layout axes
-# # ===============================================================
-
-# def get_layout_axis_name(
-#     axis_prefix,
-#     axis_number,
-# ):
-#     if axis_number == 1:
-#         return f"{axis_prefix}axis"
-
-#     return f"{axis_prefix}axis{axis_number}"
-
-
-# # ===============================================================
-# # Gene titles centered over Top-X + All panels
-# # ===============================================================
-
-# for gene_idx, condition in enumerate(
-#     conditions_for_plot
-# ):
-#     # Only real subplots create axes; spacer columns do not.
-#     top_axis_number = (
-#         gene_idx * 2 + 1
-#     )
-
-#     all_axis_number = (
-#         gene_idx * 2 + 2
-#     )
-
-#     top_axis_name = get_layout_axis_name(
-#         "x",
-#         top_axis_number,
-#     )
-
-#     all_axis_name = get_layout_axis_name(
-#         "x",
-#         all_axis_number,
-#     )
-
-#     left_edge = fig.layout[
-#         top_axis_name
-#     ].domain[0]
-
-#     right_edge = fig.layout[
-#         all_axis_name
-#     ].domain[1]
-
-#     fig.add_annotation(
-#         x=(
-#             left_edge
-#             + right_edge
-#         ) / 2,
-#         y=1.035,
-#         xref="paper",
-#         yref="paper",
-#         text=condition,
-#         showarrow=False,
-#         xanchor="center",
-#         yanchor="middle",
-#         font={
-#             "size": 13,
-#         },
-#     )
-
-
-# # ===============================================================
-# # Row labels centered vertically
-# # ===============================================================
-
-# top_row_yaxis_name = (
-#     get_layout_axis_name(
-#         "y",
-#         1,
-#     )
-# )
-
-# # Each row contains two real Y axes per gene.
-# bottom_row_first_yaxis_number = (
-#     2 * num_genes + 1
-# )
-
-# bottom_row_yaxis_name = (
-#     get_layout_axis_name(
-#         "y",
-#         bottom_row_first_yaxis_number,
-#     )
-# )
-
-
-# top_row_domain = fig.layout[
-#     top_row_yaxis_name
-# ].domain
-
-# bottom_row_domain = fig.layout[
-#     bottom_row_yaxis_name
-# ].domain
-
-
-# top_row_center = (
-#     top_row_domain[0]
-#     + top_row_domain[1]
-# ) / 2
-
-# bottom_row_center = (
-#     bottom_row_domain[0]
-#     + bottom_row_domain[1]
-# ) / 2
-
-
-# fig.add_annotation(
-#     x=1.012,
-#     y=top_row_center,
-#     xref="paper",
-#     yref="paper",
-#     text="At least 2 replicates",
-#     textangle=90,
-#     showarrow=False,
-#     xanchor="left",
-#     yanchor="middle",
-#     font={
-#         "size": 12,
-#     },
-# )
-
-# fig.add_annotation(
-#     x=1.012,
-#     y=bottom_row_center,
-#     xref="paper",
-#     yref="paper",
-#     text="All 3 replicates",
-#     textangle=90,
-#     showarrow=False,
-#     xanchor="left",
-#     yanchor="middle",
-#     font={
-#         "size": 12,
-#     },
-# )
-
-
-# # Increase figure width automatically when more Top-X values
-# # or more genes are plotted.
-# figure_width = max(
-#     1100,
-#     280
-#     + num_genes
-#     * (
-#         220
-#         + 35 * len(top_x_order)
-#     ),
-# )
-# figure_height = 650
-
-
-# fig.update_layout(
-#     width=figure_width,
-#     height=figure_height,
-#     template=template,
-#     legend_title_text="",
-#     legend={
-#         "x": 1.048,
-#         "y": 1,
-#         "xanchor": "left",
-#         "yanchor": "top",
-#         "traceorder": "normal",
-#     },
-#     margin={
-#         "l": 85,
-#         "r": 240,
-#         "t": 70,
-#         "b": (
-#             90
-#             if top_x_tickangle != 0
-#             else 70
-#         ),
-#     },
-# )
-
-
-# fig.write_image(
-#     Path(
-#         out_dir,
-#         "Recurring isoforms in squid long-reads.PB3.png"
-#     ),
-#     width=figure_width,
-#     height=figure_height,
-# )
-
-# fig.show()
 
 # %%
 from pathlib import Path
@@ -16589,7 +13943,7 @@ subplot_specs = [
 ]
 
 
-fig = make_subplots(
+abs_reads_recurrence_fig = make_subplots(
     rows=2,
     cols=num_subplot_cols,
     specs=subplot_specs,
@@ -16688,7 +14042,7 @@ for recurrence_idx, recurrence_definition in enumerate(
             )
 
             if not top_x_subset.empty:
-                fig.add_trace(
+                abs_reads_recurrence_fig.add_trace(
                     go.Scatter(
                         x=top_x_subset[
                             "TopXPosition"
@@ -16768,7 +14122,7 @@ for recurrence_idx, recurrence_definition in enumerate(
                     all_isoforms_subset.iloc[0]
                 )
 
-                fig.add_trace(
+                abs_reads_recurrence_fig.add_trace(
                     go.Scatter(
                         x=[0],
                         y=[
@@ -16865,7 +14219,7 @@ for recurrence_idx in range(1, 3):
         )
 
         # Top-X panel
-        fig.update_xaxes(
+        abs_reads_recurrence_fig.update_xaxes(
             tickmode="array",
             tickvals=condition_tickvals,
             ticktext=condition_ticktext,
@@ -16882,7 +14236,7 @@ for recurrence_idx in range(1, 3):
         )
 
         # All-isoforms panel
-        fig.update_xaxes(
+        abs_reads_recurrence_fig.update_xaxes(
             tickmode="array",
             tickvals=[0],
             ticktext=["All"],
@@ -16898,7 +14252,7 @@ for recurrence_idx in range(1, 3):
         )
 
         # Top-X Y axis
-        fig.update_yaxes(
+        abs_reads_recurrence_fig.update_yaxes(
             range=[0, 102],
             dtick=10,
             showgrid=True,
@@ -16909,7 +14263,7 @@ for recurrence_idx in range(1, 3):
         )
 
         # All-isoforms Y axis
-        fig.update_yaxes(
+        abs_reads_recurrence_fig.update_yaxes(
             range=[0, 102],
             dtick=10,
             showgrid=True,
@@ -16946,7 +14300,7 @@ all_active_subplot_cols = [
 
 for recurrence_idx in range(1, 3):
 
-    fig.update_yaxes(
+    abs_reads_recurrence_fig.update_yaxes(
         showticklabels=True,
         row=recurrence_idx,
         col=first_gene_top_x_col,
@@ -16961,7 +14315,7 @@ for recurrence_idx in range(1, 3):
         ):
             continue
 
-        fig.update_yaxes(
+        abs_reads_recurrence_fig.update_yaxes(
             showticklabels=False,
             row=recurrence_idx,
             col=subplot_col,
@@ -17019,18 +14373,18 @@ for gene_idx, condition in enumerate(
     )
 
     left_edge = (
-        fig.layout[
+        abs_reads_recurrence_fig.layout[
             top_axis_name
         ].domain[0]
     )
 
     right_edge = (
-        fig.layout[
+        abs_reads_recurrence_fig.layout[
             all_axis_name
         ].domain[1]
     )
 
-    fig.add_annotation(
+    abs_reads_recurrence_fig.add_annotation(
         x=(
             left_edge
             + right_edge
@@ -17073,13 +14427,13 @@ bottom_row_yaxis_name = (
 
 
 top_row_domain = (
-    fig.layout[
+    abs_reads_recurrence_fig.layout[
         top_row_yaxis_name
     ].domain
 )
 
 bottom_row_domain = (
-    fig.layout[
+    abs_reads_recurrence_fig.layout[
         bottom_row_yaxis_name
     ].domain
 )
@@ -17096,7 +14450,7 @@ bottom_row_center = (
 ) / 2
 
 
-fig.add_annotation(
+abs_reads_recurrence_fig.add_annotation(
     x=1.012,
     y=top_row_center,
     xref="paper",
@@ -17111,7 +14465,7 @@ fig.add_annotation(
     },
 )
 
-fig.add_annotation(
+abs_reads_recurrence_fig.add_annotation(
     x=1.012,
     y=bottom_row_center,
     xref="paper",
@@ -17163,7 +14517,7 @@ any_rotated_x_labels = (
 )
 
 
-fig.update_layout(
+abs_reads_recurrence_fig.update_layout(
     width=figure_width,
     height=figure_height,
     template=template,
@@ -17187,18 +14541,854 @@ fig.update_layout(
     },
 )
 
+abs_reads_recurrence_fig.update_layout(
+    legend=dict(
+        # title_text="Expression      <br>per replicate",
+        title_text="Reads per replicate                        ",
+    ),
+)
 
-fig.write_image(
+abs_reads_recurrence_fig.write_image(
     Path(
         out_dir,
-        "Recurring isoforms in squid long-reads.PB3.png",
+        "Recurring isoforms in squid long-reads.PB3.svg",
     ),
     width=figure_width,
     height=figure_height,
 )
 
 
-fig.show()
+abs_reads_recurrence_fig.show()
+
+# %%
+
+# %%
+protein_replicate_summary
+
+# %% [markdown]
+# #### Inferred relative abundance and TPM within each gene and replicate
+
+# %%
+# Keep a snapshot so that the source table can be checked after creating
+# the relative-abundance copy.
+relative_abundance_source_snapshot_df = protein_replicate_summary.copy(deep=True)
+
+protein_replicate_with_rel_abundance_summary_df = (
+    protein_replicate_summary.copy()
+)
+
+# Detect replicate-specific inferred-expression columns programmatically.
+relative_abundance_total_read_contribution_cols = sorted(
+    [
+        col
+        for col in protein_replicate_with_rel_abundance_summary_df.columns
+        if (
+            col.startswith("TotalReadContribution_")
+            and col[len("TotalReadContribution_"):].isdigit()
+        )
+    ],
+    key=lambda col: int(col.rsplit("_", 1)[-1]),
+)
+
+assert relative_abundance_total_read_contribution_cols, (
+    "No replicate-specific TotalReadContribution_* columns were found."
+)
+
+relative_abundance_cols = []
+tpm_cols = []
+
+for relative_abundance_total_read_contribution_col in (
+    relative_abundance_total_read_contribution_cols
+):
+    relative_abundance_replicate = (
+        relative_abundance_total_read_contribution_col.rsplit("_", 1)[-1]
+    )
+    relative_abundance_col = (
+        f"RelativeAbundance_{relative_abundance_replicate}"
+    )
+    tpm_col = f"TPM_{relative_abundance_replicate}"
+    relative_abundance_gene_total_contribution = (
+        protein_replicate_with_rel_abundance_summary_df
+        .groupby("Gene", observed=True)[
+            relative_abundance_total_read_contribution_col
+        ]
+        .transform("sum")
+    )
+
+    protein_replicate_with_rel_abundance_summary_df[
+        relative_abundance_col
+    ] = (
+        protein_replicate_with_rel_abundance_summary_df[
+            relative_abundance_total_read_contribution_col
+        ]
+        .div(relative_abundance_gene_total_contribution)
+        # Relative abundance is undefined when a gene has no inferred
+        # expression; use 0 for every protein in that zero-total group.
+        .where(relative_abundance_gene_total_contribution.gt(0), 0.0)
+    )
+    protein_replicate_with_rel_abundance_summary_df[tpm_col] = (
+        protein_replicate_with_rel_abundance_summary_df[
+            relative_abundance_col
+        ]
+        * 1_000_000
+    )
+
+    relative_abundance_cols.append(relative_abundance_col)
+    tpm_cols.append(tpm_col)
+
+# %%
+# Lightweight validation checks.
+assert all(
+    protein_replicate_with_rel_abundance_summary_df[col]
+    .between(0, 1, inclusive="both")
+    .all()
+    for col in relative_abundance_cols
+), "Relative-abundance values must be between 0 and 1."
+
+assert all(
+    protein_replicate_with_rel_abundance_summary_df[col]
+    .between(0, 1_000_000, inclusive="both")
+    .all()
+    for col in tpm_cols
+), "TPM values must be between 0 and 1,000,000."
+
+for (
+    relative_abundance_validation_total_contribution_col,
+    relative_abundance_validation_col,
+    tpm_validation_col,
+) in zip(
+    relative_abundance_total_read_contribution_cols,
+    relative_abundance_cols,
+    tpm_cols,
+):
+    gene_replicate_relative_abundance_check_df = (
+        protein_replicate_with_rel_abundance_summary_df
+        .groupby("Gene", observed=True)
+        .agg(
+            GeneTotalReadContribution=(
+                relative_abundance_validation_total_contribution_col,
+                "sum",
+            ),
+            RelativeAbundanceSum=(
+                relative_abundance_validation_col,
+                "sum",
+            ),
+            TPMSum=(tpm_validation_col, "sum"),
+        )
+        .loc[lambda x: x["GeneTotalReadContribution"].gt(0)]
+    )
+
+    assert np.allclose(
+        gene_replicate_relative_abundance_check_df[
+            "RelativeAbundanceSum"
+        ],
+        1.0,
+    ), (
+        "Relative abundances do not sum to 1 for "
+        f"{relative_abundance_validation_total_contribution_col}."
+    )
+
+    assert np.allclose(
+        gene_replicate_relative_abundance_check_df["TPMSum"],
+        1_000_000.0,
+    ), (
+        "TPM values do not sum to 1,000,000 for "
+        f"{relative_abundance_validation_total_contribution_col}."
+    )
+
+pd.testing.assert_frame_equal(
+    protein_replicate_summary,
+    relative_abundance_source_snapshot_df,
+)
+
+assert (
+    protein_replicate_with_rel_abundance_summary_df.shape[0]
+    == protein_replicate_summary.shape[0]
+), "The relative-abundance table must retain every source row."
+
+protein_replicate_with_rel_abundance_summary_df.loc[
+    :,
+    ["Chrom", "Gene", "Protein", "#Protein"]
+    + relative_abundance_total_read_contribution_cols
+    + relative_abundance_cols
+    + tpm_cols,
+].head()
+
+# %%
+# protein_replicate_with_rel_abundance_summary_df
+
+# %% [markdown]
+# ##### TPM and relative-abundance distributions across all genes
+
+# %%
+abundance_diagnostic_percentiles = [0.25, 0.50, 0.75, 0.90, 0.95, 0.99]
+abundance_diagnostic_statistic_order = [
+    "count",
+    "mean",
+    "std",
+    "min",
+    "25%",
+    "50%",
+    "75%",
+    "90%",
+    "95%",
+    "99%",
+    "max",
+]
+
+relative_abundance_long_df = (
+    protein_replicate_with_rel_abundance_summary_df
+    .melt(
+        id_vars=["Chrom", "Gene", "Protein", "#Protein"],
+        value_vars=relative_abundance_cols,
+        var_name="RelativeAbundanceColumn",
+        value_name="RelativeAbundance",
+    )
+    .assign(
+        Replicate=lambda x: pd.to_numeric(
+            x["RelativeAbundanceColumn"].str.rsplit("_", n=1).str[-1],
+            errors="raise",
+        ).astype(int)
+    )
+    .drop(columns="RelativeAbundanceColumn")
+    .sort_values(
+        ["Gene", "Replicate", "#Protein"],
+        ignore_index=True,
+    )
+)
+
+tpm_long_df = (
+    protein_replicate_with_rel_abundance_summary_df
+    .melt(
+        id_vars=["Chrom", "Gene", "Protein", "#Protein"],
+        value_vars=tpm_cols,
+        var_name="TPMColumn",
+        value_name="TPM",
+    )
+    .assign(
+        Replicate=lambda x: pd.to_numeric(
+            x["TPMColumn"].str.rsplit("_", n=1).str[-1],
+            errors="raise",
+        ).astype(int)
+    )
+    .drop(columns="TPMColumn")
+    .sort_values(
+        ["Gene", "Replicate", "#Protein"],
+        ignore_index=True,
+    )
+)
+
+# %% [markdown]
+# Including zero values (TPM shown first):
+
+# %%
+tpm_all_genes_distribution_df = (
+    tpm_long_df
+    .groupby("Replicate", observed=True)["TPM"]
+    .describe(percentiles=abundance_diagnostic_percentiles)
+    .loc[:, abundance_diagnostic_statistic_order]
+    .reset_index()
+)
+
+relative_abundance_all_genes_distribution_df = (
+    relative_abundance_long_df
+    .groupby("Replicate", observed=True)["RelativeAbundance"]
+    .describe(percentiles=abundance_diagnostic_percentiles)
+    .loc[:, abundance_diagnostic_statistic_order]
+    .reset_index()
+)
+
+display(tpm_all_genes_distribution_df.round(3))
+display(relative_abundance_all_genes_distribution_df.round(8))
+
+# %% [markdown]
+# Positive values only (TPM shown first):
+
+# %%
+tpm_all_genes_positive_distribution_df = (
+    tpm_long_df
+    .loc[lambda x: x["TPM"].gt(0)]
+    .groupby("Replicate", observed=True)["TPM"]
+    .describe(percentiles=abundance_diagnostic_percentiles)
+    .loc[:, abundance_diagnostic_statistic_order]
+    .reset_index()
+)
+
+relative_abundance_all_genes_positive_distribution_df = (
+    relative_abundance_long_df
+    .loc[lambda x: x["RelativeAbundance"].gt(0)]
+    .groupby("Replicate", observed=True)["RelativeAbundance"]
+    .describe(percentiles=abundance_diagnostic_percentiles)
+    .loc[:, abundance_diagnostic_statistic_order]
+    .reset_index()
+)
+
+display(tpm_all_genes_positive_distribution_df.round(3))
+display(relative_abundance_all_genes_positive_distribution_df.round(8))
+
+# %% [markdown]
+# ##### Positive TPM and relative-abundance distributions by gene and replicate
+
+# %%
+abundance_gene_replicate_index = pd.MultiIndex.from_frame(
+    relative_abundance_long_df
+    .loc[:, ["Gene", "Replicate"]]
+    .drop_duplicates()
+    .sort_values(["Gene", "Replicate"])
+)
+
+tpm_gene_replicate_positive_distribution_df = (
+    tpm_long_df
+    .loc[lambda x: x["TPM"].gt(0)]
+    .groupby(["Gene", "Replicate"], observed=True)["TPM"]
+    .describe(percentiles=abundance_diagnostic_percentiles)
+    .reindex(abundance_gene_replicate_index)
+    .loc[:, abundance_diagnostic_statistic_order]
+    .assign(count=lambda x: x["count"].fillna(0).astype(int))
+    .reset_index()
+)
+
+relative_abundance_gene_replicate_positive_distribution_df = (
+    relative_abundance_long_df
+    .loc[lambda x: x["RelativeAbundance"].gt(0)]
+    .groupby(["Gene", "Replicate"], observed=True)[
+        "RelativeAbundance"
+    ]
+    .describe(percentiles=abundance_diagnostic_percentiles)
+    .reindex(abundance_gene_replicate_index)
+    .loc[:, abundance_diagnostic_statistic_order]
+    .assign(count=lambda x: x["count"].fillna(0).astype(int))
+    .reset_index()
+)
+
+display(tpm_gene_replicate_positive_distribution_df.round(3))
+display(
+    relative_abundance_gene_replicate_positive_distribution_df.round(8)
+)
+
+# %% [markdown]
+# ##### TPM candidate-threshold sensitivity
+
+# %%
+tpm_positive_values = tpm_long_df.loc[tpm_long_df["TPM"].gt(0), "TPM"]
+
+if tpm_positive_values.empty:
+    raise ValueError("No positive TPM values were found.")
+
+tpm_observed_min = tpm_positive_values.min()
+tpm_observed_max = tpm_positive_values.max()
+
+# Start with interpretable round TPM cutoffs, then retain only those
+# that span the observed positive distribution without redundant tails.
+tpm_candidate_threshold_grid = np.array(
+    [
+        10,
+        25,
+        50,
+        100,
+        250,
+        500,
+        1_000,
+        2_500,
+        5_000,
+        10_000,
+        25_000,
+        50_000,
+        100_000,
+    ]
+)
+
+tpm_candidate_thresholds = tpm_candidate_threshold_grid[
+    (tpm_candidate_threshold_grid >= tpm_observed_min / 5)
+    & (tpm_candidate_threshold_grid <= tpm_observed_max)
+]
+
+if tpm_candidate_thresholds.size == 0:
+    raise ValueError(
+        "The round TPM candidate grid does not overlap the observed range."
+    )
+
+tpm_candidate_thresholds_df = pd.DataFrame(
+    {"TPMThreshold": tpm_candidate_thresholds}
+)
+
+tpm_threshold_sensitivity_df = (
+    tpm_long_df
+    .merge(tpm_candidate_thresholds_df, how="cross")
+    .assign(
+        IsoformAtOrAboveThreshold=lambda x: x["Protein"].where(
+            x["TPM"].ge(x["TPMThreshold"])
+        )
+    )
+    .groupby(
+        ["Gene", "Replicate", "TPMThreshold"],
+        observed=True,
+    )
+    .agg(
+        NumIsoformsAtOrAboveThreshold=(
+            "IsoformAtOrAboveThreshold",
+            "nunique",
+        ),
+        NumDistinctIsoforms=("Protein", "nunique"),
+    )
+    .reset_index()
+    .assign(
+        PctIsoformsAtOrAboveThreshold=lambda x: (
+            100
+            * x["NumIsoformsAtOrAboveThreshold"]
+            / x["NumDistinctIsoforms"]
+        ).round(2)
+    )
+    .drop(columns="NumDistinctIsoforms")
+    .sort_values(
+        ["Gene", "Replicate", "TPMThreshold"],
+        ignore_index=True,
+    )
+)
+
+print(
+    "Observed positive TPM range: "
+    f"{tpm_observed_min:.6g} to {tpm_observed_max:.6g}"
+)
+print("Candidate TPM thresholds:", tpm_candidate_thresholds.tolist())
+
+tpm_threshold_sensitivity_df
+
+# %% [markdown]
+# ##### TPM-based isoform recurrence across replicates
+
+# %%
+tpm_recurrence_thresholds = [
+    10,
+    50,
+    100,
+    250,
+    500,
+]
+
+# Detect the replicate-specific TPM columns and existing Top-X values.
+tpm_recurrence_cols = sorted(
+    [
+        col
+        for col in protein_replicate_with_rel_abundance_summary_df.columns
+        if col.startswith("TPM_") and col[len("TPM_"):].isdigit()
+    ],
+    key=lambda col: int(col.rsplit("_", 1)[-1]),
+)
+
+assert len(tpm_recurrence_cols) == 3, (
+    "Expected exactly three replicate-specific TPM_* columns."
+)
+
+tpm_recurrence_top_x_values = sorted(
+    pd.to_numeric(
+        top_x_wide_prct_min_proteins_with_x_replicate_per_min_total_reads_contribution_df[
+            "TopXIsoforms"
+        ].dropna(),
+        errors="raise",
+    )
+    .astype(int)
+    .unique()
+    .tolist()
+)
+
+if not tpm_recurrence_top_x_values:
+    raise ValueError("No existing TopXIsoforms values were found.")
+
+tpm_recurrence_available_genes = set(
+    protein_replicate_with_rel_abundance_summary_df["Gene"]
+    .dropna()
+    .unique()
+)
+
+tpm_recurrence_genes = [
+    gene
+    for gene in fixed_conditions
+    if gene in tpm_recurrence_available_genes
+]
+
+if not tpm_recurrence_genes:
+    raise ValueError(
+        "None of the fixed_conditions genes were found in the TPM table."
+    )
+
+tpm_recurrence_results = []
+
+for tpm_recurrence_gene in tpm_recurrence_genes:
+    tpm_recurrence_gene_df = (
+        protein_replicate_with_rel_abundance_summary_df
+        .loc[
+            protein_replicate_with_rel_abundance_summary_df["Gene"].eq(
+                tpm_recurrence_gene
+            )
+        ]
+        .copy()
+    )
+
+    tpm_recurrence_isoform_sets = [
+        (
+            top_x,
+            f"Top {top_x}",
+            tpm_recurrence_gene_df.loc[
+                tpm_recurrence_gene_df["#Protein"].le(top_x)
+            ],
+        )
+        for top_x in tpm_recurrence_top_x_values
+    ]
+    tpm_recurrence_isoform_sets.append(
+        (np.nan, "All isoforms", tpm_recurrence_gene_df)
+    )
+
+    for (
+        tpm_recurrence_top_x,
+        tpm_recurrence_isoform_set_label,
+        tpm_recurrence_subset_df,
+    ) in tpm_recurrence_isoform_sets:
+        tpm_recurrence_all_prots = tpm_recurrence_subset_df.shape[0]
+
+        if tpm_recurrence_all_prots == 0:
+            raise ValueError(
+                f"No proteins were retained for {tpm_recurrence_gene!r}, "
+                f"{tpm_recurrence_isoform_set_label!r}."
+            )
+
+        for tpm_recurrence_threshold in tpm_recurrence_thresholds:
+            tpm_recurrence_num_replicates_present = (
+                tpm_recurrence_subset_df
+                .loc[:, tpm_recurrence_cols]
+                .ge(tpm_recurrence_threshold)
+                .sum(axis=1)
+            )
+
+            tpm_recurrence_num_at_least_2 = int(
+                tpm_recurrence_num_replicates_present.ge(2).sum()
+            )
+            tpm_recurrence_num_all_3 = int(
+                tpm_recurrence_num_replicates_present.eq(3).sum()
+            )
+
+            for (
+                tpm_recurrence_definition,
+                tpm_recurrence_num_proteins,
+            ) in [
+                (
+                    "At least 2 replicates",
+                    tpm_recurrence_num_at_least_2,
+                ),
+                (
+                    "All 3 replicates",
+                    tpm_recurrence_num_all_3,
+                ),
+            ]:
+                tpm_recurrence_results.append(
+                    {
+                        "Gene": tpm_recurrence_gene,
+                        "TopXIsoforms": tpm_recurrence_top_x,
+                        "IsoformSetLabel": tpm_recurrence_isoform_set_label,
+                        "TPMThreshold": tpm_recurrence_threshold,
+                        "RecurrenceDefinition": tpm_recurrence_definition,
+                        "NumOfProteins": tpm_recurrence_num_proteins,
+                        "%NumOfProteins": round(
+                            100
+                            * tpm_recurrence_num_proteins
+                            / tpm_recurrence_all_prots,
+                            2,
+                        ),
+                        "AllProts": tpm_recurrence_all_prots,
+                    }
+                )
+
+tpm_recurrence_gene_order = {
+    gene: order
+    for order, gene in enumerate(tpm_recurrence_genes)
+}
+tpm_recurrence_definition_order = {
+    "At least 2 replicates": 0,
+    "All 3 replicates": 1,
+}
+
+tpm_recurrence_comparison_with_all_isoforms_df = (
+    pd.DataFrame(tpm_recurrence_results)
+    .assign(
+        TPMRecurrenceGeneOrder=lambda x: x["Gene"].map(
+            tpm_recurrence_gene_order
+        ),
+        TPMRecurrenceIsoformSetOrder=lambda x: x["TopXIsoforms"].fillna(
+            np.inf
+        ),
+        TPMRecurrenceDefinitionOrder=lambda x: x[
+            "RecurrenceDefinition"
+        ].map(tpm_recurrence_definition_order),
+    )
+    .sort_values(
+        [
+            "TPMRecurrenceDefinitionOrder",
+            "TPMRecurrenceGeneOrder",
+            "TPMRecurrenceIsoformSetOrder",
+            "TPMThreshold",
+        ],
+        ignore_index=True,
+    )
+    .drop(
+        columns=[
+            "TPMRecurrenceGeneOrder",
+            "TPMRecurrenceIsoformSetOrder",
+            "TPMRecurrenceDefinitionOrder",
+        ]
+    )
+)
+
+tpm_recurrence_comparison_with_all_isoforms_df
+
+# %%
+import copy
+
+
+# Reuse the existing final recurrence figure's exact subplot layout,
+# annotations, axes, dimensions, and Top-1000 visibility rule.
+tpm_recurrence_fig = copy.deepcopy(abs_reads_recurrence_fig)
+tpm_recurrence_fig.data = ()
+
+tpm_recurrence_order = [
+    "At least 2 replicates",
+    "All 3 replicates",
+]
+tpm_recurrence_colors = {
+    10: px.colors.qualitative.G10[1],
+    50: px.colors.qualitative.G10[2],
+    100: px.colors.qualitative.G10[3],
+    250: px.colors.qualitative.G10[4],
+    500: px.colors.qualitative.G10[0],
+}
+tpm_recurrence_dashes = {
+    10: "longdashdot",
+    50: "solid",
+    100: "dot",
+    250: "dash",
+    500: "longdash",
+}
+
+tpm_recurrence_top_isoforms_plot_df = (
+    tpm_recurrence_comparison_with_all_isoforms_df
+    .loc[
+        tpm_recurrence_comparison_with_all_isoforms_df[
+            "IsoformSetLabel"
+        ].ne("All isoforms")
+    ]
+    .assign(
+        TopXIsoforms=lambda x: pd.to_numeric(
+            x["TopXIsoforms"],
+            errors="raise",
+        ).astype(int)
+    )
+    .copy()
+)
+
+# Match the existing plot: Top 1000 appears only for IQEC1.
+tpm_recurrence_top_isoforms_plot_df = pd.concat(
+    [
+        tpm_recurrence_top_isoforms_plot_df.loc[
+            tpm_recurrence_top_isoforms_plot_df["Gene"].eq(condition)
+            & tpm_recurrence_top_isoforms_plot_df["TopXIsoforms"].isin(
+                top_x_order_by_condition[condition]
+            )
+        ]
+        for condition in conditions_for_plot
+    ],
+    ignore_index=True,
+)
+
+tpm_recurrence_all_isoforms_plot_df = (
+    tpm_recurrence_comparison_with_all_isoforms_df
+    .loc[
+        tpm_recurrence_comparison_with_all_isoforms_df[
+            "IsoformSetLabel"
+        ].eq("All isoforms")
+    ]
+    .copy()
+)
+
+for tpm_recurrence_row, tpm_recurrence_definition in enumerate(
+    tpm_recurrence_order,
+    start=1,
+):
+    for tpm_recurrence_gene_idx, tpm_recurrence_condition in enumerate(
+        conditions_for_plot
+    ):
+        (
+            tpm_recurrence_top_x_col,
+            tpm_recurrence_all_isoforms_col,
+        ) = gene_panel_columns[tpm_recurrence_condition]
+        tpm_recurrence_condition_top_x_positions = (
+            top_x_positions_by_condition[tpm_recurrence_condition]
+        )
+
+        tpm_recurrence_gene_top_x_df = (
+            tpm_recurrence_top_isoforms_plot_df
+            .loc[
+                tpm_recurrence_top_isoforms_plot_df["Gene"].eq(
+                    tpm_recurrence_condition
+                )
+                & tpm_recurrence_top_isoforms_plot_df[
+                    "RecurrenceDefinition"
+                ].eq(tpm_recurrence_definition)
+            ]
+            .assign(
+                TopXPosition=lambda x: x["TopXIsoforms"].map(
+                    tpm_recurrence_condition_top_x_positions
+                )
+            )
+        )
+        tpm_recurrence_gene_all_isoforms_df = (
+            tpm_recurrence_all_isoforms_plot_df
+            .loc[
+                tpm_recurrence_all_isoforms_plot_df["Gene"].eq(
+                    tpm_recurrence_condition
+                )
+                & tpm_recurrence_all_isoforms_plot_df[
+                    "RecurrenceDefinition"
+                ].eq(tpm_recurrence_definition)
+            ]
+        )
+
+        for tpm_recurrence_legend_rank, tpm_recurrence_threshold in enumerate(
+            tpm_recurrence_thresholds
+        ):
+            tpm_recurrence_label = f"TPM ≥ {tpm_recurrence_threshold:g}"
+            tpm_recurrence_top_x_subset = (
+                tpm_recurrence_gene_top_x_df
+                .loc[
+                    tpm_recurrence_gene_top_x_df["TPMThreshold"].eq(
+                        tpm_recurrence_threshold
+                    )
+                ]
+                .sort_values("TopXPosition")
+            )
+            tpm_recurrence_all_isoforms_subset = (
+                tpm_recurrence_gene_all_isoforms_df
+                .loc[
+                    tpm_recurrence_gene_all_isoforms_df[
+                        "TPMThreshold"
+                    ].eq(tpm_recurrence_threshold)
+                ]
+            )
+            tpm_recurrence_show_legend = (
+                tpm_recurrence_row == 1
+                and tpm_recurrence_gene_idx == 0
+            )
+
+            tpm_recurrence_fig.add_trace(
+                go.Scatter(
+                    x=tpm_recurrence_top_x_subset["TopXPosition"],
+                    y=tpm_recurrence_top_x_subset["%NumOfProteins"],
+                    mode="lines+markers",
+                    name=tpm_recurrence_label,
+                    legendgroup=tpm_recurrence_label,
+                    legendrank=tpm_recurrence_legend_rank,
+                    showlegend=tpm_recurrence_show_legend,
+                    line={
+                        "color": tpm_recurrence_colors[
+                            tpm_recurrence_threshold
+                        ],
+                        "dash": tpm_recurrence_dashes[
+                            tpm_recurrence_threshold
+                        ],
+                        "width": 2.5,
+                    },
+                    marker={
+                        "color": tpm_recurrence_colors[
+                            tpm_recurrence_threshold
+                        ],
+                        "size": 7,
+                        "opacity": 0.8,
+                    },
+                    customdata=np.column_stack(
+                        [
+                            tpm_recurrence_top_x_subset["TopXIsoforms"],
+                            tpm_recurrence_top_x_subset["AllProts"],
+                        ]
+                    ),
+                    hovertemplate=(
+                        f"{tpm_recurrence_condition}<br>"
+                        f"{tpm_recurrence_definition}<br>"
+                        f"{tpm_recurrence_label}<br>"
+                        "Isoform set: Top %{customdata[0]:.0f}<br>"
+                        "Isoforms in set: %{customdata[1]:.0f}<br>"
+                        "% supported: %{y:.2f}%"
+                        "<extra></extra>"
+                    ),
+                ),
+                row=tpm_recurrence_row,
+                col=tpm_recurrence_top_x_col,
+            )
+
+            if tpm_recurrence_all_isoforms_subset.shape[0] != 1:
+                raise ValueError(
+                    "Expected exactly one TPM All-isoforms row for "
+                    f"{tpm_recurrence_condition=}, "
+                    f"{tpm_recurrence_definition=}, "
+                    f"{tpm_recurrence_threshold=}; found "
+                    f"{tpm_recurrence_all_isoforms_subset.shape[0]}."
+                )
+
+            tpm_recurrence_all_isoforms_row = (
+                tpm_recurrence_all_isoforms_subset.iloc[0]
+            )
+            tpm_recurrence_fig.add_trace(
+                go.Scatter(
+                    x=[0],
+                    y=[
+                        tpm_recurrence_all_isoforms_row[
+                            "%NumOfProteins"
+                        ]
+                    ],
+                    mode="markers",
+                    name=tpm_recurrence_label,
+                    legendgroup=tpm_recurrence_label,
+                    legendrank=tpm_recurrence_legend_rank,
+                    showlegend=False,
+                    marker={
+                        "color": tpm_recurrence_colors[
+                            tpm_recurrence_threshold
+                        ],
+                        "size": 8,
+                        "opacity": 0.85,
+                        "symbol": "circle",
+                    },
+                    customdata=[
+                        [tpm_recurrence_all_isoforms_row["AllProts"]]
+                    ],
+                    hovertemplate=(
+                        f"{tpm_recurrence_condition}<br>"
+                        f"{tpm_recurrence_definition}<br>"
+                        f"{tpm_recurrence_label}<br>"
+                        "Isoform set: All isoforms<br>"
+                        "Isoforms in set: %{customdata[0]:.0f}<br>"
+                        "% supported: %{y:.2f}%"
+                        "<extra></extra>"
+                    ),
+                ),
+                row=tpm_recurrence_row,
+                col=tpm_recurrence_all_isoforms_col,
+            )
+
+tpm_recurrence_fig.update_layout(
+    legend=dict(
+        # title_text="Expression      <br>per replicate",
+        title_text="Expression per replicate     ",
+    ),
+)
+
+tpm_recurrence_fig.write_image(
+    Path(
+        out_dir,
+        "Recurring isoforms by TPM in squid long-reads.PB3.svg",
+    ),
+    width=figure_width,
+    height=figure_height,
+)
+
+tpm_recurrence_fig.show()
 
 # %%
 raise Exception("stop notebook here for now")

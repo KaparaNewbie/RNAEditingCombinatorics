@@ -7027,8 +7027,6 @@ avg_of_min_estimate_of_non_syns_per_isoforms = [
 avg_of_min_estimate_of_non_syns_per_isoforms
 
 # %%
-
-# %%
 assignment_df_per_shortened_condition = {
     condition: assignment_df
     for assignment_df, condition in zip(
@@ -11203,8 +11201,8 @@ col_names = ["MinNonSyns", "MaxNonSyns"]
 estimate_names = ["Min", "Max"]
 
 # for (row, col), condition, proteins_df in zip(row_col_iter, conditions, proteins_dfs):
-for (row, col), condition, proteins_df in zip(
-    row_col_iter, conditions, non_syns_per_read_dfs
+for (row, col), condition, shortened_condition, proteins_df in zip(
+    row_col_iter, conditions, shortened_conditions, non_syns_per_read_dfs
 ):
     # proteins_df = proteins_df.loc[:, [condition_col, "MinNonSyns", "MaxNonSyns", "Reads"]]
     # proteins_df["Reads"] = proteins_df["Reads"].str.split(",")
@@ -11216,7 +11214,8 @@ for (row, col), condition, proteins_df in zip(
         fig.add_trace(
             go.Histogram(
                 x=x,
-                marker_color=subcolors_discrete_map[condition][i],
+                # marker_color=subcolors_discrete_map[condition][i],
+                marker_color=shortened_subcolors_discrete_map[shortened_condition][i],
                 name=f"{condition}, {estimate_name}",
             ),
             row=row,
@@ -11229,15 +11228,19 @@ for (row, col), condition, proteins_df in zip(
 
 # add mean lines + text (and also keep track of max_y)
 
+# Keep this because it provides Plotly's calculated bin settings
 f = fig.full_figure_for_development(warn=False)
 data_traces = {}
 for condition in conditions:
     for estimate_name in estimate_names:
         name = f"{condition}, {estimate_name}"
-        for data in f.data:
+        # for data in f.data:
+        # Use fig.data, not f.data
+        for data in fig.data:
             if data.name == name:
                 data_traces[name] = data
-                continue
+                # continue
+                break
 for (row, col), condition in zip(row_col_iter, conditions):
     for estimate_name in estimate_names:
         name = f"{condition}, {estimate_name}"
@@ -11280,7 +11283,7 @@ ic(max_y)
 
 # add legends
 
-for (row, col), condition in zip(row_col_iter, conditions):
+for (row, col), condition, in zip(row_col_iter, shortened_conditions):
     for i, (col_name, estimate_name) in enumerate(zip(col_names, estimate_names)):
         fig.add_trace(
             go.Scatter(
@@ -11290,7 +11293,8 @@ for (row, col), condition in zip(row_col_iter, conditions):
                 y=[(0.7 * max_y) - (ceil(max_y / 5) * i)],
                 mode="markers+text",
                 marker=dict(
-                    color=subcolors_discrete_map[condition][i],
+                    # color=subcolors_discrete_map[condition][i],
+                    color=shortened_subcolors_discrete_map[condition][i],
                     size=9,
                     # opacity=0.7,
                     symbol="square",
@@ -11323,11 +11327,11 @@ fig.update_layout(
     width=width,
 )
 
-fig.write_image(
-    f"{title_text} - Illumina.svg",
-    height=height,
-    width=width,
-)
+# fig.write_image(
+#     f"{title_text} - Illumina.svg",
+#     height=height,
+#     width=width,
+# )
 
 # fig.show()
 

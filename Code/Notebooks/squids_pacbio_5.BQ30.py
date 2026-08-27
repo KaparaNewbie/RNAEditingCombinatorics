@@ -268,11 +268,19 @@ def two_subcolors_from_hex(hex_color, d_r=4, d_g=20, d_b=22, scale_1=1, scale_2=
 # color_sequence = px.colors.qualitative.Pastel
 # color_sequence = px.colors.qualitative.D3
 color_sequence = px.colors.qualitative.G10
+# color_discrete_map = {
+#     condition: color for condition, color in zip(conditions, color_sequence)
+# }
+# fixed_color_discrete_map = {
+#     condition: color for condition, color in zip(fixed_conditions, color_sequence)
+# }
 color_discrete_map = {
-    condition: color for condition, color in zip(conditions, color_sequence)
+    'GRIA': '#00A08B',
+    'PCLO': '#AF0038'
 }
 fixed_color_discrete_map = {
-    condition: color for condition, color in zip(fixed_conditions, color_sequence)
+    'GRIA2': '#00A08B',
+    'PCLO': '#AF0038'
 }
 subcolors_discrete_map = {
     condition: two_subcolors_from_hex(color_discrete_map[condition])
@@ -9555,7 +9563,7 @@ width = max(650, 250 * cols)
 height = max(400, 200 * rows)
 
 fig.update_layout(
-    title="Long-reads",
+    title="Squid's Long-reads",
     title_x=0.15,
     showlegend=False,
     template=template,
@@ -9563,11 +9571,11 @@ fig.update_layout(
     height=height,
 )
 
-# fig.write_image(
-#     Path(out_dir, f"{head_title} - PacBio.svg"),
-#     width=width,
-#     height=height,
-# )
+fig.write_image(
+    Path(out_dir, f"{head_title} - PacBio1.svg"),
+    width=width,
+    height=height,
+)
 
 fig.show()
 
@@ -9802,7 +9810,7 @@ for (
     )
 
 fig.update_layout(
-    title_text="Long-reads",
+    title_text="Squid's Long-reads",
     title_x=0.11,
     # title_y=0.95,
     template=template,
@@ -9814,12 +9822,12 @@ fig.update_layout(
 fig.update_xaxes(type="log", nticks=6)
 fig.update_yaxes(type="log")
 
-# fig.write_image(
-#     Path(out_dir, f"{head_title} - PacBio.svg"),
-#     height=max(400, 200 * rows),
-#     # width=max(650, 250 * cols),
-#     width=max(830, 250 * cols),
-# )
+fig.write_image(
+    Path(out_dir, f"{head_title} - PacBio1.svg"),
+    height=max(400, 200 * rows),
+    # width=max(650, 250 * cols),
+    width=max(830, 250 * cols),
+)
 
 fig.show()
 # fig.show(config={'staticPlot': True, 'responsive': False})
@@ -13972,15 +13980,19 @@ for (row, col), condition, fixed_condition, proteins_df in zip(
 
 # add mean lines + text (and also keep track of max_y)
 
+# Keep this because it provides Plotly's calculated bin settings
 f = fig.full_figure_for_development(warn=False)
 data_traces = {}
 for condition in fixed_conditions:
     for estimate_name in estimate_names:
         name = f"{condition}, {estimate_name}"
-        for data in f.data:
+        # for data in f.data:
+        # Use fig.data, not f.data
+        for data in fig.data:
             if data.name == name:
                 data_traces[name] = data
-                continue
+                # continue
+                break
 for (row, col), condition in zip(row_col_iter, fixed_conditions):
     for estimate_name in estimate_names:
         name = f"{condition}, {estimate_name}"
@@ -14065,11 +14077,11 @@ fig.update_layout(
     width=width,
 )
 
-fig.write_image(
-    f"{title_text} - PacBio.svg",
-    height=height,
-    width=width,
-)
+# fig.write_image(
+#     f"{title_text} - PacBio.svg",
+#     height=height,
+#     width=width,
+# )
 
 fig.show()
 
