@@ -7243,6 +7243,9 @@ per_sample_agged_expanded_concat_edited_positions_df
 per_sample_agged_expanded_concat_edited_positions_df[min_pooled_editing_freq_cols].value_counts().reset_index()
 
 # %%
+per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].describe().round(2)
+
+# %%
 per_sample_agged_expanded_concat_edited_positions_df.groupby(condition_col)["Position"].nunique()
 
 # %%
@@ -7295,6 +7298,111 @@ per_sample_agged_expanded_concat_edited_positions_df.groupby(
 #     title="Cumulative distribution of total A+G coverage per editing site in each replicate",
 # )
 # fig.show()
+
+# %%
+min_tot_cov = min_tot_covs[0]
+min_editing_freq = min_editing_freqs[0]
+min_pooled_editing_freq, min_pooled_editing_freq_col = min_pooled_editing_freqs[0], min_pooled_editing_freq_cols[0]
+ic(min_tot_cov, min_editing_freq, min_pooled_editing_freq, min_pooled_editing_freq_col);
+
+# %%
+# create a df with 6 cols (MinTotalCoverage, MinEditingFrequency, MinPooledEditingFrequency, condition_col, Position, Replicates)
+# denoting for each gene-position the replicates that pass the pooled-site filter and have at least min_tot_cov coverage and min_editing_freq editing frequency
+replicates_per_gene_per_position_per_min_cov_and_editing_freq_df = (
+    per_sample_agged_expanded_concat_edited_positions_df
+    .loc[
+        (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
+        & (per_sample_agged_expanded_concat_edited_positions_df["EditingFrequency"].ge(min_editing_freq))
+        & per_sample_agged_expanded_concat_edited_positions_df[min_pooled_editing_freq_col]
+    ]
+    .groupby([condition_col, "Position"])
+    ["Replicate"].apply(list)
+    .reset_index(name="Replicates")
+)
+replicates_per_gene_per_position_per_min_cov_and_editing_freq_df["Replicates"] = (
+        replicates_per_gene_per_position_per_min_cov_and_editing_freq_df["Replicates"].apply(
+        lambda x: x + ["All"] if len(x) == 3 else x
+    )
+)
+replicates_per_gene_per_position_per_min_cov_and_editing_freq_df.insert(0, "MinTotalCoverage", min_tot_cov)
+replicates_per_gene_per_position_per_min_cov_and_editing_freq_df.insert(1, "MinEditingFrequency", min_editing_freq)
+replicates_per_gene_per_position_per_min_cov_and_editing_freq_df.insert(2, "MinPooledEditingFrequency", min_pooled_editing_freq)
+
+replicates_per_gene_per_position_per_min_cov_and_editing_freq_df
+
+# %%
+# create a df with 6 cols (MinTotalCoverage, MinEditingFrequency, condition_col, Replicate, NumOfEditingSitesPerReplicate)
+# denoting for each gene-replicate the number of editing sites that have at least min_tot_cov coverage and at least min_editing_freq editing frequency
+num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df = (
+    replicates_per_gene_per_position_per_min_cov_and_editing_freq_df
+    .explode("Replicates")
+    .rename(
+        columns={"Replicates": "Replicate"}
+    )
+    .groupby(
+        ["MinTotalCoverage", "MinEditingFrequency", "MinPooledEditingFrequency", condition_col, "Replicate",]
+    )
+    .size()
+    .reset_index(name="NumOfEditingSitesPerReplicate")
+)
+num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df
+
+# %%
+
+# get all sites, across all genes, that have at least min_tot_cov coverage, per each individual replicate
+# (regardless of their editing frequency)
+sites_covered_per_gene_per_sample_per_individual_replicate_df = (
+    per_sample_agged_expanded_concat_edited_positions_df
+    .loc[
+        (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
+        & per_sample_agged_expanded_concat_edited_positions_df[min_pooled_editing_freq_col]
+    ]
+    .groupby([condition_col, "Replicate"])
+    .size()
+    .reset_index(name="NumOfSitesCoveredPerReplicate")
+)
+# counts of sites covered by all replicates per gene
+sites_covered_per_gene_per_sample_in_all_replicates_df = (
+    per_sample_agged_expanded_concat_edited_positions_df
+    .loc[
+        (per_sample_agged_expanded_concat_edited_positions_df["TotalCoverage"].ge(min_tot_cov))
+        & per_sample_agged_expanded_concat_edited_positions_df[min_pooled_editing_freq_col]
+    ]
+    .groupby([condition_col, "Position"])
+    .size()
+    .reset_index(name="NumOfSitesCoveredPerReplicate")
+    .loc[lambda x: x["NumOfSitesCoveredPerReplicate"].eq(3)]
+    .assign(Replicate="All")
+    .groupby([condition_col, "Replicate"])
+    .size()
+    .reset_index(name="NumOfSitesCoveredPerReplicate")
+)
+# finally, we have a df with num of covered sites per gene per sample, 
+# including the counts for each individual replicate and the counts for all replicates together
+sites_covered_per_gene_per_sample_df = (
+    pd.concat(
+        [
+            sites_covered_per_gene_per_sample_per_individual_replicate_df,
+            sites_covered_per_gene_per_sample_in_all_replicates_df,
+        ]
+    )
+    .sort_values(
+        [condition_col, "Replicate"],
+        ignore_index=True
+    )
+)
+# merge the two dfs to get a df with 8 cols 
+# (MinTotalCoverage, MinEditingFrequency, MinPooledEditingFrequency, condition_col, Replicate, NumOfEditingSitesPerReplicate, NumOfSitesCoveredPerReplicate, %EditedOfCoveredSites)
+num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df = num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df.merge(
+    sites_covered_per_gene_per_sample_df, 
+    on=[condition_col, "Replicate"]
+)
+# normalize the number of editing sites by the number of covered sites to get the percentage of edited sites out of the covered sites
+num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df["%EditedOfCoveredSites"] = (
+    100
+    * num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df["NumOfEditingSitesPerReplicate"]
+    / num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_df["NumOfSitesCoveredPerReplicate"]
+)
 
 # %%
 num_of_sites_per_gene_per_sample_per_min_cov_and_editing_freq_dfs = []

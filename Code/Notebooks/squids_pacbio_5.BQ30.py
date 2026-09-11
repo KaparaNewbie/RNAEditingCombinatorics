@@ -2941,7 +2941,10 @@ concat_corrected_corrs_df.insert(
 concat_corrected_corrs_df.insert(
     4,
     "AbsDistance100BPsBin",
-    sig_concat_corrected_corrs_df["AbsDistance"].apply(
+    # sig_concat_corrected_corrs_df["AbsDistance"].apply(
+    #     lambda x: int((int(x / 100) * 100)) + 100
+    # )
+    concat_corrected_corrs_df["AbsDistance"].apply(
         lambda x: int((int(x / 100) * 100)) + 100
     )
 )
@@ -3102,31 +3105,31 @@ sig_concat_corrected_corrs_df
 )
 
 # %%
-# fig = px.density_heatmap(df, x="total_bill", y="tip", nbinsx=20, nbinsy=20, color_continuous_scale="Viridis")
+# # fig = px.density_heatmap(df, x="total_bill", y="tip", nbinsx=20, nbinsy=20, color_continuous_scale="Viridis")
 
-fig = px.scatter(
-    # (
-    #     sig_concat_corrected_corrs_df
-    #     .groupby([condition_col, "AbsDistance100BPsBin", "r_2_digit_bins"]).size()
-    #     .reset_index(name="SitePairs")
-    # ), 
-    sig_concat_corrected_corrs_df,
-    x="AbsDistance", 
-    y="r",
-    # size="SitePairs",
-    color=condition_col,
-    # color_discrete_map=color_discrete_map,
-    facet_col=condition_col,
-    trendline="ols", trendline_color_override="black"
-)
-# fig.update_traces(contours_coloring="fill", contours_showlabels = True)
-fig.update_layout(
-    template=template,
-    width=800,
-    height=400,
-    showlegend=False
-)
-fig.show()
+# fig = px.scatter(
+#     # (
+#     #     sig_concat_corrected_corrs_df
+#     #     .groupby([condition_col, "AbsDistance100BPsBin", "r_2_digit_bins"]).size()
+#     #     .reset_index(name="SitePairs")
+#     # ), 
+#     sig_concat_corrected_corrs_df,
+#     x="AbsDistance", 
+#     y="r",
+#     # size="SitePairs",
+#     color=condition_col,
+#     # color_discrete_map=color_discrete_map,
+#     facet_col=condition_col,
+#     trendline="ols", trendline_color_override="black"
+# )
+# # fig.update_traces(contours_coloring="fill", contours_showlabels = True)
+# fig.update_layout(
+#     template=template,
+#     width=800,
+#     height=400,
+#     showlegend=False
+# )
+# fig.show()
 
 # %%
 sig_concat_corrected_corrs_df.loc[
@@ -3141,59 +3144,182 @@ sig_concat_corrected_corrs_df.loc[
 ]
 
 # %%
+# # 0. Create df with num of site pairs per 100 bps bin
+# df = pd.concat(
+#     [
+#             sig_concat_corrected_corrs_df,
+#             (
+#                 sig_concat_corrected_corrs_df
+#                 # .groupby([condition_col])["AbsDistance100BPsBin"].transform("size")
+#                 .groupby([condition_col, "AbsDistance100BPsBin"]).transform("size")
+#                 .reset_index(name="SitePairsInAbsDistance100BPsBin")
+#                 .drop(columns="index")
+#             )
+#     ],
+#     axis=1
+# )
+# # 1. Create the binning logic
+# # bin_size = 30
+# # bin_size = 50
+# # bin_size = 25
+# bin_size = 100
+# # 'bin_start' represents the floor of the 30-unit range (0, 30, 60, etc.)
+# df['bin_start'] = (df['SitePairsInAbsDistance100BPsBin'] // bin_size) * bin_size
+# # 2. Create string labels for the boxes (e.g., "0 - 30")
+# df['bin_label'] = (df['bin_start'].astype(int).astype(str) + " - " + 
+#                    (df['bin_start'] + bin_size).astype(int).astype(str))
+# # 3. Sort by 'bin_start' so the x-axis and colors follow a numerical order
+# df = df.sort_values('bin_start')
+# unique_labels = df['bin_label'].unique()
+# # 4. Map the bins to a colorscale (e.g., 'Viridis' or 'Plasma')
+# # We sample hex codes based on the number of unique bins
+# colors = px.colors.sample_colorscale("Viridis", [i/(max(1, len(unique_labels)-1)) for i in range(len(unique_labels))])
+# color_map = dict(zip(unique_labels, colors))
+# # 5. Create the box plot
+# fig = px.box(
+#     df, 
+#     x="AbsDistance100BPsBin", 
+#     y="r",
+#     facet_col=condition_col,
+#     color="bin_label",
+#     color_discrete_map=color_map,
+#     category_orders={"bin_label": list(unique_labels)}, # Keeps 0-30 before 30-60
+#     labels={
+#         "bin_label": "Pairs",
+#         "r": "Pearson's r"
+#     },
+#     points="outliers",
+# )
+# fig.update_xaxes(dtick=500)
+# fig.update_yaxes(dtick=0.1)
+# fig.update_layout(
+#     template=template,
+#     width=1000,
+#     height=500,
+# )
+
+# fig.write_image(
+#     Path(
+#         out_dir,
+#         f"Pearson_r_vs_AbsDistance100BPsBin - PacBio1.svg"
+#     ),
+#     width=width,
+#     height=height,
+# )
+
+# fig.show()
+
+# %%
+from pathlib import Path
+
+import pandas as pd
+import plotly.express as px
+
 # 0. Create df with num of site pairs per 100 bps bin
-df = pd.concat(
-    [
-            sig_concat_corrected_corrs_df,
-            (
-                sig_concat_corrected_corrs_df
-                # .groupby([condition_col])["AbsDistance100BPsBin"].transform("size")
-                .groupby([condition_col, "AbsDistance100BPsBin"]).transform("size")
-                .reset_index(name="SitePairsInAbsDistance100BPsBin")
-                .drop(columns="index")
-            )
-    ],
-    axis=1
+site_pairs_per_bin_df = (
+    sig_concat_corrected_corrs_df
+    .groupby([condition_col, "AbsDistance100BPsBin"])
+    .size()
+    .reset_index(name="SitePairsInAbsDistance100BPsBin")
 )
+
+df = sig_concat_corrected_corrs_df.merge(
+    site_pairs_per_bin_df,
+    on=[condition_col, "AbsDistance100BPsBin"],
+    how="left",
+)
+
 # 1. Create the binning logic
-# bin_size = 30
-# bin_size = 50
-# bin_size = 25
 bin_size = 100
-# 'bin_start' represents the floor of the 30-unit range (0, 30, 60, etc.)
-df['bin_start'] = (df['SitePairsInAbsDistance100BPsBin'] // bin_size) * bin_size
-# 2. Create string labels for the boxes (e.g., "0 - 30")
-df['bin_label'] = (df['bin_start'].astype(int).astype(str) + " - " + 
-                   (df['bin_start'] + bin_size).astype(int).astype(str))
+df["bin_start"] = (df["SitePairsInAbsDistance100BPsBin"] // bin_size) * bin_size
+
+# 2. Create string labels for the boxes
+df["bin_label"] = (
+    df["bin_start"].astype(int).astype(str)
+    + " - "
+    + (df["bin_start"] + bin_size).astype(int).astype(str)
+)
+
 # 3. Sort by 'bin_start' so the x-axis and colors follow a numerical order
-df = df.sort_values('bin_start')
-unique_labels = df['bin_label'].unique()
-# 4. Map the bins to a colorscale (e.g., 'Viridis' or 'Plasma')
-# We sample hex codes based on the number of unique bins
-colors = px.colors.sample_colorscale("Viridis", [i/(max(1, len(unique_labels)-1)) for i in range(len(unique_labels))])
+df = df.sort_values(["bin_start", condition_col, "AbsDistance100BPsBin"])
+unique_labels = df["bin_label"].drop_duplicates().tolist()
+
+# 4. Map the bins to a colorscale
+colors = px.colors.sample_colorscale(
+    "Viridis",
+    [i / max(1, len(unique_labels) - 1) for i in range(len(unique_labels))]
+)
 color_map = dict(zip(unique_labels, colors))
+
 # 5. Create the box plot
+width = 1000
+height = 500
+
 fig = px.box(
-    df, 
-    x="AbsDistance100BPsBin", 
+    df,
+    x="AbsDistance100BPsBin",
     y="r",
     facet_col=condition_col,
     color="bin_label",
     color_discrete_map=color_map,
-    category_orders={"bin_label": list(unique_labels)}, # Keeps 0-30 before 30-60
+    category_orders={
+        "bin_label": unique_labels,
+    },
     labels={
         "bin_label": "Pairs",
-        "r": "Pearson's r"
+        "r": "Pearson's r",
+        "AbsDistance100BPsBin": "Absolute distance between site pairs [bp]",
     },
     points="outliers",
 )
-fig.update_xaxes(dtick=500)
-fig.update_yaxes(dtick=0.1)
+
+# Clean facet titles
+fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+
+# Remove per-subplot axis titles
+fig.update_xaxes(dtick=500, title_text=None)
+fig.update_yaxes(dtick=0.1, title_text=None)
+
+# Add one shared X title
+fig.add_annotation(
+    text="Absolute distance between site pairs [bp]",
+    x=0.5,
+    y=0,
+    xref="paper",
+    yref="paper",
+    yshift=-45,
+    showarrow=False,
+    font=dict(size=16),
+)
+
+# Add one shared Y title
+fig.add_annotation(
+    text="Pearson's r",
+    x=0,
+    y=0.5,
+    xref="paper",
+    yref="paper",
+    xshift=-65,
+    textangle=-90,
+    showarrow=False,
+    font=dict(size=16),
+)
+
 fig.update_layout(
     template=template,
-    width=1000,
-    height=500,
+    width=width,
+    height=height,
+    legend_title_text="Pairs",
+    margin=dict(l=100, r=40, t=70, b=80),
+    title="Squid's Long-reads"
 )
+
+fig.write_image(
+    Path(out_dir, "Pearson_r_vs_AbsDistance100BPsBin - PacBio1.svg"),
+    width=width,
+    height=height,
+)
+
 fig.show()
 
 # %%
@@ -4270,15 +4396,25 @@ problamatic_regions_exist = False
 cols = min(facet_col_wrap, len(conditions), 4)
 rows = ceil(len(conditions) / cols)
 
+# width = 3.5 * cols
+width = 2 * cols
+height = 2.5 * rows
+# wspace = 0.03
+# hspace = 0.2
+wspace = 0
+hspace = 0.12
+
 fig, axs = plt.subplots(
     nrows=rows,
     ncols=cols,
-    figsize=(3.5 * cols, 2.5 * rows),
+    figsize=(width, height),
     constrained_layout=True,
-    gridspec_kw=dict(hspace=0.2, wspace=0.03),
+    gridspec_kw=dict(hspace=hspace, wspace=wspace),
+    facecolor="white",
 )
 
 for condition, ax in zip(conditions, axs.flat):
+    ax.set_facecolor("white")
     condition = "GRIA2" if condition == "GRIA" else condition
     labels = conditions_labels[condition]
     sets = conditions_sets[condition]
@@ -4294,7 +4430,17 @@ for condition, ax in zip(conditions, axs.flat):
         v_func = venn3
         problamatic_regions_exist = True
     v_func(sets, set_labels=labels, ax=ax)
-    ax.set_title(condition, fontdict=dict(fontsize=12))
+    
+     # Make all Venn text black:
+    # set labels + intersection counts
+    for text in ax.texts:
+        text.set_color("black")
+                
+    ax.set_title(
+        condition, 
+        fontdict=dict(fontsize=14),
+        color="black",
+    )
 
 # if problamatic_regions_exist:
 #     title = "Positions' membership: currently edited, known editing, and probalamtic regions"
@@ -4303,11 +4449,16 @@ for condition, ax in zip(conditions, axs.flat):
 
 fig.suptitle(
     "Squid's Long-reads",
-    fontsize="xx-large",
+    fontsize=18,
+    color="black",
     # y=1.2
 )
 
-plt.savefig("Known vs new editing sites - PacBio.svg", format="svg", dpi=300)
+plt.savefig(
+    Path(out_dir, "Known vs new editing sites - PacBio.svg"), 
+    format="svg", dpi=300,
+    facecolor='white'
+)
 
 plt.show()
 
@@ -11877,11 +12028,15 @@ fig.show()
 max_sol_exp_dfs_new[1]
 
 # %%
+ML_INPUT_FIRST_COL_POS_NEW
+
+# %%
 top_100_combinatorics_df = (
     max_sol_exp_dfs_new[1]
     .sort_values("%RelativeExpression", ascending=False)
     .reset_index(drop=True)
-    .iloc[:100, ML_INPUT_FIRST_COL_POS_NEW:]
+    # .iloc[:100, ML_INPUT_FIRST_COL_POS_NEW:]
+    .iloc[:100, 3:]
     .fillna(-1)
     # .T
 )
@@ -11968,7 +12123,7 @@ fig.update_layout(
 )
 
 fig.write_image(
-    "Combinatorics of top 100 expressed proteins in PCLO - PacBio.svg",
+    Path(out_dir, "Combinatorics of top 100 expressed proteins in PCLO - PacBio.svg"),
     width=650,
     height=700,
 )
@@ -12022,8 +12177,8 @@ sorting_col = "%RelativeExpression"
 cols_to_use_from_max_sol_df = [
     condition_col,
     "Protein",
-    "#Solution",
-    "Algorithm",
+    # "#Solution",
+    # "Algorithm",
     "%RelativeExpression",
 ]
 cols_to_use_from_unique_proteins_df = [
@@ -12043,9 +12198,9 @@ df
 # aa_cols
 
 # %%
-aa_cols = df.columns[5:]
+aa_cols = df.columns[3:]
 original_aas = [col.split("(")[1][0] for col in aa_cols]
-df_b = df.iloc[:100, 5:]
+df_b = df.iloc[:100, 3:]
 
 df_b_value_counts = df_b.apply(
     lambda x: x.value_counts(
@@ -12137,7 +12292,7 @@ fig.update_layout(
 )
 
 fig.write_image(
-    "Recoding events per top 100 expressed proteins in PCLO - PacBio.svg",
+    Path(out_dir, "Recoding events per top 100 expressed proteins in PCLO - PacBio.svg"),
     width=1500,
     height=450,
 )
@@ -14077,11 +14232,11 @@ fig.update_layout(
     width=width,
 )
 
-# fig.write_image(
-#     f"{title_text} - PacBio.svg",
-#     height=height,
-#     width=width,
-# )
+fig.write_image(
+    Path(out_dir,f"{title_text} - PacBio1.svg"),
+    height=height,
+    width=width,
+)
 
 fig.show()
 

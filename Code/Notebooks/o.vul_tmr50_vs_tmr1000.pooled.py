@@ -48,6 +48,7 @@ import plotly.io as pio
 from scipy import interpolate  # todo unimport this later?
 from scipy.stats import fisher_exact, chi2_contingency
 from statsmodels.stats.multitest import fdrcorrection, multipletests
+from statsmodels.stats.proportion import binom_test
 import scipy.stats
 import seaborn as sns
 from Bio import SeqIO, motifs  # biopython
@@ -72,6 +73,9 @@ from Alignment.alignment_utils import (
 )
 from EditingUtils.logo import multiple_logos_from_fasta_files
 from EditingUtils.seq import make_fasta_dict
+
+# %%
+pd.set_option('display.max_columns', 50)
 
 # %% [markdown]
 # # Data loading
@@ -417,6 +421,11 @@ data_df
 # complete_data_df = data_df.loc[data_df["DistinctProteinsFile"].notna()].reset_index(
 #     drop=True
 # )
+
+# this way we can be sure we filter `data_df` to by expression files
+# in order to create a complete dataset without losing any valid distinct files
+assert proteins_data_df.isna().sum().sum() == 0
+
 complete_data_df = data_df.loc[data_df["ExpressionFile"].notna()].reset_index(drop=True)
 
 # complete_data_df = complete_data_df.drop_duplicates(
@@ -446,6 +455,13 @@ expression_files = complete_data_df["ExpressionFile"].tolist()
 #     data_df.loc[data_df["ExpressionFile"].notna()].reset_index(drop=True).shape
 #     == data_df.loc[data_df["DistinctProteinsFile"].notna()].reset_index(drop=True).shape
 # ), "some distinct proteins don't have expression levels"
+
+if not complete_data_df["Chrom"].is_unique:
+    raise ValueError("Multiple metadata rows per Chrom; resolve file versions first")
+
+required_for_counts = ["Chrom", "Name", "DistinctProteinsFile", "UniqueReadsFile"]
+if complete_data_df[required_for_counts].isna().any().any():
+    raise ValueError("Missing metadata or required input for an existing distinct result")
 
 # %%
 # complete_data_df[["Chrom"]].to_csv("TMR50.CompleteData.Chroms.tsv", sep="\t", index=False)
@@ -725,10 +741,22 @@ tmr1000_reads_files = tmr1000_complete_data_df["ReadsFile"].tolist()
 tmr1000_unique_reads_files = tmr1000_complete_data_df["UniqueReadsFile"].tolist()
 tmr1000_proteins_files = tmr1000_complete_data_df["ProteinsFile"].tolist()
 tmr1000_unique_proteins_files = tmr1000_complete_data_df["UniqueProteinsFile"].tolist()
-tmr1000_distinct_unique_proteins_files = complete_data_df[
+tmr1000_distinct_unique_proteins_files = tmr1000_complete_data_df[
     "DistinctProteinsFile"
 ].tolist()
 # expression_files = complete_data_df["ExpressionFile"].tolist()
+
+
+if not tmr1000_complete_data_df["Chrom"].is_unique:
+    raise ValueError("TMR1000 metadata contain duplicate Chrom values")
+
+for chrom, distinct_file, unique_reads_file in tmr1000_complete_data_df[
+    ["Chrom", "DistinctProteinsFile", "UniqueReadsFile"]
+].itertuples(index=False, name=None):
+    for path in (distinct_file, unique_reads_file):
+        if pd.isna(path) or Path(path).name.split(".")[0] != chrom:
+            raise ValueError(f"File/Chrom mismatch: {chrom!r}, {path!r}")
+
 
 # %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"}
 # # Ploting utils
@@ -859,6 +887,27 @@ zerolinewidth = 4
 # %%
 # 25_000 / (750 * 1.17)
 
+# %%
+mismatches = sorted(
+    list(
+        {
+            f"{ref_base}>{alt_base}"
+            for ref_base in "ATCG"
+            for alt_base in "ATCG"
+            if ref_base != alt_base
+        }
+    )
+)
+# mismatches
+mismatches_color_sequence = px.colors.qualitative.Dark24
+mismatch_dolor_map = {
+    mismatch: color
+    for mismatch, color in zip(
+        mismatches, mismatches_color_sequence
+    )
+}
+# mismatch_dolor_map
+
 # %% [markdown] papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"}
 # # Data preprocessing
 
@@ -898,7 +947,8 @@ known_non_syns_df
 # %%
 known_non_syns_per_chrom_df = (
     known_non_syns_df.groupby("Chrom")["NonSyn"]
-    .count()
+    # .count()
+    .sum() # fixed bug on 7.9.2026
     .reset_index()
     .rename(columns={"NonSyn": "NonSyns"})
     .sort_values("NonSyns", ascending=False)
@@ -956,6 +1006,15 @@ concat_all_positions_df = make_concat_all_positions_df(
     possibly_na_positions_files, condition_col, possibly_na_conditions
 )
 concat_all_positions_df
+
+# %%
+concat_all_edited_positions_df = concat_all_positions_df.loc[
+    concat_all_positions_df["EditedFinal"]
+]
+concat_all_edited_positions_df
+
+# %%
+concat_all_positions_df.columns
 
 # %%
 concat_all_positions_df["NoisyFinal"].value_counts(dropna=False)
@@ -1472,6 +1531,1911 @@ tmr1000_alignment_stats_and_snps_df = tmr1000_alignment_stats_df.merge(
     how="inner"
 )
 tmr1000_alignment_stats_and_snps_df
+
+
+# %% [markdown]
+# ### Mismatches - theoritical fix
+
+# %% [markdown]
+# How the mismatches table would've looked if we positions with A in the reference wouldn't automatically be considered as
+# A-to-G but rather A-to-X based on the highest covered base other than A.
+
+# %%
+def find_alt_base_theoretical_fix(
+    ref_base: str, 
+    a_count: int, t_count: int, c_count: int, g_count: int,
+):
+    """
+    Find the base with most supporting reads other than `ref_base`.
+    If there are two or more such bases, the function picks one at random.
+    If all base counts other than `ref_base` are zero, the function returns NaN - signaling that there is no alternative base at this position.
+    """
+        
+    base_counts_dict = {"A": a_count, "T": t_count, "C": c_count, "G": g_count}
+    alt_bases = set(base_counts_dict) - {ref_base}
+    alt_base_counts_dict = {
+        base: base_count
+        for base, base_count in base_counts_dict.items()
+        if base in alt_bases
+    }
+    max_alt_base_count = max(alt_base_counts_dict.values())
+    if max_alt_base_count == 0:
+        return np.nan
+    max_alt_bases = [
+        base
+        for base, base_count in alt_base_counts_dict.items()
+        if base_count == max_alt_base_count
+    ]
+    alt_base = choice(max_alt_bases)
+    return alt_base
+
+
+# %%
+def define_mismatch_type_theoretical_fix(
+    ref_base: str, alt_base: str, 
+    # strand: str, 
+    ):
+    # this is not a real mismatch, so we cannot define a mismatch type
+    if pd.isna(alt_base):
+        return np.nan
+    
+    # if strand == "-":
+    #     opposing_bases = {"A": "T", "T": "A", "C": "G", "G": "C"}
+    #     ref_base = opposing_bases[ref_base]
+    #     alt_base = opposing_bases[alt_base]
+    
+    mismatch_type = f"{ref_base}>{alt_base}"
+    
+    return mismatch_type
+
+
+# %%
+def mismatch_frequency_theoretical_fix(ref_base_count, alt_base_count):
+    if alt_base_count == 0:
+        return np.nan
+    return alt_base_count / (ref_base_count + alt_base_count)
+
+
+# %%
+def make_rows_of_all_positions_in_orf(
+    transcript: str,
+    chrom: str, 
+    start: int, 
+    end: int
+) -> pd.DataFrame:
+    # inclusive_end = end - 1
+    df = pd.DataFrame(
+        {
+            "Transcript": [transcript] * (end - start),
+            "Chrom": [chrom] * (end - start),
+            "Position": list(range(start, end)),
+        }
+    )
+    assert df.shape[0] % 3 == 0, f"ORF length is not a multiple of 3: {chrom}:{start}-{end}"
+    return df
+
+
+# %%
+def define_editing_threshold(
+    one_chrom_positions_df: pd.DataFrame,
+    top_x_noisy_positions: int = 3,
+    assurance_factor: float = 1.5
+):
+    noise_levels = (
+        one_chrom_positions_df
+        .loc[
+            one_chrom_positions_df["NoiseSite"],
+            "MismatchFrequency"
+        ]
+        .sort_values(ascending=False)
+        [:top_x_noisy_positions]
+        .tolist()
+    )
+    # if there are less noisy positions than `top_x_noisy_positions`, add zeros accordingly
+    noise_levels = pd.Series(
+        noise_levels + [0 for _ in range(top_x_noisy_positions - len(noise_levels))]
+    )
+    editing_threshold = noise_levels.mean()
+    if pd.isna(editing_threshold):
+        editing_threshold = 0
+    # anyway, we finalize the editing threshold
+    editing_threshold *= assurance_factor
+    return editing_threshold
+
+
+# %%
+noise_threshold_df = pd.concat(
+    [
+        pd.read_csv(
+            noise_threshold_file, 
+            sep="\t",
+            names=["Chrom", "NoiseThreshold"]
+        )
+        for noise_threshold_file in noise_threshold_files_df["NoiseThresholdFile"].values
+    ],
+    ignore_index=True
+)
+noise_threshold_df
+
+# %%
+# load the positions data as found by our pipeline
+mismatches_theoretical_fix_df = concat_all_positions_df.loc[
+    :,
+    [
+        condition_col,
+        "Chrom",
+        "Position",
+        "RefBase",
+        "TotalCoverage",
+        "A",
+        "T",
+        "C",
+        "G",
+        # "EditingFrequency",
+        # "Edited",
+        # "EditedCorrected",
+        "EditedFinal",
+        # "Noise",
+        # "NoisyCorrected",
+        "NoisyFinal",
+    ],
+]
+
+# mismatches_theoretical_fix_df = mismatches_theoretical_fix_df.merge(data_df.loc[:, ["Chrom", "Strand"]], how="left")
+# mismatches_theoretical_fix_df.insert(
+#     mismatches_theoretical_fix_df.columns.get_loc("Chrom") + 1, "Strand2", mismatches_theoretical_fix_df["Strand"]
+# )
+# del mismatches_theoretical_fix_df["Strand"]
+# mismatches_theoretical_fix_df = mismatches_theoretical_fix_df.rename(columns={"Strand2": "Strand"})
+
+# all orfs are on the positive strand so we don't have to deal with positive strand/coding strand normalizations
+assert set(orfs_df["Strand"].values) == {"+"}
+
+# find the "real" alternative base for each position
+mismatches_theoretical_fix_df.insert(
+    mismatches_theoretical_fix_df.columns.get_loc("RefBase") + 1,
+    "AltBase",
+    mismatches_theoretical_fix_df.apply(
+        lambda x: find_alt_base_theoretical_fix(
+            x["RefBase"],
+            x["A"],
+            x["T"],
+            x["C"],
+            x["G"],
+        ),
+        axis=1,
+    ),
+)
+# annotathe mismatch type according to alt- and ref-base
+mismatches_theoretical_fix_df.insert(
+    mismatches_theoretical_fix_df.columns.get_loc("AltBase") + 1,
+    "Mismatch",
+    mismatches_theoretical_fix_df.apply(
+        lambda x: define_mismatch_type_theoretical_fix(x["RefBase"], x["AltBase"]), axis=1
+    ),
+)
+
+# annotate Alt- and RefBaseCount as dedicated cols
+mismatches_theoretical_fix_df.insert(
+    mismatches_theoretical_fix_df.columns.get_loc("G") + 1,
+    "RefBaseCount",
+    mismatches_theoretical_fix_df.apply(
+        lambda x: x[x["RefBase"]],
+        axis=1
+    )
+)
+mismatches_theoretical_fix_df.insert(
+    mismatches_theoretical_fix_df.columns.get_loc("G") + 2,
+    "AltBaseCount",
+    mismatches_theoretical_fix_df.apply(
+        lambda x: x[x["AltBase"]] if pd.notna(x["AltBase"]) else np.nan,
+        axis=1
+    )
+)
+
+# annotate mismatch frequency as an alternative and general annotation to `EditingFrequency` and `Noise`
+mismatches_theoretical_fix_df.insert(
+    mismatches_theoretical_fix_df.columns.get_loc("AltBaseCount") + 1,
+    "MismatchFrequency",
+    mismatches_theoretical_fix_df.apply(
+        lambda x: mismatch_frequency(x["RefBaseCount"], x["AltBaseCount"]), axis=1
+    ),
+)
+
+# add to mismatches_theoretical_fix_df all positions in the ORFs, even if they are not covered by reads and thus 
+# not present in the positions files
+cocnat_all_cds_positions_df = pd.concat(
+    [
+        make_rows_of_all_positions_in_orf(transcript, chrom, start, end)
+        for transcript, chrom, start, end in orfs_df.loc[:, ["Name", "Chrom", "Start", "End"]].itertuples(index=False, name=None)
+    ]
+)
+mismatches_theoretical_fix_df_2 = mismatches_theoretical_fix_df.merge(
+    cocnat_all_cds_positions_df, 
+    on=["Chrom", "Transcript", "Position"], 
+    how="right"
+)
+assert mismatches_theoretical_fix_df_2.shape[0] == cocnat_all_cds_positions_df.shape[0]
+assert mismatches_theoretical_fix_df_2.loc[
+    mismatches_theoretical_fix_df_2["RefBase"].notna()
+].shape[0] == mismatches_theoretical_fix_df.shape[0]
+mismatches_theoretical_fix_df = mismatches_theoretical_fix_df_2
+# fill coverage of positions that are not covered in the original positions files with 0
+uncovered_positions = mismatches_theoretical_fix_df["RefBase"].isna()
+mismatches_theoretical_fix_df.loc[
+    uncovered_positions,
+    "TotalCoverage"
+] = 0
+
+# add original noise threshold per chrom
+mismatches_theoretical_fix_df = mismatches_theoretical_fix_df.merge(
+    noise_threshold_df,
+    on="Chrom",
+    how="left"
+)
+
+# keep only chroms that have at least one position with coverage > 0, as otherwise the "original" noise threshold is meaningless
+# mismatches_theoretical_fix_df = mismatches_theoretical_fix_df.loc[
+#     mismatches_theoretical_fix_df.groupby("Chrom")["TotalCoverage"].transform("sum").gt(0)
+# ]
+# keep only chroms that have at least 50 mapped reads
+mismatches_theoretical_fix_df = mismatches_theoretical_fix_df.loc[
+    mismatches_theoretical_fix_df["Chrom"].isin(
+        tmr50_alignment_stats_df["Chrom"]
+    )
+]
+# verify that all chroms in the resulting df indeed linked to the "original" noise threshold
+assert mismatches_theoretical_fix_df["NoiseThreshold"].isna().sum() == 0
+
+# intialy set all pvals to 1, which represnts the pvalue of the perfect null hypothesis - no mismatch in this position
+mismatches_theoretical_fix_df["BinomPVal"] = 1.0
+# then, for positions that have an alternative base, calculate the binomial test p-value for the observed number of 
+# alternative base reads given the total coverage and a null hypothesis probability of 0.001
+positions_with_alt_base = mismatches_theoretical_fix_df["AltBase"].notna()
+mismatches_theoretical_fix_df.loc[
+    positions_with_alt_base,
+    "BinomPVal"
+] = mismatches_theoretical_fix_df.loc[positions_with_alt_base].apply(
+    lambda x: binom_test(
+        x["AltBaseCount"],
+        x["RefBaseCount"] + x["AltBaseCount"],
+        0.001,
+        alternative="larger",
+    ),
+    axis=1,
+)
+# perform the BH correction
+bh_rejections, bh_corrected_pvals = fdrcorrection(
+    mismatches_theoretical_fix_df["BinomPVal"]
+)
+# add the corrected p-values and rejections to the concatenated dataframe
+mismatches_theoretical_fix_df["BHCorrectedPVal"] = bh_corrected_pvals
+mismatches_theoretical_fix_df["BHRejection"] = bh_rejections
+
+# %%
+mismatches_theoretical_fix_df
+
+# %%
+mismatches_theoretical_fix_df["Chrom"].nunique()
+
+# %%
+significant_mismatches_theoretical_fix_df = mismatches_theoretical_fix_df.loc[
+    mismatches_theoretical_fix_df["BHRejection"]
+].reset_index(drop=True)
+
+# SNPs (definitive & suspected SNPs)
+
+significant_mismatches_theoretical_fix_df["AtOrAboveSuspectedSNPLevel"] = (
+    significant_mismatches_theoretical_fix_df["MismatchFrequency"].ge(snp_noise_level)
+)
+significant_mismatches_theoretical_fix_df["MismatchFrequency1"] = (
+    significant_mismatches_theoretical_fix_df["MismatchFrequency"].eq(1)
+)
+
+significant_mismatches_theoretical_fix_df["SuspectedSNP"] = (
+    (
+        significant_mismatches_theoretical_fix_df["AtOrAboveSuspectedSNPLevel"]
+        & ~significant_mismatches_theoretical_fix_df["MismatchFrequency1"]
+        & significant_mismatches_theoretical_fix_df["Mismatch"].ne("A>G")
+    )
+)
+significant_mismatches_theoretical_fix_df["DefinitiveSNP"] = (
+    significant_mismatches_theoretical_fix_df["MismatchFrequency1"]
+)
+significant_mismatches_theoretical_fix_df["SNP"] = (
+    significant_mismatches_theoretical_fix_df["SuspectedSNP"]
+    | significant_mismatches_theoretical_fix_df["DefinitiveSNP"]
+)
+
+significant_mismatches_theoretical_fix_df["NumOfSuspectedSNPsPerChrom"] = (
+    significant_mismatches_theoretical_fix_df.groupby("Chrom")["SuspectedSNP"].transform("sum")
+)
+significant_mismatches_theoretical_fix_df["NumOfDefinitiveSNPsPerChrom"] = (
+    significant_mismatches_theoretical_fix_df.groupby("Chrom")["DefinitiveSNP"].transform("sum")
+)
+significant_mismatches_theoretical_fix_df["NumOfSNPsPerChrom"] = (
+    significant_mismatches_theoretical_fix_df.groupby("Chrom")["SNP"].transform("sum")
+)
+
+# don't allow editing detection in genes where the number of suspected SNPs is above a certain threshold, 
+# as this may indicate that the gene is highly polymorphic and thus not suitable for editing detection
+# as it's hard to distinguish between editing and suspected SNPs
+significant_mismatches_theoretical_fix_df["EditingDetectionDisabledInChromDueToSuspectedSNPs"] = (
+    significant_mismatches_theoretical_fix_df["NumOfSuspectedSNPsPerChrom"].gt(
+        max_snps_per_gene_to_allow_editing_detection
+    )
+)
+
+significant_mismatches_theoretical_fix_df["NoiseSite"] = (
+    significant_mismatches_theoretical_fix_df["Mismatch"].ne("A>G")
+    & ~significant_mismatches_theoretical_fix_df["SNP"]
+)
+
+new_editing_thresholds_df = (
+    significant_mismatches_theoretical_fix_df
+    .groupby("Chrom")
+    .apply(define_editing_threshold)
+    .reset_index(name="NewEditingThreshold")
+)
+significant_mismatches_theoretical_fix_df = significant_mismatches_theoretical_fix_df.merge(
+    new_editing_thresholds_df,
+    on="Chrom",
+    how="left"
+)
+
+significant_mismatches_theoretical_fix_df["AboveNewEditingThreshold"] = (
+    significant_mismatches_theoretical_fix_df["MismatchFrequency"].gt(
+        significant_mismatches_theoretical_fix_df["NewEditingThreshold"]
+    )
+)
+
+significant_mismatches_theoretical_fix_df["EditingSite"] = (
+    significant_mismatches_theoretical_fix_df["Mismatch"].eq("A>G")
+    & ~significant_mismatches_theoretical_fix_df["SNP"]
+    & ~significant_mismatches_theoretical_fix_df["EditingDetectionDisabledInChromDueToSuspectedSNPs"]
+    & significant_mismatches_theoretical_fix_df["AboveNewEditingThreshold"]
+)
+
+significant_mismatches_theoretical_fix_df
+
+# %%
+significant_mismatches_theoretical_fix_df["Chrom"].nunique()
+
+
+# %%
+def is_x_gt_or_eq_or_lt_y(x, y):
+    if pd.isna(x) or pd.isna(y):
+        return pd.NA
+    elif x > y:
+        return ">"
+    elif x == y:
+        return "=="
+    else:
+        return "<"
+
+
+# %%
+(
+    significant_mismatches_theoretical_fix_df
+    .drop_duplicates("Chrom")
+    .reset_index(drop=True)
+    .loc[
+        :,
+        [
+            # "Chrom", 
+         "NoiseThreshold", "NewEditingThreshold"]
+    ]
+    .apply(
+        lambda x: is_x_gt_or_eq_or_lt_y(x["NoiseThreshold"], x["NewEditingThreshold"]),
+        axis=1
+    )
+    .value_counts()
+    .reset_index()
+    .rename(
+        columns={
+            "index": "NoiseThreshold vs NewEditingThreshold", 
+        }
+    )
+)
+
+# %%
+(
+    significant_mismatches_theoretical_fix_df
+    .groupby("Chrom")
+    [["SuspectedSNP", "DefinitiveSNP", "SNP"]]
+    .sum().describe().round(2)
+)
+
+# %%
+(
+    significant_mismatches_theoretical_fix_df
+    ["Mismatch"].value_counts(dropna=False)
+)
+
+# %%
+significant_edited_positions_theoretical_fix_df = significant_mismatches_theoretical_fix_df.loc[
+    significant_mismatches_theoretical_fix_df["EditingSite"]
+]
+significant_edited_positions_theoretical_fix_df
+
+# %%
+concat_all_edited_positions_df
+
+# %%
+significant_edited_positions_theoretical_fix_df.columns
+
+# %%
+significant_mismatches_theoretical_fix_df.loc[
+    significant_mismatches_theoretical_fix_df["NumOfSuspectedSNPsPerChrom"].gt(max_snps_per_gene_to_allow_editing_detection)
+]
+
+# %%
+significant_mismatches_theoretical_fix_df["NumOfSuspectedSNPsPerChrom"].describe().round(2)
+
+# %%
+significant_edited_positions_theoretical_fix_df["NumOfSuspectedSNPsPerChrom"].describe().round(2)
+
+# %%
+concat_old_vs_new_editing_positions_df = (
+    significant_edited_positions_theoretical_fix_df
+    .loc[
+        :,
+        [
+            "Chrom", "Position", "MismatchFrequency", "NoiseThreshold", "NewEditingThreshold",
+            "NumOfSuspectedSNPsPerChrom"
+         ]
+    ]
+    .rename(
+        columns={
+            "MismatchFrequency": "NewMismatchFrequency",
+            "NoiseThreshold": "OldEditingThreshold",
+            "NumOfSuspectedSNPsPerChrom": "NumOfNewSuspectedSNPsPerChrom",
+        }
+    )
+    .merge(
+        (
+            concat_all_edited_positions_df
+            .loc[
+                :,
+                ["Chrom", "Position", "EditingFrequency"]
+            ]
+            .rename(
+                columns={
+                    "EditingFrequency": "OldMismatchFrequency",
+                }
+            )
+        ),
+        on=["Chrom", "Position"],
+        how="outer",
+        suffixes=("_New", "_Old"),
+        indicator=True
+    )
+    .loc[
+        :,
+        [
+            "Chrom", "Position", "OldMismatchFrequency", "NewMismatchFrequency",
+            "OldEditingThreshold", "NewEditingThreshold", "NumOfNewSuspectedSNPsPerChrom", "_merge"
+        ]
+    ]
+)
+concat_old_vs_new_editing_positions_df["_merge"] = (
+    concat_old_vs_new_editing_positions_df["_merge"]
+    .astype(str)
+    .replace(
+        {
+            "left_only": "New",
+            "right_only": "Old",
+            "both": "Both"
+        }
+    )
+)
+concat_old_vs_new_editing_positions_df
+
+# %%
+concat_old_vs_new_editing_positions_df["_merge"].value_counts()
+
+# %%
+concat_old_vs_new_editing_positions_only_new_df = (
+    concat_old_vs_new_editing_positions_df
+    .loc[
+        concat_old_vs_new_editing_positions_df["_merge"].eq("New")
+    ]
+)
+concat_old_vs_new_editing_positions_only_old_df = (
+    concat_old_vs_new_editing_positions_df
+    .loc[
+        concat_old_vs_new_editing_positions_df["_merge"].eq("Old")
+    ]
+)
+
+
+# %%
+concat_old_vs_new_editing_positions_only_new_df
+
+# %%
+concat_old_vs_new_editing_positions_only_old_df
+
+# %%
+sites_sets_per_chrom = (
+    concat_old_vs_new_editing_positions_df.groupby("Chrom")["_merge"].value_counts()
+    .reset_index()
+    .pivot(
+        index="Chrom", columns="_merge", values="count"
+    )
+    .fillna(0)
+    .astype(int)
+)
+sites_sets_per_chrom
+
+# %%
+chroms_with_only_old_sites = sites_sets_per_chrom.loc[
+    (
+        sites_sets_per_chrom["Both"].eq(0)
+        & sites_sets_per_chrom["Old"].gt(0)
+        & sites_sets_per_chrom["New"].eq(0) 
+    )
+].index.tolist()
+
+ic(len(chroms_with_only_old_sites))
+
+chroms_with_only_old_sites
+
+# %%
+# concat_old_vs_new_editing_positions_only_old_df.loc[
+#     concat_old_vs_new_editing_positions_only_old_df["Chrom"].isin(
+#         chroms_with_only_old_sites
+#     )
+# ]
+
+# %%
+# (
+#     significant_mismatches_theoretical_fix_df
+#     .loc[
+#         significant_mismatches_theoretical_fix_df["Chrom"].isin(
+#             chroms_with_only_old_sites
+#         ),
+#         ["Chrom", "NumOfSuspectedSNPsPerChrom"]
+#     ]
+#     .drop_duplicates("Chrom")
+# )
+
+# %%
+significant_mismatches_theoretical_fix_chroms_with_too_much_suspected_snps_df = (
+    significant_mismatches_theoretical_fix_df
+    .loc[
+        significant_mismatches_theoretical_fix_df["Chrom"].isin(
+            chroms_with_only_old_sites
+        ),
+        # ["Chrom", "NumOfSuspectedSNPsPerChrom"]
+    ]
+    # .drop_duplicates("Chrom")
+)
+significant_mismatches_theoretical_fix_chroms_with_too_much_suspected_snps_df
+
+# %%
+significant_mismatches_theoretical_fix_chroms_with_too_much_suspected_snps_df["Chrom"].nunique()
+
+# %%
+significant_mismatches_theoretical_fix_df.loc[
+    (
+        significant_mismatches_theoretical_fix_df["Mismatch"].eq("A>G")
+        & ~significant_mismatches_theoretical_fix_df["SNP"]
+        & ~significant_mismatches_theoretical_fix_df["EditingDetectionDisabledInChromDueToSuspectedSNPs"]
+        & significant_mismatches_theoretical_fix_df["AboveNewEditingThreshold"]
+    )
+]
+
+
+# %%
+# this table contains A>G sites that are not considered edited only because
+# the gene they are in has too many suspected SNPs, which may indicate that the gene is highly polymorphic and thus not suitable for editing detection
+significant_mismatches_sites_disabled_by_suspected_snps_theoretical_fix_df = significant_mismatches_theoretical_fix_df.loc[
+    (
+        significant_mismatches_theoretical_fix_df["Mismatch"].eq("A>G")
+        & ~significant_mismatches_theoretical_fix_df["SNP"]
+        & significant_mismatches_theoretical_fix_df["EditingDetectionDisabledInChromDueToSuspectedSNPs"]
+        & significant_mismatches_theoretical_fix_df["AboveNewEditingThreshold"]
+    )
+]
+significant_mismatches_sites_disabled_by_suspected_snps_theoretical_fix_df
+
+# %%
+(
+    significant_mismatches_sites_disabled_by_suspected_snps_theoretical_fix_df
+    ["Chrom"]
+    .nunique()
+)
+
+# %%
+(
+    significant_mismatches_sites_disabled_by_suspected_snps_theoretical_fix_df
+    .drop_duplicates(["Chrom"])
+    ["NumOfSuspectedSNPsPerChrom"].describe().round(2)
+)
+
+# %%
+(
+    significant_mismatches_sites_disabled_by_suspected_snps_theoretical_fix_df
+    .groupby("NumOfSuspectedSNPsPerChrom")
+    .size()
+    .reset_index(name="NumOfRejectedEditingSites")
+    # .describe().round(2)
+)
+
+# %%
+fig = px.scatter(
+    (
+        significant_mismatches_sites_disabled_by_suspected_snps_theoretical_fix_df
+        .groupby("NumOfSuspectedSNPsPerChrom")
+        .size()
+        .reset_index(name="NumOfRejectedEditingSites")
+        # .describe().round(2)
+    ),
+    x="NumOfSuspectedSNPsPerChrom",
+    y="NumOfRejectedEditingSites",
+    log_x=True,
+    labels={
+        "NumOfSuspectedSNPsPerChrom": "Number of suspected SNPs per gene",
+        "NumOfRejectedEditingSites": "Number of editing sites rejected<br>due to suspected SNPs"
+    }
+)
+fig.update_layout(
+    width=600,
+    height=400
+)
+fig.show()
+
+# %%
+(
+    significant_mismatches_sites_disabled_by_suspected_snps_theoretical_fix_df
+    .groupby("NumOfSuspectedSNPsPerChrom")
+    ["EditedFinal"]
+    .apply(
+        lambda x: x.sum()
+    )
+    .reset_index(name="NumOfRejectedEditingSitesPreviouslyFound")
+    .assign(
+        CumulativeNumOfRejectedEditingSitesPreviouslyFound=lambda x: x["NumOfRejectedEditingSitesPreviouslyFound"].cumsum()
+    )
+)
+
+# %%
+# how many SNPs in 4-6 SPNs per gene are new AC/AT?
+(
+    significant_mismatches_theoretical_fix_df
+    .loc[
+        (
+            significant_mismatches_theoretical_fix_df["NumOfSuspectedSNPsPerChrom"].between(4, 6)
+            & significant_mismatches_theoretical_fix_df["SuspectedSNP"]
+        )
+    ]
+    .groupby("NumOfSuspectedSNPsPerChrom")
+    ["Mismatch"]
+    # .value_counts(normalize=True)
+    # .mul(100)
+    # .round(2)
+    .value_counts()
+    .unstack(fill_value=0)
+)
+
+# %%
+# how many SNPs in 4-6 SPNs per gene are new AC/AT? 
+# TODO - 11.9.2026 - This is per num of SNPs per chrom, not per chrom
+# TODO - also, we should check this specifically for the genes with lost editing sites
+(
+    significant_mismatches_theoretical_fix_df
+    .loc[
+        (
+            significant_mismatches_theoretical_fix_df["NumOfSuspectedSNPsPerChrom"].between(4, 6)
+            & significant_mismatches_theoretical_fix_df["SuspectedSNP"]
+        )
+    ]
+    .groupby("NumOfSuspectedSNPsPerChrom")
+    ["Mismatch"]
+    # .value_counts(normalize=True)
+    # .mul(100)
+    # .round(2)
+    .value_counts()
+    .unstack(fill_value=0)
+)
+
+# %%
+# how many SNPs in 4-6 SPNs per gene are new AC/AT?
+(
+    significant_mismatches_sites_disabled_by_suspected_snps_theoretical_fix_df
+    .loc[
+        significant_mismatches_sites_disabled_by_suspected_snps_theoretical_fix_df["NumOfSuspectedSNPsPerChrom"].between(4, 6)
+    ]
+    .groupby("NumOfSuspectedSNPsPerChrom")
+    ["Mismatch"].value_counts(normalize=True).unstack(fill_value=0)
+)
+
+# %%
+(
+    significant_mismatches_sites_disabled_by_suspected_snps_theoretical_fix_df
+    .groupby("NumOfSuspectedSNPsPerChrom")
+    ["EditedFinal"]
+    .apply(
+        lambda x: 100 * x.sum() / x.size
+    )
+    .reset_index(name="%OfRejectedEditingSitesPreviouslyFound")
+)
+
+# %%
+fig = px.line(
+    (
+        significant_mismatches_sites_disabled_by_suspected_snps_theoretical_fix_df
+        .groupby("NumOfSuspectedSNPsPerChrom")
+        ["EditedFinal"]
+        .apply(
+            lambda x: 100 * x.sum() / x.size
+        )
+        .reset_index(name="%OfRejectedEditingSitesPreviouslyFound")
+    ),
+    x="NumOfSuspectedSNPsPerChrom",
+    y="%OfRejectedEditingSitesPreviouslyFound",
+    log_x=True,
+    markers=True,
+    # line_shape="linear",
+    labels={
+        "NumOfSuspectedSNPsPerChrom": "Number of suspected SNPs per gene",
+        "%OfRejectedEditingSitesPreviouslyFound": "% of rejected<br>editing sites previously found"
+    }
+)
+fig.update_layout(
+    width=600,
+    height=400
+)
+fig.show()
+
+# %%
+
+# %%
+
+# %%
+(
+    significant_mismatches_sites_disabled_by_suspected_snps_theoretical_fix_df
+    .loc[
+        significant_mismatches_sites_disabled_by_suspected_snps_theoretical_fix_df["EditedFinal"]
+    ]
+)
+
+# %%
+(
+    significant_mismatches_theoretical_fix_chroms_with_too_much_suspected_snps_df.loc[
+        (
+            significant_mismatches_theoretical_fix_chroms_with_too_much_suspected_snps_df["Mismatch"]
+            (
+            significant_mismatches_theoretical_fix_chroms_with_too_much_suspected_snps_df["Mismatch"].eq("A>G")
+            & ~significant_mismatches_theoretical_fix_chroms_with_too_much_suspected_snps_df["SNP"]
+            & significant_mismatches_theoretical_fix_chroms_with_too_much_suspected_snps_df["AboveNewEditingThreshold"]
+        )
+        )
+    ]
+)
+
+# %%
+
+# %%
+
+# %%
+(
+    concat_old_vs_new_editing_positions_df
+    .loc[
+        concat_old_vs_new_editing_positions_df["_merge"].eq("both"),
+        ["Chrom", "Position", "OldMismatchFrequency", "NewMismatchFrequency"]
+    ]
+    .apply(
+        lambda x: is_x_gt_or_eq_or_lt_y(x["OldMismatchFrequency"], x["NewMismatchFrequency"]),
+        axis=1
+    )
+    .value_counts()
+    .reset_index()
+    .rename(
+        columns={
+            "index": "OldMismatchFrequency vs NewMismatchFrequency", 
+        }
+    )
+)
+
+# %%
+
+# %%
+# (
+#     significant_mismatches_theoretical_fix_df.loc[
+#         significant_mismatches_theoretical_fix_df["AboveNewEditingThreshold"]
+#     ]
+#     ["Mismatch"].value_counts(dropna=False)
+# )
+
+# %%
+# (
+#     significant_mismatches_theoretical_fix_df
+#     .groupby(["EditedFinal", "AboveNoiseThreshold"])
+#     ["Mismatch"].value_counts(dropna=False)
+# )
+
+# %%
+significant_mismatches_theoretical_fix_df.head()
+
+# %%
+(
+    significant_mismatches_theoretical_fix_df.loc[
+        ~significant_mismatches_theoretical_fix_df["AboveNewEditingThreshold"],
+        "MismatchFrequency"
+    ]
+    .describe().round(2)
+)
+
+# %%
+(
+    significant_mismatches_theoretical_fix_df.loc[
+        (
+            significant_mismatches_theoretical_fix_df["AboveNewEditingThreshold"]
+            & ~significant_mismatches_theoretical_fix_df["SNP"]
+        ),
+        "MismatchFrequency"
+    ]
+    .describe().round(2)
+)
+
+# %%
+(
+    significant_mismatches_theoretical_fix_df.loc[
+        (
+            significant_mismatches_theoretical_fix_df["AboveNewEditingThreshold"]
+            & ~significant_mismatches_theoretical_fix_df["AtOrAboveSuspectedSNPLevel"]
+            # & significant_mismatches_theoretical_fix_df["Mismatch"].n("A>G")
+        ),
+        "MismatchFrequency"
+    ]
+)
+
+# %%
+fig = px.histogram(
+    (
+        significant_mismatches_theoretical_fix_df.loc[
+            ~significant_mismatches_theoretical_fix_df["AboveNewEditingThreshold"]
+        ]
+    ),
+    x="Mismatch",
+    color="Mismatch",
+    color_discrete_map=mismatch_dolor_map,
+    # facet_col="Platform",
+    # facet_col_spacing=0.04,
+    log_y=True,
+    template=template,
+    category_orders={"Mismatch": mismatches},
+    title="Mismatches below editing threshold",
+)
+
+width = 700
+height = 500
+
+# Use for_each_annotation to customize each title (i.e., remove the "Platform=" prefix)
+fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+
+fig.update_xaxes(tickangle=35)
+# fig.update_yaxes(dtick=10)
+
+fig.update_layout(
+    width=width,
+    height=height,
+    showlegend=False
+)
+
+# fig.write_image(
+#     Path(out_dir, "12 npn-SNP mismatches distribution - absolute - combined.svg"),
+#     width=width,
+#     height=height,
+# )
+
+fig.show()
+
+# %%
+fig = px.histogram(
+    (
+        significant_mismatches_theoretical_fix_df.loc[
+            (
+                significant_mismatches_theoretical_fix_df["AboveNewEditingThreshold"]
+                & ~significant_mismatches_theoretical_fix_df["AtOrAboveSuspectedSNPLevel"]
+            )
+        ]
+    ),
+    x="Mismatch",
+    color="Mismatch",
+    color_discrete_map=mismatch_dolor_map,
+    # facet_col="Platform",
+    # facet_col_spacing=0.04,
+    log_y=True,
+    template=template,
+    category_orders={"Mismatch": mismatches},
+    title="Mismatches above editing threshold, but below suspected SNP threshold",
+)
+
+width = 700
+height = 500
+
+# Use for_each_annotation to customize each title (i.e., remove the "Platform=" prefix)
+fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+
+fig.update_xaxes(tickangle=35)
+# fig.update_yaxes(dtick=10)
+
+fig.update_layout(
+    width=width,
+    height=height,
+    showlegend=False
+)
+
+# fig.write_image(
+#     Path(out_dir, "12 npn-SNP mismatches distribution - absolute - combined.svg"),
+#     width=width,
+#     height=height,
+# )
+
+fig.show()
+
+# %%
+fig = px.histogram(
+    (
+        significant_mismatches_theoretical_fix_df.loc[
+            (
+                significant_mismatches_theoretical_fix_df["AtOrAboveSuspectedSNPLevel"]
+            )
+        ]
+    ),
+    x="Mismatch",
+    color="Mismatch",
+    color_discrete_map=mismatch_dolor_map,
+    # facet_col="Platform",
+    facet_col_spacing=0.04,
+    facet_col="MismatchFrequency1",
+    log_y=True,
+    template=template,
+    category_orders={"Mismatch": mismatches},
+    title="Mismatches at or above suspected SNP threshold",
+)
+
+width = 1000
+height = 500
+
+# Use for_each_annotation to customize each title (i.e., remove the "Platform=" prefix)
+# fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+
+fig.update_xaxes(tickangle=35)
+# fig.update_yaxes(dtick=10)
+
+fig.update_layout(
+    width=width,
+    height=height,
+    showlegend=False
+)
+
+# fig.write_image(
+#     Path(out_dir, "12 npn-SNP mismatches distribution - absolute - combined.svg"),
+#     width=width,
+#     height=height,
+# )
+
+fig.show()
+
+# %% [markdown]
+# #### Original-threshold sensitivity analysis
+#
+# **O** is the set of original final editing sites (`EditedFinal=True`); **N** is the existing fully updated `EditingSite` set; **H** preserves all updated decisions and substitutes the original gene threshold for the final strict `>` comparison.
+# A gene **permitted for detection** can have intermediate `Edited=True` positions and no final editing sites, so permission evidence and `OriginalHasFinalEditing` are reported separately.
+# This revision corrects reporting populations and readability without changing the detection rules, parameters, frozen BH results, alternate-base choices, or mismatch-plot populations.
+# Overlap fractions measure retention of calls, not biological accuracy.
+#
+# **Audit of original flag uses.** The uses below classify membership/counting, intermediate-stage diagnostics, and gene-permission inference; no global replacement of `Edited` is appropriate.
+#
+# | Use in this subsection | Classification | Interpretation |
+# |---|---|---|
+# | `ots_O_unscoped`, `ots_O`, original subset assertions: `EditedFinal` | Final membership/counting | Exactly the unique original final-site keys; the generic `ots_site_set` helper receives `EditedFinal` for O. |
+# | Audit `OriginalEditingSite = OriginalEditedFinal.eq(True)`; all original loss, recovery, gene and scope counts derived from O or this flag | Final membership/counting | `OriginalHasFinalEditing` and `OriginalEditingSites` use final sites only. |
+# | Copy original `Edited`, `EditedCorrected`, `EditedFinal` into the audit; discard the theoretical table's duplicated `EditedFinal` before joining | Diagnostic storage and final-status provenance | Preserve the original flags independently; attaching them never filters N or H. |
+# | `OriginalEdited` → `OriginalNaiveEditedStatus` in gained-call origins | Intermediate-stage diagnostic | Passing the naive threshold/permission gate is not a final editing call. |
+# | `OriginalEditedCorrected` → `OriginalBHStatus` and BH transition/p-value tables | Intermediate-stage diagnostic | Passing original editing BH alone is not a final editing call. |
+# | `Edited`/`EditedFinal` in `ots_old_positive_genes`; original subset `Edited` assertion | Inference about original gene-filter permission | Positive intermediate `Edited` implies permission in `annotate_edited_sites`; the assertion checks that final calls in this dataset also pass that intermediate gate, not that it defines final calls. |
+#
+# Only this subsection is rerun using the prepared DataFrames. The paired Python file receives only the corresponding subsection revision.
+
+# %% [markdown]
+# **Prepared state.** This checks that the original and theoretical DataFrames, SNP settings, and plotting settings already exist. Missing prerequisites stop the subsection rather than launching the pipeline; numerical diagnostics use `atol=1e-12, rtol=1e-10`, which never alter strict calling.
+
+# %%
+import numpy as ots_np
+import pandas as ots_pd
+import plotly.express as ots_px
+from IPython.display import display as ots_display, Markdown as ots_Markdown, HTML as ots_HTML
+
+ots_required = [
+    "concat_all_positions_df", "concat_all_edited_positions_df",
+    "mismatches_theoretical_fix_df", "significant_mismatches_theoretical_fix_df",
+    "significant_edited_positions_theoretical_fix_df", "noise_threshold_df",
+    "new_editing_thresholds_df", "tmr50_alignment_stats_df",
+    "max_snps_per_gene_to_allow_editing_detection", "snp_noise_level",
+    "mismatches", "mismatch_dolor_map", "template",
+]
+ots_missing = [ots_name for ots_name in ots_required if ots_name not in globals()]
+if ots_missing:
+    raise RuntimeError(
+        "Original-threshold analysis needs existing prepared objects: "
+        + ", ".join(ots_missing)
+        + ". Restore the prepared kernel/data; do not run the whole notebook. "
+        "Prerequisites: original positions/calls, TMR50 alignment metadata, original "
+        "thresholds, frozen full theoretical/BH table, significant annotations/new "
+        "thresholds/calls, and the existing SNP and plot settings."
+    )
+ots_keys = ["Chrom", "Position"]
+ots_atol, ots_rtol = 1e-12, 1e-10
+
+# %% [markdown]
+# **Frozen inputs and site keys.** The input population is the full updated significant mismatch table in the TMR50 gene universe. A copy preserves its mismatch selections and annotations; small existing helpers define unique site keys, explicitly denominated ratios, and tolerance comparisons.
+
+# %%
+ots_hybrid_df = significant_mismatches_theoretical_fix_df.copy(deep=True)
+ots_gene_universe = ots_pd.Index(tmr50_alignment_stats_df["Chrom"].unique(), name="Chrom")
+assert ots_hybrid_df["Chrom"].isin(ots_gene_universe).all()
+assert mismatches_theoretical_fix_df["Chrom"].isin(ots_gene_universe).all()
+
+
+def ots_site_set(ots_frame, ots_flag=None):
+    ots_rows = ots_frame if ots_flag is None else ots_frame.loc[ots_frame[ots_flag].eq(True)]
+    return set(ots_rows[ots_keys].itertuples(index=False, name=None))
+
+
+def ots_ratio(ots_numerator, ots_denominator):
+    return ots_numerator / ots_denominator if ots_denominator else ots_np.nan
+
+
+def ots_close(ots_first, ots_second):
+    return ots_np.isclose(ots_first, ots_second, atol=ots_atol, rtol=ots_rtol, equal_nan=False)
+
+
+# %% [markdown]
+# **Independent threshold annotations.** Original thresholds are checked against one row per gene in `noise_threshold_df`, and updated thresholds against `new_editing_thresholds_df`. Original `NoiseThreshold` already contains the safety factor, so it is neither multiplied again nor filled with zero when missing.
+
+# %%
+# Duplicate sites would make both audit joins and SNP counts ambiguous: fail early.
+ots_validation_df = ots_pd.DataFrame([
+    {"Object": ots_name, "Rows": len(globals()[ots_name]),
+     "Duplicate site keys": int(globals()[ots_name].duplicated(ots_keys).sum())}
+    for ots_name in ots_required[:5]
+])
+assert ots_validation_df["Duplicate site keys"].eq(0).all(), ots_validation_df
+ots_original_thresholds = noise_threshold_df[["Chrom", "NoiseThreshold"]].copy()
+ots_updated_thresholds = new_editing_thresholds_df[["Chrom", "NewEditingThreshold"]].copy()
+for ots_threshold_table, ots_threshold_col in [
+    (ots_original_thresholds, "NoiseThreshold"),
+    (ots_updated_thresholds, "NewEditingThreshold"),
+]:
+    assert not ots_threshold_table["Chrom"].duplicated().any()
+    assert ots_threshold_table[ots_threshold_col].notna().all()
+    assert ots_np.isfinite(ots_threshold_table[ots_threshold_col]).all()
+    assert ots_threshold_table[ots_threshold_col].ge(0).all()
+ots_thresholds_df = (
+    ots_pd.DataFrame(index=ots_gene_universe)
+    .join(ots_original_thresholds.set_index("Chrom"))
+    .join(ots_updated_thresholds.set_index("Chrom"))
+)
+assert ots_thresholds_df["NoiseThreshold"].notna().all(), "Missing original threshold; no zero imputation"
+for ots_threshold_col in ["NoiseThreshold", "NewEditingThreshold"]:
+    ots_mapped_threshold = ots_hybrid_df["Chrom"].map(ots_thresholds_df[ots_threshold_col])
+    assert ots_mapped_threshold.notna().all()
+    assert ots_hybrid_df[ots_threshold_col].eq(ots_mapped_threshold).all(), (
+        "Threshold disagrees with independent per-Chrom table", ots_threshold_col
+    )
+assert mismatches_theoretical_fix_df["NoiseThreshold"].eq(
+    mismatches_theoretical_fix_df["Chrom"].map(ots_thresholds_df["NoiseThreshold"])
+).all()
+
+# %% [markdown]
+# **Hybrid calls with frozen updated decisions.** This verifies the existing BH population and mismatch identities before changing only the final threshold comparison on the copy. H uses strict `MismatchFrequency > NoiseThreshold`; neither H nor N requires original `EditedFinal`, allowing novel final calls.
+
+# %%
+assert ots_hybrid_df["BHRejection"].eq(True).all()
+assert ots_site_set(mismatches_theoretical_fix_df, "BHRejection") == ots_site_set(ots_hybrid_df)
+ots_frozen_cols = ["Mismatch", "MismatchFrequency", "BinomPVal", "BHCorrectedPVal", "BHRejection"]
+ots_pd.testing.assert_frame_equal(
+    mismatches_theoretical_fix_df.loc[mismatches_theoretical_fix_df["BHRejection"], ots_keys + ots_frozen_cols]
+        .set_index(ots_keys).sort_index(),
+    ots_hybrid_df[ots_keys + ots_frozen_cols].set_index(ots_keys).sort_index(),
+    check_dtype=False, check_exact=True,
+)
+ots_hybrid_df["AboveOriginalEditingThreshold"] = (
+    ots_hybrid_df["MismatchFrequency"] > ots_hybrid_df["NoiseThreshold"]
+)
+ots_hybrid_df["EditingSiteUsingOriginalThreshold"] = (
+    ots_hybrid_df["Mismatch"].eq("A>G")
+    & ~ots_hybrid_df["SNP"]
+    & ~ots_hybrid_df["EditingDetectionDisabledInChromDueToSuspectedSNPs"]
+    & ots_hybrid_df["AboveOriginalEditingThreshold"]
+)
+assert ots_hybrid_df["AboveNewEditingThreshold"].equals(
+    ots_hybrid_df["MismatchFrequency"] > ots_hybrid_df["NewEditingThreshold"]
+)
+assert ots_hybrid_df["EditingSite"].equals(
+    ots_hybrid_df["Mismatch"].eq("A>G") & ~ots_hybrid_df["SNP"]
+    & ~ots_hybrid_df["EditingDetectionDisabledInChromDueToSuspectedSNPs"]
+    & ots_hybrid_df["AboveNewEditingThreshold"]
+)
+
+# %% [markdown]
+# **Original final-site membership.** O is constructed only from `EditedFinal=True`, and direct assertions compare both O and `concat_all_edited_positions_df` with independently extracted unique final-site keys. A separate `Edited` assertion checks permission evidence for those final calls; it does not select or count them.
+
+# %%
+ots_O_unscoped = ots_site_set(concat_all_positions_df, "EditedFinal")
+ots_O = {ots_key for ots_key in ots_O_unscoped if ots_key[0] in ots_gene_universe}
+ots_N = ots_site_set(ots_hybrid_df, "EditingSite")
+ots_H = ots_site_set(ots_hybrid_df, "EditingSiteUsingOriginalThreshold")
+# Independent final-membership checks; intermediate Edited is not the selector.
+ots_original_final_keys = set(concat_all_positions_df.loc[
+    concat_all_positions_df["EditedFinal"].eq(True), ots_keys
+].drop_duplicates().itertuples(index=False, name=None))
+assert ots_O_unscoped == ots_original_final_keys
+assert ots_O == {ots_key for ots_key in ots_original_final_keys if ots_key[0] in ots_gene_universe}
+assert concat_all_edited_positions_df["EditedFinal"].eq(True).all()
+assert ots_site_set(concat_all_edited_positions_df) == ots_original_final_keys
+# Permission evidence only: this assertion never supplies final-site membership.
+assert concat_all_edited_positions_df["Edited"].eq(True).all(), "Final calls lack expected intermediate permission evidence"
+assert ots_O_unscoped == ots_site_set(concat_all_edited_positions_df)
+assert ots_N == ots_site_set(significant_edited_positions_theoretical_fix_df)
+ots_sets = {"O": ots_O, "N": ots_N, "H": ots_H}
+
+# %% [markdown]
+# **All-TMR50 baseline.** This compares measured original/updated site counts and overlap with the saved baseline, and reports H's size in the same gene universe. Differences are displayed as regression observations rather than corrected by changing data.
+
+# %%
+ots_baseline_df = ots_pd.DataFrame({
+    "Metric": ["Original sites", "Updated sites", "Shared O & N", "O minus N", "N minus O"],
+    "Saved baseline": [11711, 10714, 10403, 1308, 311],
+    "Measured TMR50": [len(ots_O), len(ots_N), len(ots_O & ots_N), len(ots_O - ots_N), len(ots_N - ots_O)],
+})
+ots_baseline_df["Difference from saved"] = ots_baseline_df["Measured TMR50"] - ots_baseline_df["Saved baseline"]
+ots_display(ots_baseline_df)
+print("Original calls outside the fixed TMR50 scope:", len(ots_O_unscoped - ots_O))
+print("Hybrid calls:", len(ots_H), "; unique TMR50 genes:", len(ots_gene_universe))
+ots_display(ots_validation_df)
+
+# %% [markdown]
+# **Genes with final editing versus updated permission.** For every TMR50 gene, `OriginalHasFinalEditing` is true exactly when O contains at least one of its sites, and `OriginalEditingSites` counts those final sites. Independently, `UpdatedEligible` applies the unchanged suspected-SNP limit to the full significant population, including zero counts; no updated final call is needed.
+
+# %%
+ots_gene_df = ots_thresholds_df.copy()
+ots_gene_df["UpdatedSuspectedSNPs"] = (
+    ots_hybrid_df.groupby("Chrom")["SuspectedSNP"].sum().reindex(ots_gene_universe, fill_value=0).astype(int)
+)
+ots_gene_df["UpdatedEligible"] = ots_gene_df["UpdatedSuspectedSNPs"].le(max_snps_per_gene_to_allow_editing_detection)
+assert (~ots_hybrid_df["EditingDetectionDisabledInChromDueToSuspectedSNPs"]).eq(
+    ots_hybrid_df["Chrom"].map(ots_gene_df["UpdatedEligible"])
+).all()
+ots_gene_df["OriginalHasFinalEditing"] = ots_gene_df.index.isin({ots_key[0] for ots_key in ots_O})
+ots_gene_df["OriginalEditingSites"] = ots_pd.Series([ots_key[0] for ots_key in ots_O]).value_counts().reindex(ots_gene_universe, fill_value=0)
+assert ots_gene_df["OriginalHasFinalEditing"].equals(ots_gene_df["OriginalEditingSites"].gt(0))
+
+# %% [markdown]
+# **Evidence of original detection permission.** In [annotate_edited_sites](../Pileup/positions.py), `editing_detection_possible=False` forces every intermediate `Edited` flag to false, so a positive `Edited` flag is evidence that the gene filter permitted detection. A retained original SNP count above the limit proves exclusion, but a lower count is only a coverage-filtered lower bound; genes with no positive evidence remain unknown, irrespective of final-call absence.
+
+# %%
+ots_old_positive_genes = set(concat_all_positions_df.loc[
+    concat_all_positions_df["Edited"].eq(True) | concat_all_positions_df["EditedFinal"].eq(True), "Chrom"
+])
+ots_old_snp_lower_bound = concat_all_positions_df.loc[
+    concat_all_positions_df["NoisyFinal"].eq(True) & concat_all_positions_df["Noise"].ge(snp_noise_level)
+].groupby("Chrom").size().reindex(ots_gene_universe, fill_value=0)
+ots_gene_df["OriginalSNPCountLowerBound"] = ots_old_snp_lower_bound
+ots_gene_df["OriginalEligibility"] = "unknown: only coverage-filtered evidence"
+ots_gene_df.loc[ots_gene_df.index.isin(ots_old_positive_genes), "OriginalEligibility"] = "permitted: positive original intermediate Edited flag"
+ots_old_proven_excluded = ots_old_snp_lower_bound.gt(max_snps_per_gene_to_allow_editing_detection)
+assert not (ots_old_proven_excluded & ots_gene_df.index.isin(ots_old_positive_genes)).any()
+ots_gene_df.loc[ots_old_proven_excluded, "OriginalEligibility"] = "ineligible: retained SNP count exceeds limit"
+ots_gene_df["OriginalEligible"] = ots_pd.Series(ots_pd.NA, index=ots_gene_df.index, dtype="boolean")
+ots_gene_df.loc[ots_gene_df.index.isin(ots_old_positive_genes), "OriginalEligible"] = True
+ots_gene_df.loc[ots_old_proven_excluded, "OriginalEligible"] = False
+
+# %% [markdown]
+# **Primary and secondary reporting scopes.** The primary restriction is exactly `OriginalHasFinalEditing & UpdatedEligible`; genes that lose all updated final calls remain in its denominator. The broader “Established eligible in both” scope is retained as a secondary diagnostic and can include genes with intermediate `Edited=True` but no `EditedFinal=True`; `ots_scope_regression_df` reports both denominators.
+
+# %%
+ots_common_genes = set(ots_gene_df.index[
+    ots_gene_df["OriginalEligible"].eq(True).fillna(False) & ots_gene_df["UpdatedEligible"]
+])
+ots_gene_eligibility_counts = ots_gene_df.groupby(["OriginalEligibility", "UpdatedEligible"]).size().rename("Genes").reset_index()
+ots_display(ots_gene_eligibility_counts)
+ots_primary_scope = "Genes with original final editing that pass the updated SNP gene filter"
+ots_primary_genes = set(ots_gene_df.index[
+    ots_gene_df["OriginalHasFinalEditing"] & ots_gene_df["UpdatedEligible"]
+])
+ots_scope_definitions = [
+    ("All TMR50", set(ots_gene_universe), "All genes"),
+    (ots_primary_scope, ots_primary_genes, "Primary restricted comparison"),
+    ("Established eligible in both", ots_common_genes, "Secondary permission-evidence diagnostic"),
+]
+ots_scope_regression_df = ots_pd.DataFrame({
+    "Population": ["Genes with original final editing", ots_primary_scope, "Established eligible in both"],
+    "Saved expectation": [1262, 1159, 1532],
+    "Measured genes": [int(ots_gene_df["OriginalHasFinalEditing"].sum()), len(ots_primary_genes), len(ots_common_genes)],
+})
+ots_scope_regression_df["Difference"] = ots_scope_regression_df["Measured genes"] - ots_scope_regression_df["Saved expectation"]
+ots_display(ots_scope_regression_df)
+print("Secondary permission-evidence genes without original final editing:", len(ots_common_genes - ots_primary_genes))
+
+
+# %% [markdown]
+# **Pairwise denominators.** For each fixed reporting scope, the following helper reports both set sizes, their intersection, each directional difference, and overlap fractions with explicit denominators. Jaccard uses the union of called sites, without adding non-editing positions to the denominator.
+
+# %%
+def ots_pairwise(ots_first, ots_second, ots_first_label, ots_second_label, ots_scope):
+    ots_shared = len(ots_first & ots_second)
+    return {
+        "Scope": ots_scope, "First": ots_first_label, "Second": ots_second_label,
+        "First sites": len(ots_first), "Second sites": len(ots_second),
+        "Intersection": ots_shared, "Union sites": len(ots_first | ots_second), "First minus second": len(ots_first - ots_second),
+        "Second minus first": len(ots_second - ots_first),
+        "Intersection / first sites": ots_ratio(ots_shared, len(ots_first)),
+        "Intersection / second sites": ots_ratio(ots_shared, len(ots_second)),
+        "Jaccard: intersection / union": ots_ratio(ots_shared, len(ots_first | ots_second)),
+    }
+
+
+# %% [markdown]
+# **O/N/H comparisons within each scope.** The same three site sets are restricted only by the stated gene population, and all three pairwise comparisons are recomputed. `ots_pairwise_df` reports population genes, genes with final calls, site counts, and overlaps, while `ots_gene_counts_df` gives one row per scheme and scope.
+
+# %%
+ots_pair_rows, ots_gene_count_rows = [], []
+for ots_scope, ots_scope_genes, ots_role in ots_scope_definitions:
+    ots_scope_sets = {ots_label: {ots_key for ots_key in ots_sites if ots_key[0] in ots_scope_genes}
+                      for ots_label, ots_sites in ots_sets.items()}
+    for ots_first_label, ots_second_label in [("O", "N"), ("O", "H"), ("N", "H")]:
+        ots_pair_rows.append({
+            **ots_pairwise(ots_scope_sets[ots_first_label], ots_scope_sets[ots_second_label],
+                           ots_first_label, ots_second_label, ots_scope),
+            "Reporting role": ots_role, "Population genes": len(ots_scope_genes),
+            "First genes with final calls": len({ots_key[0] for ots_key in ots_scope_sets[ots_first_label]}),
+            "Second genes with final calls": len({ots_key[0] for ots_key in ots_scope_sets[ots_second_label]}),
+        })
+    for ots_label, ots_sites in ots_scope_sets.items():
+        ots_gene_count_rows.append({"Scope": ots_scope, "Reporting role": ots_role, "Scheme": ots_label,
+                                   "Universe genes": len(ots_scope_genes), "Editing sites": len(ots_sites),
+                                   "Genes with final editing": len({ots_key[0] for ots_key in ots_sites})})
+ots_pairwise_df = ots_pd.DataFrame(ots_pair_rows)
+ots_gene_counts_df = ots_pd.DataFrame(ots_gene_count_rows)
+ots_display(ots_HTML(ots_pairwise_df.to_html(index=False)))
+ots_display(ots_HTML(ots_gene_counts_df.to_html(index=False)))
+
+# %% [markdown]
+# **Complete original-versus-theoretical audit.** This starts with all theoretical candidates, including BH failures, and outer-joins retained original positions; it never starts only with final calls. Both gene thresholds are attached independently of call status, with missing updated thresholds left explicit in genes without significant mismatches; `ots_audit_df` therefore retains original-only sites and their available evidence.
+
+# %%
+ots_original_cols = [ots_col for ots_col in [
+    "Transcript", "RefBase", "TotalCoverage", "A", "T", "C", "G", "EditingFrequency",
+    "Edited", "EditedCorrected", "EditedFinal", "EditingBinomPVal", "EditingCorrectedPVal",
+    "Noise", "NoisyCorrected", "NoisyFinal", "NoiseBinomPVal", "NoiseCorrectedPVal",
+    "BelowNoiseFreq1", "BelowEditingFreq1", "CDS", "KnownEditing", "InProbRegion",
+] if ots_col in concat_all_positions_df.columns]
+ots_original_audit = concat_all_positions_df.loc[
+    concat_all_positions_df["Chrom"].isin(ots_gene_universe), ots_keys + ots_original_cols
+].rename(columns={ots_col: "Original" + ots_col for ots_col in ots_original_cols}).set_index(ots_keys)
+ots_original_audit["PresentInOriginalPositions"] = True
+ots_audit_df = mismatches_theoretical_fix_df.drop(columns=["NoiseThreshold", "EditedFinal", "NoisyFinal"]).copy().set_index(ots_keys)
+ots_audit_df["PresentInTheoreticalUniverse"] = True
+ots_audit_df = ots_audit_df.join(ots_original_audit, how="outer", validate="one_to_one").reset_index()
+for ots_col in ["PresentInOriginalPositions", "PresentInTheoreticalUniverse"]:
+    ots_audit_df[ots_col] = ots_audit_df[ots_col].eq(True)
+ots_audit_df["NoiseThreshold"] = ots_audit_df["Chrom"].map(ots_thresholds_df["NoiseThreshold"])
+ots_audit_df["NewEditingThreshold"] = ots_audit_df["Chrom"].map(ots_thresholds_df["NewEditingThreshold"])
+ots_audit_df["UpdatedThresholdAvailable"] = ots_audit_df["NewEditingThreshold"].notna()
+assert ots_audit_df["NoiseThreshold"].notna().all()
+
+# %% [markdown]
+# **Final status and gene evidence on each site.** Original final membership is exactly `OriginalEditedFinal.eq(True)`, while the unchanged N/H flags come from the significant table. Intermediate SNP annotations remain unknown outside that population, and final-editing presence, original permission evidence, and updated permission remain separate gene columns.
+
+# %%
+ots_audit_annotation_cols = [
+    "AtOrAboveSuspectedSNPLevel", "MismatchFrequency1", "SuspectedSNP", "DefinitiveSNP", "SNP",
+    "NoiseSite", "EditingSite", "EditingSiteUsingOriginalThreshold",
+]
+ots_audit_df = ots_audit_df.merge(ots_hybrid_df[ots_keys + ots_audit_annotation_cols], on=ots_keys, how="left", validate="one_to_one")
+for ots_col in ["AtOrAboveSuspectedSNPLevel", "MismatchFrequency1", "SuspectedSNP", "DefinitiveSNP", "SNP", "NoiseSite"]:
+    ots_audit_df[ots_col] = ots_audit_df[ots_col].astype("boolean")
+ots_audit_df["OriginalEditingSite"] = ots_audit_df["OriginalEditedFinal"].eq(True)
+for ots_col in ["EditingSite", "EditingSiteUsingOriginalThreshold"]:
+    ots_audit_df[ots_col] = ots_audit_df[ots_col].eq(True)
+ots_audit_df["OriginalHasFinalEditing"] = ots_audit_df["Chrom"].map(ots_gene_df["OriginalHasFinalEditing"])
+ots_audit_df["OriginalEligible"] = ots_audit_df["Chrom"].map(ots_gene_df["OriginalEligible"])
+ots_audit_df["OriginalEligibility"] = ots_audit_df["Chrom"].map(ots_gene_df["OriginalEligibility"])
+ots_audit_df["UpdatedEligible"] = ots_audit_df["Chrom"].map(ots_gene_df["UpdatedEligible"])
+ots_audit_df["EditingDetectionDisabledInChromDueToSuspectedSNPs"] = ~ots_audit_df["UpdatedEligible"]
+ots_audit_df["AbsentOriginalPositionIsNotProofOfZeroCoverage"] = ~ots_audit_df["PresentInOriginalPositions"]
+ots_audit_df["AboveOriginalEditingThreshold"] = ots_audit_df["MismatchFrequency"].gt(ots_audit_df["NoiseThreshold"])
+ots_audit_df["AboveNewEditingThreshold"] = ots_audit_df["MismatchFrequency"].gt(ots_audit_df["NewEditingThreshold"])
+
+# %% [markdown]
+# **Independent failure flags.** For each audited candidate, mismatch identity, updated BH failure, SNP exclusion, gene exclusion, and threshold failure are marked separately wherever observable. Missing candidates or annotations have explicit flags; absence from retained original data is not proof of zero pre-filter coverage, and numerical failure is not inferred from a missing threshold.
+
+# %%
+ots_audit_df["AbsentTheoreticalCandidate"] = ~ots_audit_df["PresentInTheoreticalUniverse"]
+ots_audit_df["LeadingMismatchNotAG"] = ots_audit_df["Mismatch"].notna() & ots_audit_df["Mismatch"].ne("A>G")
+ots_audit_df["NewBHFailure"] = ots_audit_df["PresentInTheoreticalUniverse"] & ots_audit_df["BHRejection"].eq(False)
+ots_audit_df["SNPExclusion"] = ots_audit_df["SNP"].eq(True).fillna(False)
+ots_audit_df["UpdatedGeneExcluded"] = ~ots_audit_df["UpdatedEligible"]
+ots_audit_df["UpdatedThresholdFailure"] = (
+    ots_audit_df["MismatchFrequency"].notna() & ots_audit_df["NewEditingThreshold"].notna()
+    & ~ots_audit_df["AboveNewEditingThreshold"]
+)
+ots_audit_df["OriginalThresholdFailure"] = (
+    ots_audit_df["MismatchFrequency"].notna() & ots_audit_df["NoiseThreshold"].notna()
+    & ~ots_audit_df["AboveOriginalEditingThreshold"]
+)
+ots_audit_df["MismatchUnavailable"] = ots_audit_df["PresentInTheoreticalUniverse"] & ots_audit_df["Mismatch"].isna()
+ots_audit_df["UpdatedThresholdUnavailable"] = ~ots_audit_df["UpdatedThresholdAvailable"]
+
+# %% [markdown]
+# **Lost sites and exhaustive combinations.** The input populations are O minus N, O minus H, recovered original losses, and N minus H. Overlapping reason flags are retained alongside mutually exclusive combinations, and assertions require every lost site to appear exactly once with no unexplained combination.
+
+# %%
+ots_lost_df = ots_audit_df.loc[ots_audit_df["OriginalEditingSite"] & ~ots_audit_df["EditingSite"]].copy()
+ots_remaining_df = ots_audit_df.loc[ots_audit_df["OriginalEditingSite"] & ~ots_audit_df["EditingSiteUsingOriginalThreshold"]].copy()
+ots_recovered_df = ots_lost_df.loc[ots_lost_df["EditingSiteUsingOriginalThreshold"]].copy()
+ots_n_to_h_lost_df = ots_audit_df.loc[ots_audit_df["EditingSite"] & ~ots_audit_df["EditingSiteUsingOriginalThreshold"]].copy()
+ots_reason_cols = ["AbsentTheoreticalCandidate", "LeadingMismatchNotAG", "NewBHFailure", "SNPExclusion",
+                   "UpdatedGeneExcluded", "UpdatedThresholdFailure", "MismatchUnavailable", "UpdatedThresholdUnavailable"]
+ots_h_reason_cols = [ots_col for ots_col in ots_reason_cols if ots_col not in ["UpdatedThresholdFailure", "UpdatedThresholdUnavailable"]] + ["OriginalThresholdFailure"]
+
+
+def ots_reason_summary(ots_frame, ots_columns):
+    if ots_frame.empty:
+        return ots_pd.DataFrame(columns=["Mutually exclusive reason combination", "Sites"])
+    ots_combinations = ots_frame[ots_columns].apply(
+        lambda ots_row: " + ".join(ots_col for ots_col in ots_columns if ots_row[ots_col]) or "Unexplained (inspect)", axis=1
+    ).value_counts().rename_axis("Mutually exclusive reason combination").reset_index(name="Sites")
+    assert ots_combinations["Sites"].sum() == len(ots_frame)
+    assert not ots_combinations["Mutually exclusive reason combination"].eq("Unexplained (inspect)").any(), ots_combinations
+    return ots_combinations
+
+
+ots_lost_reasons_df = ots_lost_df[ots_reason_cols].sum().rename("Lost original sites (overlapping)").rename_axis("Reason").reset_index()
+ots_lost_combinations_df = ots_reason_summary(ots_lost_df, ots_reason_cols)
+ots_remaining_combinations_df = ots_reason_summary(ots_remaining_df, ots_h_reason_cols)
+assert len(ots_lost_df) == len(ots_O - ots_N)
+assert len(ots_remaining_df) == len(ots_O - ots_H)
+assert len(ots_recovered_df) == len((ots_O - ots_N) & ots_H)
+assert ots_site_set(ots_audit_df, "OriginalEditingSite") == ots_O
+assert ots_site_set(ots_audit_df, "EditingSite") == ots_N
+assert ots_site_set(ots_audit_df, "EditingSiteUsingOriginalThreshold") == ots_H
+
+# %% [markdown]
+# **Loss and recovery summary.** `ots_loss_recovery_df` counts losses, recoveries, residual losses, and any N-to-H losses using final-site keys. The overlapping reason totals and exhaustive combination tables explain those counts; the audit preview confirms independent threshold annotations on original losses.
+
+# %%
+ots_loss_recovery_df = ots_pd.DataFrame([
+    {"Measure": "Original losses O minus N", "Sites": len(ots_lost_df)},
+    {"Measure": "Recovered original losses (O minus N) & H", "Sites": len(ots_recovered_df)},
+    {"Measure": "Still missing from H: O minus H", "Sites": len(ots_remaining_df)},
+    {"Measure": "Lost from N to H", "Sites": len(ots_n_to_h_lost_df)},
+])
+ots_display(ots_loss_recovery_df)
+print("Recovered / original losses:", ots_ratio(len(ots_recovered_df), len(ots_lost_df)))
+ots_display(ots_lost_reasons_df)
+ots_display(ots_HTML(ots_lost_combinations_df.to_html(index=False)))
+ots_display(ots_HTML(ots_remaining_combinations_df.to_html(index=False)))
+ots_display(ots_reason_summary(ots_n_to_h_lost_df, ots_h_reason_cols))
+print("Full audit rows:", len(ots_audit_df), "; both thresholds available on lost originals:",
+      int(ots_lost_df[["NoiseThreshold", "NewEditingThreshold"]].notna().all(axis=1).sum()))
+ots_display(ots_lost_df[ots_keys + ["OriginalEditingFrequency", "Mismatch", "MismatchFrequency", "BHRejection",
+                                 "NoiseThreshold", "NewEditingThreshold", "EditingSiteUsingOriginalThreshold"] + ots_reason_cols].head(12))
+
+# %% [markdown]
+# **Origins of gained final calls.** This retains updated-only, hybrid-only, recovered, and N-to-H lost calls and groups them by available original intermediate-stage evidence. `OriginalNaiveEditedStatus` describes `OriginalEdited`, `OriginalBHStatus` describes `OriginalEditedCorrected`, and only `OriginalEditingSite` indicates original final editing; `ots_gain_origins_df` is a reporting table, not a reconstructed original counterfactual.
+
+# %%
+ots_gain_sites_df = ots_audit_df.loc[
+    (ots_audit_df["EditingSite"] | ots_audit_df["EditingSiteUsingOriginalThreshold"])
+    & ~(ots_audit_df["OriginalEditingSite"] & ots_audit_df["EditingSite"] & ots_audit_df["EditingSiteUsingOriginalThreshold"])
+].copy()
+ots_gain_sites_df["OriginalBHStatus"] = ots_gain_sites_df["OriginalEditedCorrected"].map({True: "pass", False: "fail"}).fillna("unavailable")
+ots_gain_sites_df["OriginalNaiveEditedStatus"] = ots_gain_sites_df["OriginalEdited"].map({True: "pass", False: "fail"}).fillna("unavailable")
+ots_gain_sites_df["OriginalFrequencyAboveThreshold"] = ots_gain_sites_df["OriginalEditingFrequency"].gt(ots_gain_sites_df["NoiseThreshold"])
+ots_gain_sites_df["FrequencyAboveOriginalThresholdChanged"] = (
+    ots_gain_sites_df["OriginalEditingFrequency"].notna()
+    & ots_gain_sites_df["OriginalFrequencyAboveThreshold"].ne(ots_gain_sites_df["AboveOriginalEditingThreshold"])
+)
+ots_gain_summary_parts = []
+for ots_label, ots_gain_set in [("N minus O", ots_N - ots_O), ("H minus O", ots_H - ots_O),
+                               ("H minus N", ots_H - ots_N), ("N minus H", ots_N - ots_H)]:
+    ots_gain_part = ots_gain_sites_df.loc[ots_pd.MultiIndex.from_frame(ots_gain_sites_df[ots_keys]).isin(ots_gain_set)].copy()
+    ots_gain_part["Comparison"] = ots_label
+    ots_gain_summary_parts.append(ots_gain_part.groupby([
+        "Comparison", "OriginalEditingSite", "PresentInOriginalPositions", "OriginalBHStatus",
+        "OriginalNaiveEditedStatus", "OriginalEligibility", "FrequencyAboveOriginalThresholdChanged",
+    ], dropna=False).size().reset_index(name="Sites"))
+    assert len(ots_gain_part) == len(ots_gain_set)
+ots_gain_origins_df = ots_pd.concat(ots_gain_summary_parts, ignore_index=True)
+ots_display(ots_gain_origins_df)
+
+# %% [markdown]
+# **AC/AT diagnostic 1: threshold candidates only.** The population is the same updated significant `NoiseSite` candidates, first unchanged and then excluding A>C/A>T only from threshold candidacy. The top-three calculation preserves zero padding and factor 1.5; position breaks equal-frequency contributor ordering without reselecting any frozen alternate base, and tied contributors are flagged.
+
+# %%
+ots_noise_candidates = ots_hybrid_df.loc[ots_hybrid_df["NoiseSite"], ots_keys + ["Mismatch", "MismatchFrequency"]].copy()
+ots_noise_candidates["ACorAT"] = ots_noise_candidates["Mismatch"].isin(["A>C", "A>T"])
+ots_represented_genes = ots_pd.Index(ots_hybrid_df["Chrom"].unique(), name="Chrom")
+
+
+def ots_top_three(ots_candidates):
+    ots_ranked = ots_candidates.sort_values(["Chrom", "MismatchFrequency", "Position"], ascending=[True, False, True], kind="stable").copy()
+    ots_ranked["TiedFrequencyCandidates"] = ots_ranked.groupby(["Chrom", "MismatchFrequency"])["Position"].transform("size")
+    ots_ranked["Rank"] = ots_ranked.groupby("Chrom").cumcount() + 1
+    ots_grid = ots_pd.MultiIndex.from_product([ots_represented_genes, [1, 2, 3]], names=["Chrom", "Rank"])
+    ots_top = ots_ranked.loc[ots_ranked["Rank"].le(3)].set_index(["Chrom", "Rank"]).reindex(ots_grid).reset_index()
+    ots_top["ZeroPadding"] = ots_top["Position"].isna()
+    ots_top["ThresholdContributionFrequency"] = ots_top["MismatchFrequency"].fillna(0.0)
+    ots_top["ACorAT"] = ots_top["ACorAT"].eq(True)
+    ots_top["TopThreeFrequencyTie"] = ots_top["TiedFrequencyCandidates"].gt(1)
+    return ots_top
+
+
+# %% [markdown]
+# **Threshold contributions and the saved comparison.** Per-gene thresholds are computed from the two candidate lists and checked against the existing updated thresholds. `ots_gene_df` stores their difference as the direct AC/AT threshold contribution conditional on updated BH, while `ots_threshold_baseline_df` compares exact old/new inequalities with the saved counts.
+
+# %%
+ots_top_three_df = ots_top_three(ots_noise_candidates)
+ots_top_three_without_acat_df = ots_top_three(ots_noise_candidates.loc[~ots_noise_candidates["ACorAT"]])
+ots_gene_df["RecomputedUpdatedThreshold"] = ots_top_three_df.groupby("Chrom")["ThresholdContributionFrequency"].mean().mul(1.5)
+ots_gene_df["ThresholdWithoutACATConditionalOnUpdatedBH"] = ots_top_three_without_acat_df.groupby("Chrom")["ThresholdContributionFrequency"].mean().mul(1.5)
+ots_gene_df["TopThreeACATContributors"] = ots_top_three_df.groupby("Chrom")["ACorAT"].sum()
+ots_gene_df["ACATThresholdContribution"] = ots_gene_df["RecomputedUpdatedThreshold"] - ots_gene_df["ThresholdWithoutACATConditionalOnUpdatedBH"]
+ots_gene_df["NewMinusOriginalThreshold"] = ots_gene_df["NewEditingThreshold"] - ots_gene_df["NoiseThreshold"]
+ots_gene_df["LostOriginalSites"] = ots_lost_df.groupby("Chrom").size().reindex(ots_gene_universe, fill_value=0)
+assert ots_close(ots_gene_df.loc[ots_represented_genes, "RecomputedUpdatedThreshold"],
+                 ots_gene_df.loc[ots_represented_genes, "NewEditingThreshold"]).all()
+assert ots_gene_df.loc[ots_represented_genes, "ACATThresholdContribution"].ge(-ots_atol).all()
+ots_gene_df["ThresholdsClose"] = ots_close(ots_gene_df["NoiseThreshold"], ots_gene_df["NewEditingThreshold"])
+ots_threshold_baseline_df = ots_pd.DataFrame({
+    "Comparison": ["equal (exact)", "new higher (exact)", "new lower (exact)"],
+    "Saved": [2594, 1153, 6],
+    "Measured": [int(ots_gene_df["NewEditingThreshold"].eq(ots_gene_df["NoiseThreshold"]).sum()),
+                 int(ots_gene_df["NewEditingThreshold"].gt(ots_gene_df["NoiseThreshold"]).sum()),
+                 int(ots_gene_df["NewEditingThreshold"].lt(ots_gene_df["NoiseThreshold"]).sum())],
+})
+ots_threshold_baseline_df["Difference from saved"] = ots_threshold_baseline_df["Measured"] - ots_threshold_baseline_df["Saved"]
+ots_display(ots_threshold_baseline_df)
+
+# %% [markdown]
+# **Threshold changes in three gene populations.** The existing summaries cover all represented genes, genes with original final editing, and genes with lost original final sites. Exact changes and tolerance-based changes remain separate, and `ots_threshold_summary_df` reports the prevalence and size of direct AC/AT contributions within each population.
+
+# %%
+ots_threshold_summary_rows = []
+for ots_scope, ots_scope_mask in [
+    ("All represented genes", ots_gene_df.index.isin(ots_represented_genes)),
+    ("Genes with original editing", ots_gene_df["OriginalEditingSites"].gt(0)),
+    ("Genes with lost original sites", ots_gene_df["LostOriginalSites"].gt(0)),
+]:
+    ots_threshold_part = ots_gene_df.loc[ots_scope_mask & ots_gene_df["NewEditingThreshold"].notna()]
+    ots_threshold_summary_rows.append({
+        "Scope": ots_scope, "Genes": len(ots_threshold_part),
+        "Threshold unavailable": int((ots_scope_mask & ots_gene_df["NewEditingThreshold"].isna()).sum()),
+        "Equal within tolerance": int(ots_threshold_part["ThresholdsClose"].sum()),
+        "Meaningfully higher": int((~ots_threshold_part["ThresholdsClose"] & ots_threshold_part["NewMinusOriginalThreshold"].gt(0)).sum()),
+        "Meaningfully lower": int((~ots_threshold_part["ThresholdsClose"] & ots_threshold_part["NewMinusOriginalThreshold"].lt(0)).sum()),
+        "Genes with top-three AC/AT": int(ots_threshold_part["TopThreeACATContributors"].gt(0).sum()),
+        "Threshold reduced excluding AC/AT": int((~ots_close(ots_threshold_part["RecomputedUpdatedThreshold"], ots_threshold_part["ThresholdWithoutACATConditionalOnUpdatedBH"])).sum()),
+        "Mean new minus original": ots_threshold_part["NewMinusOriginalThreshold"].mean(),
+        "Mean AC/AT contribution": ots_threshold_part["ACATThresholdContribution"].mean(),
+        "Max AC/AT contribution": ots_threshold_part["ACATThresholdContribution"].max(),
+    })
+ots_threshold_summary_df = ots_pd.DataFrame(ots_threshold_summary_rows)
+
+# %% [markdown]
+# **Lower thresholds and relevant contributors.** This lists genes whose updated threshold is strictly lower and the top-three contributors in genes with original final editing or losses. The tables distinguish meaningful differences from roundoff; excluding AC/AT from the updated candidates is not automatically the historical threshold calculation.
+
+# %%
+ots_lower_thresholds_df = ots_gene_df.loc[ots_gene_df["NewEditingThreshold"].lt(ots_gene_df["NoiseThreshold"]),
+    ["NoiseThreshold", "NewEditingThreshold", "NewMinusOriginalThreshold", "ThresholdsClose",
+     "ThresholdWithoutACATConditionalOnUpdatedBH", "OriginalEditingSites", "LostOriginalSites"]].copy()
+ots_relevant_top_three_df = ots_top_three_df.merge(
+    ots_gene_df[["OriginalEditingSites", "LostOriginalSites", "NoiseThreshold", "NewEditingThreshold"]], on="Chrom", how="left", validate="many_to_one"
+).loc[lambda ots_frame: ots_frame["OriginalEditingSites"].gt(0) | ots_frame["LostOriginalSites"].gt(0)].copy()
+ots_display(ots_threshold_summary_df)
+ots_display(ots_lower_thresholds_df.style.format(precision=17))
+ots_display(ots_top_three_df.loc[ots_top_three_df["Chrom"].isin(ots_lower_thresholds_df.index)])
+ots_display(ots_relevant_top_three_df.head(18))
+print("Complete top-three table rows:", len(ots_top_three_df), "; relevant rows:", len(ots_relevant_top_three_df))
+
+# %% [markdown]
+# **Threshold-only recovery diagnostic.** For the full significant population, this counterfactual removes AC/AT only from threshold candidates while retaining BH, SNP and gene-filter decisions. The printed recovery count is the intersection with original final losses; it is separate from the suspected-SNP gene-count diagnostic below.
+
+# %%
+# Direct AC/AT threshold counterfactual retains all other updated decisions.
+ots_hybrid_df["AboveThresholdWithoutACATDiagnostic"] = ots_hybrid_df["MismatchFrequency"].gt(
+    ots_hybrid_df["Chrom"].map(ots_gene_df["ThresholdWithoutACATConditionalOnUpdatedBH"])
+)
+ots_acat_threshold_sites = ots_site_set(ots_hybrid_df.loc[
+    ots_hybrid_df["Mismatch"].eq("A>G") & ~ots_hybrid_df["SNP"]
+    & ~ots_hybrid_df["EditingDetectionDisabledInChromDueToSuspectedSNPs"]
+    & ots_hybrid_df["AboveThresholdWithoutACATDiagnostic"]
+])
+print("Original losses recovered by removing only AC/AT threshold candidates:", len((ots_O - ots_N) & ots_acat_threshold_sites))
+
+# %% [markdown]
+# **Complete contributor table.** The input is every relevant gene's three ranked contributors, including padded zeros. The expandable table lists all positions, mismatch types, frequencies and AC/AT flags so that each gene can be inspected without relying on a truncated preview.
+
+# %%
+from IPython.display import HTML as ots_HTML
+
+# Keep every relevant gene/rank inspectable without a many-page expanded table.
+ots_contributor_columns = ["Chrom", "Rank", "Position", "Mismatch", "MismatchFrequency", "ACorAT",
+                           "ZeroPadding", "TopThreeFrequencyTie", "OriginalEditingSites", "LostOriginalSites",
+                           "NoiseThreshold", "NewEditingThreshold"]
+ots_display(ots_HTML(
+    "<details><summary>Complete top-three contributors: all genes with original editing or original losses "
+    f"({ots_relevant_top_three_df['Chrom'].nunique():,} genes, {len(ots_relevant_top_three_df):,} rows)</summary>"
+    '<div style="max-height:500px;overflow:auto">'
+    + ots_relevant_top_three_df[ots_contributor_columns].to_html(index=False, float_format=lambda ots_value: f"{ots_value:.12g}")
+    + "</div></details>"
+))
+
+# %% [markdown]
+# **Check the lower-threshold cases using retained data.** For the genes with lower updated thresholds, the same top-three rule is also applied to retained original noise candidates and compared with both stored thresholds. The detailed table shows whether those contributors pass updated BH; it does not reconstruct removed pre-coverage rows or infer that missing positions were uncovered.
+
+# %%
+# Inspect the six numerically lower thresholds against retained original noise evidence.
+# This is a check of available original rows, not a pre-coverage reconstruction.
+ots_lower_original_noise_df = ots_audit_df.loc[
+    ots_audit_df["Chrom"].isin(ots_lower_thresholds_df.index)
+    & ots_audit_df["OriginalNoisyFinal"].eq(True)
+    & ots_audit_df["OriginalNoise"].lt(snp_noise_level),
+    ots_keys + ["OriginalRefBase", "OriginalNoise", "OriginalNoiseBinomPVal", "OriginalNoiseCorrectedPVal",
+                "Mismatch", "MismatchFrequency", "BinomPVal", "BHCorrectedPVal", "BHRejection",
+                "SuspectedSNP", "DefinitiveSNP", "SNP", "NoiseSite"],
+].sort_values(["Chrom", "OriginalNoise", "Position"], ascending=[True, False, True]).copy()
+ots_lower_original_noise_df["OriginalRetainedRank"] = ots_lower_original_noise_df.groupby("Chrom").cumcount() + 1
+ots_lower_original_top_three_df = ots_lower_original_noise_df.loc[ots_lower_original_noise_df["OriginalRetainedRank"].le(3)].copy()
+ots_lower_original_threshold_check_df = ots_lower_thresholds_df.copy()
+ots_lower_original_threshold_check_df["ThresholdFromRetainedOriginalNoise"] = (
+    ots_lower_original_top_three_df.groupby("Chrom")["OriginalNoise"].sum()
+    .reindex(ots_lower_thresholds_df.index, fill_value=0).div(3).mul(1.5)
+)
+ots_lower_original_threshold_check_df["RetainedReconstructionMatchesOriginal"] = ots_close(
+    ots_lower_original_threshold_check_df["NoiseThreshold"],
+    ots_lower_original_threshold_check_df["ThresholdFromRetainedOriginalNoise"],
+)
+ots_lower_original_threshold_check_df["RetainedTopThreeFailUpdatedBH"] = (
+    ots_lower_original_top_three_df.loc[ots_lower_original_top_three_df["BHRejection"].eq(False)]
+    .groupby("Chrom").size().reindex(ots_lower_thresholds_df.index, fill_value=0)
+)
+ots_lower_original_threshold_check_df["RetainedReconstructionMatchesUpdated"] = ots_close(
+    ots_lower_original_threshold_check_df["NewEditingThreshold"],
+    ots_lower_original_threshold_check_df["ThresholdFromRetainedOriginalNoise"],
+)
+ots_display(ots_lower_original_threshold_check_df.style.format(precision=17))
+ots_display(ots_lower_original_top_three_df)
+print("Lower thresholds beyond tolerance:", int((~ots_lower_thresholds_df["ThresholdsClose"]).sum()),
+      "; original editing sites in these genes:", int(ots_lower_thresholds_df["OriginalEditingSites"].sum()))
+
+# %% [markdown]
+# In the saved baseline all six decreases were beyond tolerance and none occurred in a gene with original final editing. Retained original top-three noise reproduced each updated threshold, not its stored original threshold, with the retained contributors still passing updated BH. This is consistent with original threshold calculation preceding coverage filtering; those retained tables cannot identify the missing historical contributors.
+
+# %% [markdown]
+# **AC/AT diagnostic 2: suspected-SNP gene counts only.** Starting from all updated significant `SuspectedSNP` sites, count the A>C and A>T contributions per TMR50 gene and subtract only those counts. `PushedOverLimitByACAT` identifies genes that cross the limit in this conditional count comparison; `SuspectedSNPsWithoutACAT` is an updated-count counterfactual, not a historical SNP count.
+
+# %%
+ots_acat_suspected_df = ots_hybrid_df.loc[ots_hybrid_df["SuspectedSNP"] & ots_hybrid_df["Mismatch"].isin(["A>C", "A>T"])]
+ots_gene_df["ACATSuspectedSNPs"] = ots_acat_suspected_df.groupby("Chrom").size().reindex(ots_gene_universe, fill_value=0)
+for ots_mismatch_type, ots_count_column in [("A>C", "ACSuspectedSNPs"), ("A>T", "ATSuspectedSNPs")]:
+    ots_gene_df[ots_count_column] = ots_acat_suspected_df.loc[ots_acat_suspected_df["Mismatch"].eq(ots_mismatch_type)].groupby("Chrom").size().reindex(ots_gene_universe, fill_value=0)
+ots_gene_df["SuspectedSNPsWithoutACAT"] = ots_gene_df["UpdatedSuspectedSNPs"] - ots_gene_df["ACATSuspectedSNPs"]
+ots_gene_df["PushedOverLimitByACAT"] = (
+    ots_gene_df["UpdatedSuspectedSNPs"].gt(max_snps_per_gene_to_allow_editing_detection)
+    & ots_gene_df["SuspectedSNPsWithoutACAT"].le(max_snps_per_gene_to_allow_editing_detection)
+)
+
+# %% [markdown]
+# **Detailed affected-gene table.** `ots_acat_pushed_genes_df` separates original final-editing presence from intermediate permission evidence for every pushed gene. It includes `OriginalSNPCountLowerBound`, explicitly a retained-data lower bound, beside the separate updated `SuspectedSNPsWithoutACAT` counterfactual; the copied loss subsets define the populations used in the next summary.
+
+# %%
+ots_acat_pushed_genes_df = ots_gene_df.loc[ots_gene_df["PushedOverLimitByACAT"], [
+    "UpdatedSuspectedSNPs", "ACSuspectedSNPs", "ATSuspectedSNPs", "ACATSuspectedSNPs",
+    "SuspectedSNPsWithoutACAT", "OriginalSNPCountLowerBound", "OriginalHasFinalEditing",
+    "OriginalEditingSites", "LostOriginalSites", "OriginalEligibility",
+]].copy()
+ots_acat_pushed_original_genes_df = ots_acat_pushed_genes_df.loc[
+    ots_acat_pushed_genes_df["OriginalHasFinalEditing"]
+].copy()
+ots_pushed_original_losses_df = ots_lost_df.loc[
+    ots_lost_df["Chrom"].isin(ots_acat_pushed_genes_df.index)
+].copy()
+ots_gene_excluded_original_losses_df = ots_lost_df.loc[ots_lost_df["UpdatedGeneExcluded"]].copy()
+ots_display(ots_HTML(
+    "<details><summary>Detailed AC/AT-pushed genes; OriginalSNPCountLowerBound is a retained-data lower bound</summary>"
+    + ots_acat_pushed_genes_df.to_html() + "</details>"
+))
+
+# %% [markdown]
+# **Corrected AC/AT gene-filter summary.** `ots_gene_filter_summary_df` now labels every row with its population and unit, separating all pushed genes, pushed genes with original final editing, and pushed genes without it. BH failures and reclassification are counted independently among all original final losses, updated-gene-excluded original losses, and original losses in pushed genes, so the global and affected-gene counts cannot be conflated.
+
+# %%
+ots_gene_filter_summary_rows = []
+for ots_population, ots_gene_part in [
+    ("All AC/AT-pushed genes", ots_acat_pushed_genes_df),
+    ("AC/AT-pushed genes with original final editing", ots_acat_pushed_original_genes_df),
+    ("AC/AT-pushed genes without original final editing",
+     ots_acat_pushed_genes_df.loc[~ots_acat_pushed_genes_df["OriginalHasFinalEditing"]]),
+]:
+    ots_gene_filter_summary_rows.append({"Population": ots_population, "Measure": "Genes", "Unit": "genes", "Count": len(ots_gene_part)})
+ots_gene_filter_summary_rows.append({
+    "Population": "All AC/AT-pushed genes", "Measure": "Original final editing sites", "Unit": "sites",
+    "Count": int(ots_acat_pushed_genes_df["OriginalEditingSites"].sum()),
+})
+for ots_population, ots_loss_part in [
+    ("All original final editing losses (O minus N)", ots_lost_df),
+    ("Original final losses in updated-excluded genes", ots_gene_excluded_original_losses_df),
+    ("Original final losses in AC/AT-pushed genes", ots_pushed_original_losses_df),
+]:
+    for ots_measure, ots_count in [
+        ("Lost original final sites", len(ots_loss_part)),
+        ("New BH failures (overlapping)", int(ots_loss_part["NewBHFailure"].sum())),
+        ("Leading mismatch not A>G (overlapping)", int(ots_loss_part["LeadingMismatchNotAG"].sum())),
+    ]:
+        ots_gene_filter_summary_rows.append({"Population": ots_population, "Measure": ots_measure, "Unit": "sites", "Count": ots_count})
+ots_gene_filter_summary_df = ots_pd.DataFrame(ots_gene_filter_summary_rows)
+ots_display(ots_HTML(ots_gene_filter_summary_df.to_html(index=False)))
+ots_display(ots_lost_df.loc[ots_lost_df["LeadingMismatchNotAG"]].groupby(["Mismatch", "BHRejection"], dropna=False).size().reset_index(name="Lost original final sites"))
+
+# %% [markdown]
+# **Frequency and strict-boundary diagnostics.** The audit supplies both original and updated frequencies and base counts, with frozen A>G sites distinguished from reclassified original calls. Absolute differences, direct count equality, and proximity to each threshold are measured using the stated tolerance; every actual call continues to use strict `>`.
+
+# %%
+ots_frequency_df = ots_audit_df.loc[
+    ots_audit_df["OriginalEditingFrequency"].notna() & ots_audit_df["MismatchFrequency"].notna(),
+    ots_keys + ["OriginalEditingSite", "EditingSite", "EditingSiteUsingOriginalThreshold", "Mismatch",
+                "OriginalEditingFrequency", "MismatchFrequency", "NoiseThreshold", "NewEditingThreshold",
+                "OriginalA", "OriginalT", "OriginalC", "OriginalG", "A", "T", "C", "G",
+                "OriginalEditingBinomPVal", "BinomPVal", "OriginalEditingCorrectedPVal", "BHCorrectedPVal",
+                "OriginalEditedCorrected", "BHRejection"],
+].copy()
+ots_frequency_df["FrequencyDelta"] = ots_frequency_df["MismatchFrequency"] - ots_frequency_df["OriginalEditingFrequency"]
+ots_frequency_df["AbsFrequencyDelta"] = ots_frequency_df["FrequencyDelta"].abs()
+ots_frequency_df["FrequenciesClose"] = ots_close(ots_frequency_df["OriginalEditingFrequency"], ots_frequency_df["MismatchFrequency"])
+ots_frequency_df["CountsIdentical"] = ots_np.column_stack([
+    ots_frequency_df["Original" + ots_base].eq(ots_frequency_df[ots_base]).to_numpy() for ots_base in "ATCG"
+]).all(axis=1)
+for ots_threshold_col, ots_suffix in [("NoiseThreshold", "Original"), ("NewEditingThreshold", "Updated")]:
+    ots_frequency_df["Near" + ots_suffix + "Threshold"] = (
+        ots_close(ots_frequency_df["MismatchFrequency"], ots_frequency_df[ots_threshold_col])
+        | ots_close(ots_frequency_df["OriginalEditingFrequency"], ots_frequency_df[ots_threshold_col])
+    )
+    ots_frequency_df["StrictDecisionChangesAt" + ots_suffix + "Threshold"] = (
+        ots_frequency_df["MismatchFrequency"].gt(ots_frequency_df[ots_threshold_col])
+        != ots_frequency_df["OriginalEditingFrequency"].gt(ots_frequency_df[ots_threshold_col])
+    ) & ots_frequency_df[ots_threshold_col].notna()
+
+# %% [markdown]
+# **Frequency comparisons in explicit site populations.** The existing summaries separately cover shared O/N sites, original final calls with frozen A>G, all comparable A>G, and reclassified original final calls. Exact inequalities and tolerance-based agreement are reported together, so roundoff is not mistaken for changed base counts.
+
+# %%
+ots_frequency_summary_rows = []
+for ots_scope, ots_freq_mask in [
+    ("Shared O & N (saved exact comparison)", ots_frequency_df["OriginalEditingSite"] & ots_frequency_df["EditingSite"]),
+    ("Original calls, frozen A>G", ots_frequency_df["OriginalEditingSite"] & ots_frequency_df["Mismatch"].eq("A>G")),
+    ("All comparable frozen A>G", ots_frequency_df["Mismatch"].eq("A>G")),
+    ("Original calls reclassified", ots_frequency_df["OriginalEditingSite"] & ots_frequency_df["Mismatch"].ne("A>G")),
+]:
+    ots_freq_part = ots_frequency_df.loc[ots_freq_mask]
+    ots_frequency_summary_rows.append({
+        "Scope": ots_scope, "Sites": len(ots_freq_part),
+        "Old < new (exact)": int(ots_freq_part["FrequencyDelta"].gt(0).sum()),
+        "Old = new (exact)": int(ots_freq_part["FrequencyDelta"].eq(0).sum()),
+        "Old > new (exact)": int(ots_freq_part["FrequencyDelta"].lt(0).sum()),
+        "Equal within tolerance": int(ots_freq_part["FrequenciesClose"].sum()),
+        "Counts differ": int((~ots_freq_part["CountsIdentical"]).sum()),
+        "Median absolute delta": ots_freq_part["AbsFrequencyDelta"].median(),
+        "99th percentile absolute delta": ots_freq_part["AbsFrequencyDelta"].quantile(.99),
+        "Max absolute delta": ots_freq_part["AbsFrequencyDelta"].max(),
+        "Strict decision changes at old threshold": int(ots_freq_part["StrictDecisionChangesAtOriginalThreshold"].sum()),
+        "Strict decision changes at new threshold": int(ots_freq_part["StrictDecisionChangesAtUpdatedThreshold"].sum()),
+    })
+
+# %% [markdown]
+# **Boundary sites and available testing-universe evidence.** `ots_boundary_sites_df` retains comparable A>G rows near a threshold or with a strict comparison change, while `ots_testing_universe_df` counts the already available theoretical and retained-original populations. The original pipeline performs separate noise/editing BH before coverage filtering, whereas the preceding theoretical section uses all ORF positions built from final retained data; missing retained rows therefore do not prove zero pre-filter coverage.
+
+# %%
+ots_frequency_summary_df = ots_pd.DataFrame(ots_frequency_summary_rows)
+ots_boundary_sites_df = ots_frequency_df.loc[
+    ots_frequency_df["Mismatch"].eq("A>G")
+    & (ots_frequency_df["NearOriginalThreshold"] | ots_frequency_df["NearUpdatedThreshold"]
+       | ots_frequency_df["StrictDecisionChangesAtOriginalThreshold"]
+       | ots_frequency_df["StrictDecisionChangesAtUpdatedThreshold"])
+].copy()
+ots_recovered_boundary_sites = ots_site_set(ots_boundary_sites_df) & ots_site_set(ots_recovered_df)
+ots_testing_universe_df = ots_pd.DataFrame([
+    {"Population": "Full theoretical BH universe", "Positions": len(mismatches_theoretical_fix_df)},
+    {"Population": "Theoretical BH rejections", "Positions": len(ots_hybrid_df)},
+    {"Population": "Theoretical rows absent from retained original positions (coverage unknown)",
+     "Positions": int((ots_audit_df["PresentInTheoreticalUniverse"] & ~ots_audit_df["PresentInOriginalPositions"]).sum())},
+    {"Population": "Original editing-test p-values available after coverage filtering (not full BH denominator)",
+     "Positions": int(ots_audit_df["OriginalEditingBinomPVal"].notna().sum())},
+    {"Population": "Original noise-test p-values available after coverage filtering (not full BH denominator)",
+     "Positions": int(ots_audit_df["OriginalNoiseBinomPVal"].notna().sum())},
+])
+
+# %% [markdown]
+# **Reading the frequency and BH tables.** These outputs summarize the same frozen-frequency diagnostics and existing original versus updated BH annotations. `OriginalEditedCorrected` remains an intermediate significance flag throughout; no BH rerun, missing-count reconstruction, or new coverage investigation is performed.
+
+# %%
+ots_display(ots_frequency_summary_df.style.format(precision=17))
+print("Smallest single-read fraction among comparable A>G denominators:",
+      1.0 / (ots_frequency_df.loc[ots_frequency_df["Mismatch"].eq("A>G"), "A"]
+             + ots_frequency_df.loc[ots_frequency_df["Mismatch"].eq("A>G"), "G"]).max())
+print("Boundary-sensitive comparable sites:", len(ots_boundary_sites_df), "; recovered originals among them:", len(ots_recovered_boundary_sites))
+ots_display(ots_boundary_sites_df.head(12))
+ots_display(ots_testing_universe_df)
+ots_bh_transition_df = ots_frequency_df.groupby(
+    ["OriginalEditingSite", "Mismatch", "OriginalEditedCorrected", "BHRejection"], dropna=False
+).size().reset_index(name="Sites with both frequencies")
+ots_display(ots_bh_transition_df)
+ots_display(ots_remaining_df.loc[ots_remaining_df["NewBHFailure"], ots_keys + [
+    "OriginalEditingBinomPVal", "BinomPVal", "OriginalEditingCorrectedPVal", "BHCorrectedPVal",
+    "OriginalEditedCorrected", "BHRejection", "Mismatch", "OriginalEditingFrequency", "MismatchFrequency",
+]].head(12))
+
+# %% [markdown]
+# **Mismatch-distribution count tables.** All three plots use the full updated significant mismatch table, including non-editing sites and genes excluded from final editing detection; they are not filtered to original `EditedFinal`. Count tables retain zero categories and unchanged frequency windows, assert plot 3's threshold independence, and report overlap between plots 1 and 3 when thresholds reach/exceed the suspected-SNP level.
+
+# %%
+ots_plot_masks = {
+    "Updated threshold": [~ots_hybrid_df["AboveNewEditingThreshold"],
+                          ots_hybrid_df["AboveNewEditingThreshold"] & ~ots_hybrid_df["AtOrAboveSuspectedSNPLevel"],
+                          ots_hybrid_df["AtOrAboveSuspectedSNPLevel"]],
+    "Original threshold": [~ots_hybrid_df["AboveOriginalEditingThreshold"],
+                           ots_hybrid_df["AboveOriginalEditingThreshold"] & ~ots_hybrid_df["AtOrAboveSuspectedSNPLevel"],
+                           ots_hybrid_df["AtOrAboveSuspectedSNPLevel"]],
+}
+ots_plot_count_parts = []
+for ots_scheme, ots_masks in ots_plot_masks.items():
+    for ots_plot_number, ots_plot_mask in enumerate(ots_masks, 1):
+        if ots_plot_number == 3:
+            ots_count_index = ots_pd.MultiIndex.from_product([mismatches, [False, True]], names=["Mismatch", "MismatchFrequency1"])
+            ots_plot_counts = ots_hybrid_df.loc[ots_plot_mask].groupby(["Mismatch", "MismatchFrequency1"]).size().reindex(ots_count_index, fill_value=0).reset_index(name="Count")
+        else:
+            ots_plot_counts = ots_hybrid_df.loc[ots_plot_mask, "Mismatch"].value_counts().reindex(mismatches, fill_value=0).rename_axis("Mismatch").reset_index(name="Count")
+            ots_plot_counts["MismatchFrequency1"] = "all"
+        ots_plot_counts["Scheme"], ots_plot_counts["Plot"] = ots_scheme, ots_plot_number
+        assert ots_plot_counts["Count"].sum() == ots_plot_mask.sum()
+        ots_plot_count_parts.append(ots_plot_counts)
+ots_plot_counts_df = ots_pd.concat(ots_plot_count_parts, ignore_index=True)
+ots_plot_comparison_df = ots_plot_counts_df.pivot(index=["Plot", "Mismatch", "MismatchFrequency1"], columns="Scheme", values="Count").reset_index()
+ots_plot_comparison_df["Original minus updated"] = ots_plot_comparison_df["Original threshold"] - ots_plot_comparison_df["Updated threshold"]
+assert ots_plot_masks["Original threshold"][2].equals(ots_plot_masks["Updated threshold"][2])
+assert ots_plot_comparison_df.loc[ots_plot_comparison_df["Plot"].eq(3), "Original minus updated"].eq(0).all()
+ots_plot2_ag_summary_df = ots_plot_comparison_df.loc[ots_plot_comparison_df["Plot"].eq(2)].assign(
+    MismatchGroup=lambda ots_frame: ots_np.where(ots_frame["Mismatch"].eq("A>G"), "A>G", "non-A>G")
+).groupby("MismatchGroup")[["Updated threshold", "Original threshold", "Original minus updated"]].sum()
+ots_plot_overlap_df = ots_pd.DataFrame([
+    {"Scheme": ots_scheme, "Threshold > suspected-SNP level genes": int(ots_thresholds_df[ots_col].gt(snp_noise_level).sum()),
+     "Threshold = suspected-SNP level genes": int(ots_thresholds_df[ots_col].eq(snp_noise_level).sum()),
+     "Sites shared by plots 1 and 3": int((ots_plot_masks[ots_scheme][0] & ots_plot_masks[ots_scheme][2]).sum())}
+    for ots_scheme, ots_col in [("Updated threshold", "NewEditingThreshold"), ("Original threshold", "NoiseThreshold")]
+])
+ots_display(ots_plot2_ag_summary_df)
+ots_display(ots_plot_overlap_df)
+
+# %% [markdown]
+# **Plot 1: below the original threshold.** The population is the complement of strict `AboveOriginalEditingThreshold`, so equality is included without an extra SNP-frequency restriction. The count table and Plotly histogram retain the existing colors, mismatch order, 700×500 dimensions, and log-y scale.
+
+# %%
+ots_display(ots_plot_comparison_df.loc[ots_plot_comparison_df["Plot"].eq(1)])
+ots_fig_below_original = ots_px.histogram(
+    ots_hybrid_df.loc[ots_plot_masks["Original threshold"][0]],
+    x="Mismatch", color="Mismatch", color_discrete_map=mismatch_dolor_map,
+    log_y=True, template=template, category_orders={"Mismatch": mismatches},
+    title="Mismatches below editing threshold<br><sup>Original-threshold sensitivity analysis</sup>",
+)
+ots_fig_below_original.for_each_annotation(lambda ots_annotation: ots_annotation.update(text=ots_annotation.text.split("=")[-1]))
+ots_fig_below_original.update_xaxes(tickangle=35)
+ots_fig_below_original.update_layout(width=700, height=500, showlegend=False)
+ots_fig_below_original.show()
+
+# %% [markdown]
+# **Plot 2: above the original threshold and below the suspected-SNP level.** The population uses `AboveOriginalEditingThreshold & ~AtOrAboveSuspectedSNPLevel` on all significant mismatches. Its count table and histogram retain the exact previous window and formatting, including non-final mismatches and genes excluded from detection.
+
+# %%
+ots_display(ots_plot_comparison_df.loc[ots_plot_comparison_df["Plot"].eq(2)])
+ots_fig_above_original = ots_px.histogram(
+    ots_hybrid_df.loc[ots_plot_masks["Original threshold"][1]],
+    x="Mismatch", color="Mismatch", color_discrete_map=mismatch_dolor_map,
+    log_y=True, template=template, category_orders={"Mismatch": mismatches},
+    title="Mismatches above editing threshold, but below suspected SNP threshold<br><sup>Original-threshold sensitivity analysis</sup>",
+)
+ots_fig_above_original.for_each_annotation(lambda ots_annotation: ots_annotation.update(text=ots_annotation.text.split("=")[-1]))
+ots_fig_above_original.update_xaxes(tickangle=35)
+ots_fig_above_original.update_layout(width=700, height=500, showlegend=False)
+ots_fig_above_original.show()
+
+# %% [markdown]
+# **Plot 3: at or above the suspected-SNP level.** This uses `AtOrAboveSuspectedSNPLevel`, faceted by `MismatchFrequency1`, independently of either editing threshold. The 1000×500 log-y plot and its counts remain unchanged, and its population may overlap plot 1 rather than partitioning all sites into exclusive windows.
+
+# %%
+ots_display(ots_plot_comparison_df.loc[ots_plot_comparison_df["Plot"].eq(3)])
+ots_fig_snp_original = ots_px.histogram(
+    ots_hybrid_df.loc[ots_plot_masks["Original threshold"][2]],
+    x="Mismatch", color="Mismatch", color_discrete_map=mismatch_dolor_map,
+    facet_col_spacing=0.04, facet_col="MismatchFrequency1",
+    log_y=True, template=template, category_orders={"Mismatch": mismatches},
+    title="Mismatches at or above suspected SNP threshold<br><sup>Original-threshold sensitivity analysis</sup>",
+)
+ots_fig_snp_original.update_xaxes(tickangle=35)
+ots_fig_snp_original.update_layout(width=1000, height=500, showlegend=False)
+ots_fig_snp_original.show()
+
+# %% [markdown]
+# **Regression checks for the reporting revision.** The frozen significant columns are checked against the input, and loss combinations must account for every lost final site. `ots_regression_df` compares measured global counts with the saved expectations, while `ots_affected_gene_regression_df` checks the explicitly separated gene populations; differences are reported and must be traced rather than removed by tuning.
+
+# %%
+ots_pd.testing.assert_frame_equal(
+    ots_hybrid_df.loc[:, significant_mismatches_theoretical_fix_df.columns],
+    significant_mismatches_theoretical_fix_df, check_exact=True,
+)
+assert ots_lost_combinations_df["Sites"].sum() == len(ots_O - ots_N)
+assert ots_remaining_combinations_df["Sites"].sum() == len(ots_O - ots_H)
+ots_regression_df = ots_pd.DataFrame({
+    "Global metric": ["O", "N", "H", "O intersection N", "O intersection H", "O minus N", "Original losses in updated-excluded genes"],
+    "Saved expectation": [11711, 10714, 10816, 10403, 10504, 1308, 1205],
+    "Measured": [len(ots_O), len(ots_N), len(ots_H), len(ots_O & ots_N), len(ots_O & ots_H), len(ots_O - ots_N), len(ots_gene_excluded_original_losses_df)],
+})
+ots_regression_df["Difference"] = ots_regression_df["Measured"] - ots_regression_df["Saved expectation"]
+ots_affected_gene_regression_df = ots_pd.DataFrame({
+    "Population / measure": ["All pushed genes", "Pushed genes with original final editing", "Pushed genes without original final editing", "Original final losses in pushed genes", "Reclassified among all original final losses", "Reclassified within updated-gene-excluded original losses"],
+    "Saved expectation": [111, 103, 8, 1205, 5, 3],
+    "Measured": [len(ots_acat_pushed_genes_df), len(ots_acat_pushed_original_genes_df), int((~ots_acat_pushed_genes_df["OriginalHasFinalEditing"]).sum()), len(ots_pushed_original_losses_df), int(ots_lost_df["LeadingMismatchNotAG"].sum()), int(ots_gene_excluded_original_losses_df["LeadingMismatchNotAG"].sum())],
+})
+ots_affected_gene_regression_df["Difference"] = ots_affected_gene_regression_df["Measured"] - ots_affected_gene_regression_df["Saved expectation"]
+ots_display(ots_regression_df)
+ots_display(ots_affected_gene_regression_df)
+if ots_regression_df["Difference"].ne(0).any():
+    print("Global regression differs: inspect changed site keys and upstream state before interpreting this reporting revision.")
+
+# %% [markdown]
+# **Before/after report.** The report below states whether final-site membership changed and distinguishes reporting-scope corrections from detection rules. It uses measured global and restricted-scope results and points to the corrected population summary and detailed gene table.
+#
+# File verification for this revision: all 719 cells outside this subsection retain their latest source, IDs, metadata, execution counts, and saved outputs exactly, including concurrent edits in the preceding analysis. All 37 revised code cells executed in the prepared kernel; original O/N/H site keys, existing comparison scopes, all plot count tables, and the three complete Plotly figure specifications match the captured baseline.
+
+# %%
+ots_old_retention = ots_ratio(len(ots_O & ots_N), len(ots_O))
+ots_hybrid_retention = ots_ratio(len(ots_O & ots_H), len(ots_O))
+ots_primary_pairs_df = ots_pairwise_df.loc[ots_pairwise_df["Scope"].eq(ots_primary_scope)].copy()
+ots_primary_oh = ots_primary_pairs_df.loc[ots_primary_pairs_df["First"].eq("O") & ots_primary_pairs_df["Second"].eq("H")].iloc[0]
+ots_primary_on = ots_primary_pairs_df.loc[ots_primary_pairs_df["First"].eq("O") & ots_primary_pairs_df["Second"].eq("N")].iloc[0]
+ots_secondary_counts = ots_gene_counts_df.loc[ots_gene_counts_df["Scope"].eq("Established eligible in both")].set_index("Scheme")["Editing sites"]
+ots_conclusion = (
+    "**Before/after.** No original final editing-site count was based on intermediate `Edited`: "
+    "O and the original audit flag already used `EditedFinal`. Direct key assertions now make that explicit. "
+    "The logic fix is to label and consistently calculate AC/AT summary populations; the added primary restriction "
+    "and the separation of final editing from permission evidence are reporting-scope corrections and clarifications, "
+    "not detection-algorithm changes.\n\n"
+    f"{int(ots_regression_df['Difference'].ne(0).sum())} global regression counts differ from the saved baseline: "
+    f"O={len(ots_O):,}, N={len(ots_N):,}, H={len(ots_H):,}. Retention remains "
+    f"{ots_old_retention:.2%} for N and {ots_hybrid_retention:.2%} for H, with "
+    f"{len(ots_recovered_df):,} original losses recovered. The primary restriction contains "
+    f"{len(ots_primary_genes):,} of {int(ots_gene_df['OriginalHasFinalEditing'].sum()):,} original-final-editing genes; "
+    f"its O/N/H site counts are {int(ots_primary_on['First sites']):,}/"
+    f"{int(ots_primary_on['Second sites']):,}/{int(ots_primary_oh['Second sites']):,}. "
+    f"The previous broader permission-evidence scope remains secondary ({len(ots_common_genes):,} genes, "
+    f"including {len(ots_common_genes - ots_primary_genes):,} without original final editing), with O/N/H counts "
+    f"{ots_secondary_counts['O']:,}/{ots_secondary_counts['N']:,}/{ots_secondary_counts['H']:,}.\n\n"
+    f"Of {len(ots_acat_pushed_genes_df):,} AC/AT-pushed genes, "
+    f"{len(ots_acat_pushed_original_genes_df):,} have original final editing and "
+    f"{int((~ots_acat_pushed_genes_df['OriginalHasFinalEditing']).sum()):,} do not; "
+    f"{len(ots_pushed_original_losses_df):,} original final sites are lost in those genes. "
+    f"Reclassification affects {int(ots_lost_df['LeadingMismatchNotAG'].sum())} sites among all original losses, "
+    f"versus {int(ots_gene_excluded_original_losses_df['LeadingMismatchNotAG'].sum())} within gene-excluded losses. "
+    "See `ots_pairwise_df` for corrected scope denominators, `ots_gene_filter_summary_df` for the population-labelled "
+    "summary, and `ots_acat_pushed_genes_df` for every affected gene and its retained-data SNP lower bound. "
+    "The mismatch plot populations and strict threshold windows are unchanged."
+)
+ots_display(ots_Markdown(ots_conclusion))
 
 # %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"}
 # ## Reads
@@ -2031,59 +3995,59 @@ distinct_unique_proteins_df["NumOfReads"].sub(
 unique_proteins_dfs[0]
 
 # %%
-expanded_distinct_unique_proteins_df = (
-    distinct_unique_proteins_df.copy()
-    .assign(Proteins2=lambda x: x.Proteins.str.split(","))
-    .drop("Proteins", axis=1)
-    .rename(columns={"Proteins2": "Proteins"})
-    .explode("Proteins")
-    .rename(columns={"Proteins": "Protein", "NumOfReads": "NumOfReadsInFraction"})
-    .drop(["NumOfProteins"], axis=1)
-    .merge(
-        pd.concat(
-            [df.iloc[:, :unique_proteins_first_col_pos] for df in unique_proteins_dfs]
-        ),
-        on=[condition_col, "Protein"],
-    )
-)
+# expanded_distinct_unique_proteins_df = (
+#     distinct_unique_proteins_df.copy()
+#     .assign(Proteins2=lambda x: x.Proteins.str.split(","))
+#     .drop("Proteins", axis=1)
+#     .rename(columns={"Proteins2": "Proteins"})
+#     .explode("Proteins")
+#     .rename(columns={"Proteins": "Protein", "NumOfReads": "NumOfReadsInFraction"})
+#     .drop(["NumOfProteins"], axis=1)
+#     .merge(
+#         pd.concat(
+#             [df.iloc[:, :unique_proteins_first_col_pos] for df in unique_proteins_dfs]
+#         ),
+#         on=[condition_col, "Protein"],
+#     )
+# )
 
-expanded_distinct_unique_proteins_df
+# expanded_distinct_unique_proteins_df
 
 
 # %%
-distinct_unique_proteins_df2 = (
-    expanded_distinct_unique_proteins_df.groupby(
-        [
-            condition_col,
-            "Fraction",
-            "FractionRepetition",
-            "Algorithm",
-            "AlgorithmRepetition",
-        ]
-    )["NumOfReads"]
-    .sum()
-    .reset_index()
-    .rename(columns={"NumOfReads": "NumOfSupportingReads"})
-    .merge(
-        distinct_unique_proteins_df,
-        on=[
-            condition_col,
-            "Fraction",
-            "FractionRepetition",
-            "Algorithm",
-            "AlgorithmRepetition",
-        ],
-    )
-    .assign(
-        SupportingReadsPerProtein=lambda x: x["NumOfSupportingReads"]
-        / x["NumOfProteins"],
-        PercentSupportedReads=lambda x: 100
-        * x["NumOfSupportingReads"]
-        / x["NumOfReads"],
-    )
-    .rename(columns={"PercentSupportedReads": "%SupportedReads"})
-)
-distinct_unique_proteins_df2
+# distinct_unique_proteins_df2 = (
+#     expanded_distinct_unique_proteins_df.groupby(
+#         [
+#             condition_col,
+#             "Fraction",
+#             "FractionRepetition",
+#             "Algorithm",
+#             "AlgorithmRepetition",
+#         ]
+#     )["NumOfReads"]
+#     .sum()
+#     .reset_index()
+#     .rename(columns={"NumOfReads": "NumOfSupportingReads"})
+#     .merge(
+#         distinct_unique_proteins_df,
+#         on=[
+#             condition_col,
+#             "Fraction",
+#             "FractionRepetition",
+#             "Algorithm",
+#             "AlgorithmRepetition",
+#         ],
+#     )
+#     .assign(
+#         SupportingReadsPerProtein=lambda x: x["NumOfSupportingReads"]
+#         / x["NumOfProteins"],
+#         PercentSupportedReads=lambda x: 100
+#         * x["NumOfSupportingReads"]
+#         / x["NumOfReads"],
+#     )
+#     .rename(columns={"PercentSupportedReads": "%SupportedReads"})
+# )
+# distinct_unique_proteins_df2
 
 # %% [markdown]
 # ### Distinct unique proteins - TMR 1000
@@ -2092,7 +4056,7 @@ distinct_unique_proteins_df2
 assert (
     len(tmr1000_conditions)
     == len(tmr1000_chroms)
-    == len(tmr1000_distinct_proteins_files)
+    == len(tmr1000_distinct_unique_proteins_files)
     == len(tmr1000_unique_reads_dfs)
 )
 
@@ -2100,7 +4064,8 @@ tmr1000_distinct_unique_proteins_dfs = []
 for condition, chrom, distinct_unique_proteins_file, unique_reads_df in zip(
     tmr1000_conditions,
     tmr1000_chroms,
-    tmr1000_distinct_proteins_files,
+    # tmr1000_distinct_proteins_files,
+    tmr1000_distinct_unique_proteins_files, # 7.9.2026 update
     tmr1000_unique_reads_dfs,
 ):
     tmr1000_distinct_unique_proteins_df = pd.read_csv(
@@ -5143,18 +7108,14 @@ fig.show()
 cols = 1
 rows = 1
 
-# Apply the 'classic' style to set the background white
-plt.style.use('classic')
-
 fig, ax = plt.subplots(
-    # nrows=rows,
-    # ncols=cols,
-    # figsize=(3.5 * cols, 2.5 * rows),
-    # figsize=(4.5 * cols, 2.5 * rows),
+    # figsize=(3.2 * cols, 2.5 * rows),
     figsize=(5 * cols, 2.5 * rows),
     constrained_layout=True,
-    gridspec_kw=dict(hspace=0.2, wspace=0.3),
+    facecolor="white",
 )
+
+ax.set_facecolor("white")
 
 labels = ["EditedFinal", "KnownEditing"]
 
@@ -5169,30 +7130,27 @@ sets = [
     )
     for label in labels
 ]
-# labels[0] = f"Edited\n({len(sets[0])})"
-# labels[1] = f"Known editing\n({len(sets[1])})"
+
 labels[0] = f"De-novo\n({len(sets[0])})"
 labels[1] = f"Known\n({len(sets[1])})"
 
-venn2(sets, set_labels=labels, ax=ax)
+venn = venn2(sets, set_labels=labels, ax=ax)
+
+# Make all Venn text black
+for text in ax.texts:
+    text.set_color("black")
 
 fig.suptitle(
-    # "Pooled octopus data",
     "Whole-transcriptome octopus data",
     fontsize="xx-large",
-    # y=1.2
+    color="black",
 )
-# plt.title("Pooled octopus data", fontsize=16,
-#           # y=1.2
-#          )
-# ax.set_title("Pooled octopus data", fontdict=dict(fontsize=16))
-# # ax.set_title("", fontdict=dict(fontsize=14))
-# # fig.suptitle("Pooled octopus data", fontsize="xx-large", y=1.2)
-# fig.tight_layout()
 
 plt.savefig(
-    Path(out_dir, "Known vs new editing sites - Octopus - pooled.svg"), 
-    format="svg", dpi=300
+    Path(out_dir, "Known vs new editing sites - Octopus - pooled.svg"),
+    format="svg",
+    dpi=300,
+    facecolor="white",
 )
 
 plt.show()
@@ -6614,9 +8572,9 @@ max_distinct_proteins_df = (
     .groupby("Chrom")
     .apply(pd.DataFrame.nlargest, n=1, columns="NumOfProteins")
 )
-max_distinct_proteins_df = (
-    max_distinct_proteins_df.drop("Chrom", axis=1).reset_index().drop("level_1", axis=1)
-)
+# max_distinct_proteins_df = (
+#     max_distinct_proteins_df.drop("Chrom", axis=1).reset_index().drop("level_1", axis=1)
+# )
 
 # # max_distinct_proteins_df[condition_col] = max_distinct_proteins_df[
 # #     condition_col
@@ -6778,11 +8736,11 @@ tmr1000_max_distinct_proteins_df = (
     .groupby("Chrom")
     .apply(pd.DataFrame.nlargest, n=1, columns="NumOfProteins")
 )
-tmr1000_max_distinct_proteins_df = (
-    tmr1000_max_distinct_proteins_df.drop("Chrom", axis=1)
-    .reset_index()
-    .drop("level_1", axis=1)
-)
+# tmr1000_max_distinct_proteins_df = (
+#     tmr1000_max_distinct_proteins_df.drop("Chrom", axis=1)
+#     .reset_index()
+#     .drop("level_1", axis=1)
+# )
 
 # # max_distinct_proteins_df[condition_col] = max_distinct_proteins_df[
 # #     condition_col
@@ -9961,7 +11919,7 @@ max_distinct_proteins_per_transcript_and_alg_df = distinct_unique_proteins_df.lo
 max_distinct_proteins_per_transcript_and_alg_df[
     "MaxNumOfProteins"
 ] = max_distinct_proteins_per_transcript_and_alg_df.groupby(
-    [condition_col, "Algorithm"]
+    ["Chrom", condition_col, "Algorithm"]
 )[
     "NumOfProteins"
 ].transform(
@@ -9979,7 +11937,7 @@ max_distinct_proteins_per_transcript_and_alg_df = (
 )
 max_distinct_proteins_per_transcript_and_alg_df = (
     max_distinct_proteins_per_transcript_and_alg_df.drop_duplicates(
-        subset=[condition_col, "Algorithm"], ignore_index=True
+        subset=["Chrom", condition_col, "Algorithm"], ignore_index=True
     )
 )
 
@@ -9988,28 +11946,48 @@ max_distinct_proteins_per_transcript_and_alg_df
 # %%
 # mean distinct proteins per transcript
 max_distinct_proteins_per_transcript_and_alg_df.sort_values(
-    [condition_col, "NumOfProteins"], ascending=False
-).drop_duplicates(condition_col, ignore_index=True)["NumOfProteins"].mean()
+    ["Chrom", condition_col, "NumOfProteins"], ascending=False
+).drop_duplicates(["Chrom", condition_col], ignore_index=True)["NumOfProteins"].mean()
 
 # %%
 # num of transcripts with at least 5 variants
 max_distinct_proteins_per_transcript_and_alg_df.sort_values(
-    [condition_col, "NumOfProteins"], ascending=False
-).drop_duplicates(condition_col, ignore_index=True)["NumOfProteins"].ge(5).sum()
+    ["Chrom", condition_col, "NumOfProteins"], ascending=False
+).drop_duplicates(["Chrom", condition_col], ignore_index=True)["NumOfProteins"].ge(5).sum()
 
 # %%
 # num of transcripts with at least 50 variants
 max_distinct_proteins_per_transcript_and_alg_df.sort_values(
-    [condition_col, "NumOfProteins"], ascending=False
-).drop_duplicates(condition_col, ignore_index=True)["NumOfProteins"].ge(50).sum()
+   ["Chrom", condition_col, "NumOfProteins"], ascending=False
+).drop_duplicates(["Chrom", condition_col], ignore_index=True)["NumOfProteins"].ge(50).sum()
+
 
 # %%
-asc_df = max_distinct_proteins_per_transcript_and_alg_df.loc[
-    max_distinct_proteins_per_transcript_and_alg_df["Algorithm"] == "Ascending"
-].reset_index(drop=True)
-desc_df = max_distinct_proteins_per_transcript_and_alg_df.loc[
-    max_distinct_proteins_per_transcript_and_alg_df["Algorithm"] != "Ascending"
-].reset_index(drop=True)
+def align_algorithm_results(df, keys):
+    unexpected = set(df["Algorithm"].dropna()) - {"Ascending", "Descending"}
+    if unexpected:
+        raise ValueError(f"Unexpected algorithms: {sorted(unexpected)}")
+    asc = df.loc[df["Algorithm"].eq("Ascending")].set_index(keys)
+    desc = df.loc[df["Algorithm"].eq("Descending")].set_index(keys)
+    assert asc.index.is_unique
+    assert desc.index.is_unique
+    if len(asc.index.difference(desc.index)) or len(desc.index.difference(asc.index)):
+        raise ValueError("Ascending/Descending have different gene/subsample keys")
+    asc = asc.sort_index()
+    desc = desc.reindex(asc.index)
+    return asc.reset_index(), desc.reset_index()
+
+# asc_df = max_distinct_proteins_per_transcript_and_alg_df.loc[
+#     max_distinct_proteins_per_transcript_and_alg_df["Algorithm"] == "Ascending"
+# ].reset_index(drop=True)
+# desc_df = max_distinct_proteins_per_transcript_and_alg_df.loc[
+#     max_distinct_proteins_per_transcript_and_alg_df["Algorithm"] != "Ascending"
+# ].reset_index(drop=True)
+
+asc_df, desc_df = align_algorithm_results(
+    max_distinct_proteins_per_transcript_and_alg_df,
+    ["Chrom"],
+)
 
 ic(len(asc_df))
 ic(len(desc_df))
@@ -10025,16 +12003,22 @@ greater_asc_transcripts = asc_df.loc[
 ]
 greater_asc_transcripts
 
+greater_asc_chroms = asc_df.loc[
+    asc_df["NumOfProteins"].gt(desc_df["NumOfProteins"]), "Chrom"
+].unique()
+greater_asc_chroms
+
 # %%
 distinct_unique_proteins_df.loc[
     (distinct_unique_proteins_df["Fraction"] == 1.0)
-    & (distinct_unique_proteins_df[condition_col].isin(greater_asc_transcripts))
-].groupby([condition_col, "Algorithm"])["NumOfProteins"].value_counts()
+    # & (distinct_unique_proteins_df[condition_col].isin(greater_asc_transcripts))
+    & (distinct_unique_proteins_df["Chrom"].isin(greater_asc_chroms))
+].groupby(["Chrom", condition_col, "Algorithm"])["NumOfProteins"].value_counts()
 
 # %%
 max_distinct_proteins_per_transcript_and_alg_df.loc[
-    max_distinct_proteins_per_transcript_and_alg_df[condition_col].isin(
-        greater_asc_transcripts
+    max_distinct_proteins_per_transcript_and_alg_df["Chrom"].isin(
+        greater_asc_chroms
     )
 ]
 
@@ -10046,7 +12030,7 @@ max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df = (
 max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df[
     "MaxNumOfProteins"
 ] = max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df.groupby(
-    [condition_col, "Fraction", "Algorithm", "FractionRepetition"]
+    ["Chrom", condition_col, "Fraction", "Algorithm", "FractionRepetition"]
 )[
     "NumOfProteins"
 ].transform(
@@ -10071,13 +12055,13 @@ max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df = (
 # max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df["Duplicated"] = max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df.duplicated(subset=[condition_col, "Fraction", "Algorithm", "FractionRepetition"])
 max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df = (
     max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df.drop_duplicates(
-        subset=[condition_col, "Fraction", "Algorithm", "FractionRepetition"],
+        subset=["Chrom", condition_col, "Fraction", "Algorithm", "FractionRepetition"],
         ignore_index=True,
     )
 )
 max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df = (
     max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df.sort_values(
-        [condition_col, "Fraction", "FractionRepetition", "Algorithm"],
+        ["Chrom", condition_col, "Fraction", "FractionRepetition", "Algorithm"],
         ignore_index=True,
     )
 )
@@ -10085,14 +12069,19 @@ max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df = (
 max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df
 
 # %%
-asc_df = max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df.loc[
-    max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df["Algorithm"]
-    == "Ascending"
-].reset_index(drop=True)
-desc_df = max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df.loc[
-    max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df["Algorithm"]
-    != "Ascending"
-].reset_index(drop=True)
+# asc_df = max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df.loc[
+#     max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df["Algorithm"]
+#     == "Ascending"
+# ].reset_index(drop=True)
+# desc_df = max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df.loc[
+#     max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df["Algorithm"]
+#     != "Ascending"
+# ].reset_index(drop=True)
+
+asc_df, desc_df = align_algorithm_results(
+    max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df,
+    ["Chrom", "Fraction", "FractionRepetition"],
+)
 
 assert len(asc_df) == len(desc_df)
 
@@ -10102,13 +12091,18 @@ ic(asc_df["NumOfProteins"].lt(desc_df["NumOfProteins"]).sum())
 # <
 
 # %%
-greater_asc_transcripts = asc_df.loc[
-    asc_df["NumOfProteins"].gt(desc_df["NumOfProteins"]), condition_col
+# greater_asc_transcripts = asc_df.loc[
+#     asc_df["NumOfProteins"].gt(desc_df["NumOfProteins"]), condition_col
+# ].unique()
+
+# ic(len(greater_asc_transcripts))
+
+# greater_asc_transcripts
+
+greater_asc_chroms = asc_df.loc[
+    asc_df["NumOfProteins"].gt(desc_df["NumOfProteins"]), "Chrom"
 ].unique()
-
-ic(len(greater_asc_transcripts))
-
-greater_asc_transcripts
+greater_asc_chroms
 
 # %%
 # df = max_distinct_proteins_per_transcript_and_alg_and_fracrepetition_df.loc[
@@ -10344,7 +12338,7 @@ fig.update_layout(
     template=template,
 )
 
-fig.write_image("%SolutionsDispersion - Octopus.svg", width=600, height=400)
+# fig.write_image("%SolutionsDispersion - Octopus.svg", width=600, height=400)
 
 fig.show()
 
@@ -10421,7 +12415,7 @@ fig.show()
 saved_dispersion_df = dispersion_df.rename(columns={"Transcript": "Gene"})
 saved_dispersion_df.insert(0, "Platform", "Whole-transcriptome octopus data")
 saved_dispersion_df.to_csv(
-    Path("Dispersion.Octopus.WholeTranscriptome.Pooled.tsv"), 
+    Path(out_dir, "Dispersion.Octopus.WholeTranscriptome.Pooled.tsv"), 
     sep="\t", index=False
 )
 saved_dispersion_df

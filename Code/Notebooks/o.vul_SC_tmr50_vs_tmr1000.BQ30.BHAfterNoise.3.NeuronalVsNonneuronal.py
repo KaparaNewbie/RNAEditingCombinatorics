@@ -970,9 +970,17 @@ non_neuronal_chroms_in_proteins_files = [
     proteins_file.name.split(".")[0] for proteins_file in non_neuronal_proteins_files
 ]
 
+
+# TODO: 7.9.2026 - replaced an apparent mistake in the original code, 
+# which was using neuronal_proteins_dir instead of non_neuronal_proteins_dir. 
+# The original line was commented out below for reference.
+# non_neuronal_unique_proteins_files = list(
+#     neuronal_proteins_dir.glob("*.unique_proteins.csv.gz")
+# )
 non_neuronal_unique_proteins_files = list(
-    neuronal_proteins_dir.glob("*.unique_proteins.csv.gz")
+    non_neuronal_proteins_dir.glob("*.unique_proteins.csv.gz")
 )
+
 non_neuronal_chroms_in_unique_proteins_files = [
     unique_proteins_file.name.split(".")[0]
     for unique_proteins_file in non_neuronal_unique_proteins_files
@@ -2873,8 +2881,18 @@ unique_reads_dfs = [
     pd.read_csv(unique_reads_file, sep=sep, dtype={"UniqueRead": str, "Reads": str})
     for unique_reads_file in unique_reads_files
 ]
-for chrom, unique_reads_df in zip(chroms, unique_reads_dfs):
-    unique_reads_df.insert(0, "Chrom", chrom)
+# for chrom, unique_reads_df in zip(chroms, unique_reads_dfs):
+#     unique_reads_df.insert(0, "Chrom", chrom)
+unique_reads_dfs = [
+    pd.concat(
+        [
+            pd.Series([chrom] * unique_reads_df.shape[0], name="Chrom"),
+            unique_reads_df
+        ],
+        axis=1
+    )
+    for chrom, unique_reads_df in zip(chroms, unique_reads_dfs)
+]
 unique_reads_dfs[0]
 
 
@@ -2987,8 +3005,18 @@ tmr1000_unique_reads_dfs = [
     pd.read_csv(unique_reads_file, sep=sep, dtype={"UniqueRead": str, "Reads": str})
     for unique_reads_file in tmr1000_unique_reads_files
 ]
-for chrom, unique_reads_df in zip(tmr1000_chroms, tmr1000_unique_reads_dfs):
-    unique_reads_df.insert(0, "Chrom", chrom)
+# for chrom, unique_reads_df in zip(tmr1000_chroms, tmr1000_unique_reads_dfs):
+#     unique_reads_df.insert(0, "Chrom", chrom)
+tmr1000_unique_reads_dfs = [
+    pd.concat(
+        [
+            pd.Series([chrom] * unique_reads_df.shape[0], name="Chrom"),
+            unique_reads_df
+        ],
+        axis=1
+    )
+    for chrom, unique_reads_df in zip(tmr1000_chroms, tmr1000_unique_reads_dfs)
+]
 tmr1000_unique_reads_dfs[0]
 
 
@@ -3007,8 +3035,18 @@ neuronal_unique_reads_dfs = [
     pd.read_csv(unique_reads_file, sep=sep, dtype={"UniqueRead": str, "Reads": str})
     for unique_reads_file in neuronal_unique_reads_files
 ]
-for chrom, unique_reads_df in zip(neuronal_chroms, neuronal_unique_reads_dfs):
-    unique_reads_df.insert(0, "Chrom", chrom)
+# for chrom, unique_reads_df in zip(neuronal_chroms, neuronal_unique_reads_dfs):
+#     unique_reads_df.insert(0, "Chrom", chrom)
+neuronal_unique_reads_dfs = [
+    pd.concat(
+        [
+            pd.Series([chrom] * unique_reads_df.shape[0], name="Chrom"),
+            unique_reads_df
+        ],
+        axis=1
+    )
+    for chrom, unique_reads_df in zip(neuronal_chroms, neuronal_unique_reads_dfs)
+]
 neuronal_unique_reads_dfs[0]
 
 # %%
@@ -3022,8 +3060,18 @@ non_neuronal_unique_reads_dfs = [
     pd.read_csv(unique_reads_file, sep=sep, dtype={"UniqueRead": str, "Reads": str})
     for unique_reads_file in non_neuronal_unique_reads_files
 ]
-for chrom, unique_reads_df in zip(non_neuronal_chroms, non_neuronal_unique_reads_dfs):
-    unique_reads_df.insert(0, "Chrom", chrom)
+# for chrom, unique_reads_df in zip(non_neuronal_chroms, non_neuronal_unique_reads_dfs):
+#     unique_reads_df.insert(0, "Chrom", chrom)
+non_neuronal_unique_reads_dfs = [
+    pd.concat(
+        [
+            pd.Series([chrom] * unique_reads_df.shape[0], name="Chrom"),
+            unique_reads_df
+        ],
+        axis=1
+    )
+    for chrom, unique_reads_df in zip(non_neuronal_chroms, non_neuronal_unique_reads_dfs)
+]
 non_neuronal_unique_reads_dfs[0]
 
 # %%
@@ -4314,7 +4362,8 @@ tmr1000_distinct_unique_proteins_dfs = []
 for condition, chrom, distinct_unique_proteins_file, unique_reads_df in zip(
     tmr1000_conditions,
     tmr1000_chroms,
-    tmr1000_distinct_proteins_files,
+    # tmr1000_distinct_proteins_files,
+    tmr1000_distinct_unique_proteins_files, # 7.9.2026 update
     tmr1000_unique_reads_dfs,
 ):
     tmr1000_distinct_unique_proteins_df = pd.read_csv(
@@ -4543,7 +4592,8 @@ neuronal_distinct_unique_proteins_dfs = []
 for condition, chrom, distinct_unique_proteins_file, unique_reads_df in zip(
     neuronal_conditions,
     neuronal_chroms,
-    neuronal_distinct_proteins_files,
+    # neuronal_distinct_proteins_files,
+    neuronal_distinct_unique_proteins_files,
     neuronal_unique_reads_dfs,
 ):
     neuronal_distinct_unique_proteins_df = pd.read_csv(
@@ -4634,7 +4684,8 @@ neuronal_max_distinct_proteins_df = neuronal_max_distinct_per_fraction_df.loc[
 
 
 neuronal_max_distinct_proteins_df = neuronal_max_distinct_proteins_df.merge(
-    neuronal_alignment_stats_df,
+    # neuronal_alignment_stats_df,
+    neuronal_tmr50_alignment_stats_df, # 7.9.2026 update
     on="Chrom",
     # how="left",
     how="right",
@@ -4740,7 +4791,8 @@ non_neuronal_distinct_unique_proteins_dfs = []
 for condition, chrom, distinct_unique_proteins_file, unique_reads_df in zip(
     non_neuronal_conditions,
     non_neuronal_chroms,
-    non_neuronal_distinct_proteins_files,
+    # non_neuronal_distinct_proteins_files,
+    non_neuronal_distinct_unique_proteins_files,
     non_neuronal_unique_reads_dfs,
 ):
     non_neuronal_distinct_unique_proteins_df = pd.read_csv(
@@ -4827,6 +4879,8 @@ non_neuronal_max_distinct_per_fraction_df
 # %%
 non_neuronal_max_distinct_per_fraction_df.groupby(["Chrom", "Fraction"]).size().unique()
 
+# %%
+
 # %% [markdown]
 # #### Max distinct - non-neuronal
 
@@ -4837,7 +4891,8 @@ non_neuronal_max_distinct_proteins_df = non_neuronal_max_distinct_per_fraction_d
 
 
 non_neuronal_max_distinct_proteins_df = non_neuronal_max_distinct_proteins_df.merge(
-    non_neuronal_alignment_stats_df,
+    # non_neuronal_alignment_stats_df,
+    non_neuronal_tmr50_alignment_stats_df, # 9.6.2026 update
     on="Chrom",
     # how="left",
     how="right",
@@ -6037,6 +6092,7 @@ non_neuronal_max_distinct_proteins_df
 # %%
 x = neuronal_max_distinct_proteins_df["NumOfProteins"]
 y = non_neuronal_max_distinct_proteins_df["NumOfProteins"]
+ic(x.mean(), y.mean())
 statistic, pv = scipy.stats.mannwhitneyu(x, y)
 statistic, pv
 
@@ -6512,16 +6568,31 @@ fig.update_layout(
 fig.show()
 
 # %%
-# variables needed for main fig. bottom panel - 
+# # variables needed for main fig. bottom panel - 
+# # to be saved and combined with whole transcriptome as a top panel
+
+# neuronal_max_distinct_proteins_df.to_csv(
+#     Path(out_dir, "MaxDistinctProtsForFig6.Neuronal.Octopus.SC.csv"),
+#     sep="\t",
+#     index=False
+# )
+# non_neuronal_max_distinct_proteins_df.to_csv(
+#     Path(out_dir, "MaxDistinctProtsForFig6.NonNeuronal.Octopus.SC.csv"),
+#     sep="\t",
+#     index=False
+# )
+
+# %%
+# fixed (tmr 50 - updated on 7.9.2026) variables needed for main fig. bottom panel - 
 # to be saved and combined with whole transcriptome as a top panel
 
 neuronal_max_distinct_proteins_df.to_csv(
-    Path(out_dir, "MaxDistinctProtsForFig6.Neuronal.Octopus.SC.csv"),
+    Path(out_dir, "MaxDistinctProtsForFig6.Neuronal.FixedTMR50.Octopus.SC.csv"),
     sep="\t",
     index=False
 )
 non_neuronal_max_distinct_proteins_df.to_csv(
-    Path(out_dir, "MaxDistinctProtsForFig6.NonNeuronal.Octopus.SC.csv"),
+    Path(out_dir, "MaxDistinctProtsForFig6.NonNeuronal.FixedTMR50.Octopus.SC.csv"),
     sep="\t",
     index=False
 )

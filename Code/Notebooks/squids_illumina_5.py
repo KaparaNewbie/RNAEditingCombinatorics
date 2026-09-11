@@ -2292,87 +2292,87 @@ ic(
 );
 
 # %%
-concat_corrected_corrs_df = pd.concat(
-    [
-        df.assign(TempCondCol=condition)
-        for df, condition in zip(corrected_corrs_dfs, shortened_conditions)
-    ],
-    ignore_index=True
-)
-
-sig_concat_corrected_corrs_df = concat_corrected_corrs_df.loc[
-    (concat_corrected_corrs_df["fdr_by_rejection"])
-].reset_index(drop=True)
-
-sig_concat_corrected_corrs_df.insert(
-    0,
-    condition_col,
-    sig_concat_corrected_corrs_df["TempCondCol"]
-)
-del sig_concat_corrected_corrs_df["TempCondCol"]
-
-sig_concat_corrected_corrs_df.insert(
-    3,
-    "AbsDistance",
-    sig_concat_corrected_corrs_df.apply(lambda x: np.abs(x["Site1"] - x["Site2"]), axis=1)
-)
-sig_concat_corrected_corrs_df.insert(
-    4,
-    "AbsDistance500BPsBin",
-    sig_concat_corrected_corrs_df["AbsDistance"].apply(
-        lambda x: int((int(x / 500) * 500)) + 500
-    )
-)
-sig_concat_corrected_corrs_df.insert(
-    4,
-    "AbsDistance100BPsBin",
-    sig_concat_corrected_corrs_df["AbsDistance"].apply(
-        lambda x: int((int(x / 100) * 100)) + 100
-    )
-)
-
-sig_concat_corrected_corrs_df.insert(
-    sig_concat_corrected_corrs_df.columns.get_loc("AbsDistance500BPsBin") + 1,
-    "EditingSitesSpan",
-    sig_concat_corrected_corrs_df[condition_col].apply(
-        lambda x: distance_between_first_and_last_sites_per_condition[x]
-    )
-)
-sig_concat_corrected_corrs_df.insert(
-    sig_concat_corrected_corrs_df.columns.get_loc("EditingSitesSpan") + 1,
-    "%AbsDistance/EditingSitesSpan",
-    sig_concat_corrected_corrs_df.apply(
-        lambda x: 100 * x["AbsDistance"] / x["EditingSitesSpan"],
-        axis=1 
-    )
-)
-sig_concat_corrected_corrs_df.insert(
-    sig_concat_corrected_corrs_df.columns.get_loc("%AbsDistance/EditingSitesSpan") + 1,
-    "%AbsDistance/EditingSitesSpan10%Bins",
-    # divide to 10% bins, 0-9, 10-19, ..., 90-100
-    sig_concat_corrected_corrs_df["%AbsDistance/EditingSitesSpan"].apply(
-        lambda x: int(x // 10) * 10 + 10
-    ).replace(110, 100)
-)
-
-for col in ['BothEdited', 'BothUnedited', 'OnlySite1Edited', 'OnlySite2Edited']:
-    sig_concat_corrected_corrs_df[f"%{col}"] = sig_concat_corrected_corrs_df.apply(
-        lambda x: 100 * x[col] / x["n"],
-        axis=1
-    )
-
-# sig_concat_corrected_corrs_df.insert(
-#     sig_concat_corrected_corrs_df.columns.get_loc("r") + 1,
-#     "r_1_digit_bins",
-#     sig_concat_corrected_corrs_df["r"].round(1)
-# )
-# sig_concat_corrected_corrs_df.insert(
-#     sig_concat_corrected_corrs_df.columns.get_loc("r") + 2,
-#     "r_2_digit_bins",
-#     sig_concat_corrected_corrs_df["r"].round(2)
+# concat_corrected_corrs_df = pd.concat(
+#     [
+#         df.assign(TempCondCol=condition)
+#         for df, condition in zip(corrected_corrs_dfs, shortened_conditions)
+#     ],
+#     ignore_index=True
 # )
 
-sig_concat_corrected_corrs_df
+# sig_concat_corrected_corrs_df = concat_corrected_corrs_df.loc[
+#     (concat_corrected_corrs_df["fdr_by_rejection"])
+# ].reset_index(drop=True)
+
+# sig_concat_corrected_corrs_df.insert(
+#     0,
+#     condition_col,
+#     sig_concat_corrected_corrs_df["TempCondCol"]
+# )
+# del sig_concat_corrected_corrs_df["TempCondCol"]
+
+# sig_concat_corrected_corrs_df.insert(
+#     3,
+#     "AbsDistance",
+#     sig_concat_corrected_corrs_df.apply(lambda x: np.abs(x["Site1"] - x["Site2"]), axis=1)
+# )
+# sig_concat_corrected_corrs_df.insert(
+#     4,
+#     "AbsDistance500BPsBin",
+#     sig_concat_corrected_corrs_df["AbsDistance"].apply(
+#         lambda x: int((int(x / 500) * 500)) + 500
+#     )
+# )
+# sig_concat_corrected_corrs_df.insert(
+#     4,
+#     "AbsDistance100BPsBin",
+#     sig_concat_corrected_corrs_df["AbsDistance"].apply(
+#         lambda x: int((int(x / 100) * 100)) + 100
+#     )
+# )
+
+# sig_concat_corrected_corrs_df.insert(
+#     sig_concat_corrected_corrs_df.columns.get_loc("AbsDistance500BPsBin") + 1,
+#     "EditingSitesSpan",
+#     sig_concat_corrected_corrs_df[condition_col].apply(
+#         lambda x: distance_between_first_and_last_sites_per_condition[x]
+#     )
+# )
+# sig_concat_corrected_corrs_df.insert(
+#     sig_concat_corrected_corrs_df.columns.get_loc("EditingSitesSpan") + 1,
+#     "%AbsDistance/EditingSitesSpan",
+#     sig_concat_corrected_corrs_df.apply(
+#         lambda x: 100 * x["AbsDistance"] / x["EditingSitesSpan"],
+#         axis=1 
+#     )
+# )
+# sig_concat_corrected_corrs_df.insert(
+#     sig_concat_corrected_corrs_df.columns.get_loc("%AbsDistance/EditingSitesSpan") + 1,
+#     "%AbsDistance/EditingSitesSpan10%Bins",
+#     # divide to 10% bins, 0-9, 10-19, ..., 90-100
+#     sig_concat_corrected_corrs_df["%AbsDistance/EditingSitesSpan"].apply(
+#         lambda x: int(x // 10) * 10 + 10
+#     ).replace(110, 100)
+# )
+
+# for col in ['BothEdited', 'BothUnedited', 'OnlySite1Edited', 'OnlySite2Edited']:
+#     sig_concat_corrected_corrs_df[f"%{col}"] = sig_concat_corrected_corrs_df.apply(
+#         lambda x: 100 * x[col] / x["n"],
+#         axis=1
+#     )
+
+# # sig_concat_corrected_corrs_df.insert(
+# #     sig_concat_corrected_corrs_df.columns.get_loc("r") + 1,
+# #     "r_1_digit_bins",
+# #     sig_concat_corrected_corrs_df["r"].round(1)
+# # )
+# # sig_concat_corrected_corrs_df.insert(
+# #     sig_concat_corrected_corrs_df.columns.get_loc("r") + 2,
+# #     "r_2_digit_bins",
+# #     sig_concat_corrected_corrs_df["r"].round(2)
+# # )
+
+# sig_concat_corrected_corrs_df
 
 # %%
 concat_corrected_corrs_df = pd.concat(
@@ -2405,7 +2405,7 @@ concat_corrected_corrs_df.insert(
 concat_corrected_corrs_df.insert(
     4,
     "AbsDistance100BPsBin",
-    sig_concat_corrected_corrs_df["AbsDistance"].apply(
+    concat_corrected_corrs_df["AbsDistance"].apply(
         lambda x: int((int(x / 100) * 100)) + 100
     )
 )
@@ -2502,12 +2502,6 @@ sig_concat_corrected_corrs_df
         }
     )
 )
-
-# %%
-Out[280]["r"].describe()
-
-# %%
-Out[280].groupby(condition_col)["r"].describe().round(3)
 
 # %%
 (
@@ -2841,6 +2835,128 @@ fig.update_layout(
     width=1600,
     height=800,
 )
+fig.write_image(
+    Path(
+        out_dir,
+        f"Pearson_r_vs_AbsDistance100BPsBin - Illumina.svg"
+    ),
+    width=width,
+    height=height,
+)
+fig.show()
+
+# %%
+from pathlib import Path
+
+import pandas as pd
+import plotly.express as px
+
+# 0. Create df with num of site pairs per 100 bps bin
+site_pairs_per_bin_df = (
+    sig_concat_corrected_corrs_df
+    .groupby([condition_col, "AbsDistance100BPsBin"])
+    .size()
+    .reset_index(name="SitePairsInAbsDistance100BPsBin")
+)
+
+df = sig_concat_corrected_corrs_df.merge(
+    site_pairs_per_bin_df,
+    on=[condition_col, "AbsDistance100BPsBin"],
+    how="left",
+)
+
+# 1. Create the binning logic
+bin_size = 100
+df["bin_start"] = (df["SitePairsInAbsDistance100BPsBin"] // bin_size) * bin_size
+
+# 2. Create string labels for the boxes
+df["bin_label"] = (
+    df["bin_start"].astype(int).astype(str)
+    + " - "
+    + (df["bin_start"] + bin_size).astype(int).astype(str)
+)
+
+# 3. Sort so x-axis and colors follow numerical order
+df = df.sort_values(["bin_start", condition_col, "AbsDistance100BPsBin"])
+unique_labels = df["bin_label"].drop_duplicates().tolist()
+
+# 4. Map the bins to a colorscale
+colors = px.colors.sample_colorscale(
+    "Viridis",
+    [i / max(1, len(unique_labels) - 1) for i in range(len(unique_labels))]
+)
+color_map = dict(zip(unique_labels, colors))
+
+# 5. Create the subplot box plot
+width = 1600
+height = 800
+
+fig = px.box(
+    df,
+    x="AbsDistance100BPsBin",
+    y="r",
+    facet_col=condition_col,
+    facet_col_wrap=5,
+    color="bin_label",
+    color_discrete_map=color_map,
+    category_orders={
+        "bin_label": unique_labels,
+        condition_col: sorted(shortened_conditions),
+    },
+    labels={
+        "bin_label": "Pairs",
+        "AbsDistance100BPsBin": "Absolute distance between site pairs [bp]",
+        "r": "Pearson's r",
+    },
+    points="outliers",
+)
+
+# Clean facet titles ("Condition=..." -> just the value)
+fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+
+# Axis formatting
+fig.update_xaxes(dtick=200, title_text=None)
+fig.update_yaxes(dtick=0.2, title_text=None)
+
+# Add one shared X title and one shared Y title
+fig.add_annotation(
+    text="Absolute distance between site pairs [bp]",
+    x=0.5,
+    y=0,
+    xref="paper",
+    yref="paper",
+    yshift=-55,
+    showarrow=False,
+    font=dict(size=16),
+)
+
+fig.add_annotation(
+    text="Pearson's r",
+    x=0,
+    y=0.5,
+    xref="paper",
+    yref="paper",
+    xshift=-70,
+    textangle=-90,
+    showarrow=False,
+    font=dict(size=16),
+)
+
+fig.update_layout(
+    template=template,
+    width=width,
+    height=height,
+    legend_title_text="Pairs",
+    margin=dict(l=110, r=40, t=80, b=90),
+    title="Squid's Short-reads"
+)
+
+fig.write_image(
+    Path(out_dir, "Pearson_r_vs_AbsDistance100BPsBin - Illumina.svg"),
+    width=width,
+    height=height,
+)
+
 fig.show()
 
 # %%
@@ -2904,60 +3020,121 @@ fig.update_layout(
 fig.show()
 
 # %%
-min_abs_r = 0.5
-# min_abs_r = 0.7
+from pathlib import Path
 
-df = (
+import pandas as pd
+import plotly.express as px
+
+# 0. Create df with num of site pairs per normalized-distance bin
+site_pairs_per_bin_df = (
     sig_concat_corrected_corrs_df
-    .loc[sig_concat_corrected_corrs_df["r"].ge(min_abs_r)]
-    # .loc[sig_concat_corrected_corrs_df["r_1_digit_bins"].abs().ge(min_abs_r)]
-    # .groupby([condition_col, "AbsDistance100BPsBin", "r_1_digit_bins"]).size()
-    # .reset_index(name="SitePairs")
+    .groupby([condition_col, "%AbsDistance/EditingSitesSpan10%Bins"])
+    .size()
+    .reset_index(name="SitePairsIn10%SpanBin")
 )
 
-fig = px.histogram(
-    df, 
-    x="r",
-    # y="SitePairs",
-    color=condition_col,
-    color_discrete_map=shortened_color_discrete_map,
-    facet_col="AbsDistance100BPsBin",
-    # facet_col="AbsDistance200BPsBin",
-    facet_row=condition_col,
-    facet_row_spacing=0.01,
-    category_orders={"AbsDistance100BPsBin": sorted(df["AbsDistance100BPsBin"].unique())},
-    labels={
-        # "r_1_digit_bins": "r (1 digit bins)",
-        "SitePairs": "Pairs",
-        # "AbsDistance100BPsBin": "Distance bin (bps)"
+df = sig_concat_corrected_corrs_df.merge(
+    site_pairs_per_bin_df,
+    on=[condition_col, "%AbsDistance/EditingSitesSpan10%Bins"],
+    how="left",
+)
+
+# 1. Create the binning logic
+bin_size = 300
+df["bin_start"] = (df["SitePairsIn10%SpanBin"] // bin_size) * bin_size
+
+# 2. Create string labels for the boxes
+df["bin_label"] = (
+    df["bin_start"].astype(int).astype(str)
+    + " - "
+    + (df["bin_start"] + bin_size).astype(int).astype(str)
+)
+
+# 3. Sort by bin_start so x-axis and colors follow numerical order
+df = df.sort_values(["bin_start", condition_col, "%AbsDistance/EditingSitesSpan10%Bins"])
+unique_labels = df["bin_label"].drop_duplicates().tolist()
+
+# 4. Map the bins to a colorscale
+colors = px.colors.sample_colorscale(
+    "Viridis",
+    [i / max(1, len(unique_labels) - 1) for i in range(len(unique_labels))]
+)
+color_map = dict(zip(unique_labels, colors))
+
+# 5. Create the box plot
+width = 1600
+height = 800
+
+fig = px.box(
+    df,
+    x="%AbsDistance/EditingSitesSpan10%Bins",
+    y="r",
+    facet_col=condition_col,
+    facet_col_wrap=5,
+    color="bin_label",
+    color_discrete_map=color_map,
+    category_orders={
+        "bin_label": unique_labels,
+        condition_col: sorted(shortened_conditions),
     },
+    labels={
+        "bin_label": "Pairs",
+        "r": "Pearson's r",
+        "%AbsDistance/EditingSitesSpan10%Bins": "Normalized distance 10% bins",
+    },
+    points="outliers",
 )
-# Remove all facet labels
-fig.for_each_annotation(
-    lambda a: a.update(text=a.text.split("=")[-1]) 
-        if f"{condition_col}=" in a.text 
-        else a.text
-        # else a.update(text="")
+
+# Clean facet titles
+fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+
+# Remove per-subplot axis titles
+fig.update_xaxes(dtick=10, title_text=None)
+fig.update_yaxes(dtick=0.2, title_text=None)
+
+# Add one shared X title
+fig.add_annotation(
+    text="Normalized distance 10% bins",
+    x=0.5,
+    y=0,
+    xref="paper",
+    yref="paper",
+    yshift=-55,
+    showarrow=False,
+    font=dict(size=16),
 )
-fig.update_xaxes(
-    dtick=0.1,
-    range=[min_abs_r, None]
+
+# Add one shared Y title
+fig.add_annotation(
+    text="Pearson's r",
+    x=0,
+    y=0.5,
+    xref="paper",
+    yref="paper",
+    xshift=-70,
+    textangle=-90,
+    showarrow=False,
+    font=dict(size=16),
 )
-# fig.update_yaxes(
-#     # dtick=5
-#     dtick=3
-# )
+
 fig.update_layout(
     template=template,
-    width=1300,
-    # width=1000,
-    # height=2000,
-    height=1000,
-    showlegend=False
+    width=width,
+    height=height,
+    legend_title_text="Pairs",
+    margin=dict(l=110, r=40, t=80, b=90),
 )
-fig.show()
 
-# %%
+fig.write_image(
+    Path(
+        out_dir,
+        "Pearson_r_vs_NormalizedDistance10PercentBins - Illumina.svg",
+    ),
+    width=width,
+    height=height,
+)
+
+fig.show()
 
 # %%
 
@@ -3737,6 +3914,13 @@ merged_noise_df.to_csv("NoiseLevels.Illumina.tsv", sep="\t", index=False)
 # ### Known & new editing sites
 
 # %%
+# plt.rcParams.update({
+#     'figure.facecolor': 'white',
+#     'axes.facecolor': 'white',
+#     'savefig.facecolor': 'white'
+# })
+
+# %%
 conditions_labels = {condition: ["Edited", "KnownEditing"] for condition in conditions}
 
 conditions_sets = {
@@ -3747,46 +3931,70 @@ conditions_sets = {
     for positions_df, condition in zip(positions_dfs, conditions)
 }
 
-cols = min(facet_col_wrap, len(conditions), 5)
+# cols = min(facet_col_wrap, len(conditions), 5)
+cols = 7
 rows = ceil(len(conditions) / cols)
+
+# width = 3.5 * cols
+width = 2 * cols
+height = 2.5 * rows
+# wspace = 0.03
+# hspace = 0.2
+wspace = 0
+hspace = 0.12
 
 fig, axs = plt.subplots(
     nrows=rows,
     ncols=cols,
-    figsize=(3.5 * cols, 2.5 * rows),
+    figsize=(width, height),
     constrained_layout=True,
-    gridspec_kw=dict(hspace=0.2, wspace=0.03),
+    gridspec_kw=dict(hspace=hspace, wspace=wspace),
+    facecolor="white",
 )
 
-for condition, ax in zip(conditions, axs.flat):
-    labels = conditions_labels[condition]
+# Make sure axs is always iterable
+axs = np.atleast_1d(axs).ravel()
+
+for condition, ax in zip(conditions, axs):
+    ax.set_facecolor("white")
+
+    labels = conditions_labels[condition].copy()
     sets = conditions_sets[condition]
-    # labels[0] = f"Edited\n({len(sets[0])})"
-    # labels[1] = f"Known editing\n({len(sets[1])})"
+
     labels[0] = f"De-novo\n({len(sets[0])})"
     labels[1] = f"Known\n({len(sets[1])})"
+
     labels = labels[:2]
     sets = sets[:2]
-    v_func = venn2
-    v_func(sets, set_labels=labels, ax=ax)
-    ax.set_title(condition.split("_")[0], fontdict=dict(fontsize=12))
-    # ax.set_title(shortened_conditions, fontdict=dict(fontsize=12))
+
+    venn = venn2(sets, set_labels=labels, ax=ax)
+
+    # Make all text black: set labels + subset numbers
+    for text in ax.texts:
+        text.set_color("black")
+
+    ax.set_title(
+        condition.split("_")[0],
+        fontsize=14,
+        color="black",
+    )
 
 if (num_of_axes_to_delete := cols * rows - len(conditions)) > 0:
-    cols_to_delete = range(cols - 1, cols - 1 - num_of_axes_to_delete, -1)
-    for col_to_delete in cols_to_delete:
-        fig.delaxes(axs[rows - 1][col_to_delete])
+    for ax in axs[-num_of_axes_to_delete:]:
+        fig.delaxes(ax)
 
 fig.suptitle(
-    # "Squid's Illumina",
     "Squid's Short-reads",
-    # fontsize="xx-large",
     fontsize=18,
-    # y=1.05
+    color="black",
 )
-# fig.tight_layout(pad=1.3)
 
-plt.savefig("Known vs new editing sites - Illumina.svg", format="svg", dpi=300)
+plt.savefig(
+    Path(out_dir, "Known vs new editing sites - Illumina.svg"),
+    format="svg",
+    dpi=300,
+    facecolor="white",
+)
 
 plt.show()
 
@@ -11327,11 +11535,11 @@ fig.update_layout(
     width=width,
 )
 
-# fig.write_image(
-#     f"{title_text} - Illumina.svg",
-#     height=height,
-#     width=width,
-# )
+fig.write_image(
+    Path(out_dir, f"{title_text} - Illumina.svg"),
+    height=height,
+    width=width,
+)
 
 # fig.show()
 

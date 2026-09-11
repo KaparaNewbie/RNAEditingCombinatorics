@@ -7,7 +7,7 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.19.4
 #   kernelspec:
-#     display_name: combinatorics2
+#     display_name: Python 3 (ipykernel)
 #     language: python
 #     name: python3
 # ---
@@ -1006,6 +1006,106 @@ for soft_comparison in [False, True]:
     fig.show()
 
 # %%
+x_common_proteins = 0.01
+y_rare_proteins = 0.3
+
+(
+    proteins_stats_df[
+        (proteins_stats_df["XCommonProteins"] == x_common_proteins)
+        & (proteins_stats_df["YRareProteins"] == y_rare_proteins)
+        # & (proteins_stats_df["IsSoftComparison"] == soft_comparison)
+    ]
+    .groupby("IsSoftComparison")
+    ["%OfChimericProteinsOnEditingSitesLevel"].describe().round(2)
+)
+
+# %%
+x_common_proteins = 0.01
+y_rare_proteins = 0.3
+
+comparison_types = [
+    (False, "Strict comparison"),
+    (True, "Soft comparison"),
+]
+
+fig = make_subplots(
+    rows=1,
+    cols=2,
+    shared_xaxes="all",
+    shared_yaxes="all",
+    y_title="Chimeric rare proteins [%]",
+    column_titles=[title for _, title in comparison_types],
+    horizontal_spacing=0.08,
+)
+
+max_y = 0
+
+for col, (soft_comparison, comparison_title) in enumerate(
+    comparison_types,
+    start=1,
+):
+    subset_df = proteins_stats_df[
+        (proteins_stats_df["XCommonProteins"] == x_common_proteins)
+        & (proteins_stats_df["YRareProteins"] == y_rare_proteins)
+        & (proteins_stats_df["IsSoftComparison"] == soft_comparison)
+    ]
+
+    if subset_df.shape[0] < 26:
+        ic(
+            x_common_proteins,
+            y_rare_proteins,
+            soft_comparison,
+            subset_df.shape[0],
+        )
+
+    x = subset_df.loc[:, ["ShortPlatform", "Sample"]].T.values.tolist()
+    y = subset_df["%OfChimericProteinsOnEditingSitesLevel"]
+
+    max_y = max(max_y, y.max())
+
+    fig.add_trace(
+        go.Bar(
+            x=x,
+            y=y,
+            marker=dict(
+                color=subset_df["Platform"].map(platform_colormap)
+            ),
+        ),
+        row=1,
+        col=col,
+    )
+
+# fig.update_xaxes(
+#     tickfont_size=6.5
+# )
+
+fig.update_yaxes(
+    # dtick=10
+    dtick=5
+)
+
+width = 1000
+height = 450
+
+fig.update_layout(
+    template="plotly_white",
+    showlegend=False,
+    width=width,
+    height=height,
+)
+
+fig.write_image(
+    Path(
+        plots_out_dir,
+        "ChimericRareProteinsPerGene.X=0.01.Y=0.3.StrictAndSoft.svg",
+    ),
+    width=width,
+    height=height,
+)
+
+fig.show()
+
+# %%
 proteins_stats_df
 
 # %%
@@ -1307,6 +1407,57 @@ fig.write_image(
         plots_out_dir,
         # f"ChimericRareProteinsPerPlatform.AllX.Y=30.BothComparisons.svg"
         "CummulativeExpressionOfXCommonProteinsPerPlatform.svg"
+    ),
+    width=width,
+    height=height,
+)
+fig.show()
+
+# %%
+x_y_expression_df["XCommonProteins"].unique()
+
+# %%
+fig = px.box(
+    x_y_expression_df.loc[
+    x_y_expression_df["XCommonProteins"].eq(0.01)
+    ],
+    x="Platform",
+    y="XCommonProteinsCumulativeExpression",
+    points="all",
+    color="Platform",
+    color_discrete_map=platform_colormap,
+    # facet_col="XCommonProteins",
+    labels={
+        # "ShortPlatform": "Platform",
+        # "XCommonProteinsCumulativeExpression": "Cumulative expression [%]"
+        "XCommonProteinsCumulativeExpression": "Cumulative expression of<br>1% most-common proteins [%]"
+    },
+    category_orders={
+        "Platform": sorted(platform_colormap.keys()),
+    }
+)
+fig.update_traces(
+    jitter=0.3,
+    pointpos=-2
+)
+fig.for_each_annotation(
+    lambda a: a.update(text=update_common_and_rare_facet_titles(a.text))
+)
+fig.update_yaxes(dtick=10)
+width = 400
+height = 450
+fig.update_layout(
+    template="plotly_white",
+    # title="Soft Comparison = True, YRareProteins = 0.3",
+    width=width,
+    height=height,
+    showlegend=False
+)
+fig.write_image(
+    Path(
+        plots_out_dir,
+        # f"ChimericRareProteinsPerPlatform.AllX.Y=30.BothComparisons.svg"
+        "CummulativeExpressionOf1PercentCommonProteinsPerPlatform.svg"
     ),
     width=width,
     height=height,

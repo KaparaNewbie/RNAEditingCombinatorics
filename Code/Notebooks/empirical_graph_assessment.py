@@ -497,7 +497,7 @@ fig.show()
 # fig.show()
 
 # %% [markdown]
-# ## Relative % of recovered isoforms
+# ## Relative % of inferred isoforms
 
 # %%
 max_per_fraction_per_data_creation_merged_distinct_df
@@ -581,7 +581,10 @@ wide_max_per_fraction_per_data_creation_merged_distinct_df
 # wide_max_per_fraction_per_data_creation_merged_distinct_df.head()
 
 # %%
-wide_max_per_fraction_per_data_creation_merged_distinct_df
+wide_max_per_fraction_per_data_creation_merged_distinct_df["%DistinctProteinsRecovered"].describe()
+
+# %%
+wide_max_per_fraction_per_data_creation_merged_distinct_df["%DistinctProteinsRecovered"].rsub(100).describe().round(2)
 
 # %%
 # wide_max_per_fraction_per_data_creation_merged_distinct_df.head(20)
@@ -611,6 +614,9 @@ stats_of_max_per_fraction_merged_distinct_df = (
     # .rename(columns={"MeanPrctDistinctProteinsRecovered": "MeanPrctDistinctProteinsRecovered"})
 )
 stats_of_max_per_fraction_merged_distinct_df
+
+# %%
+stats_of_max_per_fraction_merged_distinct_df["MeanPrctDistinctProteinsRecovered"].rsub(100).describe().round(2)
 
 # %% jupyter={"source_hidden": true}
 # unknown_probabilities
@@ -706,11 +712,11 @@ fig.update_layout(
     margin_r=140,
 )
 
-fig.write_image(
-    "Graph assessment - mean % of distinct proteins recovered.svg",
-    width=width,
-    height=height,
-)
+# fig.write_image(
+#     "Graph assessment - mean % of distinct proteins recovered.svg",
+#     width=width,
+#     height=height,
+# )
 
 fig.show()
 
