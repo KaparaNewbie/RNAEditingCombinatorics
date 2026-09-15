@@ -2056,6 +2056,9 @@ concat_old_vs_new_editing_positions_only_new_df
 concat_old_vs_new_editing_positions_only_old_df
 
 # %%
+concat_old_vs_new_editing_positions_only_old_df["Chrom"].nunique()
+
+# %%
 sites_sets_per_chrom = (
     concat_old_vs_new_editing_positions_df.groupby("Chrom")["_merge"].value_counts()
     .reset_index()
@@ -2066,6 +2069,13 @@ sites_sets_per_chrom = (
     .astype(int)
 )
 sites_sets_per_chrom
+
+# %%
+# sites_sets_per_chrom.loc[
+#     (
+#         sites_sets_per_chrom["Old"].gt(0)
+#     )
+# ]
 
 # %%
 chroms_with_only_old_sites = sites_sets_per_chrom.loc[
@@ -2079,6 +2089,12 @@ chroms_with_only_old_sites = sites_sets_per_chrom.loc[
 ic(len(chroms_with_only_old_sites))
 
 chroms_with_only_old_sites
+
+# %%
+sites_sets_per_chrom.loc[
+    chroms_with_only_old_sites,
+    "Old"
+].sum()
 
 # %%
 # concat_old_vs_new_editing_positions_only_old_df.loc[
@@ -2159,6 +2175,9 @@ significant_mismatches_sites_disabled_by_suspected_snps_theoretical_fix_df
     .groupby("NumOfSuspectedSNPsPerChrom")
     .size()
     .reset_index(name="NumOfRejectedEditingSites")
+    .assign(
+        CumulativeRejectedEditingSites=lambda x: x["NumOfRejectedEditingSites"].cumsum()
+    )
     # .describe().round(2)
 )
 
@@ -2169,16 +2188,22 @@ fig = px.scatter(
         .groupby("NumOfSuspectedSNPsPerChrom")
         .size()
         .reset_index(name="NumOfRejectedEditingSites")
+        .assign(
+            CumulativeRejectedEditingSites=lambda x: x["NumOfRejectedEditingSites"].cumsum()
+        )
         # .describe().round(2)
     ),
     x="NumOfSuspectedSNPsPerChrom",
-    y="NumOfRejectedEditingSites",
+    # y="NumOfRejectedEditingSites",
+    y="CumulativeRejectedEditingSites",
     log_x=True,
     labels={
         "NumOfSuspectedSNPsPerChrom": "Number of suspected SNPs per gene",
-        "NumOfRejectedEditingSites": "Number of editing sites rejected<br>due to suspected SNPs"
+        # "NumOfRejectedEditingSites": "Number of editing sites rejected<br>due to suspected SNPs",
+        "CumulativeRejectedEditingSites": "Cumulative number of editing sites<br>rejected due to suspected SNPs",
     }
 )
+fig.update_yaxes(tick0=0, rangemode="tozero", dtick=5000)
 fig.update_layout(
     width=600,
     height=400
@@ -2200,55 +2225,79 @@ fig.show()
 )
 
 # %%
-# how many SNPs in 4-6 SPNs per gene are new AC/AT?
-(
-    significant_mismatches_theoretical_fix_df
-    .loc[
-        (
-            significant_mismatches_theoretical_fix_df["NumOfSuspectedSNPsPerChrom"].between(4, 6)
-            & significant_mismatches_theoretical_fix_df["SuspectedSNP"]
-        )
-    ]
-    .groupby("NumOfSuspectedSNPsPerChrom")
-    ["Mismatch"]
-    # .value_counts(normalize=True)
-    # .mul(100)
-    # .round(2)
-    .value_counts()
-    .unstack(fill_value=0)
-)
+# # how many SNPs in 4-6 SPNs per gene are new AC/AT?
+# (
+#     significant_mismatches_theoretical_fix_df
+#     .loc[
+#         (
+#             significant_mismatches_theoretical_fix_df["NumOfSuspectedSNPsPerChrom"].between(4, 6)
+#             & significant_mismatches_theoretical_fix_df["SuspectedSNP"]
+#         )
+#     ]
+#     .groupby("NumOfSuspectedSNPsPerChrom")
+#     ["Mismatch"]
+#     # .value_counts(normalize=True)
+#     # .mul(100)
+#     # .round(2)
+#     .value_counts()
+#     .unstack(fill_value=0)
+# )
+
+# %%
+significant_mismatches_theoretical_fix_df
+
+# %%
+# sites_sets_per_chrom.loc[chroms_with_only_old_sites, ["Old"]].reset_index()
 
 # %%
 # how many SNPs in 4-6 SPNs per gene are new AC/AT? 
-# TODO - 11.9.2026 - This is per num of SNPs per chrom, not per chrom
-# TODO - also, we should check this specifically for the genes with lost editing sites
-(
+new_ac_at_snps_at_genes_with_only_old_sites_df = (
     significant_mismatches_theoretical_fix_df
     .loc[
         (
             significant_mismatches_theoretical_fix_df["NumOfSuspectedSNPsPerChrom"].between(4, 6)
             & significant_mismatches_theoretical_fix_df["SuspectedSNP"]
-        )
+            & significant_mismatches_theoretical_fix_df["Chrom"].isin(chroms_with_only_old_sites)
+            & significant_mismatches_theoretical_fix_df["Mismatch"].isin(["A>C", "A>T"])
+        ),
     ]
-    .groupby("NumOfSuspectedSNPsPerChrom")
-    ["Mismatch"]
-    # .value_counts(normalize=True)
-    # .mul(100)
-    # .round(2)
-    .value_counts()
-    .unstack(fill_value=0)
+    .groupby(["Chrom", "NumOfSuspectedSNPsPerChrom"])
+    .size()
+    .reset_index(name="NumOfACOrATSuspectedSNPsPerChrom")
+    .assign(
+        NumOfSuspectedSNPsPerChromWoACOrAT = lambda x: x["NumOfSuspectedSNPsPerChrom"] - x["NumOfACOrATSuspectedSNPsPerChrom"]
+    )
+    .assign(
+        EditingSitesRescuedByRemovingACOrATSuspectedSNPs = lambda x: (
+            x["NumOfSuspectedSNPsPerChromWoACOrAT"] <= max_snps_per_gene_to_allow_editing_detection
+        )
+    )
+    .merge(
+        (
+            sites_sets_per_chrom.loc[chroms_with_only_old_sites, ["Old"]]
+            .reset_index()
+            .rename(columns={"Old": "NumOfLostEditingSitesPerChrom"})
+        ),
+        how="left"
+    )
+)
+new_ac_at_snps_at_genes_with_only_old_sites_df
+
+# %%
+# (
+#     new_ac_at_snps_at_genes_with_only_old_sites_df
+#     .groupby("NumOfSuspectedSNPsPerChrom")
+#     ["NumOfSuspectedSNPsPerChromWoACOrAT"].describe().round(2)D
+# )
+
+# %%
+(
+    new_ac_at_snps_at_genes_with_only_old_sites_df
+    [["NumOfSuspectedSNPsPerChrom", "NumOfSuspectedSNPsPerChromWoACOrAT"]].value_counts()
+    .reset_index(name="NumOfChroms")
 )
 
 # %%
-# how many SNPs in 4-6 SPNs per gene are new AC/AT?
-(
-    significant_mismatches_sites_disabled_by_suspected_snps_theoretical_fix_df
-    .loc[
-        significant_mismatches_sites_disabled_by_suspected_snps_theoretical_fix_df["NumOfSuspectedSNPsPerChrom"].between(4, 6)
-    ]
-    .groupby("NumOfSuspectedSNPsPerChrom")
-    ["Mismatch"].value_counts(normalize=True).unstack(fill_value=0)
-)
 
 # %%
 (
@@ -2293,26 +2342,18 @@ fig.show()
 # %%
 
 # %%
-(
-    significant_mismatches_sites_disabled_by_suspected_snps_theoretical_fix_df
-    .loc[
-        significant_mismatches_sites_disabled_by_suspected_snps_theoretical_fix_df["EditedFinal"]
-    ]
-)
-
-# %%
-(
-    significant_mismatches_theoretical_fix_chroms_with_too_much_suspected_snps_df.loc[
-        (
-            significant_mismatches_theoretical_fix_chroms_with_too_much_suspected_snps_df["Mismatch"]
-            (
-            significant_mismatches_theoretical_fix_chroms_with_too_much_suspected_snps_df["Mismatch"].eq("A>G")
-            & ~significant_mismatches_theoretical_fix_chroms_with_too_much_suspected_snps_df["SNP"]
-            & significant_mismatches_theoretical_fix_chroms_with_too_much_suspected_snps_df["AboveNewEditingThreshold"]
-        )
-        )
-    ]
-)
+# (
+#     significant_mismatches_theoretical_fix_chroms_with_too_much_suspected_snps_df.loc[
+#         (
+#             significant_mismatches_theoretical_fix_chroms_with_too_much_suspected_snps_df["Mismatch"]
+#             (
+#             significant_mismatches_theoretical_fix_chroms_with_too_much_suspected_snps_df["Mismatch"].eq("A>G")
+#             & ~significant_mismatches_theoretical_fix_chroms_with_too_much_suspected_snps_df["SNP"]
+#             & significant_mismatches_theoretical_fix_chroms_with_too_much_suspected_snps_df["AboveNewEditingThreshold"]
+#         )
+#         )
+#     ]
+# )
 
 # %%
 
@@ -2392,12 +2433,13 @@ significant_mismatches_theoretical_fix_df.head()
 )
 
 # %%
-fig = px.histogram(
-    (
+df = (
         significant_mismatches_theoretical_fix_df.loc[
             ~significant_mismatches_theoretical_fix_df["AboveNewEditingThreshold"]
         ]
-    ),
+    )
+fig = px.histogram(
+    df,
     x="Mismatch",
     color="Mismatch",
     color_discrete_map=mismatch_dolor_map,
@@ -2406,7 +2448,7 @@ fig = px.histogram(
     log_y=True,
     template=template,
     category_orders={"Mismatch": mismatches},
-    title="Mismatches below editing threshold",
+    title="Mismatches at or below editing threshold",
 )
 
 width = 700
@@ -2430,18 +2472,32 @@ fig.update_layout(
 #     height=height,
 # )
 
+display(
+    (
+        df.groupby("Mismatch").size()
+        .reset_index(name="Count")
+        .assign(
+            Percentage=lambda x: np.round(
+                100 * x["Count"] / x["Count"].sum(),
+                0
+            )
+        )
+    )
+)
+
 fig.show()
 
 # %%
-fig = px.histogram(
-    (
+df = (
         significant_mismatches_theoretical_fix_df.loc[
             (
                 significant_mismatches_theoretical_fix_df["AboveNewEditingThreshold"]
                 & ~significant_mismatches_theoretical_fix_df["AtOrAboveSuspectedSNPLevel"]
             )
         ]
-    ),
+    )
+fig = px.histogram(
+    df,
     x="Mismatch",
     color="Mismatch",
     color_discrete_map=mismatch_dolor_map,
@@ -2468,23 +2524,39 @@ fig.update_layout(
     showlegend=False
 )
 
+display(
+    (
+        df.groupby("Mismatch").size()
+        .reset_index(name="Count")
+        .assign(
+            Percentage=lambda x: np.round(
+                100 * x["Count"] / x["Count"].sum(),
+                0
+            )
+        )
+    )
+)
+
 # fig.write_image(
 #     Path(out_dir, "12 npn-SNP mismatches distribution - absolute - combined.svg"),
 #     width=width,
 #     height=height,
 # )
 
+
+
 fig.show()
 
 # %%
-fig = px.histogram(
-    (
+df = (
         significant_mismatches_theoretical_fix_df.loc[
             (
                 significant_mismatches_theoretical_fix_df["AtOrAboveSuspectedSNPLevel"]
             )
         ]
-    ),
+    )
+fig = px.histogram(
+    df,
     x="Mismatch",
     color="Mismatch",
     color_discrete_map=mismatch_dolor_map,
@@ -2497,11 +2569,16 @@ fig = px.histogram(
     title="Mismatches at or above suspected SNP threshold",
 )
 
-width = 1000
+width = 1200
 height = 500
 
 # Use for_each_annotation to customize each title (i.e., remove the "Platform=" prefix)
-# fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+fig.for_each_annotation(
+    lambda a: a.update(
+        text="Mismatch frequency = 100%" if a.text == "MismatchFrequency1=True" else
+        "Mismatch frequency < 100%"
+    )
+)
 
 fig.update_xaxes(tickangle=35)
 # fig.update_yaxes(dtick=10)
@@ -2517,6 +2594,19 @@ fig.update_layout(
 #     width=width,
 #     height=height,
 # )
+
+display(
+    (
+        df.groupby(["MismatchFrequency1", "Mismatch"]).size()
+        .reset_index(name="Count")
+        .assign(
+            Percentage=lambda x: np.round(
+                100 * x["Count"] / x.groupby("MismatchFrequency1")["Count"].transform("sum"),
+                0
+            )
+        )
+    )
+)
 
 fig.show()
 

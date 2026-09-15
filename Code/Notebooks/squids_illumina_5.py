@@ -10581,26 +10581,125 @@ one_condition_rare_vs_abundant_editing_frequency_per_site_dfs = [
 one_condition_rare_vs_abundant_editing_frequency_per_site_dfs[0]
 
 # %%
+# num_of_sites_per_condition = []
+# num_of_significant_sites_per_condition = []
+# num_of_insignificant_sites_per_condition = []
+# num_of_untestable_sites_per_condition = []
+# num_of_testable_sites_per_condition = []
+
+# for condition, df in zip(conditions, one_condition_rare_vs_abundant_editing_frequency_per_site_dfs):
+#     na_pvs = df["pv"].isna()
+#     fdr_rejects = df["fdr_bh_rejection"]
+#     num_of_sites = df.shape[0]
+#     num_of_significant_sites = sum(~na_pvs & fdr_rejects)
+#     num_of_insignificant_sites = sum(~na_pvs & ~fdr_rejects)
+#     num_of_untestable_sites = sum(na_pvs)
+#     # ic(num_of_sites, num_of_significant_sites, num_of_insignificant_sites, num_of_untestable_sites)
+#     num_of_sites_per_condition.append(num_of_sites)
+#     num_of_significant_sites_per_condition.append(num_of_significant_sites)
+#     num_of_insignificant_sites_per_condition.append(num_of_insignificant_sites)
+#     num_of_untestable_sites_per_condition.append(num_of_untestable_sites)
+#     num_of_testable_sites_per_condition.append(num_of_sites - num_of_untestable_sites)
+    
+# rare_vs_abundant_editing_frequency_per_site_summary_df = pd.DataFrame(
+#     {
+#         condition_col: shortened_conditions,
+#         "NumOfEditingSites": num_of_sites_per_condition,
+#         "NumOfUntestableSites": num_of_untestable_sites_per_condition,
+#         "NumOfTestableSites": num_of_testable_sites_per_condition,
+#         "NumOfSignificantSites": num_of_significant_sites_per_condition,
+#         "NumOfInsignificantSites": num_of_insignificant_sites_per_condition,
+#     }
+# ).set_index(condition_col)
+# rare_vs_abundant_editing_frequency_per_site_summary_df
+
 num_of_sites_per_condition = []
+
 num_of_significant_sites_per_condition = []
+num_of_significant_sites_higher_in_rare_per_condition = []
+num_of_significant_sites_lower_in_rare_per_condition = []
+
 num_of_insignificant_sites_per_condition = []
+
 num_of_untestable_sites_per_condition = []
 num_of_testable_sites_per_condition = []
 
-for condition, df in zip(conditions, one_condition_rare_vs_abundant_editing_frequency_per_site_dfs):
+for condition, df in zip(
+    conditions,
+    one_condition_rare_vs_abundant_editing_frequency_per_site_dfs
+):
+
     na_pvs = df["pv"].isna()
     fdr_rejects = df["fdr_bh_rejection"]
+
+    significant_sites = ~na_pvs & fdr_rejects
+
+    significant_sites_higher_in_rare = (
+        significant_sites
+        & (
+            df["%MeanRareEditing"]
+            > df["%ExpressionWeightedMeanCommonEditing"]
+        )
+    )
+
+    significant_sites_lower_in_rare = (
+        significant_sites
+        & (
+            df["%MeanRareEditing"]
+            < df["%ExpressionWeightedMeanCommonEditing"]
+        )
+    )
+
     num_of_sites = df.shape[0]
-    num_of_significant_sites = sum(~na_pvs & fdr_rejects)
-    num_of_insignificant_sites = sum(~na_pvs & ~fdr_rejects)
-    num_of_untestable_sites = sum(na_pvs)
-    # ic(num_of_sites, num_of_significant_sites, num_of_insignificant_sites, num_of_untestable_sites)
+
+    num_of_significant_sites = significant_sites.sum()
+
+    num_of_significant_sites_higher_in_rare = (
+        significant_sites_higher_in_rare.sum()
+    )
+
+    num_of_significant_sites_lower_in_rare = (
+        significant_sites_lower_in_rare.sum()
+    )
+
+    num_of_insignificant_sites = (~na_pvs & ~fdr_rejects).sum()
+
+    num_of_untestable_sites = na_pvs.sum()
+
+    # Validation: every significant site should have a direction
+    assert (
+        num_of_significant_sites_higher_in_rare
+        + num_of_significant_sites_lower_in_rare
+        == num_of_significant_sites
+    )
+
     num_of_sites_per_condition.append(num_of_sites)
-    num_of_significant_sites_per_condition.append(num_of_significant_sites)
-    num_of_insignificant_sites_per_condition.append(num_of_insignificant_sites)
-    num_of_untestable_sites_per_condition.append(num_of_untestable_sites)
-    num_of_testable_sites_per_condition.append(num_of_sites - num_of_untestable_sites)
-    
+
+    num_of_significant_sites_per_condition.append(
+        num_of_significant_sites
+    )
+
+    num_of_significant_sites_higher_in_rare_per_condition.append(
+        num_of_significant_sites_higher_in_rare
+    )
+
+    num_of_significant_sites_lower_in_rare_per_condition.append(
+        num_of_significant_sites_lower_in_rare
+    )
+
+    num_of_insignificant_sites_per_condition.append(
+        num_of_insignificant_sites
+    )
+
+    num_of_untestable_sites_per_condition.append(
+        num_of_untestable_sites
+    )
+
+    num_of_testable_sites_per_condition.append(
+        num_of_sites - num_of_untestable_sites
+    )
+
+
 rare_vs_abundant_editing_frequency_per_site_summary_df = pd.DataFrame(
     {
         condition_col: shortened_conditions,
@@ -10608,9 +10707,14 @@ rare_vs_abundant_editing_frequency_per_site_summary_df = pd.DataFrame(
         "NumOfUntestableSites": num_of_untestable_sites_per_condition,
         "NumOfTestableSites": num_of_testable_sites_per_condition,
         "NumOfSignificantSites": num_of_significant_sites_per_condition,
+        "NumOfSignificantSitesHigherInRare":
+            num_of_significant_sites_higher_in_rare_per_condition,
+        "NumOfSignificantSitesLowerInRare":
+            num_of_significant_sites_lower_in_rare_per_condition,
         "NumOfInsignificantSites": num_of_insignificant_sites_per_condition,
     }
 ).set_index(condition_col)
+
 rare_vs_abundant_editing_frequency_per_site_summary_df
 
 # %%
