@@ -354,7 +354,7 @@ for (i, editingprob) in enumerate(editingprobs)
 			x = abs_min_x + d
 			align = (:right, :center)
 		end
-		y = 8
+		y = 6.5
 		# align = (:center, :center)
 		# println("$i, $j, $x, $y, $expected, $align")
 		text!(
@@ -375,7 +375,13 @@ Label(fig[end+1, :], "Pearson's r")  # a axis title
 Label(fig[begin:end-1, 0], "Sites", rotation = pi / 2)  # y axis title
 fig
 
-
+save(
+	joinpath(
+		"/private6/projects/Combinatorics/Code/Notebooks",
+		"Unfinished editing simulated corrs.svg",
+	),
+	fig,
+)
 
 
 
