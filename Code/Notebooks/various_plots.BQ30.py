@@ -10952,3 +10952,378 @@ raw_reads_stats_files = [
     Path(in_dir, "RawReadsStats.Squid.PacBio.csv"),
     Path(in_dir, "RawReadsStats.Squid.PacBio.UMIs.csv")
 ]
+
+# %% [markdown]
+# # 12-mismatch analysis
+#
+# Run the revised producer exports, then this section in order. Inputs are the explicit `12mm/v2/positions` files; older files without the saved decision flags are not accepted. The producer compares its source with a read-back before publishing each input. Squid retains its original-threshold validation; octopus exports the prepared Version 2b table without repeating historical detection.
+#
+# Count one `Dataset/Platform/Sample/Chrom/Position` site. Sum counts across the specified samples, then normalize separately in each panel. No read weighting or averaging of gene percentages is used.
+#
+# Style and titles follow octopus **Version 2b plots - 17.9.26** (`2f53ae10`; plots `d2d166df`, `2abcc7d5`, `234b5ae6`, `c6c8b222`, `4ea0791b`; colors `03525f7f`, template `edc51ea1`).
+#
+
+# %% [markdown]
+# ## Inputs
+
+# %%
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from IPython.display import display
+
+mm12_root = Path('/private6/projects/Combinatorics')
+mm12_output_dir = mm12_root / 'Code/Notebooks/12mm/v2'
+mm12_positions_dir = mm12_output_dir / 'positions'
+mm12_template = 'plotly_white'
+mm12_mismatches = sorted(f'{ref}>{alt}' for ref in 'ATCG' for alt in 'ATCG' if ref != alt)
+mm12_color_map = dict(zip(mm12_mismatches, px.colors.qualitative.Dark24))
+mm12_datasets = ['SquidLongReads', 'SquidShortReads', 'Octopus']
+mm12_group_labels = {
+    'SquidLongReads': "Squid's Long-reads",
+    'SquidShortReads': "Squid's Short-reads",
+    'Octopus': 'Whole-transcriptome octopus data',
+}
+mm12_figure_paths = {
+    number: mm12_output_dir / 'figures' / f'Combined.12mm.figure{number}.layout-v6.svg'
+    for number in range(1, 6)
+}
+
+# %%
+# This fixed cohort matches the active producer inputs; no glob or legacy fallback.
+mm12_long_read_inputs = [
+    ('GRIA2', 'GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998'),
+    ('PCLO', 'PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998'),
+]
+mm12_short_read_inputs = [
+    ('RUSC2', 'comp141881_c0_seq3'), ('TRIM2', 'comp141044_c0_seq2'),
+    ('CA2D3', 'comp140439_c0_seq1'), ('ABL', 'comp126362_c0_seq1'),
+    ('DGLA', 'comp141517_c0_seq1'), ('K0513', 'comp141840_c0_seq2'),
+    ('KCNAS', 'comp141640_c0_seq1'), ('ACHA4', 'comp140987_c3_seq1'),
+    ('ANR17', 'comp140910_c2_seq1'), ('TWK7', 'comp136058_c0_seq1'),
+    ('SCN1', 'comp141378_c0_seq7'), ('CACB2', 'comp141158_c1_seq2'),
+    ('RIMS2', 'comp140712_c0_seq3'), ('PCLO', 'comp141882_c0_seq14'),
+    ('DOP1', 'comp141880_c1_seq3'), ('IQEC1', 'comp141565_c6_seq3'),
+    ('CSKI1', 'comp141684_c0_seq1'), ('MTUS2', 'comp141532_c3_seq11'),
+    ('ROBO2', 'comp141574_c0_seq3'),
+]
+mm12_input_records = [
+    ('SquidLongReads', 'D. pealeii', 'PacBio', sample,
+     mm12_positions_dir / 'squid_long_reads' / f'{stem}.12mm.positions.csv.gz')
+    for sample, stem in mm12_long_read_inputs
+] + [
+    ('SquidShortReads', 'D. pealeii', 'Illumina', sample,
+     mm12_positions_dir / 'squid_short_reads'
+     / f'reads.sorted.aligned.filtered.{chrom}.12mm.positions.csv.gz')
+    for sample, chrom in mm12_short_read_inputs
+] + [
+    ('Octopus', 'O. vulgaris', 'PacBio', 'Pooled',
+     mm12_positions_dir / 'octopus' / 'TMR50.Version2b.12mm.positions.csv.gz')
+]
+mm12_input_paths = [record[-1] for record in mm12_input_records]
+assert len(set(mm12_input_paths)) == len(mm12_input_paths)
+assert all('.12mm.positions.csv.gz' in path.name for path in mm12_input_paths)
+mm12_missing_paths = [str(path) for path in mm12_input_paths if not path.is_file()]
+if mm12_missing_paths:
+    raise FileNotFoundError('Run the new positions exports first: ' + '; '.join(mm12_missing_paths))
+
+# %%
+mm12_unit_cols = ["Dataset", "Platform", "Sample", "Chrom"]
+mm12_site_cols = mm12_unit_cols + ["Position"]
+mm12_disabled_col = "EditingDetectionDisabledInChromDueToSuspectedSNPsWithoutACOrAT"
+mm12_bool_cols = [
+    "AboveOldEditingThreshold", "AtOrAboveSuspectedSNPLevel", "MismatchFrequency1",
+    mm12_disabled_col, "ObservedMismatch", "AnalysisEligible", "EditingSite",
+]
+mm12_required_cols = mm12_site_cols + [
+    "Species", "Gene", "RefBase", "AltBase", "RefBaseCount", "AltBaseCount",
+    "Mismatch", "MismatchFrequency", "OldEditingThreshold", "SNPThreshold",
+] + mm12_bool_cols
+mm12_positions_dfs = []
+for mm12_dataset, mm12_species, mm12_platform, mm12_sample, mm12_path in mm12_input_records:
+    mm12_extra_flag = "BHRejection" if mm12_dataset == "Octopus" else "OriginalSchemeValidated"
+    mm12_input_df = pd.read_csv(
+        mm12_path, sep="\t", usecols=mm12_required_cols + [mm12_extra_flag],
+        dtype={col: "boolean" for col in mm12_bool_cols + [mm12_extra_flag]},
+        float_precision="round_trip",
+    )
+    if not mm12_input_df[mm12_extra_flag].eq(True).fillna(False).all():
+        raise ValueError(f"{mm12_path}: missing significance or squid threshold acceptance.")
+    for mm12_column, mm12_value in [
+        ("Dataset", mm12_dataset), ("Species", mm12_species),
+        ("Platform", mm12_platform), ("Sample", mm12_sample),
+    ]:
+        if not mm12_input_df[mm12_column].eq(mm12_value).all():
+            raise ValueError(f"{mm12_path}: unexpected {mm12_column}; expected {mm12_value}.")
+    mm12_positions_dfs.append(mm12_input_df.drop(columns=mm12_extra_flag))
+mm12_positions_df = pd.concat(mm12_positions_dfs, ignore_index=True)
+
+
+# %% [markdown]
+# ## Checks
+#
+# Use the saved producer decisions for panel membership. The consumer checks the new input schema and internal identities; it does not classify sites or genes again. Missing files or flags stop loading. Empty panels retain their place and have no percentage distribution.
+#
+
+# %%
+if mm12_positions_df[mm12_site_cols].isna().any().any() or mm12_positions_df.duplicated(mm12_site_cols).any():
+    raise ValueError("Missing or duplicate Dataset/Platform/Sample/Chrom/Position.")
+if mm12_positions_df[mm12_bool_cols].isna().any().any():
+    raise ValueError("All producer decisions must be explicit, nonmissing Booleans.")
+if mm12_positions_df[["Species", "Gene"]].isna().any().any():
+    raise ValueError("A source or gene identity is missing.")
+if not np.isfinite(mm12_positions_df["OldEditingThreshold"]).all():
+    raise ValueError("A saved original threshold is missing.")
+mm12_expected_snp = mm12_positions_df["Dataset"].map({
+    "SquidLongReads": 0.10, "SquidShortReads": 0.10, "Octopus": 0.05,
+})
+if not mm12_positions_df["SNPThreshold"].eq(mm12_expected_snp).all():
+    raise ValueError("Expected the original 10% squid or 5% octopus SNP threshold.")
+
+
+# %%
+mm12_unit_check_df = mm12_positions_df.groupby(mm12_unit_cols)[[
+    "Gene", "OldEditingThreshold", "SNPThreshold", mm12_disabled_col,
+]].nunique(dropna=False)
+if not mm12_unit_check_df.eq(1).all().all():
+    raise ValueError("Gene decisions or thresholds vary within an input/gene unit.")
+mm12_observed = mm12_positions_df["ObservedMismatch"]
+if not mm12_positions_df.loc[~mm12_observed, "Mismatch"].isna().all():
+    raise ValueError("A site without an observed alternative has a mismatch category.")
+mm12_observed_df = mm12_positions_df.loc[mm12_observed]
+if not mm12_observed_df["Mismatch"].isin(mm12_mismatches).all():
+    raise ValueError("An observed mismatch is outside the twelve categories.")
+if not mm12_observed_df["Mismatch"].eq(
+    mm12_observed_df["RefBase"] + ">" + mm12_observed_df["AltBase"]
+).all():
+    raise ValueError("The exported mismatch disagrees with its reference/alternative bases.")
+
+
+# %%
+# These domain checks do not determine which side of a threshold a site belongs to.
+mm12_denominator = mm12_observed_df["RefBaseCount"] + mm12_observed_df["AltBaseCount"]
+if not (mm12_denominator.gt(0) & mm12_observed_df["AltBaseCount"].gt(0)).all():
+    raise ValueError("An observed mismatch needs a positive alternative count and denominator.")
+if not mm12_observed_df["MismatchFrequency"].between(0, 1, inclusive="right").all():
+    raise ValueError("An observed mismatch requires a defined frequency in (0, 1].")
+mm12_base_df = mm12_positions_df.loc[
+    mm12_positions_df["AnalysisEligible"] & mm12_observed
+].copy()
+mm12_passed = ~mm12_base_df[mm12_disabled_col]
+mm12_above = mm12_base_df["AboveOldEditingThreshold"]
+mm12_snp_level = mm12_base_df["AtOrAboveSuspectedSNPLevel"]
+mm12_complete = mm12_base_df["MismatchFrequency1"]
+
+
+# %% [markdown]
+# ## Filtering stages
+#
+# Plots 1–4 address reviewer 4; plot 5 addresses reviewer 1. Membership follows the saved flags below. Plot 5 includes all twelve mismatch types in passing genes above the original threshold and below 100%, not only editing sites. It need not equal plot 4 plus the passing part of plot 2.
+#
+# The gene-exclusion count omits AG/AC/AT, but these categories remain in every distribution. The suspected-SNP threshold is 10% for squid and 5% for octopus. Passing the gene criterion does not require an identified editing site.
+#
+
+# %%
+mm12_selection_masks = {
+    (1, "All genes"): mm12_complete,
+    (2, "Passed"): mm12_snp_level & ~mm12_complete & mm12_passed,
+    (2, "Excluded"): mm12_snp_level & ~mm12_complete & ~mm12_passed,
+    (3, "Passed"): mm12_passed & ~mm12_above,
+    (4, "Passed"): mm12_passed & mm12_above & ~mm12_snp_level,
+    (5, "Passed"): mm12_passed & mm12_above & ~mm12_complete,
+}
+mm12_ag_sites = mm12_selection_masks[(5, "Passed")] & mm12_base_df["Mismatch"].eq("A>G")
+if not mm12_base_df.index[mm12_ag_sites].equals(mm12_base_df.index[mm12_base_df["EditingSite"]]):
+    display(mm12_base_df.loc[mm12_ag_sites ^ mm12_base_df["EditingSite"], mm12_site_cols + ["Mismatch"]].head(20))
+    raise ValueError("Graph 5 A>G identities disagree with the exported EditingSite flags.")
+mm12_figure_titles = {
+    1: "Mismatches at 100% mismatch frequency",
+    2: "Mismatches at or above suspected SNP threshold, but below 100% mismatch frequency",
+    3: "Mismatches at or below editing threshold",
+    4: "Mismatches above editing threshold, but below suspected SNP threshold",
+    5: "Mismatches above editing threshold, but below 100% mismatch frequency",
+}
+mm12_subtitle = "Only genes with at most 3 suspected SNPs are included (editing detection enabled)"
+mm12_panel_index = pd.MultiIndex.from_product(
+    [mm12_datasets, mm12_mismatches], names=["Dataset", "Mismatch"],
+)
+mm12_panel_counts_dfs, mm12_sample_counts_dfs = [], []
+
+
+# %%
+for (mm12_number, mm12_eligibility), mm12_mask in mm12_selection_masks.items():
+    # Summing site counts retains sample identity without averaging sample percentages.
+    mm12_sample_counts_df = (
+        mm12_base_df.loc[mm12_mask]
+        .groupby(mm12_unit_cols + ['Mismatch']).size().rename('Count').reset_index()
+        .assign(Figure=mm12_number, Eligibility=mm12_eligibility)
+    )
+    mm12_sample_counts_dfs.append(mm12_sample_counts_df)
+    mm12_panel_df = (
+        mm12_sample_counts_df.groupby(['Dataset', 'Mismatch'])['Count'].sum()
+        .reindex(mm12_panel_index, fill_value=0).rename('Count').reset_index()
+    )
+    mm12_panel_df['PanelTotal'] = mm12_panel_df.groupby('Dataset')['Count'].transform('sum')
+    mm12_panel_df['Percentage'] = (
+        100 * mm12_panel_df['Count']
+        / mm12_panel_df['PanelTotal'].where(mm12_panel_df['PanelTotal'].gt(0))
+    )
+    mm12_panel_df['Figure'] = mm12_number
+    mm12_panel_df['Eligibility'] = mm12_eligibility
+    assert mm12_panel_df['Count'].sum() == mm12_mask.sum(), 'Site counts were lost or duplicated.'
+    mm12_panel_counts_dfs.append(mm12_panel_df)
+mm12_panel_counts_df = pd.concat(mm12_panel_counts_dfs, ignore_index=True)
+mm12_sample_counts_df = pd.concat(mm12_sample_counts_dfs, ignore_index=True)
+del mm12_panel_counts_dfs, mm12_sample_counts_dfs
+
+# %%
+mm12_panel_keys = ['Figure', 'Dataset', 'Eligibility']
+assert not mm12_panel_counts_df.duplicated(mm12_panel_keys + ['Mismatch']).any()
+assert mm12_panel_counts_df.groupby(mm12_panel_keys).size().eq(12).all()
+mm12_empty_panels = mm12_panel_counts_df['PanelTotal'].eq(0)
+assert mm12_panel_counts_df.loc[mm12_empty_panels, 'Count'].eq(0).all()
+assert mm12_panel_counts_df.loc[mm12_empty_panels, 'Percentage'].isna().all()
+mm12_nonempty_sums = (
+    mm12_panel_counts_df.loc[~mm12_empty_panels]
+    .groupby(mm12_panel_keys)['Percentage'].sum()
+)
+assert np.allclose(mm12_nonempty_sums, 100), 'Nonempty panels must each sum to 100%.'
+mm12_panel_totals_df = (
+    mm12_panel_counts_df[mm12_panel_keys + ['PanelTotal']].drop_duplicates()
+    .assign(Status=lambda df: np.where(df['PanelTotal'].eq(0), 'No eligible positions', 'Observed'))
+)
+
+
+# %% [markdown]
+# ## Figures
+#
+# Percentages only, with one decimal place and a separate denominator per panel. Counts remain in `mm12_panel_counts_df` and `mm12_sample_counts_df` for checks. Empty panels retain their axes without bars or annotations; their percentages remain undefined.
+#
+# With the prepared panel tables in memory, rerun the settings cell under Inputs, then the four code cells below. No producer export or positions reload is needed for these layout changes.
+#
+
+# %%
+def mm12_add_panel(fig, panel_df, row, col, y_max, dtick=10):
+    """Plot percentages or an invisible trace that retains the empty panel's axes."""
+    panel_df = panel_df.set_index("Mismatch").reindex(mm12_mismatches)
+    if panel_df["PanelTotal"].iloc[0] == 0:
+        fig.add_trace(
+            go.Scatter(
+                x=mm12_mismatches, y=[None] * len(mm12_mismatches), mode="markers",
+                marker=dict(opacity=0), hoverinfo="skip", showlegend=False,
+            ),
+            row=row, col=col,
+        )
+    else:
+        bar_labels = panel_df["Percentage"].map("{:.1f}".format).where(
+            panel_df["Percentage"].gt(0), ""
+        )
+        fig.add_trace(
+            go.Bar(
+                x=mm12_mismatches, y=panel_df["Percentage"],
+                marker_color=[mm12_color_map[mismatch] for mismatch in mm12_mismatches],
+                text=bar_labels, texttemplate="%{text}",
+                textposition="auto", cliponaxis=False,
+                hovertemplate="%{x}: %{y:.1f}%<extra></extra>", showlegend=False,
+            ),
+            row=row, col=col,
+        )
+    fig.update_xaxes(
+        type="category", categoryorder="array", categoryarray=mm12_mismatches,
+        range=[-0.5, len(mm12_mismatches) - 0.5], autorange=False, tickmode="array",
+        tickvals=mm12_mismatches, tickangle=45, visible=True, showticklabels=True,
+        showline=True, showgrid=False, zeroline=False, row=row, col=col,
+    )
+    fig.update_yaxes(
+        title_text="Percentage" if col == 1 else None,
+        range=[0, min(100, y_max)], autorange=False, tick0=0, dtick=dtick,
+        visible=True, showticklabels=(col == 1), showline=False, showgrid=True, zeroline=False,
+        row=row, col=col,
+    )
+
+mm12_figures = {}
+
+
+# %%
+for mm12_number in [1, 3, 4, 5]:
+    mm12_figure_df = mm12_panel_counts_df.loc[mm12_panel_counts_df["Figure"].eq(mm12_number)]
+    mm12_figure = make_subplots(
+        rows=1, cols=3, shared_yaxes=True, horizontal_spacing=0.05,
+        subplot_titles=[mm12_group_labels[dataset] for dataset in mm12_datasets],
+        x_title="Mismatch",
+    )
+    # One range for the shared row, including empty panels, with room for bar labels.
+    mm12_dtick = 5 if mm12_number == 1 else 10
+    mm12_y_max = mm12_figure_df["Percentage"].max()
+    mm12_y_max = max(mm12_dtick, 1.15 * mm12_y_max) if pd.notna(mm12_y_max) else mm12_dtick
+    for mm12_col, mm12_dataset in enumerate(mm12_datasets, start=1):
+        mm12_add_panel(
+            mm12_figure, mm12_figure_df.loc[mm12_figure_df["Dataset"].eq(mm12_dataset)],
+            row=1, col=mm12_col, y_max=mm12_y_max, dtick=mm12_dtick,
+        )
+    mm12_title = mm12_figure_titles[mm12_number]
+    if mm12_number != 1:
+        mm12_title += f"<br><sup>{mm12_subtitle}</sup>"
+    mm12_figure.update_layout(
+        width=1200, height=480, template=mm12_template, showlegend=False, bargap=0.2,
+        title=dict(text=mm12_title, x=0.03), margin=dict(l=75, r=35, t=135, b=90),
+    )
+    mm12_figures[mm12_number] = mm12_figure
+
+
+# %%
+# Original enabled/disabled facets become upper/lower rows, in the same dataset columns.
+mm12_figure = make_subplots(
+    rows=2, cols=3, shared_xaxes=True, shared_yaxes="rows",
+    horizontal_spacing=0.05, vertical_spacing=0.07,
+    column_titles=[mm12_group_labels[dataset] for dataset in mm12_datasets],
+    row_titles=[
+        "Genes with at most 3 suspected SNPs<br>(editing detection enabled)",
+        "Genes with 4+ suspected SNPs<br>(editing detection disabled)",
+    ],
+    x_title="Mismatch",
+)
+mm12_figure_df = mm12_panel_counts_df.loc[mm12_panel_counts_df["Figure"].eq(2)]
+for mm12_row, mm12_eligibility in enumerate(["Passed", "Excluded"], start=1):
+    mm12_row_df = mm12_figure_df.loc[mm12_figure_df["Eligibility"].eq(mm12_eligibility)]
+    mm12_y_max = mm12_row_df["Percentage"].max()
+    mm12_y_max = max(10, 1.15 * mm12_y_max) if pd.notna(mm12_y_max) else 10
+    for mm12_col, mm12_dataset in enumerate(mm12_datasets, start=1):
+        mm12_add_panel(
+            mm12_figure, mm12_row_df.loc[mm12_row_df["Dataset"].eq(mm12_dataset)],
+            row=mm12_row, col=mm12_col, y_max=mm12_y_max, dtick=5 if mm12_row == 2 else 10,
+        )
+# Keep the shared category labels visible under both rows.
+mm12_figure.update_xaxes(showticklabels=True)
+mm12_figure.update_layout(
+    width=1200, height=950, template=mm12_template, showlegend=False, bargap=0.2,
+    title=dict(text=mm12_figure_titles[2], x=0.03), margin=dict(l=75, r=100, t=125, b=95),
+)
+mm12_figures[2] = mm12_figure
+
+
+# %%
+for mm12_number in range(1, 6):
+    mm12_figures[mm12_number].show()
+
+
+# %% [markdown]
+# ## Export
+#
+# Save the five figures under `12mm/v2/figures`. All targets are checked before writing and each SVG is opened exclusively. Existing files are never replaced. The displayed outputs saved from the previous implementation are stale until the revised plotting cells are run.
+#
+
+# %%
+mm12_existing_figures = [str(path) for path in mm12_figure_paths.values() if path.exists()]
+if mm12_existing_figures:
+    raise FileExistsError('Refusing to overwrite 12mm figures: ' + '; '.join(mm12_existing_figures))
+assert set(mm12_figures) == set(mm12_figure_paths), 'Prepare all five figure families first.'
+(mm12_output_dir / 'figures').mkdir(parents=True, exist_ok=True)
+for mm12_number, mm12_path in mm12_figure_paths.items():
+    mm12_svg = mm12_figures[mm12_number].to_image(format='svg')
+    with mm12_path.open('xb') as mm12_handle:
+        mm12_handle.write(mm12_svg)

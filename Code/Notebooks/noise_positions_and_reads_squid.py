@@ -2403,3 +2403,629 @@ snps_old_unique_reads_dfs[0]
 
 # %%
 snps_old_unique_reads_dfs[1]
+
+# %% [markdown]
+# # 12-mismatch analysis
+#
+# The two PacBio and 19 Illumina inputs follow cells `22e6a692` / `d99b4678`. Recovered counts and CDS positions come from `CompleteNoisePositions`, with its existing BQ30 and relative-coverage filtering. Original positions provide separate annotations and the historical threshold; no coverage filter is reapplied. Positions are 0-based and the current targets are on `+`.
+#
+# For a fresh session, run this section in order; no reads preparation or other squid notebook is needed. If the prepared `mm12_positions_df`, original identity table and successful threshold check are already in memory, run only `mm12-squid-decisions`, `mm12-squid-scheme-comparison`, then the revised Export cells. Do not rerun alternative selection for an export.
+#
+# The source decisions are carried into `12mm/v2`. Threshold reconstruction and its original-site identity check are unchanged.
+#
+
+# %% [markdown]
+# ## Inputs
+
+# %%
+from pathlib import Path
+import gzip
+from IPython.display import display
+
+import numpy as np
+import pandas as pd
+
+mm12_root = Path("/private6/projects/Combinatorics")
+mm12_squid_root = mm12_root / "D.pealeii/MpileupAndTranscripts"
+mm12_output_root = mm12_root / "Code/Notebooks/12mm/v2/positions"
+mm12_seed = 1892  # Existing project seed, used only by this section's local generator.
+mm12_snp_threshold = 0.10
+mm12_top_noise_positions = 3
+mm12_assurance_factor = 1.5
+mm12_unit_cols = ["Dataset", "Platform", "Sample", "Gene", "Chrom"]
+mm12_site_cols = mm12_unit_cols + ["Position"]
+mm12_source_cols = [
+    "Chrom", "Position", "RefBase", "TotalCoverage", "A", "T", "C", "G",
+    "CDS", "Edited", "KnownEditing", "InProbRegion", "Noise", "EditingFrequency",
+]
+
+# %%
+mm12_inputs_df = pd.DataFrame(
+    [
+        ("SquidLongReads", "GRIA2", "comp141693_c0_seq1", "GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998"),
+        ("SquidLongReads", "PCLO", "comp141882_c0_seq14", "PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998"),
+        ("SquidShortReads", "RUSC2", "comp141881_c0_seq3", "reads.sorted.aligned.filtered.comp141881_c0_seq3"),
+        ("SquidShortReads", "TRIM2", "comp141044_c0_seq2", "reads.sorted.aligned.filtered.comp141044_c0_seq2"),
+        ("SquidShortReads", "CA2D3", "comp140439_c0_seq1", "reads.sorted.aligned.filtered.comp140439_c0_seq1"),
+        ("SquidShortReads", "ABL", "comp126362_c0_seq1", "reads.sorted.aligned.filtered.comp126362_c0_seq1"),
+        ("SquidShortReads", "DGLA", "comp141517_c0_seq1", "reads.sorted.aligned.filtered.comp141517_c0_seq1"),
+        ("SquidShortReads", "K0513", "comp141840_c0_seq2", "reads.sorted.aligned.filtered.comp141840_c0_seq2"),
+        ("SquidShortReads", "KCNAS", "comp141640_c0_seq1", "reads.sorted.aligned.filtered.comp141640_c0_seq1"),
+        ("SquidShortReads", "ACHA4", "comp140987_c3_seq1", "reads.sorted.aligned.filtered.comp140987_c3_seq1"),
+        ("SquidShortReads", "ANR17", "comp140910_c2_seq1", "reads.sorted.aligned.filtered.comp140910_c2_seq1"),
+        ("SquidShortReads", "TWK7", "comp136058_c0_seq1", "reads.sorted.aligned.filtered.comp136058_c0_seq1"),
+        ("SquidShortReads", "SCN1", "comp141378_c0_seq7", "reads.sorted.aligned.filtered.comp141378_c0_seq7"),
+        ("SquidShortReads", "CACB2", "comp141158_c1_seq2", "reads.sorted.aligned.filtered.comp141158_c1_seq2"),
+        ("SquidShortReads", "RIMS2", "comp140712_c0_seq3", "reads.sorted.aligned.filtered.comp140712_c0_seq3"),
+        ("SquidShortReads", "PCLO", "comp141882_c0_seq14", "reads.sorted.aligned.filtered.comp141882_c0_seq14"),
+        ("SquidShortReads", "DOP1", "comp141880_c1_seq3", "reads.sorted.aligned.filtered.comp141880_c1_seq3"),
+        ("SquidShortReads", "IQEC1", "comp141565_c6_seq3", "reads.sorted.aligned.filtered.comp141565_c6_seq3"),
+        ("SquidShortReads", "CSKI1", "comp141684_c0_seq1", "reads.sorted.aligned.filtered.comp141684_c0_seq1"),
+        ("SquidShortReads", "MTUS2", "comp141532_c3_seq11", "reads.sorted.aligned.filtered.comp141532_c3_seq11"),
+        ("SquidShortReads", "ROBO2", "comp141574_c0_seq3", "reads.sorted.aligned.filtered.comp141574_c0_seq3"),
+    ],
+    columns=["Dataset", "Sample", "Chrom", "Stem"],
+)
+mm12_inputs_df["Platform"] = mm12_inputs_df["Dataset"].map(
+    {"SquidLongReads": "PacBio", "SquidShortReads": "Illumina"}
+)
+mm12_inputs_df["Gene"] = mm12_inputs_df["Sample"]
+mm12_inputs_df["Strand"] = "+"
+mm12_inputs_df
+
+# %%
+mm12_inputs_df["SourceFile"] = [
+    mm12_squid_root / "CompleteNoisePositions" / f"{stem}.positions.csv.gz"
+    for stem in mm12_inputs_df["Stem"]
+]
+mm12_inputs_df["OriginalSourceFile"] = [
+    mm12_squid_root / "RQ998.TopNoisyPositions3.BQ30" / f"{row.Stem}.positions.csv.gz"
+    if row.Platform == "PacBio"
+    else mm12_squid_root / "Illumina" / f"{row.Stem}.positions.csv"
+    for row in mm12_inputs_df.itertuples(index=False)
+]
+mm12_inputs_df["OutputFile"] = [
+    mm12_output_root / ("squid_long_reads" if row.Platform == "PacBio" else "squid_short_reads")
+    / f"{row.Stem}.12mm.positions.csv.gz"
+    for row in mm12_inputs_df.itertuples(index=False)
+]
+assert not mm12_inputs_df.duplicated(mm12_unit_cols).any(), "Repeated input unit"
+assert mm12_inputs_df["SourceFile"].is_unique and mm12_inputs_df["OutputFile"].is_unique
+mm12_missing_files = [
+    file for col in ["SourceFile", "OriginalSourceFile"]
+    for file in mm12_inputs_df[col] if not file.is_file()
+]
+if mm12_missing_files:
+    raise FileNotFoundError(f"Missing explicit 12mm input files: {mm12_missing_files}")
+mm12_existing_outputs = [file for file in mm12_inputs_df["OutputFile"] if file.exists()]
+if mm12_existing_outputs:
+    raise FileExistsError(f"12mm positions already exist; refusing to overwrite: {mm12_existing_outputs}")
+
+# %%
+# Load source columns only; never load reads, Phred strings or mapped-base strings.
+mm12_original_dfs = []
+mm12_recovered_dfs = []
+for mm12_input in mm12_inputs_df.itertuples(index=False):
+    for mm12_source_file, mm12_destination in [
+        (mm12_input.OriginalSourceFile, mm12_original_dfs),
+        (mm12_input.SourceFile, mm12_recovered_dfs),
+    ]:
+        mm12_source_df = pd.read_csv(mm12_source_file, sep="\t", usecols=mm12_source_cols)
+        assert not mm12_source_df.empty, f"Empty input: {mm12_source_file}"
+        assert not mm12_source_df[["Chrom", "Position"]].isna().any().any()
+        assert not mm12_source_df.duplicated(["Chrom", "Position"]).any(), str(mm12_source_file)
+        assert mm12_source_df["Chrom"].eq(mm12_input.Chrom).all(), str(mm12_source_file)
+        assert mm12_source_df["RefBase"].isin(list("ATCG")).all(), str(mm12_source_file)
+        assert mm12_source_df[["CDS", "Edited", "KnownEditing", "InProbRegion"]].isin([True, False]).all().all()
+        mm12_counts = mm12_source_df[["A", "T", "C", "G", "TotalCoverage"]].to_numpy()
+        assert np.isfinite(mm12_counts).all() and (mm12_counts >= 0).all()
+        assert (mm12_counts == np.floor(mm12_counts)).all(), str(mm12_source_file)
+        assert mm12_source_df["Position"].ge(0).all()
+        assert mm12_source_df["Position"].eq(mm12_source_df["Position"].astype(int)).all()
+        for mm12_col in ["Dataset", "Platform", "Sample", "Gene", "Strand"]:
+            mm12_source_df[mm12_col] = getattr(mm12_input, mm12_col)
+        mm12_destination.append(mm12_source_df.sort_values(["Chrom", "Position"]).reset_index(drop=True))
+
+# %% [markdown]
+# ## Original thresholds and site identity
+#
+# The directed-sequencing algorithm in `Code/Pileup/positions.py`, `pileup_to_positions` (also retained in `positions.old.py`), first applies its coverage filter and removes non-principal-base sites with `Noise >= 0.10`. The original positions files already contain that population. Its threshold is the mean of the first three descending **original `Noise` values**, multiplied by 1.5 once. This precedes any downstream CDS selection. Principal-base noise is NaN; pandas skips NaN in the mean. With fewer than three finite values, only those values contribute: no zero padding. A missing threshold is an error here.
+#
+# We do not use this notebook's later `b457f41f` threshold: that calculation restricts CDS/non-edited rows and pads with zeros, so equivalence is not assumed. The directed call uses de novo detection: `A>G` on `+` (`T>C` on `-`), frequency `alt / (ref + alt)`, strictly greater than the threshold. Its zero-denominator editing frequency is zero. There is no known-site, significance, problematic-region or gene-SNP exclusion in this original squid call. The two current input cohorts are all `+`.
+#
+# The acceptance check below reconstructs the original rule on **every original row**, using the original counts and no original editing flag in the reconstruction mask. It compares complete site identities with `Edited` and also checks the CDS subset used in the squid notebooks. Both directions of difference must be empty before dependent export. This check has been written, not run.
+
+# %%
+mm12_threshold_rows = []
+mm12_original_identity_dfs = []
+for mm12_original_df, mm12_input in zip(mm12_original_dfs, mm12_inputs_df.itertuples(index=False)):
+    mm12_principal_ref = "A" if mm12_input.Strand == "+" else "T"
+    mm12_principal_alt = "G" if mm12_input.Strand == "+" else "C"
+    mm12_is_principal = mm12_original_df["RefBase"].eq(mm12_principal_ref)
+    assert mm12_original_df.loc[mm12_is_principal, "Noise"].isna().all()
+    assert mm12_original_df.loc[~mm12_is_principal, "Noise"].lt(0.10).all(), "Original noise filter differs"
+    mm12_threshold = mm12_original_df["Noise"].sort_values(ascending=False).iloc[:mm12_top_noise_positions].mean()
+    mm12_threshold *= mm12_assurance_factor
+    if not np.isfinite(mm12_threshold):
+        raise ValueError(f"Original editing threshold is missing for {mm12_input.Dataset}/{mm12_input.Sample}")
+    mm12_threshold_rows.append({
+        **{col: getattr(mm12_input, col) for col in mm12_unit_cols},
+        "OldEditingThreshold": mm12_threshold,
+        "ThresholdSource": f"{mm12_input.OriginalSourceFile}; original Noise top-3 mean x1.5; no CDS filter or zero padding",
+    })
+    mm12_old_denominator = mm12_original_df[mm12_principal_ref] + mm12_original_df[mm12_principal_alt]
+    mm12_old_frequency = mm12_original_df[mm12_principal_alt].div(mm12_old_denominator)
+    mm12_old_frequency = mm12_old_frequency.where(mm12_old_denominator.ne(0), 0.0).where(mm12_is_principal)
+    assert np.allclose(mm12_old_frequency, mm12_original_df["EditingFrequency"], equal_nan=True), "Original editing-frequency definition differs"
+    mm12_reconstructed = mm12_is_principal & mm12_old_frequency.gt(mm12_threshold)
+    mm12_identity_df = mm12_original_df[mm12_site_cols + ["CDS"]].copy()
+    mm12_identity_df["OriginalSite"] = mm12_original_df["Edited"]
+    mm12_identity_df["ReconstructedSite"] = mm12_reconstructed
+    mm12_identity_df["MissingOriginalSite"] = mm12_identity_df["OriginalSite"] & ~mm12_reconstructed
+    mm12_identity_df["UnexpectedReconstructedSite"] = mm12_reconstructed & ~mm12_identity_df["OriginalSite"]
+    mm12_original_identity_dfs.append(mm12_identity_df)
+mm12_thresholds_df = pd.DataFrame(mm12_threshold_rows)
+mm12_original_identity_df = pd.concat(mm12_original_identity_dfs, ignore_index=True)
+assert not mm12_thresholds_df.duplicated(mm12_unit_cols).any()
+assert not mm12_original_identity_df.duplicated(mm12_site_cols).any()
+
+# %%
+mm12_identity_summary_dfs = []
+for mm12_scope, mm12_scope_mask in [
+    ("All original positions", pd.Series(True, index=mm12_original_identity_df.index)),
+    ("Original CDS positions", mm12_original_identity_df["CDS"]),
+]:
+    mm12_scope_df = mm12_original_identity_df.loc[mm12_scope_mask]
+    mm12_summary_df = mm12_scope_df.groupby(mm12_unit_cols, as_index=False)[
+        ["OriginalSite", "ReconstructedSite", "MissingOriginalSite", "UnexpectedReconstructedSite"]
+    ].sum()
+    mm12_summary_df["Scope"] = mm12_scope
+    mm12_identity_summary_dfs.append(mm12_summary_df)
+mm12_identity_summary_df = pd.concat(mm12_identity_summary_dfs, ignore_index=True)
+mm12_identity_differences_df = mm12_original_identity_df.loc[
+    mm12_original_identity_df["MissingOriginalSite"] | mm12_original_identity_df["UnexpectedReconstructedSite"]
+].copy()
+display(mm12_identity_summary_df)
+if not mm12_identity_differences_df.empty:
+    display(mm12_identity_differences_df.head(30))
+    raise ValueError(
+        "Original squid site identity failed; first 30 differences shown, all retained in "
+        "mm12_identity_differences_df. Stop before exporting threshold-dependent positions."
+    )
+# Mark validation only after both full original and CDS site identities have passed.
+mm12_thresholds_df["OriginalSchemeValidated"] = True
+
+# %% [markdown]
+# ## Annotations
+#
+# The merge retains every recovered row, using a 1:1 **left** join on `Chrom, Position` within the explicit input. Original-only positions are counted separately and their identities retained in `mm12_original_only_sites_df`; they are not restored or assigned zero coverage. Each source keeps its existing coverage population. Recovered base counts are never replaced by original counts. Historical flags and frequencies are prefixed `Original`; unmatched recovered rows retain missing historical annotations plus `OriginalAnnotationPresent=False`. The recovered detection fields are prefixed `Recovered`. Current CDS/known-site/problematic-region annotations remain from the recovered input, alongside their historical versions.
+#
+# The exported population is every recovered CDS position after the existing input coverage filter. `MismatchFrequency = AltBaseCount / (RefBaseCount + AltBaseCount)`, as in the octopus analysis, not the sum of four counts. Alternative bases are selected without A>G preference. Positive ties use a local RNG seeded with 1892; choices are made once here and exported. No observed alternative means no mismatch label; absent canonical coverage remains undefined, not an invented observation.
+
+# %%
+mm12_positions_dfs = []
+mm12_merge_rows = []
+mm12_original_only_sites_dfs = []
+mm12_original_annotation_cols = [
+    "RefBase", "TotalCoverage", "CDS", "Edited", "KnownEditing", "InProbRegion", "Noise", "EditingFrequency",
+]
+for mm12_recovered_df, mm12_original_df, mm12_input in zip(
+    mm12_recovered_dfs, mm12_original_dfs, mm12_inputs_df.itertuples(index=False)
+):
+    mm12_recovered_keys = pd.MultiIndex.from_frame(mm12_recovered_df[["Chrom", "Position"]])
+    mm12_original_keys = pd.MultiIndex.from_frame(mm12_original_df[["Chrom", "Position"]])
+    mm12_original_only = ~mm12_original_keys.isin(mm12_recovered_keys)
+    mm12_original_only_sites_dfs.append(mm12_original_df.loc[mm12_original_only, mm12_site_cols].copy())
+    mm12_annotations_df = mm12_original_df[["Chrom", "Position"] + mm12_original_annotation_cols].rename(
+        columns={col: f"Original{col}" for col in mm12_original_annotation_cols}
+    )
+    mm12_positions_df = mm12_recovered_df.rename(columns={
+        "Edited": "RecoveredEdited", "Noise": "RecoveredNoise", "EditingFrequency": "RecoveredEditingFrequency",
+    }).merge(mm12_annotations_df, on=["Chrom", "Position"], how="left", validate="one_to_one", indicator=True)
+    assert len(mm12_positions_df) == len(mm12_recovered_df), "Recovered rows lost or duplicated"
+    assert np.array_equal(mm12_positions_df[["A", "T", "C", "G"]], mm12_recovered_df[["A", "T", "C", "G"]])
+    mm12_positions_df["OriginalAnnotationPresent"] = mm12_positions_df.pop("_merge").eq("both")
+    mm12_matched = mm12_positions_df["OriginalAnnotationPresent"]
+    assert mm12_positions_df.loc[mm12_matched, "RefBase"].eq(mm12_positions_df.loc[mm12_matched, "OriginalRefBase"]).all()
+    mm12_merge_rows.append({
+        **{col: getattr(mm12_input, col) for col in mm12_unit_cols},
+        "RecoveredPositions": len(mm12_positions_df), "OriginalPositions": len(mm12_original_df),
+        "RecoveredOnlyPositions": int((~mm12_matched).sum()),
+        "OriginalOnlyPositions": int(mm12_original_only.sum()),
+        "RecoveredCDSPositions": int(mm12_positions_df["CDS"].sum()),
+    })
+    mm12_positions_df["SourceFile"] = str(mm12_input.SourceFile)
+    mm12_positions_df["OriginalSourceFile"] = str(mm12_input.OriginalSourceFile)
+    mm12_positions_dfs.append(mm12_positions_df.loc[mm12_positions_df["CDS"]].copy())
+mm12_positions_df = pd.concat(mm12_positions_dfs, ignore_index=True)
+mm12_positions_df = mm12_positions_df.merge(mm12_thresholds_df, on=mm12_unit_cols, how="left", validate="many_to_one")
+assert mm12_positions_df["OldEditingThreshold"].notna().all()
+assert mm12_positions_df["OriginalSchemeValidated"].eq(True).all()
+mm12_merge_summary_df = pd.DataFrame(mm12_merge_rows)
+mm12_original_only_sites_df = pd.concat(mm12_original_only_sites_dfs, ignore_index=True)
+
+# %%
+# One stable input/site ordering and one local draw for each positive tie.
+mm12_positions_df = mm12_positions_df.sort_values(mm12_site_cols).reset_index(drop=True)
+mm12_bases = np.array(list("ATCG"))
+mm12_base_counts = mm12_positions_df[list(mm12_bases)].to_numpy()
+mm12_ref_indices = pd.Index(mm12_bases).get_indexer(mm12_positions_df["RefBase"])
+mm12_row_indices = np.arange(len(mm12_positions_df))
+mm12_ref_counts = mm12_base_counts[mm12_row_indices, mm12_ref_indices]
+mm12_alternative_counts = mm12_base_counts.copy()
+mm12_alternative_counts[mm12_row_indices, mm12_ref_indices] = -1
+mm12_alt_counts = mm12_alternative_counts.max(axis=1)
+mm12_alt_indices = mm12_alternative_counts.argmax(axis=1)
+mm12_candidates = mm12_alternative_counts == mm12_alt_counts[:, None]
+mm12_positive_ties = (mm12_alt_counts > 0) & (mm12_candidates.sum(axis=1) > 1)
+mm12_rng = np.random.default_rng(mm12_seed)
+for mm12_row in np.flatnonzero(mm12_positive_ties):
+    mm12_alt_indices[mm12_row] = mm12_rng.choice(np.flatnonzero(mm12_candidates[mm12_row]))
+mm12_positions_df["RefBaseCount"] = mm12_ref_counts
+mm12_positions_df["AltBaseCount"] = mm12_alt_counts
+mm12_positions_df["AltBase"] = pd.Series(mm12_bases[mm12_alt_indices], dtype="string").where(mm12_alt_counts > 0)
+mm12_positions_df["AlternativeTie"] = mm12_positive_ties
+mm12_positions_df["AlternativeSeed"] = mm12_seed
+mm12_denominator = mm12_ref_counts + mm12_alt_counts
+mm12_positions_df["MismatchFrequency"] = np.divide(
+    mm12_alt_counts, mm12_denominator,
+    out=np.full(len(mm12_positions_df), np.nan), where=mm12_denominator > 0,
+)
+mm12_positions_df["ObservedMismatch"] = (mm12_alt_counts > 0) & (mm12_denominator > 0)
+mm12_positions_df["Mismatch"] = (
+    mm12_positions_df["RefBase"].astype("string") + ">" + mm12_positions_df["AltBase"]
+).where(mm12_positions_df["ObservedMismatch"])
+mm12_positions_df["MismatchStatus"] = np.select(
+    [mm12_denominator == 0, mm12_alt_counts == 0],
+    ["NoCanonicalCoverage", "NoAlternativeObserved"], default="Observed",
+)
+
+# %%
+# Decide once from the prepared full-precision values; export and plots reuse these flags.
+mm12_positions_df["AboveOldEditingThreshold"] = mm12_positions_df["MismatchFrequency"].gt(
+    mm12_positions_df["OldEditingThreshold"]
+)
+mm12_positions_df["AtOrAboveSuspectedSNPLevel"] = mm12_positions_df["MismatchFrequency"].ge(0.10)
+mm12_positions_df["MismatchFrequency1"] = mm12_positions_df["MismatchFrequency"].eq(1.0)
+
+
+# %%
+mm12_positions_df["Species"] = "D. pealeii"
+mm12_positions_df["SNPThreshold"] = mm12_snp_threshold
+mm12_positions_df["AnalysisEligible"] = mm12_positions_df["CDS"]
+mm12_observed = mm12_positions_df["ObservedMismatch"]
+mm12_is_ag = mm12_positions_df["Mismatch"].eq("A>G").fillna(False)
+mm12_positions_df["DefinitiveSNP"] = mm12_observed & mm12_positions_df["MismatchFrequency1"]
+mm12_positions_df["SuspectedSNP"] = (
+    mm12_observed & ~mm12_is_ag & mm12_positions_df["AtOrAboveSuspectedSNPLevel"]
+    & ~mm12_positions_df["MismatchFrequency1"]
+)
+mm12_positions_df["SuspectedSNPWoACOrAT"] = (
+    mm12_positions_df["SuspectedSNP"] & ~mm12_positions_df["Mismatch"].isin(["A>C", "A>T"])
+)
+mm12_snp_units_df = mm12_positions_df.groupby(mm12_unit_cols, as_index=False).agg(
+    NumOfSuspectedSNPsPerChrom=("SuspectedSNP", "sum"),
+    NumOfSuspectedSNPsWithoutACOrATPerChrom=("SuspectedSNPWoACOrAT", "sum"),
+)
+mm12_snp_units_df["EditingDetectionDisabledInChromDueToSuspectedSNPsWithoutACOrAT"] = (
+    mm12_snp_units_df["NumOfSuspectedSNPsWithoutACOrATPerChrom"].gt(3)
+)
+mm12_positions_df = mm12_positions_df.merge(mm12_snp_units_df, on=mm12_unit_cols, how="left", validate="many_to_one")
+mm12_positions_df["NoiseSite"] = (
+    mm12_observed & ~mm12_is_ag & ~mm12_positions_df["DefinitiveSNP"] & ~mm12_positions_df["SuspectedSNP"]
+)
+mm12_positions_df["EditingSite"] = (
+    mm12_observed & mm12_is_ag & ~mm12_positions_df["MismatchFrequency1"]
+    & ~mm12_positions_df["EditingDetectionDisabledInChromDueToSuspectedSNPsWithoutACOrAT"]
+    & mm12_positions_df["AboveOldEditingThreshold"]
+)
+
+
+# %%
+mm12_positions_df
+
+# %% [markdown]
+# ## Checks
+#
+# The gene decision is per dataset/platform/sample/gene, before selecting editing sites. Suspected SNP counts include AC/AT; the disqualification count excludes AG/AC/AT and excludes frequency 1. A passing gene need not contain an editing site. KS1/EE2/EE3 are questions tested below, with no expected-zero assertion. The summary and affected-unit table retain both SNP counts; the full site table remains available for inspection.
+
+# %%
+assert not mm12_positions_df.duplicated(mm12_site_cols).any(), "Duplicate exported site identity"
+assert mm12_positions_df["CDS"].eq(True).all() and mm12_positions_df["AnalysisEligible"].eq(True).all()
+assert mm12_positions_df["Strand"].eq("+").all(), "Current manifest is explicitly plus-strand"
+assert mm12_positions_df.groupby(mm12_unit_cols)["OldEditingThreshold"].nunique().eq(1).all()
+assert mm12_positions_df["OldEditingThreshold"].between(0, 1).all()
+assert mm12_positions_df["SNPThreshold"].eq(0.10).all()
+mm12_defined = mm12_positions_df["MismatchFrequency"].notna()
+assert mm12_positions_df.loc[mm12_defined, "MismatchFrequency"].between(0, 1).all()
+assert mm12_positions_df.loc[~mm12_defined, "MismatchStatus"].eq("NoCanonicalCoverage").all()
+assert mm12_positions_df.loc[~mm12_positions_df["ObservedMismatch"], "Mismatch"].isna().all()
+assert mm12_positions_df.loc[mm12_positions_df["ObservedMismatch"], "AltBaseCount"].gt(0).all()
+assert mm12_positions_df.loc[mm12_positions_df["ObservedMismatch"], "RefBase"].ne(
+    mm12_positions_df.loc[mm12_positions_df["ObservedMismatch"], "AltBase"]
+).all()
+assert not (mm12_positions_df["DefinitiveSNP"] & mm12_positions_df["SuspectedSNP"]).any()
+assert not mm12_positions_df.loc[mm12_positions_df["SuspectedSNPWoACOrAT"], "Mismatch"].isin(["A>G", "A>C", "A>T"]).any()
+assert mm12_positions_df.loc[mm12_positions_df["DefinitiveSNP"], "MismatchFrequency"].eq(1).all()
+assert mm12_positions_df.loc[mm12_positions_df["SuspectedSNP"], "MismatchFrequency"].ge(0.10).all()
+assert mm12_positions_df.loc[mm12_positions_df["SuspectedSNP"], "MismatchFrequency"].lt(1).all()
+mm12_unit_coverage_df = mm12_inputs_df[mm12_unit_cols].merge(
+    mm12_positions_df.groupby(mm12_unit_cols).size().rename("ExportedPositions").reset_index(),
+    on=mm12_unit_cols, how="left", validate="one_to_one",
+)
+assert mm12_unit_coverage_df["ExportedPositions"].gt(0).all(), "A current input has no recovered CDS positions"
+assert mm12_unit_coverage_df["ExportedPositions"].sum() == mm12_merge_summary_df["RecoveredCDSPositions"].sum()
+display(mm12_merge_summary_df)
+
+# %%
+mm12_snp_summary_df = mm12_snp_units_df.groupby(["Dataset", "Platform"], as_index=False).agg(
+    SuspectedSNPSites=("NumOfSuspectedSNPsPerChrom", "sum"),
+    DisqualifyingSNPSites=("NumOfSuspectedSNPsWithoutACOrATPerChrom", "sum"),
+    DecisionUnits=("Chrom", "size"),
+    DisqualifiedUnits=("EditingDetectionDisabledInChromDueToSuspectedSNPsWithoutACOrAT", "sum"),
+)
+mm12_units_with_snps_df = mm12_snp_units_df.assign(
+    HasSuspectedSNP=mm12_snp_units_df["NumOfSuspectedSNPsPerChrom"].gt(0),
+    HasDisqualifyingSNP=mm12_snp_units_df["NumOfSuspectedSNPsWithoutACOrATPerChrom"].gt(0),
+).groupby(["Dataset", "Platform"], as_index=False)[["HasSuspectedSNP", "HasDisqualifyingSNP"]].sum()
+mm12_snp_summary_df = mm12_snp_summary_df.merge(
+    mm12_units_with_snps_df, on=["Dataset", "Platform"], validate="one_to_one",
+)
+mm12_snp_cases_df = mm12_snp_units_df.loc[
+    mm12_snp_units_df["NumOfSuspectedSNPsPerChrom"].gt(0)
+].sort_values(
+    ["EditingDetectionDisabledInChromDueToSuspectedSNPsWithoutACOrAT", "Dataset", "Sample"],
+    ascending=[False, True, True],
+)
+mm12_suspected_sites_df = mm12_positions_df.loc[
+    mm12_positions_df["SuspectedSNP"],
+    mm12_site_cols + ["Mismatch", "MismatchFrequency", "SuspectedSNPWoACOrAT"],
+].copy()
+display(mm12_snp_summary_df)
+display(mm12_snp_cases_df)  # At most 21 current input units; both SNP counts stay visible.
+
+# %% [markdown]
+# ## Original and updated sites
+#
+# Compare the original CDS editing sites with `EditingSite` in the updated scheme using the old thresholds. Both sets retain their own source coverage selection. Differences are reported, not forced to zero; this is separate from the unchanged original-threshold acceptance check.
+#
+
+# %%
+mm12_comparison_keys = ["Dataset", "Platform", "Sample", "Chrom", "Position"]
+mm12_original_sites_df = mm12_original_identity_df.loc[
+    mm12_original_identity_df["OriginalSite"] & mm12_original_identity_df["CDS"], mm12_comparison_keys
+]
+mm12_updated_sites_df = mm12_positions_df.loc[mm12_positions_df["EditingSite"], mm12_comparison_keys]
+assert not mm12_original_sites_df.duplicated(mm12_comparison_keys).any()
+assert not mm12_updated_sites_df.duplicated(mm12_comparison_keys).any()
+mm12_site_comparison_df = mm12_original_sites_df.merge(
+    mm12_updated_sites_df, on=mm12_comparison_keys, how="outer", validate="one_to_one", indicator=True
+)
+mm12_site_comparison_df = mm12_site_comparison_df.assign(
+    Original=mm12_site_comparison_df["_merge"].ne("right_only"),
+    Updated=mm12_site_comparison_df["_merge"].ne("left_only"),
+    Shared=mm12_site_comparison_df["_merge"].eq("both"),
+    OriginalOnly=mm12_site_comparison_df["_merge"].eq("left_only"),
+    UpdatedOnly=mm12_site_comparison_df["_merge"].eq("right_only"),
+)
+mm12_comparison_counts = ["Original", "Updated", "Shared", "OriginalOnly", "UpdatedOnly"]
+mm12_comparison_units = mm12_comparison_keys[:-1]
+mm12_scheme_summary_df = mm12_inputs_df[mm12_comparison_units + ["Gene"]].merge(
+    mm12_site_comparison_df.groupby(mm12_comparison_units, as_index=False)[mm12_comparison_counts].sum(),
+    on=mm12_comparison_units, how="left", validate="one_to_one",
+)
+mm12_scheme_summary_df[mm12_comparison_counts] = mm12_scheme_summary_df[mm12_comparison_counts].fillna(0).astype(int)
+mm12_scheme_differences_df = mm12_site_comparison_df.loc[
+    mm12_site_comparison_df["OriginalOnly"] | mm12_site_comparison_df["UpdatedOnly"]
+].drop(columns="_merge")
+display(mm12_scheme_summary_df)
+if not mm12_scheme_differences_df.empty:
+    display(mm12_scheme_differences_df.head(30))  # Full identities remain in this table.
+
+
+# %% [markdown]
+# ## Export
+#
+# Export all prepared CDS rows to `Code/Notebooks/12mm/v2/positions/squid_long_reads` and `squid_short_reads`. The source decisions are `AboveOldEditingThreshold`, `AtOrAboveSuspectedSNPLevel`, `MismatchFrequency1` and the gene-exclusion flag. Original annotations and the successful squid threshold check remain separate.
+#
+# The cells below check all destinations, write gzip files exclusively as `.pending`, read them back, and compare full site identities, decisions and all twelve counts in each panel. Numeric comparisons are diagnostic only. Only a successful transfer is published under the final names; failed pending files remain for inspection and are never loaded by the plotting notebook.
+#
+
+# %%
+import os
+
+# Use the already prepared annotations; do not choose alternatives or rebuild thresholds here.
+assert mm12_identity_differences_df.empty, "The original squid threshold check must pass."
+assert mm12_positions_df["OriginalSchemeValidated"].eq(True).all()
+mm12_source_df = mm12_positions_df.copy()
+mm12_output_root = Path("/private6/projects/Combinatorics/Code/Notebooks/12mm/v2/positions")
+mm12_inputs_df["OutputFile"] = [
+    mm12_output_root / ("squid_long_reads" if row.Platform == "PacBio" else "squid_short_reads")
+    / f"{row.Stem}.12mm.positions.csv.gz"
+    for row in mm12_inputs_df.itertuples(index=False)
+]
+mm12_output_paths = mm12_inputs_df["OutputFile"].tolist()
+mm12_pending_paths = [Path(str(path) + ".pending") for path in mm12_output_paths]
+mm12_existing_outputs = [path for path in mm12_output_paths + mm12_pending_paths if path.exists()]
+if mm12_existing_outputs:
+    raise FileExistsError(f"Refusing to overwrite: {mm12_existing_outputs}")
+
+
+# %%
+def mm12_panel_masks(positions_df):
+    """Use producer decisions for the six panel populations."""
+    base = positions_df["AnalysisEligible"] & positions_df["ObservedMismatch"]
+    passed = ~positions_df["EditingDetectionDisabledInChromDueToSuspectedSNPsWithoutACOrAT"]
+    above = positions_df["AboveOldEditingThreshold"]
+    snp_level = positions_df["AtOrAboveSuspectedSNPLevel"]
+    complete = positions_df["MismatchFrequency1"]
+    return {
+        "1": base & complete,
+        "2 Passed": base & snp_level & ~complete & passed,
+        "2 Excluded": base & snp_level & ~complete & ~passed,
+        "3": base & passed & ~above,
+        "4": base & passed & above & ~snp_level,
+        "5": base & passed & above & ~complete,
+    }
+
+
+
+# %%
+mm12_transfer_keys = ["Dataset", "Platform", "Sample", "Chrom", "Position"]
+mm12_transfer_flags = [
+    "AboveOldEditingThreshold", "AtOrAboveSuspectedSNPLevel", "MismatchFrequency1",
+    "EditingDetectionDisabledInChromDueToSuspectedSNPsWithoutACOrAT",
+    "ObservedMismatch", "AnalysisEligible", "EditingSite",
+]
+mm12_transfer_flags += [
+    "CDS", "RecoveredEdited", "KnownEditing", "InProbRegion",
+    "OriginalSchemeValidated", "DefinitiveSNP", "SuspectedSNP",
+    "SuspectedSNPWoACOrAT", "NoiseSite", "OriginalAnnotationPresent", "AlternativeTie",
+]
+# Missing historical annotations remain missing; decision flags above cannot be missing.
+mm12_nullable_flags = ["OriginalCDS", "OriginalEdited", "OriginalKnownEditing", "OriginalInProbRegion"]
+mm12_categories = [
+    "Species", "Gene", "Strand", "RefBase", "AltBase", "Mismatch", "MismatchStatus",
+    "OriginalRefBase", "SourceFile", "OriginalSourceFile", "ThresholdSource",
+]
+mm12_count_cols = [
+    "A", "T", "C", "G", "TotalCoverage", "RefBaseCount", "AltBaseCount",
+    "OriginalTotalCoverage", "AlternativeSeed", "NumOfSuspectedSNPsPerChrom",
+    "NumOfSuspectedSNPsWithoutACOrATPerChrom",
+]
+mm12_mismatches = sorted(f"{ref}>{alt}" for ref in "ATCG" for alt in "ATCG" if ref != alt)
+if mm12_source_df[mm12_transfer_keys].isna().any().any() or mm12_source_df.duplicated(mm12_transfer_keys).any():
+    raise ValueError("The export source has missing or duplicate site keys.")
+for mm12_col in mm12_transfer_flags:
+    if not pd.api.types.is_bool_dtype(mm12_source_df[mm12_col]) or mm12_source_df[mm12_col].isna().any():
+        raise ValueError(f"The source requires explicit, nonmissing Boolean decisions: {mm12_col}")
+mm12_source_df = mm12_source_df.set_index(mm12_transfer_keys).sort_index()
+mm12_source_masks = mm12_panel_masks(mm12_source_df)
+mm12_ag_sites = mm12_source_masks["5"] & mm12_source_df["Mismatch"].eq("A>G")
+mm12_editing_sites = (
+    mm12_source_df["AnalysisEligible"] & mm12_source_df["ObservedMismatch"]
+    & mm12_source_df["EditingSite"]
+)
+if not mm12_source_df.index[mm12_ag_sites].equals(mm12_source_df.index[mm12_editing_sites]):
+    display(mm12_source_df.loc[mm12_ag_sites ^ mm12_editing_sites].reset_index().head(20))
+    raise ValueError("Graph 5 A>G identities disagree with EditingSite in the source scheme.")
+
+
+# %%
+mm12_transfer_verified = False
+mm12_loaded_dfs, mm12_default_dfs = [], []
+for mm12_input, mm12_pending_path in zip(mm12_inputs_df.itertuples(index=False), mm12_pending_paths):
+    mm12_export_mask = (
+        (mm12_source_df.index.get_level_values("Dataset") == mm12_input.Dataset)
+        & (mm12_source_df.index.get_level_values("Platform") == mm12_input.Platform)
+        & (mm12_source_df.index.get_level_values("Sample") == mm12_input.Sample)
+        & (mm12_source_df.index.get_level_values("Chrom") == mm12_input.Chrom)
+    )
+    mm12_export_df = mm12_source_df.loc[mm12_export_mask].reset_index()
+    assert not mm12_export_df.empty, f"No positions for {mm12_input.Sample}"
+    mm12_pending_path.parent.mkdir(parents=True, exist_ok=True)
+    with gzip.open(mm12_pending_path, "xt", encoding="utf-8", newline="") as mm12_handle:
+        mm12_export_df.to_csv(mm12_handle, sep="\t", index=False)
+    mm12_loaded_dfs.append(pd.read_csv(
+        mm12_pending_path, sep="\t", compression="gzip", float_precision="round_trip",
+        dtype={col: "boolean" for col in mm12_transfer_flags + mm12_nullable_flags},
+    ))
+    mm12_default_dfs.append(pd.read_csv(
+        mm12_pending_path, sep="\t", compression="gzip",
+        usecols=mm12_transfer_keys + ["MismatchFrequency", "OldEditingThreshold"],
+    ))
+mm12_loaded_df = pd.concat(mm12_loaded_dfs, ignore_index=True)
+mm12_default_df = pd.concat(mm12_default_dfs, ignore_index=True)
+
+
+# %%
+# Compare discrete values exactly; numerical threshold diagnostics are separate below.
+if mm12_loaded_df[mm12_transfer_keys].isna().any().any() or mm12_loaded_df.duplicated(mm12_transfer_keys).any():
+    raise ValueError("Read-back has missing or duplicate site keys; no files are published.")
+mm12_loaded_df = mm12_loaded_df.set_index(mm12_transfer_keys).sort_index()
+mm12_missing_sites = mm12_source_df.index.difference(mm12_loaded_df.index)
+mm12_extra_sites = mm12_loaded_df.index.difference(mm12_source_df.index)
+if len(mm12_missing_sites) or len(mm12_extra_sites):
+    display(mm12_missing_sites.to_frame(index=False).head(20), mm12_extra_sites.to_frame(index=False).head(20))
+    raise ValueError("Source/read-back populations differ; inspect inputs or run state before plotting.")
+mm12_compare_cols = mm12_categories + mm12_count_cols + mm12_transfer_flags + mm12_nullable_flags
+mm12_same = (
+    mm12_source_df[mm12_compare_cols].eq(mm12_loaded_df[mm12_compare_cols])
+    | (mm12_source_df[mm12_compare_cols].isna() & mm12_loaded_df[mm12_compare_cols].isna())
+).fillna(False)
+mm12_transfer_differences_df = mm12_source_df.loc[~mm12_same.all(axis=1), mm12_compare_cols].join(
+    mm12_loaded_df.loc[~mm12_same.all(axis=1), mm12_compare_cols], lsuffix="_source", rsuffix="_read"
+)
+if not mm12_transfer_differences_df.empty:
+    display(mm12_transfer_differences_df.reset_index().head(20))
+    raise ValueError("Source decisions, categories or counts changed in transfer; no files are published.")
+
+
+# %%
+mm12_loaded_masks = mm12_panel_masks(mm12_loaded_df)
+mm12_count_index = pd.MultiIndex.from_product(
+    [mm12_source_df.index.get_level_values("Dataset").unique(), mm12_mismatches],
+    names=["Dataset", "Mismatch"],
+)
+mm12_transfer_counts_dfs = []
+for mm12_panel, mm12_mask in mm12_source_masks.items():
+    mm12_read_mask = mm12_loaded_masks[mm12_panel]
+    mm12_source_sites = mm12_source_df.index[mm12_mask]
+    mm12_read_sites = mm12_loaded_df.index[mm12_read_mask]
+    if not mm12_source_sites.equals(mm12_read_sites):
+        display(mm12_source_sites.symmetric_difference(mm12_read_sites).to_frame(index=False).head(20))
+        raise ValueError(f"Panel {mm12_panel}: source/read-back site identities differ.")
+    mm12_counts_df = pd.DataFrame({
+        "Source": mm12_source_df.loc[mm12_mask].groupby(["Dataset", "Mismatch"]).size().reindex(mm12_count_index, fill_value=0),
+        "ReadBack": mm12_loaded_df.loc[mm12_read_mask].groupby(["Dataset", "Mismatch"]).size().reindex(mm12_count_index, fill_value=0),
+    })
+    assert mm12_counts_df["Source"].eq(mm12_counts_df["ReadBack"]).all(), mm12_panel
+    mm12_counts_df["Panel"] = mm12_panel
+    mm12_transfer_counts_dfs.append(mm12_counts_df.reset_index())
+mm12_transfer_counts_df = pd.concat(mm12_transfer_counts_dfs, ignore_index=True)
+display(mm12_transfer_counts_df.groupby(["Dataset", "Panel"], sort=False)[["Source", "ReadBack"]].sum())
+# The full twelve-category integer count table remains available above.
+
+
+# %%
+# Diagnose parser changes separately from source population/decision changes.
+# The default-parser table is never used for plotting or filter decisions.
+mm12_default_df = mm12_default_df.set_index(mm12_transfer_keys).sort_index()
+mm12_numeric_cols = ["MismatchFrequency", "OldEditingThreshold"]
+mm12_saved_decision = mm12_source_df["AboveOldEditingThreshold"]
+mm12_source_numeric = mm12_source_df["MismatchFrequency"].gt(mm12_source_df["OldEditingThreshold"])
+mm12_read_numeric = mm12_loaded_df["MismatchFrequency"].gt(mm12_loaded_df["OldEditingThreshold"])
+mm12_default_numeric = mm12_default_df["MismatchFrequency"].gt(mm12_default_df["OldEditingThreshold"])
+mm12_numeric_same = (
+    mm12_source_df[mm12_numeric_cols].eq(mm12_loaded_df[mm12_numeric_cols])
+    | (mm12_source_df[mm12_numeric_cols].isna() & mm12_loaded_df[mm12_numeric_cols].isna())
+).all(axis=1)
+mm12_diagnostic_mask = (
+    ~mm12_numeric_same | mm12_saved_decision.ne(mm12_read_numeric)
+    | mm12_saved_decision.ne(mm12_default_numeric) | mm12_saved_decision.ne(mm12_source_numeric)
+)
+mm12_float_differences_df = mm12_source_df.loc[mm12_diagnostic_mask, ["Mismatch"]].copy()
+for mm12_label, mm12_frame in [
+    ("Source", mm12_source_df), ("RoundTripRead", mm12_loaded_df), ("DefaultRead", mm12_default_df),
+]:
+    for mm12_col in mm12_numeric_cols:
+        mm12_float_differences_df[f"{mm12_label}_{mm12_col}"] = mm12_frame.loc[mm12_diagnostic_mask, mm12_col]
+mm12_float_differences_df["SavedDecision"] = mm12_saved_decision.loc[mm12_diagnostic_mask]
+mm12_float_differences_df["SourceNumericDecision"] = mm12_source_numeric.loc[mm12_diagnostic_mask]
+mm12_float_differences_df["RoundTripNumericDecision"] = mm12_read_numeric.loc[mm12_diagnostic_mask]
+mm12_float_differences_df["DefaultNumericDecision"] = mm12_default_numeric.loc[mm12_diagnostic_mask]
+mm12_float_differences_df["RoundTripValuesChanged"] = ~mm12_numeric_same.loc[mm12_diagnostic_mask]
+if not mm12_float_differences_df.empty:
+    with pd.option_context("display.float_format", lambda value: format(value, ".17g")):
+        display(mm12_float_differences_df.reset_index().head(20))
+    print("Float/source-state differences are diagnostic only; the saved decisions remain authoritative.")
+
+mm12_transfer_verified = True
+
+
+# %%
+assert mm12_transfer_verified, "Complete all transfer checks before publishing."
+for mm12_pending_path, mm12_output_path in zip(mm12_pending_paths, mm12_output_paths):
+    os.link(mm12_pending_path, mm12_output_path)  # Exclusive even if a target appeared meanwhile.
+    mm12_pending_path.unlink()  # Only this successful export's temporary name.
+

@@ -1537,6 +1537,12 @@ tmr1000_alignment_stats_and_snps_df
 # ### Mismatches - theoritical fix
 
 # %% [markdown]
+# #### Version 1
+
+# %% [markdown]
+# ##### V1 funcs
+
+# %% [markdown]
 # How the mismatches table would've looked if we positions with A in the reference wouldn't automatically be considered as
 # A-to-G but rather A-to-X based on the highest covered base other than A.
 
@@ -1644,6 +1650,18 @@ def define_editing_threshold(
 
 
 # %%
+def is_x_gt_or_eq_or_lt_y(x, y):
+    if pd.isna(x) or pd.isna(y):
+        return pd.NA
+    elif x > y:
+        return ">"
+    elif x == y:
+        return "=="
+    else:
+        return "<"
+
+
+# %%
 noise_threshold_df = pd.concat(
     [
         pd.read_csv(
@@ -1656,6 +1674,9 @@ noise_threshold_df = pd.concat(
     ignore_index=True
 )
 noise_threshold_df
+
+# %% [markdown]
+# ##### V1 analysis
 
 # %%
 # load the positions data as found by our pipeline
@@ -1900,19 +1921,6 @@ significant_mismatches_theoretical_fix_df
 
 # %%
 significant_mismatches_theoretical_fix_df["Chrom"].nunique()
-
-
-# %%
-def is_x_gt_or_eq_or_lt_y(x, y):
-    if pd.isna(x) or pd.isna(y):
-        return pd.NA
-    elif x > y:
-        return ">"
-    elif x == y:
-        return "=="
-    else:
-        return "<"
-
 
 # %%
 (
@@ -2298,44 +2306,6 @@ new_ac_at_snps_at_genes_with_only_old_sites_df
 )
 
 # %%
-
-# %%
-(
-    significant_mismatches_sites_disabled_by_suspected_snps_theoretical_fix_df
-    .groupby("NumOfSuspectedSNPsPerChrom")
-    ["EditedFinal"]
-    .apply(
-        lambda x: 100 * x.sum() / x.size
-    )
-    .reset_index(name="%OfRejectedEditingSitesPreviouslyFound")
-)
-
-# %%
-fig = px.line(
-    (
-        significant_mismatches_sites_disabled_by_suspected_snps_theoretical_fix_df
-        .groupby("NumOfSuspectedSNPsPerChrom")
-        ["EditedFinal"]
-        .apply(
-            lambda x: 100 * x.sum() / x.size
-        )
-        .reset_index(name="%OfRejectedEditingSitesPreviouslyFound")
-    ),
-    x="NumOfSuspectedSNPsPerChrom",
-    y="%OfRejectedEditingSitesPreviouslyFound",
-    log_x=True,
-    markers=True,
-    # line_shape="linear",
-    labels={
-        "NumOfSuspectedSNPsPerChrom": "Number of suspected SNPs per gene",
-        "%OfRejectedEditingSitesPreviouslyFound": "% of rejected<br>editing sites previously found"
-    }
-)
-fig.update_layout(
-    width=600,
-    height=400
-)
-fig.show()
 
 # %%
 
@@ -3526,6 +3496,1786 @@ ots_conclusion = (
     "The mismatch plot populations and strict threshold windows are unchanged."
 )
 ots_display(ots_Markdown(ots_conclusion))
+
+# %% [markdown]
+# #### Version 2 - 15.9.26
+#
+# Original-threshold, AC/AT SNPs don't prevent detection.
+#
+# It's assumed functions from version 1 were executed.
+
+# %%
+noise_threshold_df["NoiseThreshold"].ge(0.05).sum()
+
+# %%
+# load the positions data as found by our pipeline
+mismatches_theoretical_fix_df = concat_all_positions_df.loc[
+    :,
+    [
+        condition_col,
+        "Chrom",
+        "Position",
+        "RefBase",
+        "TotalCoverage",
+        "A",
+        "T",
+        "C",
+        "G",
+        # "EditingFrequency",
+        # "Edited",
+        # "EditedCorrected",
+        "EditedFinal",
+        # "Noise",
+        # "NoisyCorrected",
+        "NoisyFinal",
+    ],
+]
+
+# all orfs are on the positive strand so we don't have to deal with positive strand/coding strand normalizations
+assert set(orfs_df["Strand"].values) == {"+"}
+
+# find the "real" alternative base for each position
+mismatches_theoretical_fix_df.insert(
+    mismatches_theoretical_fix_df.columns.get_loc("RefBase") + 1,
+    "AltBase",
+    mismatches_theoretical_fix_df.apply(
+        lambda x: find_alt_base_theoretical_fix(
+            x["RefBase"],
+            x["A"],
+            x["T"],
+            x["C"],
+            x["G"],
+        ),
+        axis=1,
+    ),
+)
+# annotathe mismatch type according to alt- and ref-base
+mismatches_theoretical_fix_df.insert(
+    mismatches_theoretical_fix_df.columns.get_loc("AltBase") + 1,
+    "Mismatch",
+    mismatches_theoretical_fix_df.apply(
+        lambda x: define_mismatch_type_theoretical_fix(x["RefBase"], x["AltBase"]), axis=1
+    ),
+)
+
+# annotate Alt- and RefBaseCount as dedicated cols
+mismatches_theoretical_fix_df.insert(
+    mismatches_theoretical_fix_df.columns.get_loc("G") + 1,
+    "RefBaseCount",
+    mismatches_theoretical_fix_df.apply(
+        lambda x: x[x["RefBase"]],
+        axis=1
+    )
+)
+mismatches_theoretical_fix_df.insert(
+    mismatches_theoretical_fix_df.columns.get_loc("G") + 2,
+    "AltBaseCount",
+    mismatches_theoretical_fix_df.apply(
+        lambda x: x[x["AltBase"]] if pd.notna(x["AltBase"]) else np.nan,
+        axis=1
+    )
+)
+
+# annotate mismatch frequency as an alternative and general annotation to `EditingFrequency` and `Noise`
+mismatches_theoretical_fix_df.insert(
+    mismatches_theoretical_fix_df.columns.get_loc("AltBaseCount") + 1,
+    "MismatchFrequency",
+    mismatches_theoretical_fix_df.apply(
+        lambda x: mismatch_frequency_theoretical_fix(x["RefBaseCount"], x["AltBaseCount"]), axis=1
+    ),
+)
+
+# add to mismatches_theoretical_fix_df all positions in the ORFs, even if they are not covered by reads and thus 
+# not present in the positions files
+cocnat_all_cds_positions_df = pd.concat(
+    [
+        make_rows_of_all_positions_in_orf(transcript, chrom, start, end)
+        for transcript, chrom, start, end in orfs_df.loc[:, ["Name", "Chrom", "Start", "End"]].itertuples(index=False, name=None)
+    ]
+)
+mismatches_theoretical_fix_df_2 = mismatches_theoretical_fix_df.merge(
+    cocnat_all_cds_positions_df, 
+    on=["Chrom", "Transcript", "Position"], 
+    how="right"
+)
+assert mismatches_theoretical_fix_df_2.shape[0] == cocnat_all_cds_positions_df.shape[0]
+assert mismatches_theoretical_fix_df_2.loc[
+    mismatches_theoretical_fix_df_2["RefBase"].notna()
+].shape[0] == mismatches_theoretical_fix_df.shape[0]
+mismatches_theoretical_fix_df = mismatches_theoretical_fix_df_2
+# fill coverage of positions that are not covered in the original positions files with 0
+uncovered_positions = mismatches_theoretical_fix_df["RefBase"].isna()
+mismatches_theoretical_fix_df.loc[
+    uncovered_positions,
+    "TotalCoverage"
+] = 0
+
+
+# add original noise threshold per chrom
+mismatches_theoretical_fix_df = mismatches_theoretical_fix_df.merge(
+    noise_threshold_df.rename(
+        columns={
+            "NoiseThreshold": "OldEditingThreshold",
+        }
+    ),
+    on="Chrom",
+    how="left"
+)
+mismatches_theoretical_fix_df.insert(
+    mismatches_theoretical_fix_df.columns.get_loc("OldEditingThreshold") + 1,
+    "AboveOldEditingThreshold",
+    mismatches_theoretical_fix_df["MismatchFrequency"].gt(
+        mismatches_theoretical_fix_df["OldEditingThreshold"]
+    )
+)
+
+# keep only chroms that have at least 50 mapped reads
+mismatches_theoretical_fix_df = mismatches_theoretical_fix_df.loc[
+    mismatches_theoretical_fix_df["Chrom"].isin(
+        tmr50_alignment_stats_df["Chrom"]
+    )
+]
+# verify that all chroms in the resulting df indeed linked to the "original" noise threshold
+assert mismatches_theoretical_fix_df["OldEditingThreshold"].isna().sum() == 0
+
+# print & validate some coverage stats
+num_of_all_sites = mismatches_theoretical_fix_df.shape[0]
+num_of_sites_with_0_tot_cov = mismatches_theoretical_fix_df.loc[
+    mismatches_theoretical_fix_df["TotalCoverage"].eq(0)
+].shape[0]
+num_of_sites_with_0_alt_base_cov = mismatches_theoretical_fix_df.loc[
+    (
+        mismatches_theoretical_fix_df["TotalCoverage"].gt(0)
+        & mismatches_theoretical_fix_df["AltBaseCount"].isna()
+    )
+].shape[0]
+num_of_sites_with_positiove_alt_base_cov = mismatches_theoretical_fix_df.loc[
+    mismatches_theoretical_fix_df["AltBaseCount"].gt(0)
+].shape[0]
+num_of_sites_with_10_plus_tot_cov = mismatches_theoretical_fix_df.loc[
+    mismatches_theoretical_fix_df["TotalCoverage"].ge(10)
+].shape[0]
+num_of_sites_with_10_plus_alt_base_cov = mismatches_theoretical_fix_df.loc[
+    mismatches_theoretical_fix_df["AltBaseCount"].ge(10)
+].shape[0]
+prct_of_sites_with_0_tot_cov = np.round(
+    100 * num_of_sites_with_0_tot_cov / num_of_all_sites,
+    2
+)
+prct_of_sites_with_0_alt_base_cov = np.round(
+    100 * num_of_sites_with_0_alt_base_cov / num_of_all_sites,
+    2
+)
+prct_of_sites_with_positiove_alt_base_cov = np.round(
+    100 * num_of_sites_with_positiove_alt_base_cov / num_of_all_sites,
+    2
+)
+prct_of_sites_with_10_plus_tot_cov = np.round(
+    100 * num_of_sites_with_10_plus_tot_cov / num_of_all_sites,
+    2
+)
+prct_of_sites_with_10_plus_alt_base_cov = np.round(
+    100 * num_of_sites_with_10_plus_alt_base_cov / num_of_all_sites,
+    2
+)
+ic(num_of_all_sites)
+ic(num_of_sites_with_0_tot_cov, prct_of_sites_with_0_tot_cov,)
+ic(num_of_sites_with_0_alt_base_cov, prct_of_sites_with_0_alt_base_cov,)
+ic(num_of_sites_with_positiove_alt_base_cov, prct_of_sites_with_positiove_alt_base_cov);
+ic(num_of_sites_with_10_plus_tot_cov, prct_of_sites_with_10_plus_tot_cov,)
+ic(num_of_sites_with_10_plus_alt_base_cov, prct_of_sites_with_10_plus_alt_base_cov,);
+assert (
+    mismatches_theoretical_fix_df.loc[
+        mismatches_theoretical_fix_df["AltBaseCount"].gt(0)
+    ].shape[0]
+    +
+    mismatches_theoretical_fix_df.loc[
+        mismatches_theoretical_fix_df["TotalCoverage"].eq(0)
+    ].shape[0]
+    +
+     mismatches_theoretical_fix_df.loc[
+        (
+            mismatches_theoretical_fix_df["TotalCoverage"].gt(0)
+            & mismatches_theoretical_fix_df["AltBaseCount"].isna()
+        )
+    ].shape[0]
+     ==
+     mismatches_theoretical_fix_df.shape[0]
+)
+
+# intialy set all pvals to 1, which represnts the pvalue of the perfect null hypothesis - no mismatch in this position
+mismatches_theoretical_fix_df["BinomPVal"] = 1.0
+# then, for positions that have an alternative base, calculate the binomial test p-value for the observed number of 
+# alternative base reads given the total coverage and a null hypothesis probability of 0.001
+positions_with_alt_base = mismatches_theoretical_fix_df["AltBase"].notna()
+mismatches_theoretical_fix_df.loc[
+    positions_with_alt_base,
+    "BinomPVal"
+] = mismatches_theoretical_fix_df.loc[positions_with_alt_base].apply(
+    lambda x: binom_test(
+        x["AltBaseCount"],
+        x["RefBaseCount"] + x["AltBaseCount"],
+        0.001,
+        alternative="larger",
+    ),
+    axis=1,
+)
+# perform the BH correction
+bh_rejections, bh_corrected_pvals = fdrcorrection(
+    mismatches_theoretical_fix_df["BinomPVal"]
+)
+# add the corrected p-values and rejections to the concatenated dataframe
+mismatches_theoretical_fix_df["BHCorrectedPVal"] = bh_corrected_pvals
+mismatches_theoretical_fix_df["BHRejection"] = bh_rejections
+
+# %%
+mismatches_theoretical_fix_df
+
+# %%
+mismatches_theoretical_fix_df["Chrom"].nunique()
+
+# %%
+significant_mismatches_theoretical_fix_df = mismatches_theoretical_fix_df.loc[
+    mismatches_theoretical_fix_df["BHRejection"]
+].reset_index(drop=True)
+
+# SNPs (definitive & suspected SNPs)
+
+significant_mismatches_theoretical_fix_df["AtOrAboveSuspectedSNPLevel"] = (
+    significant_mismatches_theoretical_fix_df["MismatchFrequency"].ge(snp_noise_level)
+)
+significant_mismatches_theoretical_fix_df["MismatchFrequency1"] = (
+    significant_mismatches_theoretical_fix_df["MismatchFrequency"].eq(1)
+)
+
+significant_mismatches_theoretical_fix_df["SuspectedSNP"] = (
+    (
+        significant_mismatches_theoretical_fix_df["AtOrAboveSuspectedSNPLevel"]
+        & ~significant_mismatches_theoretical_fix_df["MismatchFrequency1"]
+        & significant_mismatches_theoretical_fix_df["Mismatch"].ne("A>G")
+    )
+)
+significant_mismatches_theoretical_fix_df["SuspectedSNPWoACOrAT"] = (
+    significant_mismatches_theoretical_fix_df["SuspectedSNP"]
+    & ~significant_mismatches_theoretical_fix_df["Mismatch"].isin(["A>C", "A>T"])
+)
+
+significant_mismatches_theoretical_fix_df["DefinitiveSNP"] = (
+    significant_mismatches_theoretical_fix_df["MismatchFrequency1"]
+)
+significant_mismatches_theoretical_fix_df["SNP"] = (
+    significant_mismatches_theoretical_fix_df["SuspectedSNP"]
+    | significant_mismatches_theoretical_fix_df["DefinitiveSNP"]
+)
+
+significant_mismatches_theoretical_fix_df["NumOfSuspectedSNPsPerChrom"] = (
+    significant_mismatches_theoretical_fix_df.groupby("Chrom")["SuspectedSNP"].transform("sum")
+)
+significant_mismatches_theoretical_fix_df["NumOfSuspectedSNPsWithoutACOrATPerChrom"] = (
+    significant_mismatches_theoretical_fix_df.groupby("Chrom")["SuspectedSNPWoACOrAT"].transform("sum")
+)
+significant_mismatches_theoretical_fix_df["NumOfDefinitiveSNPsPerChrom"] = (
+    significant_mismatches_theoretical_fix_df.groupby("Chrom")["DefinitiveSNP"].transform("sum")
+)
+significant_mismatches_theoretical_fix_df["NumOfSNPsPerChrom"] = (
+    significant_mismatches_theoretical_fix_df.groupby("Chrom")["SNP"].transform("sum")
+)
+
+# don't allow editing detection in genes where the number of suspected non-AC/AT SNPs is above a certain threshold, 
+# as this may indicate that the gene is highly polymorphic and thus not suitable for editing detection
+# as it's hard to distinguish between editing and suspected SNPs
+significant_mismatches_theoretical_fix_df["EditingDetectionDisabledInChromDueToSuspectedSNPsWithoutACOrAT"] = (
+    significant_mismatches_theoretical_fix_df["NumOfSuspectedSNPsWithoutACOrATPerChrom"].gt(
+        max_snps_per_gene_to_allow_editing_detection
+    )
+)
+
+significant_mismatches_theoretical_fix_df["NoiseSite"] = (
+    significant_mismatches_theoretical_fix_df["Mismatch"].ne("A>G")
+    & ~significant_mismatches_theoretical_fix_df["SNP"]
+)
+
+new_editing_thresholds_df = (
+    significant_mismatches_theoretical_fix_df
+    .groupby("Chrom")
+    .apply(define_editing_threshold)
+    .reset_index(name="NewEditingThreshold")
+)
+significant_mismatches_theoretical_fix_df = significant_mismatches_theoretical_fix_df.merge(
+    new_editing_thresholds_df,
+    on="Chrom",
+    how="left"
+)
+
+significant_mismatches_theoretical_fix_df["AboveNewEditingThreshold"] = (
+    significant_mismatches_theoretical_fix_df["MismatchFrequency"].gt(
+        significant_mismatches_theoretical_fix_df["NewEditingThreshold"]
+    )
+)
+
+significant_mismatches_theoretical_fix_df["EditingSite"] = (
+    significant_mismatches_theoretical_fix_df["Mismatch"].eq("A>G")
+    & ~significant_mismatches_theoretical_fix_df["SNP"]
+    # & ~significant_mismatches_theoretical_fix_df["EditingDetectionDisabledInChromDueToSuspectedSNPs"]
+    # & significant_mismatches_theoretical_fix_df["AboveNewEditingThreshold"]
+    & ~significant_mismatches_theoretical_fix_df["EditingDetectionDisabledInChromDueToSuspectedSNPsWithoutACOrAT"]
+    & significant_mismatches_theoretical_fix_df["AboveOldEditingThreshold"]
+)
+
+significant_mismatches_theoretical_fix_df["EditingDetectedInGene"] = (
+    significant_mismatches_theoretical_fix_df
+    .groupby("Chrom")
+    ["EditingSite"].transform(any)
+)
+
+ic(
+    significant_mismatches_theoretical_fix_df["Chrom"].nunique(),
+    significant_mismatches_theoretical_fix_df
+    .drop_duplicates("Chrom")
+    ["EditingDetectedInGene"].value_counts()
+)
+
+significant_mismatches_theoretical_fix_df
+
+# %%
+# find out if there are genes which weren't forbidden for editing detection due to excessive number of SNPs, 
+# but have no editing sites detected in them, and if so, how many
+
+(
+    significant_mismatches_theoretical_fix_df
+    # keep only genes with at most 3 non-AC/AT suspected SNPs, which are allowed to have editing detection
+    .loc[
+        ~significant_mismatches_theoretical_fix_df["EditingDetectionDisabledInChromDueToSuspectedSNPsWithoutACOrAT"]
+    ]
+    # sum the num of editing sites per such gene
+    .groupby("Chrom")["EditingSite"].sum()
+    # count how many of those genes have 0 vs. 1+ editing sites detected in them
+    .eq(0).value_counts()
+)
+
+# %%
+1284 + 402
+
+# %%
+(
+    significant_mismatches_theoretical_fix_df
+    .loc[significant_mismatches_theoretical_fix_df["MismatchFrequency1"]]
+    .groupby("EditingDetectedInGene")
+    .size()
+)
+
+# %%
+(
+    significant_mismatches_theoretical_fix_df
+    .loc[
+        significant_mismatches_theoretical_fix_df["MismatchFrequency1"],
+        :"MismatchFrequency"
+    ]
+    .sort_values(by="MismatchFrequency", ascending=False)
+)
+
+# %%
+(
+    significant_mismatches_theoretical_fix_df
+    .loc[
+        ~significant_mismatches_theoretical_fix_df["MismatchFrequency1"],
+        :"MismatchFrequency"
+    ]
+    .sort_values(by="MismatchFrequency", ascending=False)
+)
+
+# %%
+(
+    significant_mismatches_theoretical_fix_df
+    .groupby("Chrom")
+    [["SuspectedSNP", "SuspectedSNPWoACOrAT", "DefinitiveSNP", "SNP"]]
+    .sum().describe().round(2)
+)
+
+# %%
+# (
+#     significant_mismatches_theoretical_fix_df
+#     ["Mismatch"].value_counts(dropna=False)
+#     .reset_index(name="Count")
+#     .assign(
+#         PrctOfMismatch=lambda x: 100 * x["Count"] / x["Count"].sum()
+#     )
+#     .round(2)
+# )
+
+# %%
+# (
+#     significant_mismatches_theoretical_fix_df
+#     .groupby("EditingDetectedInGene")
+#     ["Mismatch"].value_counts(dropna=False)
+#     .reset_index(name="Count")
+#     .assign(
+#         Percentage=lambda x: np.round(
+#             100 * x["Count"] / x.groupby("EditingDetectedInGene")["Count"].transform("sum"),
+#             2
+#         )
+#     )
+# )
+
+# %%
+significant_edited_positions_theoretical_fix_df = significant_mismatches_theoretical_fix_df.loc[
+    significant_mismatches_theoretical_fix_df["EditingSite"]
+]
+significant_edited_positions_theoretical_fix_df
+
+# %%
+concat_all_edited_positions_df.shape[0]
+
+# %%
+(
+    significant_mismatches_theoretical_fix_df
+    .drop_duplicates("Chrom")
+    ["NumOfSuspectedSNPsWithoutACOrATPerChrom"].describe().round(2)
+)
+
+# %%
+(
+    significant_edited_positions_theoretical_fix_df
+    .drop_duplicates("Chrom")
+    ["NumOfSuspectedSNPsWithoutACOrATPerChrom"].describe().round(2)
+)
+
+# %%
+concat_old_vs_new_editing_positions_df = (
+    significant_edited_positions_theoretical_fix_df
+    .loc[
+        :,
+        [
+            "Chrom", "Position", "MismatchFrequency", "OldEditingThreshold", "NewEditingThreshold",
+            "NumOfSuspectedSNPsWithoutACOrATPerChrom"
+         ]
+    ]
+    .rename(
+        columns={
+            "MismatchFrequency": "NewMismatchFrequency",
+            "NumOfSuspectedSNPsWithoutACOrATPerChrom": "NumOfNewSuspectedSNPsWithoutACOrATPerChrom",
+        }
+    )
+    .merge(
+        (
+            concat_all_edited_positions_df
+            .loc[
+                :,
+                ["Chrom", "Position", "EditingFrequency"]
+            ]
+            .rename(
+                columns={
+                    "EditingFrequency": "OldMismatchFrequency",
+                }
+            )
+        ),
+        on=["Chrom", "Position"],
+        how="outer",
+        suffixes=("_New", "_Old"),
+        indicator=True
+    )
+    .loc[
+        :,
+        [
+            "Chrom", "Position", "OldMismatchFrequency", "NewMismatchFrequency",
+            "OldEditingThreshold", "NewEditingThreshold", "NumOfNewSuspectedSNPsWithoutACOrATPerChrom", "_merge"
+        ]
+    ]
+)
+concat_old_vs_new_editing_positions_df["_merge"] = (
+    concat_old_vs_new_editing_positions_df["_merge"]
+    .astype(str)
+    .replace(
+        {
+            "left_only": "New",
+            "right_only": "Old",
+            "both": "Both"
+        }
+    )
+)
+concat_old_vs_new_editing_positions_df
+
+# %%
+sites_sets_per_chrom = (
+    concat_old_vs_new_editing_positions_df.groupby("Chrom")["_merge"].value_counts()
+    .reset_index()
+    .pivot(
+        index="Chrom", columns="_merge", values="count"
+    )
+    .fillna(0)
+    .astype(int)
+)
+sites_sets_per_chrom
+
+# %%
+concat_old_vs_new_editing_positions_df["_merge"].value_counts()
+
+# %%
+concat_old_vs_new_editing_positions_df["_merge"].value_counts().mul(100).div(concat_all_edited_positions_df.shape[0]).round(2)
+
+# %%
+# concat_old_vs_new_editing_positions_only_new_df = (
+#     concat_old_vs_new_editing_positions_df
+#     .loc[
+#         concat_old_vs_new_editing_positions_df["_merge"].eq("New")
+#     ]
+# )
+# concat_old_vs_new_editing_positions_only_old_df = (
+#     concat_old_vs_new_editing_positions_df
+#     .loc[
+#         concat_old_vs_new_editing_positions_df["_merge"].eq("Old")
+#     ]
+# )
+
+concat_old_vs_new_editing_positions_only_old_df = (
+    concat_old_vs_new_editing_positions_df
+    .loc[
+        concat_old_vs_new_editing_positions_df["_merge"].eq("Old"),
+        ["Chrom", "Position"]
+    ]
+    .merge(
+        significant_mismatches_theoretical_fix_df,
+        how="left"
+    )
+)
+
+concat_old_vs_new_editing_positions_only_new_df = (
+    concat_old_vs_new_editing_positions_df
+    .loc[
+        concat_old_vs_new_editing_positions_df["_merge"].eq("New"),
+        ["Chrom", "Position"]
+    ]
+    .merge(
+        significant_mismatches_theoretical_fix_df,
+        how="left"
+    )
+    .merge(
+        (
+            # concat_all_edited_positions_df
+            concat_all_positions_df
+            .loc[
+                :,
+                [
+                    "Chrom", "Position", "EditingFrequency", "A", "T", "C", "G",
+                    "EditingBinomPVal", "EditingCorrectedPVal", "EditedCorrected", "EditedFinal"
+                ]
+            ]
+            .rename(
+                columns={
+                    "EditingFrequency": "OldMismatchFrequency",
+                    "A": "OldA",
+                    "T": "OldT",
+                    "C": "OldC",
+                    "G": "OldG",
+                    "EditingBinomPVal": "OldBinomPVal", 
+                    "EditingCorrectedPVal": "OldBHCorrectedPVal",
+                    "EditedCorrected": "OldEditedCorrected",
+                    "EditedFinal": "OldEditedFinal"
+                }
+            )
+        ),
+        on=["Chrom", "Position"],
+        how="left"
+    )
+)
+
+# %%
+concat_old_vs_new_editing_positions_only_old_df
+
+# %%
+concat_old_vs_new_editing_positions_only_new_df
+
+# %%
+(
+    concat_old_vs_new_editing_positions_only_new_df
+    ["OldMismatchFrequency"].isna().value_counts()
+)
+
+# %%
+concat_old_vs_new_editing_positions_only_new_df.columns
+
+# %%
+chroms_with_old_and_new_sites = sites_sets_per_chrom.loc[
+    (
+        
+        sites_sets_per_chrom["New"].gt(0)
+        & sites_sets_per_chrom["Old"].gt(0)
+        & sites_sets_per_chrom["Both"].eq(0)
+    )
+].index
+chroms_with_shared_and_new_sites = sites_sets_per_chrom.loc[
+    (
+        
+        sites_sets_per_chrom["New"].gt(0)
+        & sites_sets_per_chrom["Both"].gt(0)
+        & sites_sets_per_chrom["Old"].eq(0)
+    )
+].index
+chroms_with_only_new_sites = sites_sets_per_chrom.loc[
+    (
+        
+        sites_sets_per_chrom["New"].gt(0)
+        & sites_sets_per_chrom["Both"].eq(0)
+        & sites_sets_per_chrom["Old"].eq(0)
+    )
+].index
+chroms_with_old_and_new_and_shared_sites = sites_sets_per_chrom.loc[
+    (
+        
+        sites_sets_per_chrom["New"].gt(0)
+        & sites_sets_per_chrom["Old"].gt(0)
+        & sites_sets_per_chrom["Both"].gt(0)
+    )
+].index
+
+# %%
+concat_old_vs_new_editing_positions_only_new_compact_df = (
+    concat_old_vs_new_editing_positions_only_new_df
+    .loc[
+        :,
+        ['Chrom', 'Position', 'RefBase', 'AltBase', 'Mismatch',
+       'TotalCoverage', 
+       'A', 'T', 'C', 'G', 
+       'RefBaseCount', 'AltBaseCount',
+       'MismatchFrequency', 
+    #    'NoisyFinal', 
+       'OldEditingThreshold',
+       'AboveOldEditingThreshold', 
+       'OldA', 'OldT', 'OldC', 'OldG',
+       'OldMismatchFrequency',
+    #    'BinomPVal', 'BHCorrectedPVal', 'BHRejection', 
+       'AtOrAboveSuspectedSNPLevel',
+       "NumOfSuspectedSNPsWithoutACOrATPerChrom",
+       'OldBinomPVal', 'OldBHCorrectedPVal', 'OldEditedCorrected', 'OldEditedFinal'
+        ]
+    ]
+    .astype(
+        {
+            base: int
+            for base in ["A", "T", "C", "G", "RefBaseCount", "AltBaseCount"]
+        }
+    )
+    # ["AtOrAboveSuspectedSNPLevel"].value_counts(dropna=False)
+)
+concat_old_vs_new_editing_positions_only_new_compact_df["SitesPresencePerSchemeInChrom"] = (
+    concat_old_vs_new_editing_positions_only_new_compact_df
+    ["Chrom"]
+    .apply(
+        lambda x: "SharedAndNew" if x in chroms_with_shared_and_new_sites else (
+            "OnlyNew" if x in chroms_with_only_new_sites else (
+                "SharedAndOld" if x in chroms_with_old_and_new_sites else (
+                    "SharedAndNewAndOld" if x in chroms_with_old_and_new_and_shared_sites else "ERROR!!!"
+                )
+            )
+        )
+    )
+)
+concat_old_vs_new_editing_positions_only_new_compact_df
+
+# %%
+# make sure we got the same ATCG counts - that's the basis for the mismatch frequency calculation, 
+# and if they don't match then something is wrong with the data
+new_atcg_df = concat_old_vs_new_editing_positions_only_new_compact_df.loc[
+    :,
+    ["A", "T", "C", "G"]
+]
+old_atcg_df = concat_old_vs_new_editing_positions_only_new_compact_df.loc[
+    :,
+    ["OldA", "OldT", "OldC", "OldG"]
+].rename(
+    columns={
+        "OldA": "A",
+        "OldT": "T",
+        "OldC": "C",
+        "OldG": "G",
+    }
+)
+assert new_atcg_df.equals(old_atcg_df), "The new and old A/T/C/G counts do not match for the new editing positions"
+
+# %%
+# following the same ATCG equivalence, we can also check that the mismatch frequencies match, 
+# as they are calculated from the ATCG counts
+assert np.allclose(
+    concat_old_vs_new_editing_positions_only_new_compact_df["MismatchFrequency"],
+    concat_old_vs_new_editing_positions_only_new_compact_df["OldMismatchFrequency"],
+    equal_nan=True
+)
+
+# %%
+# mismatch frequencies are close, but maybe one of the old freqs equals 1?
+# and the answer is no - so that's not the reason why those sites weren't detected previously
+concat_old_vs_new_editing_positions_only_new_compact_df["OldMismatchFrequency"].sort_values(ascending=False)
+
+# %%
+(
+    concat_old_vs_new_editing_positions_only_new_compact_df
+    .loc[
+        concat_old_vs_new_editing_positions_only_new_compact_df["Chrom"].isin(chroms_with_shared_and_new_sites)
+    ]
+    .drop_duplicates("Chrom")
+    ["NumOfSuspectedSNPsWithoutACOrATPerChrom"]
+    .value_counts()
+    .sort_index()
+)
+
+# %%
+(
+    concat_old_vs_new_editing_positions_only_new_compact_df
+    .loc[
+        concat_old_vs_new_editing_positions_only_new_compact_df["Chrom"].isin(chroms_with_only_new_sites)
+    ]
+    .drop_duplicates("Chrom")
+    ["NumOfSuspectedSNPsWithoutACOrATPerChrom"]
+    .value_counts()
+    .sort_index()
+)
+
+# %%
+concat_old_vs_new_editing_positions_only_new_compact_df["Chrom"].nunique()
+
+# %%
+(
+    concat_old_vs_new_editing_positions_only_new_compact_df
+    .drop_duplicates("Chrom")
+    ["SitesPresencePerSchemeInChrom"].value_counts()
+)
+
+# %%
+(
+    concat_old_vs_new_editing_positions_only_new_compact_df
+    .groupby("SitesPresencePerSchemeInChrom")
+    .size()
+)
+
+# %%
+(
+    concat_old_vs_new_editing_positions_only_new_compact_df
+    [["SitesPresencePerSchemeInChrom", "OldEditedCorrected", "OldEditedFinal"]]
+    .value_counts()
+    .sort_index()
+)
+
+# %%
+df = (
+        significant_mismatches_theoretical_fix_df.loc[
+        ~significant_mismatches_theoretical_fix_df["AboveOldEditingThreshold"]
+    ]
+    .groupby(["EditingDetectedInGene","Mismatch"]).size()
+    .reset_index(name="Count")
+    .assign(
+        Percentage=lambda x:
+            100 * x["Count"] / x.groupby("EditingDetectedInGene")["Count"].transform("sum")
+    )
+)
+
+title = "Mismatches at or below editing threshold"
+
+fig = px.bar(
+    df,
+    x="Mismatch",
+    y="Percentage",
+    color="Mismatch",
+    color_discrete_map=mismatch_dolor_map,
+    facet_col="EditingDetectedInGene",
+    facet_col_spacing=0.04,
+    # log_y=True,
+    template=template,
+    category_orders={
+        "Mismatch": mismatches,
+        "EditingDetectedInGene": [True, False],
+    },
+    title=title,
+    text_auto=True
+)
+
+width = 1150
+height = 400
+
+# Use for_each_annotation to customize each title (i.e., remove the "Platform=" prefix)
+fig.for_each_annotation(
+    lambda a: a.update(
+        text="Genes with detected editing" if a.text == "EditingDetectedInGene=True" else
+        "Genes without detected editing" if a.text == "EditingDetectedInGene=False" else a.text
+    )
+)
+
+fig.update_xaxes(tickangle=35)
+fig.update_yaxes(dtick=10)
+
+fig.update_traces(texttemplate='%{y:.1f}')
+
+fig.update_layout(
+    width=width,
+    height=height,
+    showlegend=False
+)
+
+# fig.write_image(
+#     Path(out_dir, "12 npn-SNP mismatches distribution - absolute - combined.svg"),
+#     width=width,
+#     height=height,
+# )
+
+display(
+    df.loc[
+        df["Mismatch"].isin(["A>G", "G>A"])
+    ].round(1)
+    .reset_index(drop=True)
+)
+
+fig.show()
+
+# %%
+df = (
+        significant_mismatches_theoretical_fix_df.loc[
+        (
+            significant_mismatches_theoretical_fix_df["AboveOldEditingThreshold"]
+            & ~significant_mismatches_theoretical_fix_df["AtOrAboveSuspectedSNPLevel"]
+        )
+    ]
+    .groupby(["EditingDetectedInGene","Mismatch"]).size()
+    .reset_index(name="Count")
+    .assign(
+        Percentage=lambda x:
+            100 * x["Count"] / x.groupby("EditingDetectedInGene")["Count"].transform("sum")
+    )
+)
+
+title = "Mismatches above editing threshold, but below suspected SNP threshold"
+
+fig = px.bar(
+    df,
+    x="Mismatch",
+    y="Percentage",
+    color="Mismatch",
+    color_discrete_map=mismatch_dolor_map,
+    facet_col="EditingDetectedInGene",
+    facet_col_spacing=0.04,
+    # log_y=True,
+    template=template,
+    category_orders={
+        "Mismatch": mismatches,
+        "EditingDetectedInGene": [True, False],
+    },
+    title=title,
+    text_auto=True
+)
+
+width = 1150
+height = 400
+
+# Use for_each_annotation to customize each title (i.e., remove the "Platform=" prefix)
+fig.for_each_annotation(
+    lambda a: a.update(
+        text="Genes with detected editing" if a.text == "EditingDetectedInGene=True" else
+        "Genes without detected editing" if a.text == "EditingDetectedInGene=False" else a.text
+    )
+)
+
+fig.update_xaxes(tickangle=35)
+fig.update_yaxes(dtick=10)
+
+fig.update_traces(texttemplate='%{y:.1f}')
+
+fig.update_layout(
+    width=width,
+    height=height,
+    showlegend=False
+)
+
+# fig.write_image(
+#     Path(out_dir, "12 npn-SNP mismatches distribution - absolute - combined.svg"),
+#     width=width,
+#     height=height,
+# )
+
+display(
+    df.loc[
+        df["Mismatch"].isin(["A>G", "G>A"])
+    ].round(1)
+    .reset_index(drop=True)
+)
+
+fig.show()
+
+# %%
+df = (
+        significant_mismatches_theoretical_fix_df.loc[
+        significant_mismatches_theoretical_fix_df["AtOrAboveSuspectedSNPLevel"]
+    ]
+    .groupby(["EditingDetectedInGene", "MismatchFrequency1", "Mismatch"]).size()
+    .reset_index(name="Count")
+    .assign(
+        Percentage=lambda x:
+            100 * x["Count"] / x.groupby(["EditingDetectedInGene", "MismatchFrequency1"])["Count"].transform("sum")
+    )
+)
+
+title = "Mismatches at or above suspected SNP threshold"
+
+fig = px.bar(
+    df,
+    x="Mismatch",
+    y="Percentage",
+    color="Mismatch",
+    color_discrete_map=mismatch_dolor_map,
+    facet_col="EditingDetectedInGene",
+    facet_col_spacing=0.04,
+    facet_row="MismatchFrequency1",
+    facet_row_spacing=0.08,
+    # log_y=True,
+    template=template,
+    category_orders={
+        "Mismatch": mismatches,
+        "EditingDetectedInGene": [True, False],
+    },
+    title=title,
+    text_auto=True
+)
+
+width = 1150
+height = 700
+
+# Use for_each_annotation to customize each title (i.e., remove the "Platform=" prefix)
+# fig.for_each_annotation(
+#     lambda a: a.update(
+#         text="Mismatch frequency = 100%" if a.text == "MismatchFrequency1=True" else
+#         "Mismatch frequency < 100%"
+#     )
+# )
+fig.for_each_annotation(
+    lambda a: a.update(
+        text="Genes with detected editing" if a.text == "EditingDetectedInGene=True" else
+        "Genes without detected editing" if a.text == "EditingDetectedInGene=False" else 
+        "Mismatch frequency = 100%" if a.text == "MismatchFrequency1=True" else
+        "Mismatch frequency < 100%" if a.text == "MismatchFrequency1=False" else a.text
+    )
+)
+
+fig.update_xaxes(tickangle=35)
+fig.update_yaxes(dtick=10)
+
+fig.update_traces(texttemplate='%{y:.1f}')
+
+fig.update_layout(
+    width=width,
+    height=height,
+    showlegend=False
+)
+
+# fig.write_image(
+#     Path(out_dir, "12 npn-SNP mismatches distribution - absolute - combined.svg"),
+#     width=width,
+#     height=height,
+# )
+
+display(
+    df.loc[
+        df["Mismatch"].isin(["A>G", "G>A"])
+    ].round(1)
+    .reset_index(drop=True)
+    # .set_index(["EditingDetectedInGene", "MismatchFrequency1", "Mismatch"])
+)
+
+fig.show()
+
+# %%
+
+# %%
+
+# %% [markdown]
+# ##### Small spot checks — AG below threshold and SNP-rich genes
+#
+# **A. AG at or below the original threshold.** Check up to three significant AG sites per `EditingDetectedInGene` group, using the highest, middle and lowest frequency/threshold ranks with Chrom/Position tie-breaking.
+# Compare original A/C/T/G counts and G/(A+G) with saved Version 2 values, threshold decisions and BH significance.
+
+# %%
+import numpy as spot_np
+import pandas as spot_pd
+from IPython.display import display as spot_display, Markdown as spot_Markdown
+
+spot_required = ["significant_mismatches_theoretical_fix_df", "concat_all_positions_df",
+                 "snp_noise_level", "max_snps_per_gene_to_allow_editing_detection"]
+spot_missing = [spot_name for spot_name in spot_required if spot_name not in globals()]
+assert not spot_missing, "Missing existing Version 2 inputs: " + ", ".join(spot_missing)
+spot_count_col = "NumOfSuspectedSNPsWithoutACOrATPerChrom"
+spot_disabled_col = "EditingDetectionDisabledInChromDueToSuspectedSNPsWithoutACOrAT"
+spot_keys, spot_bases = ["Chrom", "Position"], ["A", "C", "T", "G"]
+spot_columns = spot_keys + spot_bases + [
+    "RefBase", "AltBase", "RefBaseCount", "AltBaseCount", "Mismatch", "MismatchFrequency",
+    "OldEditingThreshold", "AboveOldEditingThreshold", "BHCorrectedPVal", "BHRejection",
+    "EditingSite", "EditingDetectedInGene", "SuspectedSNP", "SuspectedSNPWoACOrAT",
+    "DefinitiveSNP", spot_count_col, spot_disabled_col,
+]
+spot_missing = sorted(set(spot_columns) - set(significant_mismatches_theoretical_fix_df.columns))
+assert not spot_missing, "Version 2 columns unavailable (do not use Version 1): " + ", ".join(spot_missing)
+spot_missing = sorted(set(spot_keys + spot_bases + ["RefBase"]) - set(concat_all_positions_df.columns))
+assert not spot_missing, "Missing original-count columns: " + ", ".join(spot_missing)
+assert max_snps_per_gene_to_allow_editing_detection == 3, "Expected Version 2 exclusion rule: count > 3"
+spot_v2 = significant_mismatches_theoretical_fix_df[spot_columns].copy()
+spot_v2["spot_unique"] = ~spot_v2.duplicated(spot_keys, keep=False)
+
+
+# %%
+def spot_attach_counts(spot_rows):
+    spot_raw = concat_all_positions_df.loc[
+        concat_all_positions_df["Chrom"].isin(spot_rows["Chrom"]),
+        spot_keys + spot_bases + ["RefBase"],
+    ].copy()
+    spot_raw["spot_source_unique"] = ~spot_raw.duplicated(spot_keys, keep=False)
+    spot_raw = spot_raw.rename(columns={spot_b: "spot_" + spot_b for spot_b in spot_bases + ["RefBase"]})
+    # Keep one source row for reporting; duplicate keys explicitly fail the check.
+    spot_x = spot_rows.merge(spot_raw.drop_duplicates(spot_keys), on=spot_keys, how="left", validate="many_to_one")
+    spot_x["spot_ref"] = sum(spot_x["spot_" + spot_b].where(spot_x["RefBase"].eq(spot_b), 0) for spot_b in spot_bases)
+    spot_x["spot_alt"] = sum(spot_x["spot_" + spot_b].where(spot_x["AltBase"].eq(spot_b), 0) for spot_b in spot_bases)
+    spot_x["spot_f"] = spot_x["spot_alt"] / (spot_x["spot_ref"] + spot_x["spot_alt"])
+    spot_x["spot_counts_ok"] = (
+        (spot_x[spot_bases].to_numpy() == spot_x[["spot_" + spot_b for spot_b in spot_bases]].to_numpy()).all(axis=1)
+        & spot_x["RefBase"].eq(spot_x["spot_RefBase"])
+        & spot_x["RefBaseCount"].eq(spot_x["spot_ref"]) & spot_x["AltBaseCount"].eq(spot_x["spot_alt"])
+    )
+    spot_x["spot_frequency_ok"] = spot_np.isclose(spot_x["spot_f"], spot_x["MismatchFrequency"], rtol=0, atol=1e-12)
+    spot_x["spot_unique"] &= spot_x["spot_source_unique"].eq(True)
+    spot_x["spot_counts"] = spot_x[["spot_" + spot_b for spot_b in spot_bases]].apply(
+        lambda spot_row: "/".join("NA" if spot_pd.isna(spot_n) else f"{spot_n:g}" for spot_n in spot_row), axis=1)
+    return spot_x
+
+spot_ag_pool = spot_v2.loc[spot_v2["Mismatch"].eq("A>G") & spot_v2["MismatchFrequency"].le(spot_v2["OldEditingThreshold"])].copy()
+spot_ag_pool["spot_ratio"] = spot_ag_pool["MismatchFrequency"] / spot_ag_pool["OldEditingThreshold"].where(spot_ag_pool["OldEditingThreshold"].gt(0))
+
+# %%
+spot_ag_indices = []
+for spot_group in [True, False]:
+    spot_ranked = spot_ag_pool.loc[spot_ag_pool["EditingDetectedInGene"].eq(spot_group)].sort_values(
+        ["spot_ratio", "Chrom", "Position"], ascending=[False, True, True], na_position="last")
+    # Nonpositive thresholds remain eligible; undefined ratios sort last by site key.
+    spot_ranked = spot_ranked.drop_duplicates(spot_keys)
+    if len(spot_ranked):
+        spot_ag_indices.extend(spot_ranked.index[sorted({0, (len(spot_ranked) - 1) // 2, len(spot_ranked) - 1})])
+spot_ag = spot_attach_counts(spot_ag_pool.loc[spot_ag_indices])
+spot_ag["spot_f"] = spot_ag["spot_G"] / (spot_ag["spot_A"] + spot_ag["spot_G"])
+spot_ag_checks = spot_pd.DataFrame({
+    "unique site": spot_ag["spot_unique"], "saved counts": spot_ag["spot_counts_ok"],
+    "saved frequency": spot_np.isclose(spot_ag["spot_f"], spot_ag["MismatchFrequency"], rtol=0, atol=1e-12),
+    "reference A / alternate G": spot_ag["RefBase"].eq("A") & spot_ag["spot_RefBase"].eq("A") & spot_ag["AltBase"].eq("G"),
+    "G supported and leading": spot_ag["spot_G"].gt(0) & spot_ag["spot_G"].ge(spot_ag[["spot_C", "spot_T"]].max(axis=1)),
+    "f <= original threshold": spot_ag["spot_f"].le(spot_ag["OldEditingThreshold"]),
+    "strict threshold flag": spot_ag["AboveOldEditingThreshold"].eq(False),
+    "no editing call": spot_ag["EditingSite"].eq(False),
+    "saved BH significance": spot_ag["BHRejection"].eq(True) & spot_ag["BHCorrectedPVal"].between(0, 0.05),
+})
+spot_ag["Check"] = spot_ag_checks.apply(
+    lambda spot_row: "PASS" if spot_row.all() else "FAIL: " + ", ".join(spot_row.index[~spot_row]), axis=1)
+spot_ag["Check"] += spot_np.where(
+    spot_ag["spot_G"].eq(spot_ag[["spot_C", "spot_T"]].max(axis=1)), "; G tied with C/T", "")
+
+# %%
+spot_ag_table = spot_ag.assign(**{
+    "Editing in gene?": spot_ag["EditingDetectedInGene"].map({True: "Yes", False: "No"}),
+    "A/C/T/G": spot_ag["spot_counts"], "Computed f (%)": spot_ag["spot_f"].mul(100).map("{:.4f}".format),
+    "Original threshold (%)": spot_ag["OldEditingThreshold"].mul(100).map("{:.4f}".format),
+    "BH-adjusted p": spot_ag["BHCorrectedPVal"].map("{:.2e}".format),
+})[["Chrom", "Position", "Editing in gene?", "A/C/T/G", "Computed f (%)", "Original threshold (%)", "BH-adjusted p", "Check"]]
+spot_display(spot_ag_table.reset_index(drop=True))
+spot_ag_failures = int((~spot_ag_checks.all(axis=1)).sum())
+spot_ag_valid = int(spot_ag_checks[["reference A / alternate G", "G supported and leading", "f <= original threshold"]].all(axis=1).sum())
+spot_display(spot_Markdown(
+    f"{spot_ag_valid}/{len(spot_ag)} sampled sites contain supported AG at or below the original threshold. "
+    f"Computational mismatches: {spot_ag_failures}; any failed rule is shown in the table."
+))
+
+# %% [markdown]
+# **B. SNP-rich genes.** Select the highest saved non-AC/AT suspected-SNP count and a different gene nearest the median among genes with counts >3, breaking ties by Chrom.
+# Recount all existing significant mismatches in those genes from original counts and frozen alternate bases, separating suspected AC/AT and `DefinitiveSNP` sites and checking that exclusion prevents editing calls.
+
+# %%
+spot_gene_counts = spot_v2.groupby("Chrom")[spot_count_col].first().sort_index()
+spot_rejected = spot_gene_counts.loc[spot_gene_counts.gt(3)]
+spot_selected_genes = []
+if len(spot_rejected):
+    spot_selected_genes.append(spot_rejected.sort_values(ascending=False, kind="stable").index[0])
+    spot_remaining = spot_rejected.drop(spot_selected_genes)
+    if len(spot_remaining):
+        spot_selected_genes.append((spot_remaining - spot_rejected.median()).abs().sort_values(kind="stable").index[0])
+spot_snp = spot_attach_counts(spot_v2.loc[spot_v2["Chrom"].isin(spot_selected_genes)])
+spot_snp["spot_acat"] = spot_snp["Mismatch"].isin(["A>C", "A>T"])
+spot_snp["spot_suspected"] = spot_snp["Mismatch"].ne("A>G") & spot_snp["spot_f"].ge(snp_noise_level) & spot_snp["spot_f"].lt(1)
+spot_snp["spot_counted"] = spot_snp["spot_suspected"] & ~spot_snp["spot_acat"]
+spot_snp["spot_acat_suspected"] = spot_snp["spot_suspected"] & spot_snp["spot_acat"]
+spot_snp["spot_definitive"] = spot_snp["spot_f"].eq(1)
+spot_snp_checks = spot_pd.DataFrame({
+    "unique site": spot_snp["spot_unique"], "saved counts": spot_snp["spot_counts_ok"],
+    "saved frequency": spot_snp["spot_frequency_ok"],
+    "frozen mismatch": spot_snp["Mismatch"].eq(spot_snp["RefBase"] + ">" + spot_snp["AltBase"]),
+    "SuspectedSNP": spot_snp["SuspectedSNP"].eq(spot_snp["spot_suspected"]),
+    "SuspectedSNPWoACOrAT": spot_snp["SuspectedSNPWoACOrAT"].eq(spot_snp["spot_counted"]),
+    "DefinitiveSNP": spot_snp["DefinitiveSNP"].eq(spot_snp["spot_definitive"]),
+    "saved BH significance": spot_snp["BHRejection"].eq(True) & spot_snp["BHCorrectedPVal"].between(0, 0.05),
+    "gene excluded": spot_snp[spot_disabled_col].eq(True),
+    "no editing call": spot_snp["EditingSite"].eq(False) & spot_snp["EditingDetectedInGene"].eq(False),
+})
+
+# %%
+spot_snp["spot_failure"] = spot_snp_checks.apply(
+    lambda spot_row: ", ".join(spot_row.index[~spot_row]), axis=1)
+spot_summary_rows = []
+for spot_chrom in spot_selected_genes:
+    spot_gene = spot_snp.loc[spot_snp["Chrom"].eq(spot_chrom)]
+    spot_saved = int(spot_gene_counts.loc[spot_chrom])
+    spot_recount = spot_gene.loc[spot_gene["spot_counted"], spot_keys].drop_duplicates().shape[0]
+    spot_failed = spot_gene.loc[spot_gene["spot_failure"].ne("")].sort_values("Position")
+    spot_issues = []
+    if not spot_gene[spot_count_col].eq(spot_saved).all():
+        spot_issues.append("inconsistent saved gene count")
+    if spot_recount != spot_saved:
+        spot_issues.append("saved count != unique recount")
+    if not spot_failed.empty:
+        spot_first = spot_failed.iloc[0]
+        spot_issues.append(f"Position {spot_first['Position']}: {spot_first['spot_failure']}")
+    spot_summary_rows.append({
+        "Chrom": spot_chrom, "Saved exclusion count": spot_saved, "Recount": spot_recount,
+        "Suspected AC/AT": spot_gene.loc[spot_gene["spot_acat_suspected"], spot_keys].drop_duplicates().shape[0],
+        "DefinitiveSNP": spot_gene.loc[spot_gene["spot_definitive"], spot_keys].drop_duplicates().shape[0],
+        "V2 editing sites": spot_gene.loc[spot_gene["EditingSite"], spot_keys].drop_duplicates().shape[0],
+        "Check": "FAIL: " + "; ".join(spot_issues) if spot_issues else "PASS",
+    })
+spot_summary = spot_pd.DataFrame(spot_summary_rows, columns=[
+    "Chrom", "Saved exclusion count", "Recount", "Suspected AC/AT", "DefinitiveSNP", "V2 editing sites", "Check"])
+spot_display(spot_summary)
+
+# %%
+spot_example_indices = []
+for spot_chrom in spot_selected_genes:
+    spot_gene = spot_snp.loc[spot_snp["Chrom"].eq(spot_chrom)].drop_duplicates(spot_keys)
+    spot_counted = spot_gene.loc[spot_gene["spot_counted"]].sort_values(["spot_f", "Position"])
+    spot_excluded = spot_gene.loc[spot_gene["spot_acat_suspected"] | spot_gene["spot_definitive"]].sort_values("Position")
+    spot_reserved = list(spot_excluded.head(1).index)
+    # A failed site takes one display slot without changing gene selection or counts.
+    spot_failed = spot_gene.loc[spot_gene["spot_failure"].ne("")].sort_values("Position")
+    spot_reserved = list(dict.fromkeys(list(spot_failed.head(1).index) + spot_reserved))
+    spot_counted = spot_counted.drop(index=spot_reserved, errors="ignore")
+    spot_n = min(5 - len(spot_reserved), len(spot_counted))
+    if spot_n:
+        spot_example_indices.extend(spot_counted.index[spot_np.linspace(0, len(spot_counted) - 1, spot_n, dtype=int)])
+    spot_example_indices.extend(spot_reserved)
+spot_examples = spot_snp.loc[spot_example_indices].copy()
+spot_examples["Counted for exclusion?"] = spot_np.select(
+    [spot_examples["spot_counted"], spot_examples["spot_definitive"], spot_examples["spot_acat_suspected"]],
+    ["Yes", "No: f = 1 (DefinitiveSNP)", "No: suspected AC/AT"], default="No: outside suspected-SNP rule")
+spot_examples["Counted for exclusion?"] += spot_examples["spot_failure"].map(
+    lambda spot_text: "; FAIL: " + spot_text if spot_text else "")
+spot_example_table = spot_examples.assign(**{
+    "A/C/T/G": spot_examples["spot_counts"], "Computed f (%)": spot_examples["spot_f"].mul(100).map("{:.4f}".format),
+})[["Chrom", "Position", "Mismatch", "A/C/T/G", "Computed f (%)", "Counted for exclusion?"]]
+spot_display(spot_example_table.reset_index(drop=True))
+
+# %%
+spot_snp_failures = int(spot_summary["Check"].str.startswith("FAIL").sum())
+spot_findings = ("No computational mismatches were found." if spot_ag_failures + spot_snp_failures == 0
+                 else f"Mismatches affected {spot_ag_failures} AG examples and {spot_snp_failures} genes; failed rules are shown above.")
+spot_display(spot_Markdown(
+    f"Checked {len(spot_ag)} AG examples and all {len(spot_snp)} significant mismatch rows in "
+    f"{len(spot_selected_genes)} SNP-rich genes against original counts. {spot_findings} "
+    "This limited count-consistency check does not include visual alignment review or genomic validation of SNPs. "
+    "It does not establish biological editing."
+))
+
+# %% [markdown]
+# ##### Version 2b plots - 17.9.26
+
+# %%
+# original version 2, plot 3 --> version 2b, plot 1
+
+df = (
+    significant_mismatches_theoretical_fix_df.loc[
+        significant_mismatches_theoretical_fix_df["MismatchFrequency1"]
+    ]
+    .groupby(["Mismatch"]).size()
+    .reset_index(name="Count")
+    .assign(
+        Percentage=lambda x: 100 * x["Count"] / x["Count"].sum()
+    )
+)
+assert df["Percentage"].sum() == 100
+
+title = "Mismatches at 100% mismatch frequency"
+
+fig = px.bar(
+    df,
+    x="Mismatch",
+    y="Percentage",
+    color="Mismatch",
+    color_discrete_map=mismatch_dolor_map,
+    # facet_col="EditingDetectedInGene",
+    # facet_col_spacing=0.04,
+    # facet_row="MismatchFrequency1",
+    # facet_row_spacing=0.08,
+    # log_y=True,
+    template=template,
+    category_orders={
+        "Mismatch": mismatches,
+        # "EditingDetectedInGene": [True, False],
+    },
+    title=title,
+    text_auto=True
+)
+
+width = 700
+height = 400
+
+
+fig.update_xaxes(tickangle=35)
+fig.update_yaxes(dtick=5)
+
+fig.update_traces(texttemplate='%{y:.1f}')
+
+fig.update_layout(
+    width=width,
+    height=height,
+    showlegend=False
+)
+
+# fig.write_image(
+#     Path(out_dir, "12 npn-SNP mismatches distribution - absolute - combined.svg"),
+#     width=width,
+#     height=height,
+# )
+
+display(
+    df.loc[
+        df["Mismatch"].isin(["A>G", "G>A"])
+    ].round(1)
+    .reset_index(drop=True)
+    # .set_index(["EditingDetectedInGene", "MismatchFrequency1", "Mismatch"])
+)
+
+fig.show()
+
+# %%
+# original version 2, plot 3 --> version 2b, plot 2
+
+df = (
+    significant_mismatches_theoretical_fix_df.loc[
+        (
+            significant_mismatches_theoretical_fix_df["AtOrAboveSuspectedSNPLevel"]
+            & ~significant_mismatches_theoretical_fix_df["MismatchFrequency1"]
+        )
+    ]
+    .groupby(["EditingDetectionDisabledInChromDueToSuspectedSNPsWithoutACOrAT", "Mismatch"]).size()
+    .reset_index(name="Count")
+    .assign(
+        Percentage=lambda x:
+            100 * x["Count"] / x.groupby(["EditingDetectionDisabledInChromDueToSuspectedSNPsWithoutACOrAT",])["Count"].transform("sum")
+    )
+)
+
+title = "Mismatches at or above suspected SNP threshold, but below 100% mismatch frequency"
+
+fig = px.bar(
+    df,
+    x="Mismatch",
+    y="Percentage",
+    color="Mismatch",
+    color_discrete_map=mismatch_dolor_map,
+    facet_col="EditingDetectionDisabledInChromDueToSuspectedSNPsWithoutACOrAT",
+    facet_col_spacing=0.04,
+    # facet_row="MismatchFrequency1",
+    # facet_row_spacing=0.08,
+    # log_y=True,
+    template=template,
+    category_orders={
+        "Mismatch": mismatches,
+        "EditingDetectionDisabledInChromDueToSuspectedSNPsWithoutACOrAT": [False, True],
+    },
+    title=title,
+    text_auto=True
+)
+
+width = 1150
+height = 400
+
+# fig.for_each_annotation(
+#     lambda a: a.update(
+#         text="Genes with editing detection disabled (4+ suspected SNPs)" if a.text == "EditingDetectionDisabledInChromDueToSuspectedSNPsWithoutACOrAT=True" else
+#         "Genes with editing detection enabled (≤ 3 suspected SNPs)" if a.text == "EditingDetectionDisabledInChromDueToSuspectedSNPsWithoutACOrAT=False" else  a.text
+#     )
+# )
+# fig.for_each_annotation(
+#     lambda a: a.update(
+#         text="Genes with 4+ suspected SNPs (editing detection disabled)" if a.text == "EditingDetectionDisabledInChromDueToSuspectedSNPsWithoutACOrAT=True" else
+#         "Genes with ≤ 3 suspected SNPs (editing detection enabled)" if a.text == "EditingDetectionDisabledInChromDueToSuspectedSNPsWithoutACOrAT=False" else  a.text
+#     )
+# )
+fig.for_each_annotation(
+    lambda a: a.update(
+        text="Genes with 4+ suspected SNPs (editing detection disabled)" if a.text == "EditingDetectionDisabledInChromDueToSuspectedSNPsWithoutACOrAT=True" else
+        "Genes with at most 3 suspected SNPs (editing detection enabled)" if a.text == "EditingDetectionDisabledInChromDueToSuspectedSNPsWithoutACOrAT=False" else  a.text
+    )
+)
+
+fig.update_xaxes(tickangle=35)
+fig.update_yaxes(dtick=10)
+
+fig.update_traces(texttemplate='%{y:.1f}')
+
+fig.update_layout(
+    width=width,
+    height=height,
+    showlegend=False
+)
+
+# fig.write_image(
+#     Path(out_dir, "12 npn-SNP mismatches distribution - absolute - combined.svg"),
+#     width=width,
+#     height=height,
+# )
+
+display(
+    df.loc[
+        df["Mismatch"].isin(["A>G", "G>A"])
+    ].round(1)
+    .reset_index(drop=True)
+    # .set_index(["EditingDetectedInGene", "MismatchFrequency1", "Mismatch"])
+)
+
+fig.show()
+
+# %%
+# original version 2, plot 1 --> version 2b, plot 3
+
+
+df = (
+    significant_mismatches_theoretical_fix_df.loc[
+        (
+            ~significant_mismatches_theoretical_fix_df["EditingDetectionDisabledInChromDueToSuspectedSNPsWithoutACOrAT"]
+            & ~significant_mismatches_theoretical_fix_df["AboveOldEditingThreshold"]
+        )
+    ]
+    .groupby(["Mismatch"]).size()
+    .reset_index(name="Count")
+    .assign(
+        Percentage=lambda x:
+            100 * x["Count"] / x["Count"].sum()
+    )
+)
+
+title = "Mismatches at or below editing threshold"
+subtitle = "Only genes with at most 3 suspected SNPs are included (editing detection enabled)"
+
+fig = px.bar(
+    df,
+    x="Mismatch",
+    y="Percentage",
+    color="Mismatch",
+    color_discrete_map=mismatch_dolor_map,
+    # facet_col="EditingDetectedInGene",
+    # facet_col_spacing=0.04,
+    # log_y=True,
+    template=template,
+    category_orders={
+        "Mismatch": mismatches,
+        # "EditingDetectedInGene": [True, False],
+    },
+    title=title,
+    subtitle=subtitle,
+    text_auto=True
+)
+
+width = 700
+height = 400
+
+fig.update_xaxes(tickangle=35)
+fig.update_yaxes(dtick=10)
+
+fig.update_traces(texttemplate='%{y:.1f}')
+
+fig.update_layout(
+    width=width,
+    height=height,
+    showlegend=False
+)
+
+# fig.write_image(
+#     Path(out_dir, "12 npn-SNP mismatches distribution - absolute - combined.svg"),
+#     width=width,
+#     height=height,
+# )
+
+display(
+    df.loc[
+        df["Mismatch"].isin(["A>G", "G>A"])
+    ].round(1)
+    .reset_index(drop=True)
+)
+
+fig.show()
+
+# %%
+# original version 2, plot 2 --> version 2b, plot 4
+
+
+df = (
+        significant_mismatches_theoretical_fix_df.loc[
+        (
+            significant_mismatches_theoretical_fix_df["AboveOldEditingThreshold"]
+            & ~significant_mismatches_theoretical_fix_df["AtOrAboveSuspectedSNPLevel"]
+            & ~significant_mismatches_theoretical_fix_df["EditingDetectionDisabledInChromDueToSuspectedSNPsWithoutACOrAT"]
+        )
+    ]
+    .groupby(["Mismatch"]).size()
+    .reset_index(name="Count")
+    .assign(
+        Percentage=lambda x:
+            100 * x["Count"] / x["Count"].sum()
+    )
+)
+
+title = "Mismatches above editing threshold, but below suspected SNP threshold"
+subtitle = "Only genes with at most 3 suspected SNPs are included (editing detection enabled)"
+
+fig = px.bar(
+    df,
+    x="Mismatch",
+    y="Percentage",
+    color="Mismatch",
+    color_discrete_map=mismatch_dolor_map,
+    # facet_col="EditingDetectedInGene",
+    # facet_col_spacing=0.04,
+    # log_y=True,
+    template=template,
+    category_orders={
+        "Mismatch": mismatches,
+        # "EditingDetectedInGene": [True, False],
+    },
+    title=title,
+    subtitle=subtitle,
+    text_auto=True
+)
+
+width = 700
+height = 400
+
+fig.update_xaxes(tickangle=35)
+fig.update_yaxes(dtick=10)
+
+fig.update_traces(texttemplate='%{y:.1f}')
+
+fig.update_layout(
+    width=width,
+    height=height,
+    showlegend=False
+)
+
+# fig.write_image(
+#     Path(out_dir, "12 npn-SNP mismatches distribution - absolute - combined.svg"),
+#     width=width,
+#     height=height,
+# )
+
+display(
+    df.loc[
+        df["Mismatch"].isin(["A>G", "G>A"])
+    ].round(1)
+    .reset_index(drop=True)
+)
+
+fig.show()
+
+# %%
+#  version 2b, plot 5 (plots 2+4 in this version)
+
+df = (
+        significant_mismatches_theoretical_fix_df.loc[
+        (
+            significant_mismatches_theoretical_fix_df["AboveOldEditingThreshold"]
+            & ~significant_mismatches_theoretical_fix_df["MismatchFrequency1"]
+            & ~significant_mismatches_theoretical_fix_df["EditingDetectionDisabledInChromDueToSuspectedSNPsWithoutACOrAT"]
+        )
+    ]
+    .groupby(["Mismatch"]).size()
+    .reset_index(name="Count")
+    .assign(
+        Percentage=lambda x:
+            100 * x["Count"] / x["Count"].sum()
+    )
+)
+
+title = "Mismatches above editing threshold, but below 100% mismatch frequency"
+subtitle = "Only genes with at most 3 suspected SNPs are included (editing detection enabled)"
+
+fig = px.bar(
+    df,
+    x="Mismatch",
+    y="Percentage",
+    color="Mismatch",
+    color_discrete_map=mismatch_dolor_map,
+    # facet_col="EditingDetectedInGene",
+    # facet_col_spacing=0.04,
+    # log_y=True,
+    template=template,
+    category_orders={
+        "Mismatch": mismatches,
+        # "EditingDetectedInGene": [True, False],
+    },
+    title=title,
+    subtitle=subtitle,
+    text_auto=True
+)
+
+width = 700
+height = 400
+
+fig.update_xaxes(tickangle=35)
+fig.update_yaxes(dtick=10)
+
+fig.update_traces(texttemplate='%{y:.1f}')
+
+fig.update_layout(
+    width=width,
+    height=height,
+    showlegend=False
+)
+
+# fig.write_image(
+#     Path(out_dir, "12 npn-SNP mismatches distribution - absolute - combined.svg"),
+#     width=width,
+#     height=height,
+# )
+
+display(
+    df.loc[
+        df["Mismatch"].isin(["A>G", "G>A"])
+    ].round(1)
+    .reset_index(drop=True)
+)
+
+fig.show()
+
+# %%
+
+# %% [markdown]
+# ###### Export for combined plots
+#
+# Use the prepared `significant_mismatches_theoretical_fix_df` from Version 2 (`b97a248b`, `18f28a7f`), the same table used by Version 2b plots `d2d166df`, `2abcc7d5`, `234b5ae6`, `c6c8b222`, `4ea0791b`. Run only the cells below to export that state; no figure cell, historical reconstruction, raw positions/noise reload, or new BH calculation is needed.
+#
+# Decisions and mismatch choices are copied unchanged. The saved threshold is `OldEditingThreshold`. Missing positions represented upstream by technical zero coverage remain outside this significant population.
+#
+# The read-back checks compare full site identities, decisions and all twelve counts in each of six panels. Float comparisons are diagnostics only. A default-parser read is compared with a round-trip read to distinguish parser effects from changed source values or decisions. Older run provenance cannot be inferred from a matching total alone.
+#
+
+# %%
+from pathlib import Path
+import gzip
+import os
+
+import numpy as np
+import pandas as pd
+from IPython.display import display
+
+mm12_octopus_out = Path(
+    "/private6/projects/Combinatorics/Code/Notebooks/12mm/v2/positions/octopus/"
+    "TMR50.Version2b.12mm.positions.csv.gz"
+)
+mm12_pending_path = Path(str(mm12_octopus_out) + ".pending")
+mm12_disabled_col = "EditingDetectionDisabledInChromDueToSuspectedSNPsWithoutACOrAT"
+mm12_source_cols = [
+    "Transcript", "Chrom", "Position", "RefBase", "AltBase", "Mismatch",
+    "A", "T", "C", "G", "TotalCoverage", "RefBaseCount", "AltBaseCount",
+    "MismatchFrequency", "OldEditingThreshold", "AboveOldEditingThreshold",
+    "AtOrAboveSuspectedSNPLevel", "MismatchFrequency1", mm12_disabled_col,
+    "BHRejection", "EditingSite",
+]
+
+
+# %%
+# The copy is the source for this export, including the existing Version 2b decisions.
+mm12_source_df = significant_mismatches_theoretical_fix_df[mm12_source_cols].copy()
+if Path(main_data_dir).name != "IsoSeq.Polished.Unclustered.TotalCoverage50.PooledSamples":
+    raise ValueError("Expected the pooled TMR50 Version 2b source directory.")
+if not mm12_source_df["BHRejection"].eq(True).all():
+    raise ValueError("Version 2b requires the existing significant population.")
+if not mm12_source_df["Chrom"].isin(tmr50_alignment_stats_df["Chrom"]).all():
+    raise ValueError("The export contains genes outside TMR50.")
+if snp_noise_level != 0.05 or max_snps_per_gene_to_allow_editing_detection != 3:
+    raise ValueError("Expected the existing Version 2b SNP settings.")
+if not np.isfinite(mm12_source_df[["MismatchFrequency", "OldEditingThreshold"]]).all().all():
+    raise ValueError("A source frequency or original threshold is missing.")
+mm12_source_df = mm12_source_df.assign(
+    Dataset="Octopus", Species="O. vulgaris", Platform="PacBio", Sample="Pooled",
+    Gene=mm12_source_df["Transcript"], SNPThreshold=0.05,
+    ObservedMismatch=mm12_source_df["AltBaseCount"].gt(0),
+    AnalysisEligible=mm12_source_df["BHRejection"],
+)
+if not mm12_source_df["ObservedMismatch"].all():
+    raise ValueError("The Version 2b source unexpectedly contains an unobserved mismatch.")
+
+
+# %%
+def mm12_panel_masks(positions_df):
+    """Use producer decisions for the six panel populations."""
+    base = positions_df["AnalysisEligible"] & positions_df["ObservedMismatch"]
+    passed = ~positions_df["EditingDetectionDisabledInChromDueToSuspectedSNPsWithoutACOrAT"]
+    above = positions_df["AboveOldEditingThreshold"]
+    snp_level = positions_df["AtOrAboveSuspectedSNPLevel"]
+    complete = positions_df["MismatchFrequency1"]
+    return {
+        "1": base & complete,
+        "2 Passed": base & snp_level & ~complete & passed,
+        "2 Excluded": base & snp_level & ~complete & ~passed,
+        "3": base & passed & ~above,
+        "4": base & passed & above & ~snp_level,
+        "5": base & passed & above & ~complete,
+    }
+
+
+
+# %%
+mm12_transfer_keys = ["Dataset", "Platform", "Sample", "Chrom", "Position"]
+mm12_transfer_flags = [
+    "AboveOldEditingThreshold", "AtOrAboveSuspectedSNPLevel", "MismatchFrequency1",
+    "EditingDetectionDisabledInChromDueToSuspectedSNPsWithoutACOrAT",
+    "ObservedMismatch", "AnalysisEligible", "EditingSite",
+]
+mm12_transfer_flags += ["BHRejection"]
+mm12_categories = ["Species", "Gene", "Transcript", "RefBase", "AltBase", "Mismatch"]
+mm12_count_cols = ["A", "T", "C", "G", "TotalCoverage", "RefBaseCount", "AltBaseCount"]
+mm12_mismatches = sorted(f"{ref}>{alt}" for ref in "ATCG" for alt in "ATCG" if ref != alt)
+if mm12_source_df[mm12_transfer_keys].isna().any().any() or mm12_source_df.duplicated(mm12_transfer_keys).any():
+    raise ValueError("The export source has missing or duplicate site keys.")
+for mm12_col in mm12_transfer_flags:
+    if not pd.api.types.is_bool_dtype(mm12_source_df[mm12_col]) or mm12_source_df[mm12_col].isna().any():
+        raise ValueError(f"The source requires explicit, nonmissing Boolean decisions: {mm12_col}")
+mm12_source_df = mm12_source_df.set_index(mm12_transfer_keys).sort_index()
+mm12_source_masks = mm12_panel_masks(mm12_source_df)
+mm12_ag_sites = mm12_source_masks["5"] & mm12_source_df["Mismatch"].eq("A>G")
+mm12_editing_sites = (
+    mm12_source_df["AnalysisEligible"] & mm12_source_df["ObservedMismatch"]
+    & mm12_source_df["EditingSite"]
+)
+if not mm12_source_df.index[mm12_ag_sites].equals(mm12_source_df.index[mm12_editing_sites]):
+    display(mm12_source_df.loc[mm12_ag_sites ^ mm12_editing_sites].reset_index().head(20))
+    raise ValueError("Graph 5 A>G identities disagree with EditingSite in the source scheme.")
+
+
+# %% [markdown]
+# ###### Save and check the transfer
+#
+# Write the new gzip file exclusively as `.pending`, then read it back before publishing the final filename. Failed checks leave the pending file for inspection; the plotting notebook never loads it. Both pending and final paths must be unused. No existing file is replaced.
+#
+# The historical reconstruction cells removed from this export, including their saved outputs, remain in the task backup `.codex/task_backups/12mm/20260923T104321.599240Z/`. Squid retains its separate original-threshold acceptance check.
+#
+
+# %%
+mm12_transfer_verified = False
+for mm12_path in [mm12_octopus_out, mm12_pending_path]:
+    if mm12_path.exists():
+        raise FileExistsError(f"Refusing to overwrite: {mm12_path}")
+mm12_octopus_out.parent.mkdir(parents=True, exist_ok=True)
+with gzip.open(mm12_pending_path, "xt", encoding="utf-8", newline="") as mm12_handle:
+    mm12_source_df.reset_index().to_csv(mm12_handle, sep="\t", index=False)
+mm12_loaded_df = pd.read_csv(
+    mm12_pending_path, sep="\t", compression="gzip", float_precision="round_trip",
+    dtype={col: "boolean" for col in mm12_transfer_flags},
+)
+# This second parser is used only to diagnose changes in the numeric comparison.
+mm12_default_df = pd.read_csv(
+    mm12_pending_path, sep="\t", compression="gzip",
+    usecols=mm12_transfer_keys + ["MismatchFrequency", "OldEditingThreshold"],
+)
+
+
+# %%
+# Compare discrete values exactly; numerical threshold diagnostics are separate below.
+if mm12_loaded_df[mm12_transfer_keys].isna().any().any() or mm12_loaded_df.duplicated(mm12_transfer_keys).any():
+    raise ValueError("Read-back has missing or duplicate site keys; no files are published.")
+mm12_loaded_df = mm12_loaded_df.set_index(mm12_transfer_keys).sort_index()
+mm12_missing_sites = mm12_source_df.index.difference(mm12_loaded_df.index)
+mm12_extra_sites = mm12_loaded_df.index.difference(mm12_source_df.index)
+if len(mm12_missing_sites) or len(mm12_extra_sites):
+    display(mm12_missing_sites.to_frame(index=False).head(20), mm12_extra_sites.to_frame(index=False).head(20))
+    raise ValueError("Source/read-back populations differ; inspect inputs or run state before plotting.")
+mm12_compare_cols = mm12_categories + mm12_count_cols + mm12_transfer_flags
+mm12_same = (
+    mm12_source_df[mm12_compare_cols].eq(mm12_loaded_df[mm12_compare_cols])
+    | (mm12_source_df[mm12_compare_cols].isna() & mm12_loaded_df[mm12_compare_cols].isna())
+).fillna(False)
+mm12_transfer_differences_df = mm12_source_df.loc[~mm12_same.all(axis=1), mm12_compare_cols].join(
+    mm12_loaded_df.loc[~mm12_same.all(axis=1), mm12_compare_cols], lsuffix="_source", rsuffix="_read"
+)
+if not mm12_transfer_differences_df.empty:
+    display(mm12_transfer_differences_df.reset_index().head(20))
+    raise ValueError("Source decisions, categories or counts changed in transfer; no files are published.")
+
+
+# %%
+mm12_loaded_masks = mm12_panel_masks(mm12_loaded_df)
+mm12_count_index = pd.MultiIndex.from_product(
+    [mm12_source_df.index.get_level_values("Dataset").unique(), mm12_mismatches],
+    names=["Dataset", "Mismatch"],
+)
+mm12_transfer_counts_dfs = []
+for mm12_panel, mm12_mask in mm12_source_masks.items():
+    mm12_read_mask = mm12_loaded_masks[mm12_panel]
+    mm12_source_sites = mm12_source_df.index[mm12_mask]
+    mm12_read_sites = mm12_loaded_df.index[mm12_read_mask]
+    if not mm12_source_sites.equals(mm12_read_sites):
+        display(mm12_source_sites.symmetric_difference(mm12_read_sites).to_frame(index=False).head(20))
+        raise ValueError(f"Panel {mm12_panel}: source/read-back site identities differ.")
+    mm12_counts_df = pd.DataFrame({
+        "Source": mm12_source_df.loc[mm12_mask].groupby(["Dataset", "Mismatch"]).size().reindex(mm12_count_index, fill_value=0),
+        "ReadBack": mm12_loaded_df.loc[mm12_read_mask].groupby(["Dataset", "Mismatch"]).size().reindex(mm12_count_index, fill_value=0),
+    })
+    assert mm12_counts_df["Source"].eq(mm12_counts_df["ReadBack"]).all(), mm12_panel
+    mm12_counts_df["Panel"] = mm12_panel
+    mm12_transfer_counts_dfs.append(mm12_counts_df.reset_index())
+mm12_transfer_counts_df = pd.concat(mm12_transfer_counts_dfs, ignore_index=True)
+display(mm12_transfer_counts_df.groupby(["Dataset", "Panel"], sort=False)[["Source", "ReadBack"]].sum())
+# The full twelve-category integer count table remains available above.
+
+
+# %%
+# Diagnose parser changes separately from source population/decision changes.
+# The default-parser table is never used for plotting or filter decisions.
+mm12_default_df = mm12_default_df.set_index(mm12_transfer_keys).sort_index()
+mm12_numeric_cols = ["MismatchFrequency", "OldEditingThreshold"]
+mm12_saved_decision = mm12_source_df["AboveOldEditingThreshold"]
+mm12_source_numeric = mm12_source_df["MismatchFrequency"].gt(mm12_source_df["OldEditingThreshold"])
+mm12_read_numeric = mm12_loaded_df["MismatchFrequency"].gt(mm12_loaded_df["OldEditingThreshold"])
+mm12_default_numeric = mm12_default_df["MismatchFrequency"].gt(mm12_default_df["OldEditingThreshold"])
+mm12_numeric_same = (
+    mm12_source_df[mm12_numeric_cols].eq(mm12_loaded_df[mm12_numeric_cols])
+    | (mm12_source_df[mm12_numeric_cols].isna() & mm12_loaded_df[mm12_numeric_cols].isna())
+).all(axis=1)
+mm12_diagnostic_mask = (
+    ~mm12_numeric_same | mm12_saved_decision.ne(mm12_read_numeric)
+    | mm12_saved_decision.ne(mm12_default_numeric) | mm12_saved_decision.ne(mm12_source_numeric)
+)
+mm12_float_differences_df = mm12_source_df.loc[mm12_diagnostic_mask, ["Mismatch"]].copy()
+for mm12_label, mm12_frame in [
+    ("Source", mm12_source_df), ("RoundTripRead", mm12_loaded_df), ("DefaultRead", mm12_default_df),
+]:
+    for mm12_col in mm12_numeric_cols:
+        mm12_float_differences_df[f"{mm12_label}_{mm12_col}"] = mm12_frame.loc[mm12_diagnostic_mask, mm12_col]
+mm12_float_differences_df["SavedDecision"] = mm12_saved_decision.loc[mm12_diagnostic_mask]
+mm12_float_differences_df["SourceNumericDecision"] = mm12_source_numeric.loc[mm12_diagnostic_mask]
+mm12_float_differences_df["RoundTripNumericDecision"] = mm12_read_numeric.loc[mm12_diagnostic_mask]
+mm12_float_differences_df["DefaultNumericDecision"] = mm12_default_numeric.loc[mm12_diagnostic_mask]
+mm12_float_differences_df["RoundTripValuesChanged"] = ~mm12_numeric_same.loc[mm12_diagnostic_mask]
+if not mm12_float_differences_df.empty:
+    with pd.option_context("display.float_format", lambda value: format(value, ".17g")):
+        display(mm12_float_differences_df.reset_index().head(20))
+    print("Float/source-state differences are diagnostic only; the saved decisions remain authoritative.")
+
+mm12_transfer_verified = True
+
+
+# %%
+assert mm12_transfer_verified, "Complete all transfer checks before publishing."
+# Hard-link publication is exclusive: a concurrent existing target also causes an error.
+os.link(mm12_pending_path, mm12_octopus_out)
+mm12_pending_path.unlink()  # Remove only this successful export's temporary name.
+print(mm12_octopus_out)
+
 
 # %% [markdown] papermill={"duration": 0.02598, "end_time": "2022-02-01T09:42:46.438342", "exception": false, "start_time": "2022-02-01T09:42:46.412362", "status": "completed"}
 # ## Reads
