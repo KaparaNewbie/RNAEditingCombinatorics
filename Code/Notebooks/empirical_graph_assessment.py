@@ -41,6 +41,7 @@ pd.set_option("display.max_columns", 500)
 
 # %%
 out_dir = Path("/private7/projects/Combinatorics/Simulations/GraphAssessment")
+plots_out_dir = Path("/private6/projects/Combinatorics/Code/Notebooks")
 distinct_files_dir = Path(
     "/private7/projects/Combinatorics/Simulations/GraphAssessment/SameFrac"
 )
@@ -427,12 +428,36 @@ fig.update_layout(
 )
 
 fig.write_image(
-    "Graph assessment - distinct proteins recovered vs num of reads.svg",
+    Path(
+        plots_out_dir,
+        "Graph assessment - distinct proteins recovered vs num of reads.svg",
+    ),
     width=width,
     height=height,
 )
 
 fig.show()
+
+# %%
+# Save original S16a summaries, mock-gene identities and simulation settings.
+from pathlib import Path
+figure_s16_identity = {'comp141434_c0_seq1': 'CBPC1_HUMAN', 'comp141359_c0_seq2': 'MY18A_HUMAN', 'comp140826_c0_seq1': 'VPS8_HUMAN'}
+figure_s16_chroms = list(figure_s16_identity)
+figure_s16_rows = []
+for trace_index, trace in enumerate(fig.data[:18]):
+    row, column = trace_index // 6, (trace_index % 6) // 2
+    probability = [0.09, 0.13, 0.18][row]
+    gene_index = column
+    metric = "DistinctProteins"
+    data_type = ["Complete", "Errored+PartiallyUnknown"][trace_index % 2]
+    chrom = figure_s16_chroms[gene_index]
+    for reads, mean, sd in zip(trace.x, trace.y, trace.error_y.array):
+        figure_s16_rows.append({"Panel": "a", "Trace": trace_index,
+            "Chrom": chrom, "Gene": figure_s16_identity[chrom].split("_")[0],
+            "Metric": metric, "DataType": data_type, "UnknownProbability": probability,
+            "NumOfReads": reads, "Fraction": reads / 100000, "Mean": mean, "SD": sd})
+pd.DataFrame(figure_s16_rows).to_csv(Path("figure_rebuild_work/phase4_batch/inputs/source_s16a.tsv"), sep="\t", index=False, na_rep="NA")
+
 
 # %% jupyter={"source_hidden": true}
 # fig = px.line(
@@ -3709,9 +3734,35 @@ fig.update_layout(
 )
 
 fig.write_image(
-    "Graph assessment - merged plots.svg",
+    Path(
+        plots_out_dir,
+        "Graph assessment - TPs and FPs.svg",
+    ),
     width=width,
     height=height,
 )
 
+
+
 fig.show()
+
+# %%
+# Save original S16b summaries, mock-gene identities and simulation settings.
+from pathlib import Path
+figure_s16_identity = {'comp141434_c0_seq1': 'CBPC1_HUMAN', 'comp141359_c0_seq2': 'MY18A_HUMAN', 'comp140826_c0_seq1': 'VPS8_HUMAN'}
+figure_s16_chroms = list(figure_s16_identity)
+figure_s16_rows = []
+for trace_index, trace in enumerate(fig.data[:18]):
+    row = trace_index // 9
+    probability = [0.09, 0.13, 0.18][(trace_index % 9) // 3]
+    gene_index = trace_index % 3
+    metric = ["CoveredPercent", "FalsePositivePercent"][row]
+    data_type = "Errored+PartiallyUnknown"
+    chrom = figure_s16_chroms[gene_index]
+    for reads, mean, sd in zip(trace.x, trace.y, trace.error_y.array):
+        figure_s16_rows.append({"Panel": "b", "Trace": trace_index,
+            "Chrom": chrom, "Gene": figure_s16_identity[chrom].split("_")[0],
+            "Metric": metric, "DataType": data_type, "UnknownProbability": probability,
+            "NumOfReads": reads, "Fraction": reads / 100000, "Mean": mean, "SD": sd})
+pd.DataFrame(figure_s16_rows).to_csv(Path("figure_rebuild_work/phase4_batch/inputs/source_s16b.tsv"), sep="\t", index=False, na_rep="NA")
+

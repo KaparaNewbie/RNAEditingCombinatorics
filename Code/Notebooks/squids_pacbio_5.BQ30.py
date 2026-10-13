@@ -1846,11 +1846,38 @@ del distinct_unique_proteins_df["TempIndex"]
 
 # then, sample a single largest solution (a set of distinct proteins)
 # per each fraction in each chrom
-max_distinct_per_fraction_df = (
-    max_distinct_per_fraction_df.groupby([condition_col, "Fraction"])
-    .sample(n=1, random_state=seed)
-    .reset_index(drop=True)
-)
+# Previous sampling call retained as historical code:
+# max_distinct_per_fraction_df = (
+#     max_distinct_per_fraction_df.groupby([condition_col, "Fraction"])
+#     .sample(n=1, random_state=seed)
+#     .reset_index(drop=True)
+# )
+from pathlib import Path
+import hashlib
+import json
+selection_binding_path = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/canonical_inputs/ordinary_selection_bindings.json")
+selection_bindings = json.loads(selection_binding_path.read_text())
+ordinary_solution_ids = {
+    ("PacBio", "GRIA2", "ordinary_full_fraction"): "79",
+    ("PacBio", "PCLO", "ordinary_full_fraction"): "68",
+}
+# Bind full-fraction IDs through their verified scientific parameters, not row numbers.
+ordinary_parameters = []
+for gene, source_gene in [("GRIA2", "GRIA"), ("PCLO", "PCLO")]:
+    binding = selection_bindings["PacBio"][gene]
+    solution_id = ordinary_solution_ids[("PacBio", gene, "ordinary_full_fraction")]
+    assert isinstance(solution_id, str) and solution_id == binding["parameters"]["#Solution"]
+    ordinary_parameters.append({"Gene": source_gene, **{k: v for k, v in binding["parameters"].items() if k != "#Solution"}})
+# Preserve these existing saved subsampling choices; fraction0.1 is a separate producer.
+saved_other_fraction_parameters = [{'Gene': 'GRIA', 'Fraction': 0.2, 'FractionRepetition': 1, 'Algorithm': 'Descending', 'AlgorithmRepetition': 1}, {'Gene': 'GRIA', 'Fraction': 0.4, 'FractionRepetition': 1, 'Algorithm': 'Descending', 'AlgorithmRepetition': 1}, {'Gene': 'GRIA', 'Fraction': 0.6, 'FractionRepetition': 2, 'Algorithm': 'Descending', 'AlgorithmRepetition': 1}, {'Gene': 'GRIA', 'Fraction': 0.8, 'FractionRepetition': 2, 'Algorithm': 'Descending', 'AlgorithmRepetition': 1}, {'Gene': 'PCLO', 'Fraction': 0.2, 'FractionRepetition': 2, 'Algorithm': 'Descending', 'AlgorithmRepetition': 2}, {'Gene': 'PCLO', 'Fraction': 0.4, 'FractionRepetition': 3, 'Algorithm': 'Descending', 'AlgorithmRepetition': 1}, {'Gene': 'PCLO', 'Fraction': 0.6, 'FractionRepetition': 4, 'Algorithm': 'Descending', 'AlgorithmRepetition': 1}, {'Gene': 'PCLO', 'Fraction': 0.8, 'FractionRepetition': 4, 'Algorithm': 'Descending', 'AlgorithmRepetition': 2}]
+parameter_columns = ["Gene", "Fraction", "FractionRepetition", "Algorithm", "AlgorithmRepetition"]
+frozen_choices = pd.DataFrame(ordinary_parameters + saved_other_fraction_parameters)
+max_distinct_per_fraction_df = max_distinct_per_fraction_df.merge(
+    frozen_choices, on=parameter_columns, how="inner", validate="one_to_one"
+).sort_values([condition_col, "Fraction"], ignore_index=True)
+assert len(max_distinct_per_fraction_df) == 10
+assert max_distinct_per_fraction_df.groupby([condition_col, "Fraction"]).size().eq(1).all()
+
 
 max_distinct_per_fraction_df
 
@@ -1951,6 +1978,15 @@ def calc_total_uniquely_assigned_weighted_reads(
 
 # %%
 def get_f1_max_expression_df(chrom, expression_file, max_distinct_per_fraction_df):
+    # This binding preserves the native snapshot; the author approved this assignment snapshot on 2026-10-12.
+    gene = dict(zip(chroms, fixed_conditions))[chrom]
+    binding = selection_bindings["PacBio"][gene]
+    solution_id = ordinary_solution_ids[("PacBio", gene, "ordinary_full_fraction")]
+    path = Path(expression_file).resolve()
+    assert path == Path(binding["expression_realpath"])
+    assert binding["assignment_policy"] == "native_entropy_considered_snapshot"
+    with path.open("rb") as handle:
+        assert hashlib.file_digest(handle, "sha256").hexdigest() == binding["expression_sha256"]
     assignment_df = pd.read_csv(
         expression_file, 
         sep=sep, 
@@ -1991,28 +2027,30 @@ def get_f1_max_expression_df(chrom, expression_file, max_distinct_per_fraction_d
     # )
     
     # retain only rows of the maximal solution
-    assignment_df = assignment_df.merge(
-        max_distinct_per_fraction_df.loc[
-            max_distinct_per_fraction_df["Fraction"].eq(1),
-            [
-                condition_col,
-                "Fraction",
-                "FractionRepetition",
-                "Algorithm",
-                "AlgorithmRepetition",
-            ],
-        ],
-        how="inner",
-    )
-    
-    assignment_df = assignment_df.drop(
-        columns=[
-            "Fraction",
-            "FractionRepetition",
-            "Algorithm",
-            "AlgorithmRepetition",
-        ]
-    )
+    # assignment_df = assignment_df.merge(
+    #     max_distinct_per_fraction_df.loc[
+    #         max_distinct_per_fraction_df["Fraction"].eq(1),
+    #         [
+    #             condition_col,
+    #             "Fraction",
+    #             "FractionRepetition",
+    #             "Algorithm",
+    #             "AlgorithmRepetition",
+    #         ],
+    #     ],
+    #     how="inner",
+    # )
+    # 
+    assignment_df["#Solution"] = assignment_df["#Solution"].astype(str)
+    allowed_counts = assignment_df.loc[assignment_df["Algorithm"].isin(["Ascending", "Descending"])].groupby("#Solution").size()
+    assignment_df = assignment_df.loc[assignment_df["#Solution"].eq(solution_id)].copy()
+    assert len(assignment_df) == binding["maximum_cardinality"] == allowed_counts.max()
+    assert assignment_df["Protein"].is_unique
+    assert assignment_df[list(binding["parameters"])].drop_duplicates().to_dict("records") == [binding["parameters"]]
+
+    # Retain the verified solution parameters through the merged-table exporter.
+    # Codon preparation selects its three metadata fields explicitly.
+    assert assignment_df[list(binding["parameters"])].drop_duplicates().to_dict("records") == [binding["parameters"]]
     
     assignment_df.insert(0, "Chrom", chrom)
 
@@ -2131,14 +2169,21 @@ max_solution_id_df = (
 max_solution_id_df
 
 # %%
-for expression_file, condition in zip(expression_files, conditions):
-    maximal_solution = max_solution_id_df.loc[condition]
-    expression_file = Path(expression_file)
-    max_sol_file = Path(
-        expression_file.parent,
-        f"{expression_file.name}.MaxSolution_{maximal_solution}"
-    )
-    max_sol_file.touch()
+# Previous marker-writing cell retained as comments; proposed validation is read only.
+# for expression_file, condition in zip(expression_files, conditions):
+#     maximal_solution = max_solution_id_df.loc[condition]
+#     expression_file = Path(expression_file)
+#     max_sol_file = Path(
+#         expression_file.parent,
+#         f"{expression_file.name}.MaxSolution_{maximal_solution}"
+#     )
+#     max_sol_file.touch()
+for expression_file, gene in zip(expression_files, fixed_conditions):
+    path = Path(expression_file).resolve()
+    expected_id = ordinary_solution_ids[("PacBio", gene, "ordinary_full_fraction")]
+    markers = list(path.parent.glob(path.name + ".MaxSolution_*"))
+    assert [p.name for p in markers] == [path.name + ".MaxSolution_" + expected_id]
+
 
 # %%
 assert max_expression_df.loc[
@@ -3321,6 +3366,13 @@ fig.write_image(
 )
 
 fig.show()
+
+# %%
+# Export the exact significant site-pair data used by Figure S12, before plotting.
+from pathlib import Path
+figure_s12_export = df[["Gene", "Site1", "Site2", "AbsDistance", "AbsDistance100BPsBin", "r", "fdr_by_rejection", "fdr_by_corrected_pv", "SitePairsInAbsDistance100BPsBin", "bin_start", "bin_label"]]
+figure_s12_export.to_csv(Path("figure_rebuild_work/phase4_batch/inputs/source_s12_PB1.tsv"), sep="\t", index=False, na_rep="NA")
+
 
 # %%
 sig_concat_corrected_corrs_df
@@ -8078,15 +8130,51 @@ unique_reads_dfs[1]
 # subprocess.run(index_cmd, shell=True)
 
 # %%
-top_100_unique_reads_combinatorics_df = (
-    unique_reads_dfs[1]
-    # .sort_values("%WeightedTotalExpression", ascending=False)
-    # .reset_index(drop=True)
-    .iloc[:100, 8:]
-    # .fillna(-1)
-    # # .T
-)
+# Figure 2b: abundance of unique READ patterns; preserve original cutoff tie order.
+pclo_unique_reads_by_abundance = unique_reads_dfs[1].sort_values("NumOfReads", ascending=False, kind="stable")
+assert pclo_unique_reads_by_abundance["Transcript"].is_unique
+assert all(str(column).isdigit() for column in pclo_unique_reads_by_abundance.columns[8:])
+top_100_unique_reads_combinatorics_df = pclo_unique_reads_by_abundance.iloc[:100, 8:]
+assert top_100_unique_reads_combinatorics_df.shape == (100, 144)
 top_100_unique_reads_combinatorics_df
+
+
+# %%
+# Save Figure 2a identities and site order from the prepared unique-read table.
+import json
+import hashlib
+from pathlib import Path
+
+figure_input_dir = Path('/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/phase1/inputs')
+figure_input_dir.mkdir(parents=True, exist_ok=True)
+figure2a_source = unique_reads_dfs[1].iloc[:100]
+figure2a_sites = figure2a_source.columns[8:].tolist()
+pd.testing.assert_frame_equal(figure2a_source.iloc[:, 8:], top_100_unique_reads_combinatorics_df)
+figure2a_export = figure2a_source.loc[:, ['Gene', 'UniqueRead', 'NumOfReads'] + figure2a_sites].copy()
+figure2a_export.insert(0, 'UniqueReadRank', range(1, 101))
+assert not figure2a_export.duplicated(['Gene', 'UniqueRead']).any()
+assert figure2a_export[['Gene', 'UniqueRead']].notna().all().all()
+figure2a_path = figure_input_dir / 'squid_original_figure2a_unique_reads_plot.tsv'
+if not figure2a_path.exists():
+    figure2a_export.to_csv(figure2a_path, sep='\t', index=False, mode='x')
+figure2a_readback = pd.read_table(figure2a_path, dtype={'Gene': str, 'UniqueRead': str}, float_precision='round_trip')
+figure2a_readback = figure2a_readback.astype(figure2a_export.dtypes.to_dict())
+pd.testing.assert_frame_equal(figure2a_export.reset_index(drop=True), figure2a_readback, check_exact=True)
+figure2a_metadata = {
+    'source_notebook': 'Code/Notebooks/squids_pacbio_5.BQ30.ipynb',
+    'prepare_cell_id': '175a2816-9fd6-4ae1-b4b4-24784487b195',
+    'plot_cell_id': 'ec5c380c-6c5e-4906-b90e-6f9ca65fab25',
+    'site_order': figure2a_sites, 'keys': ['Gene', 'UniqueRead'],
+    'ordering': 'First 100 cached rows unchanged; no additional sorting',
+    'scientific_values': {'not_edited': 0, 'edited': 1, 'missing': -1},
+    'sha256': hashlib.sha256(figure2a_path.read_bytes()).hexdigest(),
+}
+figure2a_metadata_path = figure2a_path.with_suffix('.json')
+if figure2a_metadata_path.exists():
+    saved_metadata = json.loads(figure2a_metadata_path.read_text())
+    assert saved_metadata['site_order'] == figure2a_sites
+else:
+    figure2a_metadata_path.write_text(json.dumps(figure2a_metadata, indent=2))
 
 # %%
 # top_100_unique_reads_combinatorics_df.iloc[:7, 42:]
@@ -9573,6 +9661,10 @@ fig.show()
 max_expression_df
 
 # %%
+# total weighted supporting reads per condition
+max_expression_df.groupby(condition_col)["TotalWeightedSupportingReads"].sum()
+
+# %%
 # fig = px.histogram(
 #     max_expression_df,
 #     x="TotalWeightedSupportingReads",
@@ -9661,7 +9753,7 @@ for (row, col), assignment_df, condition in zip(
 
     top_x = [10, 100, 1000]
     # top_y = [assignment_df["%CummulativeRelativeExpression"][x].sum() for x in top_x]
-    top_y = [y.iloc[x] for x in top_x]
+    top_y = [y.iloc[n - 1] for n in top_x]  # N is a 1-based isoform rank.
 
     # plot top 10/100/1000 expressed proteins
     fig.add_trace(
@@ -9729,6 +9821,22 @@ fig.write_image(
 )
 
 fig.show()
+
+# %%
+# Save Figure S9 with native gene/rank identities and trace roles.
+from pathlib import Path
+figure_s9_genes = ['GRIA2', 'PCLO']
+export_rows = []
+for trace_index, trace in enumerate(fig.data):
+    gene = figure_s9_genes[trace_index // 2]
+    role = ['CumulativeExpression', 'OriginalRankMarker'][trace_index % 2]
+    for point_index, (x, y) in enumerate(zip(trace.x, trace.y)):
+        label = trace.text[point_index] if trace.text is not None else ""
+        export_rows.append({"Platform": "Long-reads", "Gene": gene, "Role": role,
+            "Trace": trace_index, "Point": point_index, "Rank": x, "Value": y, "Label": label})
+export_path = Path("figure_rebuild_work/phase4_batch/inputs/source_s9_pacbio.tsv")
+export_path.parent.mkdir(parents=True, exist_ok=True)
+pd.DataFrame(export_rows).to_csv(export_path, sep="\t", index=False, na_rep="NA")
 
 
 # %%
@@ -9983,16 +10091,46 @@ fig.write_image(
 fig.show()
 # fig.show(config={'staticPlot': True, 'responsive': False})
 
+# %%
+# Save Figure S8 with native gene/rank identities and trace roles.
+from pathlib import Path
+figure_s8_genes = ['GRIA2', 'PCLO']
+export_rows = []
+for trace_index, trace in enumerate(fig.data):
+    gene = figure_s8_genes[trace_index // 2]
+    role = ['RelativeExpression', 'OriginalFit'][trace_index % 2]
+    for point_index, (x, y) in enumerate(zip(trace.x, trace.y)):
+        label = trace.text[point_index] if trace.text is not None else ""
+        export_rows.append({"Platform": "Long-reads", "Gene": gene, "Role": role,
+            "Trace": trace_index, "Point": point_index, "Rank": x, "Value": y, "Label": label})
+export_path = Path("figure_rebuild_work/phase4_batch/inputs/source_s8_pacbio.tsv")
+export_path.parent.mkdir(parents=True, exist_ok=True)
+pd.DataFrame(export_rows).to_csv(export_path, sep="\t", index=False, na_rep="NA")
+
+
 # %% [markdown]
 # ##### Saving assignment dfs
 
 # %%
-merged_assignment_df = pd.concat(assignment_dfs).reset_index(drop=True)
-merged_assignment_df.insert(0, "Platform", "Long-reads")
+from pathlib import Path
+import sys
+canonical_dir = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/canonical_inputs")
+sys.path.insert(0, str(canonical_dir))
+from canonical_io import verified_merged_dataframe, read_merged
+
+# Rebuild from the approved snapshot after checking every source identity and support.
+merged_assignment_df = verified_merged_dataframe("PacBio", assignment_dfs)
 merged_assignment_df
 
+
 # %%
-merged_assignment_df.to_csv("AssignedExpression.PacBio.tsv", sep="\t", index=False)
+# Explicit destination; canonical source tables retain the validated snapshot.
+# Revalidate the current selected sources immediately before writing.
+merged_assignment_df = verified_merged_dataframe("PacBio", assignment_dfs)
+merged_assignment_df.to_csv(canonical_dir / "AssignedExpression.PacBio.tsv", sep="\t", index=False, na_rep="NA")
+readback = read_merged("PacBio")
+assert readback[["Gene", "Protein"]].values.tolist() == merged_assignment_df[["Gene", "Protein"]].values.tolist()
+
 
 # %%
 # assignment_method = "Weighted"
@@ -10060,34 +10198,51 @@ fraction01_expression_dfs[0]
 # %%
 fraction01_expression_df.iloc[[1000, 2000]]
 
-
 # %%
-def find_rand_maximal_solution(
-    expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
-):
-    df = (
-        expression_df.loc[expression_df["Algorithm"].isin(allowed_algorithms)]
-        .groupby("#Solution")
-        .agg("size")
-        .reset_index()
-        .rename(columns={0: "Size"})
-    )
-    # rand_maximal_solution = df.loc[df["Size"] == df["Size"].max(), "#Solution"].sample(random_state=seed).reset_index(drop=True)
-    rand_maximal_solution = (
-        df.loc[df["Size"] == df["Size"].max(), "#Solution"]
-        .sample(random_state=seed)
-        .values[0]
-    )
-    return rand_maximal_solution
+# Previous fraction0.1 random selection, retained for provenance.
+# def find_rand_maximal_solution(
+#     expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
+# ):
+#     df = (
+#         expression_df.loc[expression_df["Algorithm"].isin(allowed_algorithms)]
+#         .groupby("#Solution")
+#         .agg("size")
+#         .reset_index()
+#         .rename(columns={0: "Size"})
+#     )
+#     # rand_maximal_solution = df.loc[df["Size"] == df["Size"].max(), "#Solution"].sample(random_state=seed).reset_index(drop=True)
+#     rand_maximal_solution = (
+#         df.loc[df["Size"] == df["Size"].max(), "#Solution"]
+#         .sample(random_state=seed)
+#         .values[0]
+#     )
+#     return rand_maximal_solution
+# 
+# 
+# maximal_fraction01_solutions = [
+#     find_rand_maximal_solution(
+#         expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
+#     )
+#     for expression_df in fraction01_expression_dfs
+# ]
+# maximal_fraction01_solutions
 
-
-maximal_fraction01_solutions = [
-    find_rand_maximal_solution(
-        expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
-    )
-    for expression_df in fraction01_expression_dfs
-]
+# These bindings belong exclusively to the existing fraction0.1 cohort.
+import json
+from pathlib import Path
+fraction01_bindings = json.loads(Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/canonical_inputs/fraction01_bindings.json").read_text())["cohorts"]
+fraction01_solution_ids = {("PacBio", "GRIA2", "fraction0.1"): "7", ("PacBio", "PCLO", "fraction0.1"): "8"}
+maximal_fraction01_solutions = []
+for expression_df, binding in zip(fraction01_expression_dfs, fraction01_bindings, strict=True):
+    solution_id = fraction01_solution_ids[("PacBio", binding["gene"], "fraction0.1")]
+    selected = expression_df.loc[expression_df["#Solution"].astype(str).eq(solution_id)]
+    counts = expression_df.loc[expression_df.Algorithm.isin(["Ascending", "Descending"])].groupby("#Solution").size()
+    assert len(selected) == counts.max() == binding["maximum_cardinality"]
+    assert selected[list(binding["parameters"])].drop_duplicates().to_dict("records") == [binding["parameters"]]
+    assert set(selected.Protein) == set(binding["ordered_Protein_IDs"])
+    maximal_fraction01_solutions.append(solution_id)
 maximal_fraction01_solutions
+
 
 # %%
 maximal_fraction01_dfs = [
@@ -10127,7 +10282,7 @@ fraction01_assignment_dfs[0]
 merged_fraction01_assignment_df = pd.concat(fraction01_assignment_dfs).reset_index(drop=True)
 merged_fraction01_assignment_df.insert(0, "Platform", "Long-reads")
 merged_fraction01_assignment_df.to_csv(
-    Path(out_dir, "AssignedExpression.Fraction01.PacBio.tsv"), 
+    Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/canonical_inputs/AssignedExpression.Fraction01.PacBio.tsv"), 
     sep="\t", index=False
 )
 merged_fraction01_assignment_df
@@ -10334,7 +10489,7 @@ frac_01_merged_to_frac_1_assignment_dfs[0]
 concat_frac_1_merged_to_frac_01_assignment_df = pd.concat(frac_1_merged_to_frac_01_assignment_dfs)
 concat_frac_1_merged_to_frac_01_assignment_df.insert(0, "Platform", "Long-reads")
 concat_frac_1_merged_to_frac_01_assignment_df.to_csv(
-    Path(out_dir,  "AssignedExpression.Fractions1Vs01.PacBio.tsv"), 
+    Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/canonical_inputs/AssignedExpression.Fractions1Vs01.PacBio.tsv"), 
     sep="\t", index=False
 )
 concat_frac_1_merged_to_frac_01_assignment_df
@@ -10682,7 +10837,8 @@ def drop_uniformative_aa_cols(df):
 
 
 # %%
-ML_INPUT_FIRST_COL_POS_NEW = 5
+ML_INPUT_METADATA_COLUMNS_NEW = (condition_col, "Protein", "%RelativeExpression")
+ML_INPUT_FIRST_COL_POS_NEW = len(ML_INPUT_METADATA_COLUMNS_NEW)
 
 
 def prepare_ml_input_df_new(
@@ -10758,9 +10914,10 @@ def prepare_ml_input_df_new(
     df = pd.concat([df_a, df_b], axis=1)
 
     df = df.sort_values(
-        relative_expression_sorting_col, ascending=False, ignore_index=True
+        relative_expression_sorting_col, ascending=False, ignore_index=True, kind="stable"
     )
 
+    assert df.columns[:ML_INPUT_FIRST_COL_POS_NEW].tolist() == cols_to_use_from_assignment_df
     return df
 
 
@@ -10782,9 +10939,11 @@ def run_pcas(
     pca_input_dfs,
     seed,
     n_components=2,
-    first_col_pos=ML_INPUT_FIRST_COL_POS_NEW,
+    first_col_pos=None,
     top_expressed_proteins=None,
 ):
+    if first_col_pos is None:
+        first_col_pos = ML_INPUT_FIRST_COL_POS_NEW
     components_dfs = []
 
     rng = np.random.RandomState(seed)
@@ -10810,9 +10969,11 @@ def run_umaps(
     umap_input_dfs,
     seed,
     n_components=2,
-    first_col_pos=ML_INPUT_FIRST_COL_POS_NEW,
+    first_col_pos=None,
     top_expressed_proteins=None,
 ):
+    if first_col_pos is None:
+        first_col_pos = ML_INPUT_FIRST_COL_POS_NEW
     components_dfs = []
     Xs = []
 
@@ -10892,9 +11053,11 @@ def run_tsnes(
     init="random",
     n_jobs=20,
     # first_col_pos=ML_INPUT_FIRST_COL_POS,
-    first_col_pos=ML_INPUT_FIRST_COL_POS_NEW,
+    first_col_pos=None,
     top_expressed_proteins=None,
 ):
+    if first_col_pos is None:
+        first_col_pos = ML_INPUT_FIRST_COL_POS_NEW
     conditions_tsnes = []
     conditions_Xs = []
 
@@ -11036,6 +11199,9 @@ n_jobs = 40
 # ##### Clustering: kmeans
 
 # %%
+assignment_dfs[0]
+
+# %%
 weighted_exp_tsne_input_dfs = [
     prepare_ml_input_df_new(
         assignment_df,
@@ -11046,6 +11212,9 @@ weighted_exp_tsne_input_dfs = [
 ]
 
 weighted_exp_tsne_input_dfs[0]
+
+# %%
+ML_INPUT_FIRST_COL_POS_NEW
 
 # %%
 # X = weighted_exp_tsne_input_dfs[0].iloc[:, ML_INPUT_FIRST_COL_POS_NEW:].values
@@ -11062,6 +11231,8 @@ cluster_sizes = list(range(10, 510, 10))  # 10, 20, ..., 500
 # cluster_sizes = list(range(10, 60, 10)) # 10, 20, ..., 50
 
 # %%
+# S7a: all imputed retained codons.
+assert ML_INPUT_FIRST_COL_POS_NEW == len(ML_INPUT_METADATA_COLUMNS_NEW) == 3
 conditions_Xs = [
     weighted_exp_tsne_input_df.iloc[:, ML_INPUT_FIRST_COL_POS_NEW:].values
     for weighted_exp_tsne_input_df in weighted_exp_tsne_input_dfs
@@ -11840,6 +12011,8 @@ def calc_entropies_new(
 
 
 # %%
+# Figure5c: non-imputed codons; observed-entropy formula unchanged.
+assert ML_INPUT_FIRST_COL_POS_NEW == len(ML_INPUT_METADATA_COLUMNS_NEW) == 3
 max_sol_exp_dfs_new = [
     prepare_ml_input_df_new(
         assignment_df,
@@ -11886,11 +12059,13 @@ shannon_df
 
 # %%
 shannon_df.to_csv(
-    Path(out_dir, "ShanonEntropy.PacBio.tsv"), 
+    Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/canonical_inputs/ShanonEntropy.PacBio.tsv"), 
     sep="\t", index=False
 )
 
 # %%
+# Local entropy codon-count labels use the same verified offset.
+assert ML_INPUT_FIRST_COL_POS_NEW == len(ML_INPUT_METADATA_COLUMNS_NEW) == 3
 fig = go.Figure()
 
 colors = [color_discrete_map[condition] for condition in conditions]
@@ -12041,6 +12216,66 @@ top_100_combinatorics_df = (
     # .T
 )
 top_100_combinatorics_df
+
+# %%
+# Save Figure 3a from the prepared original PacBio object; do not rerun analysis.
+import json
+import hashlib
+from pathlib import Path
+
+figure_input_dir = Path('/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/phase1/inputs')
+figure_input_dir.mkdir(parents=True, exist_ok=True)
+figure3a_paths = [figure_input_dir / f'squid_original_figure3a_plot.{ext}' for ext in ['tsv', 'json']]
+figure3a_ranked = (
+    max_sol_exp_dfs_new[1].sort_values('%RelativeExpression', ascending=False)
+    .reset_index(drop=True).iloc[:100]
+)
+figure3a_matrix = figure3a_ranked.iloc[:, 3:]
+pd.testing.assert_frame_equal(figure3a_matrix.fillna(-1), top_100_combinatorics_df)
+assert figure3a_matrix.shape == (100, 94), 'Original reference is 100 isoforms by 94 codons.'
+assert figure3a_ranked.columns.is_unique and not figure3a_ranked.duplicated([condition_col, 'Protein']).any()
+assert figure3a_ranked[[condition_col, 'Protein']].notna().all().all()
+figure3a_reference_path = figure_input_dir.parent / 'evidence/plotly_squids_pacbio_5.BQ30_8439d03f-7e99-4199-a36c-11500a16bba3.json'
+with figure3a_reference_path.open() as handle:
+    figure3a_reference_z = np.asarray(json.load(handle)['traces'][0]['z'])
+np.testing.assert_array_equal(
+    figure3a_matrix.fillna(-1).replace(0, 0.5).replace(-1, 0).values,
+    figure3a_reference_z,
+)
+figure3a_export = figure3a_ranked.copy()
+figure3a_export.insert(0, 'IsoformRank', range(1, len(figure3a_export) + 1))
+if not figure3a_paths[0].exists():
+    figure3a_export.to_csv(figure3a_paths[0], sep='\t', index=False, mode='x')
+figure3a_readback = pd.read_table(
+    figure3a_paths[0], dtype={condition_col: str, 'Protein': str},
+    keep_default_na=False, na_values=[''], float_precision='round_trip',
+)
+figure3a_readback = figure3a_readback.astype(figure3a_export.dtypes.to_dict())
+pd.testing.assert_frame_equal(figure3a_export, figure3a_readback, check_exact=True)
+figure3a_metadata = {
+    'dataset': 'Original PacBio RQ998.TopNoisyPositions3.BQ30',
+    'source_notebook': 'Code/Notebooks/squids_pacbio_5.BQ30.ipynb',
+    'prepare_cell_id': 'e2277d7e-23cb-4483-a3fd-c2aeb0ebdc34',
+    'plot_cell_id': '8439d03f-7e99-4199-a36c-11500a16bba3',
+    'columns': figure3a_export.columns.tolist(),
+    'dtypes': {column: str(dtype) for column, dtype in figure3a_export.dtypes.items()},
+    'codon_order': figure3a_matrix.columns.tolist(),
+    'keys': [condition_col, 'Protein'], 'rank_column': 'IsoformRank',
+    'selected_solution_ids': assignment_dfs[1]['#Solution'].astype(str).unique().tolist(),
+    'sorting': '%RelativeExpression descending; original pandas tie handling; first 100',
+    'scientific_values': {'not_recoded': 0, 'recoded': 1, 'missing': 'NA'},
+    'display_encoding': {'NA': 0, 'not_recoded': 0.5, 'recoded': 1},
+    'display_colors': {'NA': 'rgb(192,192,192)', 'not_recoded': 'black', 'recoded': 'rgb(74,246,38)'},
+    'column_slice': 'iloc[:, 3:] (preserved; not ML_INPUT_FIRST_COL_POS_NEW)',
+    'sha256': hashlib.sha256(figure3a_paths[0].read_bytes()).hexdigest(),
+    'reference_pattern_verification': 'Exact array match to the saved trace; all 9400 trace categories were independently verified against the ZIP pattern in Phase 1.',
+}
+if figure3a_paths[1].exists():
+    saved_metadata = json.loads(figure3a_paths[1].read_text())
+    assert saved_metadata['codon_order'] == figure3a_metadata['codon_order']
+    assert saved_metadata['selected_solution_ids'] == figure3a_metadata['selected_solution_ids']
+else:
+    figure3a_paths[1].write_text(json.dumps(figure3a_metadata, indent=2))
 
 # %%
 data = top_100_combinatorics_df.replace(0, 0.5).replace(-1, 0).values
@@ -12299,6 +12534,14 @@ fig.write_image(
 
 fig.show()
 
+# %%
+# Persist the exact scientifically meaningful S6 plotting input.
+from pathlib import Path
+figure_s6_dir = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/phase4_batch/inputs")
+figure_s6_dir.mkdir(parents=True, exist_ok=True)
+(df_b_value_counts_2).to_csv(figure_s6_dir / "figure_s6b_native_recoding.tsv", sep="\t", index=False, na_rep="NA")
+
+
 # %% [markdown]
 # ##### Num. of editing sites in rare vs. common isoforms
 
@@ -12423,6 +12666,13 @@ fig.write_image(
 )
 
 fig.show()
+
+# %%
+# Save S17 isoform identities and mean editing in originally supporting reads.
+from pathlib import Path
+figure_s17_table = rare_vs_abundant_isoforms_df.loc[:, [condition_col, "Protein", "#Protein", "#Solution", "Abundancy", "MeanEditedPositions"]].copy()
+figure_s17_table.insert(0, "Platform", "Long-reads")
+figure_s17_table.to_csv(Path("figure_rebuild_work/phase4_batch/inputs/source_s17_pacbio1.tsv"), sep="\t", index=False, na_rep="NA")
 
 
 # %%
@@ -12794,18 +13044,24 @@ one_condition_rare_vs_abundant_isoforms_dfs = [
 one_condition_rare_vs_abundant_isoforms_dfs[0]
 
 # %%
-one_condition_rare_vs_abundant_editing_frequency_per_site_dfs = [
-    make_one_condition_rare_vs_abundant_editing_frequency_per_site_df(
-        condition_col,
-        condition,
-        one_condition_rare_vs_abundant_isoforms_df,
-        first_site_col=6
-    )
-    for condition, one_condition_rare_vs_abundant_isoforms_df in zip(
-        conditions, one_condition_rare_vs_abundant_isoforms_dfs
-    )
-]
+# Read the corrected, authenticated site summaries; no repeat read expansion.
+from pathlib import Path
+import json
+import hashlib
+canonical_dir = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/canonical_inputs")
+site_bindings = json.loads((canonical_dir / "original_read_bindings.json").read_text())["cohorts"]
+site_bindings = [r for r in site_bindings if r["platform"] == "PacBio"]
+assert len(site_bindings) == len(conditions)
+one_condition_rare_vs_abundant_editing_frequency_per_site_dfs = []
+for condition, binding in zip(conditions, site_bindings, strict=True):
+    path = canonical_dir / f"PacBio.{binding['gene']}.S18.tsv"
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == binding["summary_sha256"]
+    summary = pd.read_table(path, dtype={"Solution": str}, float_precision="round_trip")
+    assert summary["Solution"].eq(binding["solution"]).all()
+    summary[condition_col] = condition
+    one_condition_rare_vs_abundant_editing_frequency_per_site_dfs.append(summary)
 one_condition_rare_vs_abundant_editing_frequency_per_site_dfs[0]
+
 
 # %%
 # num_of_sites_per_condition = []
@@ -13184,6 +13440,14 @@ fig.write_image(
 fig.show()
 
 # %%
+# Save full S18 per-site means, SEMs, coverage denominators and original FDR results.
+from pathlib import Path
+figure_s18_table = pd.concat(one_condition_rare_vs_abundant_editing_frequency_per_site_dfs, ignore_index=True)
+assert not figure_s18_table.duplicated([condition_col, "EditingSite"]).any()
+figure_s18_table.to_csv(Path("figure_rebuild_work/phase4_batch/inputs/source_s18_pacbio.tsv"), sep="\t", index=False, na_rep="NA")
+
+
+# %%
 
 # %%
 
@@ -13468,13 +13732,34 @@ def find_rand_maximal_solution(
 
 
 # %%
-maximal_dissimilar_solutions = [
-    find_rand_maximal_solution(
-        expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
-    )
-    for expression_df in dissimilar_expression_dfs
-]
+# Previous selection calls retained as comments.
+# maximal_dissimilar_solutions = [
+#     find_rand_maximal_solution(
+#         expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
+#     )
+#     for expression_df in dissimilar_expression_dfs
+# ]
+# maximal_dissimilar_solutions
+
+# Explicit choices for a NEW corrected S7b run; historical S7b identities are unproven.
+dissimilar_solution_ids = {('PacBio', 'GRIA2', 'dissimilar', 'Miyata'): '79', ('PacBio', 'PCLO', 'dissimilar', 'Miyata'): '68', ('PacBio', 'GRIA2', 'dissimilar', 'Grantham100'): '78', ('PacBio', 'PCLO', 'dissimilar', 'Grantham100'): '74'}
+dissimilar_bindings = json.loads((Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/canonical_inputs") / "dissimilar_bindings.json").read_text())["cohorts"]
+maximal_dissimilar_solutions = []
+for expression_df in dissimilar_expression_dfs:
+    gene_label = expression_df["Gene"].iloc[0]
+    gene = {"GRIA": "GRIA2"}.get(gene_label, gene_label)
+    metric = expression_df["Dissimilarity"].iloc[0].replace("Grantham 100", "Grantham100")
+    solution_id = dissimilar_solution_ids[("PacBio", gene, "dissimilar", metric)]
+    binding = next(r for r in dissimilar_bindings if r["gene"] == gene and r["metric"] == metric)
+    selected = expression_df.loc[expression_df["#Solution"].astype(str).eq(solution_id)]
+    counts = expression_df.loc[expression_df.Algorithm.isin(["Ascending", "Descending"])].groupby("#Solution").size()
+    assert selected.Protein.is_unique and len(selected) == counts.max() == binding["maximum_cardinality"]
+    assert selected[list(binding["parameters"])].drop_duplicates().to_dict("records") == [binding["parameters"]]
+    with Path(binding["expression_realpath"]).open("rb") as handle:
+        assert hashlib.file_digest(handle, "sha256").hexdigest() == binding["expression_sha256"]
+    maximal_dissimilar_solutions.append(solution_id)
 maximal_dissimilar_solutions
+
 
 # %%
 # def choose_sample_solutions(
@@ -13635,6 +13920,8 @@ dissimilar_weighted_exp_clustering_input_dfs[("Miyata", "GRIA")]
 dissimilar_cluster_sizes = list(range(3, 41, 1))  # 10, 20, ..., 260
 
 # %%
+# S7b: separate dissimilar cohort; all imputed retained codons.
+assert ML_INPUT_FIRST_COL_POS_NEW == len(ML_INPUT_METADATA_COLUMNS_NEW) == 3
 dissimilarity_condition_Xs = {
     (dissimilarity, condition): df.iloc[:, ML_INPUT_FIRST_COL_POS_NEW:].values
     for (
@@ -13748,7 +14035,7 @@ dissimilarity_condition_kmeans_silhouette_scores_concat_df.insert(
 )
 
 dissimilarity_condition_kmeans_silhouette_scores_concat_df.to_csv(
-    Path(out_dir, "KMeansMeanSilhouetteScores.Dissimilar.PacBio.tsv"),
+    Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/canonical_inputs/KMeansMeanSilhouetteScores.Dissimilar.PacBio.tsv"),
     sep="\t",
     index=False
 )
@@ -14343,4 +14630,22 @@ fig.write_image(
 )
 
 fig.show()
+
+
+# %%
+# Persist the read-level min/max distributions and original mean/SD annotations.
+from pathlib import Path
+figure_s3_dir = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/phase4_batch/inputs")
+figure_s3_rows, figure_s3_stats = [], []
+for gene_order, (gene, read_df) in enumerate(zip(fixed_conditions, non_syns_per_read_dfs)):
+    for estimate in ["Min", "Max"]:
+        values = read_df[estimate + "NonSyns"].to_numpy()
+        counts = np.bincount(values)
+        figure_s3_rows.extend([{"Platform": "PacBio", "Gene": gene, "GeneOrder": gene_order,
+            "Estimate": estimate, "Substitutions": value, "Reads": int(count)}
+            for value, count in enumerate(counts)])
+        figure_s3_stats.append({"Gene": gene, "Estimate": estimate, "DenominatorReads": len(values),
+            "Mean": np.mean(values), "Std": np.std(values)})
+pd.DataFrame(figure_s3_rows).to_csv(figure_s3_dir / "figure_s3_pacbio_native_counts.tsv", sep="\t", index=False)
+pd.DataFrame(figure_s3_stats).to_csv(figure_s3_dir / "figure_s3_pacbio_native_statistics.tsv", sep="\t", index=False)
 

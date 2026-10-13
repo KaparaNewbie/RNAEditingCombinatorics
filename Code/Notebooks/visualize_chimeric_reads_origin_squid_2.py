@@ -164,7 +164,7 @@ def find_max_solution(expression_file, interfix="MaxSolution_"):
     if len(max_sol_files) > 1:
         raise ValueError(f"Multiple max solution files for {expression_file}: {max_sol_files}")
     max_sol_file = max_sol_files[0]
-    max_sol = int(max_sol_file.name.rsplit("_")[-1])
+    max_sol = str(max_sol_file.name.rsplit("_")[-1])
     return max_sol
 
 
@@ -218,54 +218,28 @@ assignment_df
 
 # %%
 def make_expression_df(expression_file):
-    assignment_df = pd.read_csv(
-        expression_file, 
-        sep="\t", 
-        dtype={
-            "#Solution": int,
-        },
-        usecols = [
-            'Gene', 'Protein', '#Solution', 'SufficientEntropy', 'TotalWeightedSupportingReads', "NumOfTranscripts"
-        ]
-    )
-    assignment_df = assignment_df.rename(
-        columns={
-            "NumOfTranscripts": "NumOfUniqueReads"
-        }
-    )
-    
-    max_sol = find_max_solution(expression_file)
-    assignment_df = assignment_df.loc[
-        assignment_df["#Solution"].eq(max_sol)
-    ]
-
-    assignment_df["%RelativeExpression"] = (
-        100
-        * assignment_df["TotalWeightedSupportingReads"]
-        / assignment_df["TotalWeightedSupportingReads"].sum()
-    )
-
-    assignment_df = (
-        assignment_df
-        .sort_values("TotalWeightedSupportingReads")
-        # .reset_index(drop=True)
-    )
-    assignment_df["RareToCommonProteinIndex"] = list(range(1, assignment_df.shape[0] + 1))
-
-
-    assignment_df = (
-        assignment_df
-        .sort_values("TotalWeightedSupportingReads", ascending=False)
-        .reset_index(drop=True)
-    )
-    assignment_df["CommonToRareProteinIndex"] = list(range(1, assignment_df.shape[0] + 1))
-    # assignment_df["%CommonToRareCummulativeRelativeExpression"] = assignment_df[
-    #     "%RelativeExpression"
-    # ].cumsum()
-
-    # assignment_df.insert(0, "Chrom", chrom)
-
+    """Canonical native order; markers are checked read-only."""
+    import json
+    import hashlib
+    canonical_dir = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/canonical_inputs")
+    bindings = json.loads((canonical_dir / "ordinary_bindings.json").read_text())["cohorts"]
+    matches = [r for r in bindings if Path(r["expression_realpath"]).resolve() == Path(expression_file).resolve()]
+    assert len(matches) == 1
+    binding = matches[0]
+    assert find_max_solution(expression_file) == binding["solution_id"]
+    path = canonical_dir / binding["canonical_file"]
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == binding["canonical_sha256"]
+    assignment_df = pd.read_table(path, dtype={"Protein": str, "#Solution": str}, float_precision="round_trip")
+    supports = pd.read_table(canonical_dir / f"patterns/{binding['platform']}.{binding['gene']}.ordinary.original_support.tsv.gz", dtype={"Protein": str})
+    assert assignment_df.Protein.tolist() == supports.Protein.tolist()
+    assignment_df["NumOfUniqueReads"] = supports.Transcripts.str.count(",") + 1
+    assignment_df["CommonToRareProteinIndex"] = assignment_df["#Protein"]
+    assignment_df["RareToCommonProteinIndex"] = len(assignment_df) + 1 - assignment_df["#Protein"]
+    assignment_df["Solution"] = binding["solution_id"]
+    assignment_df["AssignmentSHA256"] = binding["canonical_sha256"]
     return assignment_df
+
+
 
 # %%
 X_common_proteins = [0.001, 0.005, 0.01, 0.02, 0.03, 0.04, 0.05]
@@ -715,7 +689,7 @@ def make_x_y_expression_df(
             ].sum()
 
             result = [
-                platform, sample, 
+                platform, sample, expression_df["Solution"].iloc[0], expression_df["AssignmentSHA256"].iloc[0],
                 x_common_proteins, y_rare_proteins,
                 actual_x_common_proteins, actual_y_rare_proteins,
                 x_common_proteins_cumulative_expression, y_rare_proteins_cumulative_expression,
@@ -728,7 +702,7 @@ def make_x_y_expression_df(
     x_y_expression_df = pd.DataFrame(
         results,
         columns=[
-            "Platform", "Sample", 
+            "Platform", "Sample", "Solution", "AssignmentSHA256",
             "XCommonProteins", "YRareProteins",
             "ActualXCommonProteins", "ActualYRareProteins",
             "XCommonProteinsCumulativeExpression", "YRareProteinsCumulativeExpression",
@@ -759,68 +733,29 @@ x_y_expression_df
 x_y_expression_df.isna().sum()
 
 # %%
-proteins_stats_df = (
-    proteins_results_df
-    .groupby(
-        [
-            "Platform", "ShortPlatform", "Sample", "XYProteinsDenoteFractions", "XCommonProteins", "YRareProteins", "IsSoftComparison",
-            # 'ActualXCommonProteins', 'ActualYRareProteins'
-         ],
-        as_index=False
-    )
-    .agg(
-        NumOfChimericProteinsOnEditingSitesLevel = ("IsChimeric", "sum"),
-    )
-)
-
-proteins_stats_df.insert(
-    proteins_stats_df.columns.get_loc("Sample") + 1,
-    "Platform-Sample",
-    proteins_stats_df["ShortPlatform"] + "-" + proteins_stats_df["Sample"]
-)
-
-added_empty_rows = []
-for platform, sample in zip(platforms, samples):
-    for x_common_proteins, y_rare_proteins in product(X_common_proteins, Y_rare_proteins):
-        for soft_comparison in soft_comparisons:
-            subset_df = proteins_stats_df[
-                (proteins_stats_df["Platform"].eq(platform))
-                & (proteins_stats_df["Sample"].eq(sample))
-                & (proteins_stats_df["XCommonProteins"].eq(x_common_proteins))
-                & (proteins_stats_df["YRareProteins"].eq(y_rare_proteins))
-                & (proteins_stats_df["IsSoftComparison"].eq(soft_comparison))
-            ]
-            if subset_df.empty:
-                added_empty_rows.append(
-                    {
-                        "Platform": platform,
-                        "ShortPlatform": shortened_platform_names[platform],
-                        "Sample": sample,
-                        "Platform-Sample": shortened_platform_names[platform] + "-" + sample,
-                        "XYProteinsDenoteFractions": x_and_y_proteins_denote_fractions,
-                        "XCommonProteins": x_common_proteins,
-                        "YRareProteins": y_rare_proteins,
-                        "IsSoftComparison": soft_comparison,
-                        # "ActualXCommonProteins": np.nan,
-                        # "ActualYRareProteins": np.nan,
-                        "NumOfChimericProteinsOnEditingSitesLevel": 0,
-                        # "%OfChimericProteinsOnEditingSitesLevel": 0.0
-                    }
-                )
-proteins_stats_df = pd.concat([proteins_stats_df, pd.DataFrame(added_empty_rows)], ignore_index=True)
-
-proteins_stats_df = proteins_stats_df.merge(
-    x_y_expression_df,
-    how="left"
-)
-
-proteins_stats_df.insert(
-    proteins_stats_df.columns.get_loc("NumOfChimericProteinsOnEditingSitesLevel") + 1,
-    "%OfChimericProteinsOnEditingSitesLevel",
-    proteins_stats_df["NumOfChimericProteinsOnEditingSitesLevel"].mul(100).div(proteins_stats_df["ActualYRareProteins"])
-)
-
+# Corrected manuscript branch only: X=0.01, Y=0.3, with authenticated parent identities.
+# Other cached X/Y settings remain separate and are not joined to these assignments.
+import json
+import hashlib
+path = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/correction_2026-10-12/inputs/figure_s20_chimeras.tsv")
+metadata = json.loads(path.with_suffix(".json").read_text())
+assert hashlib.sha256(path.read_bytes()).hexdigest() == metadata["sha256"]
+proteins_stats_df = pd.read_table(path, dtype={"Solution": str}, float_precision="round_trip")
+proteins_stats_df = proteins_stats_df.rename(columns={"Gene": "Sample", "RecoveredChimericCount": "NumOfChimericProteinsOnEditingSitesLevel"})
+proteins_stats_df["ShortPlatform"] = proteins_stats_df.Platform.map(shortened_platform_names)
+proteins_stats_df["Platform-Sample"] = proteins_stats_df.ShortPlatform + "-" + proteins_stats_df.Sample
+proteins_stats_df["XCommonProteins"] = 0.01
+proteins_stats_df["YRareProteins"] = 0.3
+proteins_stats_df["IsSoftComparison"] = proteins_stats_df.Comparison.eq("Soft comparison")
+proteins_stats_df["XYProteinsDenoteFractions"] = True
+join_keys = ["Platform", "Sample", "Solution", "AssignmentSHA256", "XCommonProteins", "YRareProteins"]
+denominators = x_y_expression_df.loc[x_y_expression_df.XCommonProteins.eq(.01) & x_y_expression_df.YRareProteins.eq(.3), join_keys + ["ActualYRareProteins"]]
+proteins_stats_df = proteins_stats_df.merge(denominators, on=join_keys, validate="many_to_one", suffixes=("", "_checked"))
+assert len(proteins_stats_df) == 42
+assert proteins_stats_df.ActualYRareProteins.eq(proteins_stats_df.ActualYRareProteins_checked).all()
+proteins_stats_df["%OfChimericProteinsOnEditingSitesLevel"] = 100 * proteins_stats_df.NumOfChimericProteinsOnEditingSitesLevel / proteins_stats_df.ActualYRareProteins
 proteins_stats_df
+
 
 # %%
 assert proteins_stats_df.isna().sum().eq(0).all()
@@ -1104,6 +1039,13 @@ fig.write_image(
 )
 
 fig.show()
+
+# %%
+# Save Figure S20b exact inputs, sample identities and original denominators.
+from pathlib import Path
+figure_s20_table = proteins_stats_df.loc[proteins_stats_df.XCommonProteins.eq(0.01) & proteins_stats_df.YRareProteins.eq(0.3)].copy()
+figure_s20_table.to_csv(Path("figure_rebuild_work/phase4_batch/inputs/source_s20b.tsv"), sep="\t", index=False, na_rep="NA")
+
 
 # %%
 proteins_stats_df
@@ -1463,6 +1405,13 @@ fig.write_image(
     height=height,
 )
 fig.show()
+
+# %%
+# Save Figure S20a exact inputs, sample identities and original denominators.
+from pathlib import Path
+figure_s20_table = x_y_expression_df.loc[x_y_expression_df.XCommonProteins.eq(0.01)].copy()
+figure_s20_table.to_csv(Path("figure_rebuild_work/phase4_batch/inputs/source_s20a.tsv"), sep="\t", index=False, na_rep="NA")
+
 
 # %%
 proteins_stats_df

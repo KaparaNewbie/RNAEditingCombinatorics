@@ -4841,6 +4841,19 @@ display(
 fig.show()
 
 # %%
+(
+    significant_mismatches_theoretical_fix_df.loc[
+        (
+            significant_mismatches_theoretical_fix_df["AtOrAboveSuspectedSNPLevel"]
+            & ~significant_mismatches_theoretical_fix_df["MismatchFrequency1"]
+            & ~significant_mismatches_theoretical_fix_df["EditingDetectionDisabledInChromDueToSuspectedSNPsWithoutACOrAT"]
+        )
+    ]
+    .groupby(["AboveOldEditingThreshold", "Mismatch"]).size()
+    .reset_index(name="Count")
+)
+
+# %%
 # original version 2, plot 1 --> version 2b, plot 3
 
 
@@ -9380,17 +9393,14 @@ def all_haplotypes_permutation_null(
 
 # %%
 
-# %% [markdown]
-# ### Selected diverse haplotypes tests
-
 # %%
-def validate_haplotypes_diversity(
+def validate_haplotypes_diversity_per_gene(
     editing_and_snps_reads_df,
     min_haplotypes,
     min_reads_per_haplotype,
     min_editing_sites=0
 ):
-    
+    "Make sure the read is eligible for haplotype comparison (i.e. enough haplotypes and enough editing sites)"
     num_editing_sites = len(editing_and_snps_reads_df.loc[:, "Haplotype":].columns) - 1
     enough_editing_sites = num_editing_sites >= min_editing_sites
     
@@ -9403,6 +9413,19 @@ def validate_haplotypes_diversity(
 
 
 # %%
+def retain_well_covered_haplotypes_in_gene(editing_and_snps_reads_df, min_reads_per_haplotype):
+    """
+    Retain only haplotypes with at least min_reads_per_haplotype reads.
+    """
+    hap_counts = editing_and_snps_reads_df["Haplotype"].value_counts()
+    well_covered_haps = hap_counts[hap_counts.ge(min_reads_per_haplotype)].index
+    return editing_and_snps_reads_df.loc[editing_and_snps_reads_df["Haplotype"].isin(well_covered_haps)]
+
+
+# %% [markdown]
+# ### Selected diverse haplotypes tests
+
+# %%
 # editing_and_snps_reads_df = editing_and_snps_reads_dfs[2]
 # editing_and_snps_reads_df
 
@@ -9410,13 +9433,10 @@ def validate_haplotypes_diversity(
 
 # %%
 diverse_haplotypes_editing_and_snps_reads_dfs = [
-    df
+    # df
+    retain_well_covered_haplotypes_in_gene(df, 200)
     for df in editing_and_snps_reads_dfs
-    # if validate_haplotypes_diversity(df, 2, 50)
-    # if validate_haplotypes_diversity(df, 2, 300) or validate_haplotypes_diversity(df, 3, 100)
-    # if validate_haplotypes_diversity(df, 3, 100)
-    # if validate_haplotypes_diversity(df, 3, 70, 5)
-    if validate_haplotypes_diversity(df, 2, 200, 15)
+    if validate_haplotypes_diversity_per_gene(df, 2, 200, 15)
 ]
 ic(len(diverse_haplotypes_editing_and_snps_reads_dfs));
 
@@ -9464,13 +9484,40 @@ concat_editing_long_df["%mean"] = concat_editing_long_df["mean"].mul(100)
 concat_editing_long_df 
 
 # %%
+# num of unique sites in selected transcripts
+concat_editing_long_df.drop_duplicates(["Chrom", "EditingSite"]).shape[0]
+
+# %%
+max_and_min_mean_prct_editing_freq_df = (
+    concat_editing_long_df
+    .groupby(["Chrom", "EditingSite"])
+    .agg(
+        MaxMeanPrctEditingFreq=("%mean", "max"),
+        MinMeanPrctEditingFreq=("%mean", "min"),
+    )
+    .reset_index()
+    .assign(
+        MaxMinusMinMeanPrctEditingFreq=lambda x: x["MaxMeanPrctEditingFreq"] - x["MinMeanPrctEditingFreq"]
+    )
+)
+max_and_min_mean_prct_editing_freq_df
+
+# %%
+# find all cases where the max mean % editing frequency is > 10% 
+# higher than the min mean % editing frequency for the same site across haplotypes
+(
+    max_and_min_mean_prct_editing_freq_df
+    .loc[
+        max_and_min_mean_prct_editing_freq_df["MaxMinusMinMeanPrctEditingFreq"].gt(10)
+    ]
+    .shape[0]
+)
+
+# %%
 concat_editing_profiles_dfs
 
 # %%
 concat_editing_profiles_dfs.iloc[:, 1:].max().max()
-
-# %%
-editing_profiles_dfs[0]
 
 
 # %%
@@ -9488,11 +9535,11 @@ def make_haplotype_diffs_df(editing_profiles_df):
 
 
 # %%
-haplotype_diffs_dfs = [
-    make_haplotype_diffs_df(editing_profiles_df)
-    for editing_profiles_df in editing_profiles_dfs
-]
-haplotype_diffs_dfs[0]
+# haplotype_diffs_dfs = [
+#     make_haplotype_diffs_df(editing_profiles_df)
+#     for editing_profiles_df in editing_profiles_dfs
+# ]
+# haplotype_diffs_dfs[0]
 
 # %%
 # -----------------------
@@ -9510,7 +9557,6 @@ def chrom_to_plot_title(chrom):
 
 
 # %%
-
 df = concat_editing_long_df  # expects columns: Chrom, EditingSite, %mean, Haplotype
 
 facet_col = "Chrom"
@@ -9692,8 +9738,32 @@ for i, chrom in enumerate(chroms):
     )
     
 
+fig.write_image(
+    Path(
+        out_dir,
+        "Mean per site editing frequency across haplotypes - Octopus - pooled.svg"
+    ),
+    width=width,
+    height=height,
+)
 
 fig.show()
+
+# %%
+# Persist site identities, complete haplotype labels and exact S5 means, including NA.
+from pathlib import Path
+figure_s5_dir = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/phase4_batch/inputs")
+figure_s5_dir.mkdir(parents=True, exist_ok=True)
+figure_s5_parts = []
+for trace_index, trace in enumerate(fig.data):
+    facet = int(trace.xaxis[1:] or "1") - 1
+    chrom = chroms[facet]
+    figure_s5_parts.append(pd.DataFrame({"Facet": facet, "Trace": trace_index,
+        "Chrom": chrom, "Gene": chrom_to_plot_title(chrom), "Haplotype": trace.name,
+        "EditingSite": trace.x, "MeanEditingPercent": trace.y, "Color": trace.marker.color}))
+figure_s5_plot = pd.concat(figure_s5_parts, ignore_index=True)
+figure_s5_plot.to_csv(figure_s5_dir / "figure_s5_plot.tsv", sep="\t", index=False, na_rep="NA")
+
 
 # %%
 len(diverse_haplotypes_editing_and_snps_reads_dfs)
@@ -10125,9 +10195,9 @@ fig.show()
 diverse_haplotypes_editing_and_snps_reads_dfs_for_fisher_tests = [
     df
     for df in editing_and_snps_reads_dfs
-    if validate_haplotypes_diversity(df, 2, 50)
-    # if validate_haplotypes_diversity(df, 2, 300) or validate_haplotypes_diversity(df, 3, 100)
-    # if validate_haplotypes_diversity(df, 3, 100)
+    if validate_haplotypes_diversity_per_gene(df, 2, 50)
+    # if validate_haplotypes_diversity_per_gene(df, 2, 300) or validate_haplotypes_diversity_per_gene(df, 3, 100)
+    # if validate_haplotypes_diversity_per_gene(df, 3, 100)
 ]
 ic(len(diverse_haplotypes_editing_and_snps_reads_dfs_for_fisher_tests));
 
@@ -10335,6 +10405,465 @@ fig.update_layout(
     # ti
 )
 fig.show()
+
+# %% [markdown]
+# ### Haplotype-based screening for potential A-to-G SNPs
+
+# %%
+# Select genes with at least two haplotypes supported by >=50 reads each,
+# and retain only these sufficiently-informative haplotypes' reads
+haplotype_snp_screening_reads_dfs = [
+    # df
+    retain_well_covered_haplotypes_in_gene(df, 50)
+    for df in editing_and_snps_reads_dfs
+    if validate_haplotypes_diversity_per_gene(
+        df,
+        min_haplotypes=2,
+        min_reads_per_haplotype=50,
+    )
+]
+
+ic(len(haplotype_snp_screening_reads_dfs));
+
+haplotype_snp_screening_reads_dfs[0]
+
+
+# %%
+def make_improved_editing_freq_by_haplotype_df(haplotype_snp_screening_reads_df):
+    editing_freq_by_haplotype_df = (
+        haplotype_snp_screening_reads_df
+        .loc[:, "Haplotype":]
+        .groupby("Haplotype")
+        .agg(["size", "mean", "std"])
+        .rename_axis(columns=["Position", "Aggregation"])
+        .stack(level=["Position", "Aggregation"], future_stack=True)
+        .rename("Value")
+        .reset_index()
+        .astype(
+            {"Position": "int64"}
+        )
+    )
+    chrom = haplotype_snp_screening_reads_df.copy().reset_index().at[0, "Chrom"]
+    editing_freq_by_haplotype_df.insert(0, "Chrom", chrom)
+    return editing_freq_by_haplotype_df
+
+
+# %%
+concat_improved_editing_freq_by_haplotype_df = pd.concat(
+    [
+        make_improved_editing_freq_by_haplotype_df(df)
+        for df in haplotype_snp_screening_reads_dfs
+    ],
+    ignore_index=True
+)
+concat_improved_editing_freq_by_haplotype_df = (
+    concat_improved_editing_freq_by_haplotype_df
+    .pivot(
+        index=["Chrom", "Position", "Haplotype"],
+        columns="Aggregation",
+        values="Value"
+    )
+    .reset_index()
+    .rename_axis(index=None, columns=None)
+    .assign(
+        MeanPrct = lambda x: x["mean"] * 100,
+        StdPrct = lambda x: x["std"] * 100
+    )
+)
+concat_improved_editing_freq_by_haplotype_df
+
+
+# %%
+def get_site_above_95_prct_or_below_5_df(haplotype_snp_screening_reads_df: pd.DataFrame):
+    # calc editing frequency per site for each haplotype separately
+    editing_freq_by_haplotype_df = (
+        haplotype_snp_screening_reads_df
+        .loc[:, "Haplotype":]
+        .groupby("Haplotype")
+        .mean()
+    )
+    # for each site, find wether its frequency is above 95% or below 5% in any/all haplotypes
+    site_above_95_prct_in_at_least_1_haplotype = editing_freq_by_haplotype_df.gt(0.95).any()
+    site_below_5_prct_in_at_least_1_haplotype = editing_freq_by_haplotype_df.lt(0.05).any()
+    site_above_95_prct_in_all_haplotypes = editing_freq_by_haplotype_df.gt(0.95).all()
+    site_below_5_prct_in_all_haplotypes = editing_freq_by_haplotype_df.lt(0.05).all()
+    site_above_95_prct_or_below_5_in_all_haplotypes = (
+        editing_freq_by_haplotype_df.gt(0.95)
+        | editing_freq_by_haplotype_df.lt(0.05)
+    ).all(axis=0)
+    site_above_95_prct_or_below_5_in_all_haplotypes_and_at_least_one_kind_of_each = (
+        site_above_95_prct_or_below_5_in_all_haplotypes 
+        & site_above_95_prct_in_at_least_1_haplotype
+        & site_below_5_prct_in_at_least_1_haplotype
+    )
+    # finalize & return df
+    chrom = haplotype_snp_screening_reads_df.copy().reset_index().at[0, "Chrom"]
+    site_above_95_prct_or_below_5_df = (
+        pd.DataFrame(
+            {
+                "Chrom": chrom,
+                "Position": site_above_95_prct_in_all_haplotypes.index,
+                "Above95PrctInAtLeastOneHaplotype": site_above_95_prct_in_at_least_1_haplotype,
+                "Below5PrctInAtLeastOneHaplotype": site_below_5_prct_in_at_least_1_haplotype,
+                "Above95PrctInAllHaplotypes": site_above_95_prct_in_all_haplotypes,
+                "Below5PrctInAllHaplotypes": site_below_5_prct_in_all_haplotypes,
+                "Above95OrBelow5PrctEditingInAllHaplotypes": site_above_95_prct_or_below_5_in_all_haplotypes,
+                "Above95PrctOrBelow5InAllHaplotypesAndAtLeastOneOfEach": site_above_95_prct_or_below_5_in_all_haplotypes_and_at_least_one_kind_of_each
+            }
+        )
+        .reset_index(drop=True)
+    )
+    return site_above_95_prct_or_below_5_df
+
+
+# %%
+site_above_95_prct_or_below_5_dfs = [
+    get_site_above_95_prct_or_below_5_df(df)
+    for df in haplotype_snp_screening_reads_dfs
+]
+site_above_95_prct_or_below_5_dfs[0]
+
+# %%
+# site_above_95_prct_or_below_5_dfs[0]["Above95PrctOrBelow5InAllHaplotypesAndAtLeastOneOfEach"].value_counts()
+
+# %%
+# site_above_95_prct_or_below_5_dfs[1]["Above95PrctOrBelow5InAllHaplotypesAndAtLeastOneOfEach"].value_counts()
+
+# %%
+concat_site_above_95_prct_or_below_5_df = (
+    pd.concat(
+        site_above_95_prct_or_below_5_dfs,
+        ignore_index=False
+    )
+    .astype(
+        {
+            "Position": int
+        }
+    )
+)
+
+concat_site_above_95_prct_or_below_5_df = (
+    concat_site_above_95_prct_or_below_5_df
+    .merge(
+        concat_all_positions_df.loc[
+            :,
+            ["Chrom", "Position", "EditingFrequency"]
+        ],
+        how="left"
+    )
+    .rename(
+        columns={
+            "EditingFrequency": "PooledEditingFrequency"
+        }
+    )
+    .assign(
+        AtOrAbovePooledSNPLevel = lambda x: x["PooledEditingFrequency"].ge(snp_noise_level),
+        PooledPrctEditingFrequency = lambda x: 100 * x["PooledEditingFrequency"]
+    )
+)
+
+concat_site_above_95_prct_or_below_5_df
+
+# %%
+concat_site_above_95_prct_or_below_5_df["AtOrAbovePooledSNPLevel"].value_counts()
+
+# %%
+np.round(
+    100 
+    * concat_site_above_95_prct_or_below_5_df["AtOrAbovePooledSNPLevel"].sum()
+    / concat_site_above_95_prct_or_below_5_df.shape[0],
+    2
+)
+
+# %%
+concat_site_above_95_prct_or_below_5_df["Above95PrctOrBelow5InAllHaplotypesAndAtLeastOneOfEach"].value_counts()
+
+# %%
+(
+    concat_site_above_95_prct_or_below_5_df
+    .loc[
+        :,
+        ["Above95PrctOrBelow5InAllHaplotypesAndAtLeastOneOfEach", "AtOrAbovePooledSNPLevel"]
+    ]
+    .value_counts()
+)
+
+# %%
+# num of genes with suspected sites
+(
+    concat_site_above_95_prct_or_below_5_df
+    .loc[
+        (
+            concat_site_above_95_prct_or_below_5_df["Above95PrctOrBelow5InAllHaplotypesAndAtLeastOneOfEach"]
+        )
+    ]
+    .drop_duplicates("Chrom")
+    .shape[0]
+)
+
+# %%
+# % of suspected sites relative to all tested sites
+np.round(
+    100 
+    * concat_site_above_95_prct_or_below_5_df["Above95PrctOrBelow5InAllHaplotypesAndAtLeastOneOfEach"].sum()
+    / concat_site_above_95_prct_or_below_5_df.shape[0],
+    2
+)
+
+# %%
+# % of suspected sites relative to all tested sites with pooled freq >= 5%
+np.round(
+    100 
+    * concat_site_above_95_prct_or_below_5_df["Above95PrctOrBelow5InAllHaplotypesAndAtLeastOneOfEach"].sum()
+    / concat_site_above_95_prct_or_below_5_df["AtOrAbovePooledSNPLevel"].sum(),
+    2
+)
+
+# %%
+
+# %%
+# pooled editing freq of the suspected sites
+# (as exptected, no suspected site has pooled editing level below SNP level)
+(
+    concat_site_above_95_prct_or_below_5_df
+    .loc[
+        (
+            concat_site_above_95_prct_or_below_5_df["Above95PrctOrBelow5InAllHaplotypesAndAtLeastOneOfEach"]
+        )
+    ]
+    .groupby("AtOrAbovePooledSNPLevel")
+    ["PooledPrctEditingFrequency"].describe().round(2)
+)
+
+# %%
+
+# %%
+
+# %%
+putative_fp_with_pooled_level_below_snp_df = (
+    concat_site_above_95_prct_or_below_5_df
+    .loc[
+        (
+            concat_site_above_95_prct_or_below_5_df["Above95PrctOrBelow5InAllHaplotypesAndAtLeastOneOfEach"]
+            & ~concat_site_above_95_prct_or_below_5_df["AtOrAbovePooledSNPLevel"]
+        )
+    ]
+    .sort_values(["Chrom", "Position"], ignore_index=True)
+)
+putative_fp_with_pooled_level_below_snp_df
+
+# %%
+putative_fp_with_pooled_level_below_snp_df["Chrom"].value_counts().reset_index(name="Count")
+
+# %%
+editing_freq_by_haplotype_of_putative_fp_with_pooled_level_below_snp_df = (
+    putative_fp_with_pooled_level_below_snp_df
+    .loc[:, ["Chrom", "Position"]]
+    .merge(
+        concat_improved_editing_freq_by_haplotype_df,
+        how="left"
+    )
+)
+editing_freq_by_haplotype_of_putative_fp_with_pooled_level_below_snp_df["PrctReadsInPosition"] = (
+    editing_freq_by_haplotype_of_putative_fp_with_pooled_level_below_snp_df
+    .groupby(["Chrom", "Position"])
+    ["size"].transform(lambda x: 100 * x / x.sum())
+)
+editing_freq_by_haplotype_of_putative_fp_with_pooled_level_below_snp_df
+
+# %%
+# # for each chrom-position, describe (in order to give upper bound) 
+# # for the % of reads for haplotypes with high levels (high MeanPrct) - above 95%
+# (
+#     editing_freq_by_haplotype_of_putative_fp_with_pooled_level_below_snp_df
+#     .loc[
+#         editing_freq_by_haplotype_of_putative_fp_with_pooled_level_below_snp_df["MeanPrct"].gt(95)
+#     ]
+#     .groupby(["Chrom", "Position"])
+#     ["PrctReadsInPosition"].describe().round(2)
+# )
+
+# %%
+# % of reads-per-site, relative to the total number of reads in that site, 
+# for haplotypes with high editing levels (above 95%)
+(
+    editing_freq_by_haplotype_of_putative_fp_with_pooled_level_below_snp_df
+    .loc[
+        editing_freq_by_haplotype_of_putative_fp_with_pooled_level_below_snp_df["MeanPrct"].gt(95)
+    ]
+    [["size", "PrctReadsInPosition"]].describe().round(2)
+)
+
+# %%
+concat_improved_editing_freq_by_haplotype_df["size"].describe()
+
+# %%
+max_width = 1600
+max_sites = putative_fp_with_pooled_level_below_snp_df.groupby(["Chrom"]).size().max() # 9
+num_of_unique_chroms_with_putative_fp_with_pooled_level_below_snp_df = putative_fp_with_pooled_level_below_snp_df["Chrom"].nunique()
+
+for i, chrom in enumerate(editing_freq_by_haplotype_of_putative_fp_with_pooled_level_below_snp_df["Chrom"].unique(), start=1):
+
+    df = editing_freq_by_haplotype_of_putative_fp_with_pooled_level_below_snp_df.loc[
+        editing_freq_by_haplotype_of_putative_fp_with_pooled_level_below_snp_df["Chrom"].eq(chrom)
+    ]
+    
+    fig = px.scatter(
+        df,
+        x="Haplotype",
+        y="MeanPrct",
+        error_y="StdPrct",
+        # color="size",
+        color="PrctReadsInPosition",
+        facet_col="Position",
+        facet_col_spacing=0.07,
+        labels={
+            "Position": "Position",
+            "MeanPrct": "Mean editing [%]",
+            "Haplotype": "",
+            # "size": "Reads"
+            "PrctReadsInPosition": "Reads in<br>position [%]"
+        },
+        title=f"{chrom} ({i}/{num_of_unique_chroms_with_putative_fp_with_pooled_level_below_snp_df})"
+    )
+    fig.update_xaxes(tickangle=90)
+    # fig.update_yaxes(dtick=10)
+    fig.for_each_annotation(
+        lambda a: a.update(text=a.text.split("=")[-1])
+    )
+    # width = max(
+    #     max_width * df["Position"].nunique() / max_sites,
+    #     450
+    # )
+    width = max_width * df["Position"].nunique() / max_sites
+    if width < max_width:
+        width += 150 # add size for color bar, etc.
+    fig.update_layout(
+        width=width
+    )
+    fig.show()
+
+# %%
+
+# %%
+concat_sites_above_95_prct_or_below_5_results_df = (
+    concat_site_above_95_prct_or_below_5_df
+    .groupby("Chrom")
+    .agg(
+        NumOfSitesAbove95PrctOrBelow5InAllHaplotypesAndAtLeastOneOfEach=("Above95PrctOrBelow5InAllHaplotypesAndAtLeastOneOfEach", "sum"),
+        NumOfSites=("Above95PrctOrBelow5InAllHaplotypesAndAtLeastOneOfEach", "size"),
+    )
+    .reset_index()
+    .assign(
+        PrctOfSitesAbove95PrctOrBelow5InAllHaplotypesAndAtLeastOneOfEach = lambda x: 
+            100 * x["NumOfSitesAbove95PrctOrBelow5InAllHaplotypesAndAtLeastOneOfEach"] / x["NumOfSites"]
+    )
+    .assign(
+        AtLeastOneEditingSiteSuspectedAsSNP = lambda x:
+            x["NumOfSitesAbove95PrctOrBelow5InAllHaplotypesAndAtLeastOneOfEach"] > 0
+    )
+)
+concat_sites_above_95_prct_or_below_5_results_df
+
+# %%
+(
+    concat_sites_above_95_prct_or_below_5_results_df["AtLeastOneEditingSiteSuspectedAsSNP"]
+    .value_counts()
+)
+
+# %%
+concat_sites_above_95_prct_or_below_5_results_df["NumOfSites"].describe().round(2)
+
+# %%
+(
+    concat_sites_above_95_prct_or_below_5_results_df
+    .groupby("AtLeastOneEditingSiteSuspectedAsSNP")
+    ["NumOfSites"]
+    .describe().round(2)
+)
+
+# %%
+(
+    concat_sites_above_95_prct_or_below_5_results_df
+    .groupby("AtLeastOneEditingSiteSuspectedAsSNP")
+    ["NumOfSites"]
+    .sum()
+)
+
+# %%
+num_of_suspected_sites_in_genes_tested_for_haplotype_based_snps_screening = (
+    concat_sites_above_95_prct_or_below_5_results_df["NumOfSitesAbove95PrctOrBelow5InAllHaplotypesAndAtLeastOneOfEach"]
+    .sum()
+)
+num_of_all_sites_in_genes_tested_for_haplotype_based_snps_screening = (
+    concat_sites_above_95_prct_or_below_5_results_df["NumOfSites"]
+    .sum()
+)
+ic(
+    num_of_suspected_sites_in_genes_tested_for_haplotype_based_snps_screening,
+    num_of_all_sites_in_genes_tested_for_haplotype_based_snps_screening
+)
+np.round(
+    100 * num_of_suspected_sites_in_genes_tested_for_haplotype_based_snps_screening / num_of_all_sites_in_genes_tested_for_haplotype_based_snps_screening,
+    2
+)
+
+# %%
+(
+    concat_sites_above_95_prct_or_below_5_results_df
+    ["PrctOfSitesAbove95PrctOrBelow5InAllHaplotypesAndAtLeastOneOfEach"]
+    .describe().round(2)
+)
+
+# %%
+(
+    concat_sites_above_95_prct_or_below_5_results_df.loc[
+        concat_sites_above_95_prct_or_below_5_results_df["AtLeastOneEditingSiteSuspectedAsSNP"],
+        "PrctOfSitesAbove95PrctOrBelow5InAllHaplotypesAndAtLeastOneOfEach"
+    ]
+    .describe().round(2)
+)
+
+# %%
+(
+    concat_sites_above_95_prct_or_below_5_results_df.loc[
+        concat_sites_above_95_prct_or_below_5_results_df["AtLeastOneEditingSiteSuspectedAsSNP"],
+        "PrctOfSitesAbove95PrctOrBelow5InAllHaplotypesAndAtLeastOneOfEach"
+    ]
+    .describe().round(2)
+)
+
+# %%
+# fig = px.histogram(
+#     concat_sites_above_95_prct_or_below_5_results_df,
+#     x="NumOfSitesAbove95PrctOrBelow5InAllHaplotypesAndAtLeastOneOfEach"
+# )
+# fig.update_xaxes(dtick=1)
+# fig.update_layout(
+#     width=700,
+#     height=400
+# )
+# fig.show()
+
+# %%
+# fig = px.histogram(
+#     concat_sites_above_95_prct_or_below_5_results_df,
+#     x="PrctOfSitesAbove95PrctOrBelow5InAllHaplotypesAndAtLeastOneOfEach"
+# )
+# fig.update_xaxes(dtick=5, rangemode="tozero", range=[0, 100])
+# fig.update_layout(
+#     width=700,
+#     height=400
+# )
+# fig.show()
+
+# %%
+
+# %%
+
+# %%
+
+# %%
 
 # %% [markdown] papermill={"duration": 0.030615, "end_time": "2022-02-01T09:42:49.024262", "exception": false, "start_time": "2022-02-01T09:42:48.993647", "status": "completed"}
 # ## Num of distinct proteins
@@ -11828,6 +12357,17 @@ fig.write_image(
 )
 
 fig.show()
+
+# %%
+# Persist the exact pooled neural/non-neural cohort and plotted curves.
+from pathlib import Path
+figure_s14_dir = Path("figure_rebuild_work/phase4_batch/inputs")
+max_distinct_proteins_df[["Chrom", "Transcript", "NumOfProteins", "IsNeural"]].to_csv(
+    figure_s14_dir / "figure_s14_cohorts.tsv", sep="\t", index=False, na_rep="NA")
+pd.concat([curve.assign(IsNeural=condition) for condition, curve in zip(neural_conditions, neural_dfs)
+           if condition != "Missing"], ignore_index=True).to_csv(
+    figure_s14_dir / "source_s14_curves.tsv", sep="\t", index=False, na_rep="NA")
+
 
 # %%
 # version with only top panel for a conference
@@ -13711,6 +14251,13 @@ fig.write_image(
 )
 
 fig.show()
+
+# %%
+# Export the exact nine-transcript Figure S13 plotting table and pooled totals.
+from pathlib import Path
+figure_s13_export = concat_strongly_diversified_num_of_reads_and_proteins_per_sample_df.copy()
+figure_s13_export.to_csv(Path("figure_rebuild_work/phase4_batch/inputs/source_s13.tsv"), sep="\t", index=False, na_rep="NA")
+
 
 # %%
 per_sample_contribution_df

@@ -228,6 +228,48 @@ maskedcorsdict = Dict(
 )
 
 
+# Export the already prepared matrices. This block must not invoke simulate().
+figure_input_dir = "/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/phase1/inputs"
+mkpath(figure_input_dir)
+s19_values_path = joinpath(figure_input_dir, "simulation_s19_masked_correlations.tsv")
+s19_settings_path = joinpath(figure_input_dir, "simulation_s19_settings.tsv")
+any(ispath, [s19_values_path, s19_settings_path]) && error("S19 inputs already exist")
+open(s19_values_path, "w") do io
+    println(io, "EditingProbability\tReadRemovalProbability\tMaskedRow\tMaskedColumn\tCorrelation\tExpectedCorrelation")
+    for editingprob in editingprobs, removalprob in readremovalprobs
+        matrix = maskedcorsdict[(editingprob, removalprob)]
+        for col in axes(matrix, 2), row in axes(matrix, 1)
+            value = matrix[row, col]
+            println(io, editingprob, '\t', removalprob, '\t', row, '\t', col, '\t', isnan(value) ? "" : repr(value), '\t', repr(expectedcor(removalprob, editingprob)))
+        end
+    end
+end
+s19_lines = readlines(s19_values_path)[2:end]
+s19_line_index = 1
+for editingprob in editingprobs, removalprob in readremovalprobs
+    matrix = maskedcorsdict[(editingprob, removalprob)]
+    for col in axes(matrix, 2), row in axes(matrix, 1)
+        fields = split(s19_lines[s19_line_index], '\t'; keepempty=true)
+        @assert parse(Float64, fields[1]) == editingprob && parse(Float64, fields[2]) == removalprob
+        @assert parse(Int, fields[3]) == row && parse(Int, fields[4]) == col
+        value = isempty(fields[5]) ? NaN : parse(Float64, fields[5])
+        @assert isequal(value, matrix[row, col])
+        @assert parse(Float64, fields[6]) == expectedcor(removalprob, editingprob)
+        s19_line_index += 1
+    end
+end
+open(s19_settings_path, "w") do io
+    println(io, "Setting\tValue")
+    for (name, value) in [("Seed", 1892), ("Reads", N), ("EditingSites", K),
+        ("EditingProbabilityOrder", join(editingprobs, ",")), ("RemovalProbabilityOrder", join(readremovalprobs, ",")),
+        ("ExpectedCorrelationFormula", "editingprob / (2 * editingprob + readremovalprob)"),
+        ("HistogramBinning", "UNVERIFIED: capture actual edges from the existing CairoMakie histogram recipe before marking ready"),
+        ("ThreadCount", Threads.nthreads())]
+        println(io, name, '\t', value)
+    end
+end
+
+
 ## old plot version
 
 # abs_min_x = minimum(x -> minimum(filter(!isnan, x)), values(maskedcorsdict))

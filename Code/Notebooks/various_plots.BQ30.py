@@ -1138,6 +1138,14 @@ fig.write_image(
 fig.show()
 
 # %%
+# Persist the native S2 table; validate the original cohort before manuscript use.
+from pathlib import Path
+figure_s2_dir = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/phase4_batch/inputs")
+figure_s2_dir.mkdir(parents=True, exist_ok=True)
+merged_ref_base_positions_df.to_csv(figure_s2_dir / "figure_s2_pclo_comparison_candidate.tsv", sep="\t", index=False, na_rep="NA")
+
+
+# %%
 cat_merged_ref_base_positions_df = merged_ref_base_positions_df.copy()
 cat_merged_ref_base_positions_df["Position"] = cat_merged_ref_base_positions_df["Position"].astype(str)
 cat_merged_ref_base_positions_df
@@ -2145,6 +2153,14 @@ fig.write_image(
 fig.show()
 
 
+# %%
+# Persist the native S2 table; validate the original cohort before manuscript use.
+from pathlib import Path
+figure_s2_dir = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/phase4_batch/inputs")
+figure_s2_dir.mkdir(parents=True, exist_ok=True)
+all_df.to_csv(figure_s2_dir / "figure_s2_pooled_editing_candidate.tsv", sep="\t", index=False, na_rep="NA")
+
+
 # %% papermill={"duration": 4.052404, "end_time": "2022-02-01T09:42:53.176715", "exception": false, "start_time": "2022-02-01T09:42:49.124311", "status": "completed"}
 fig = make_subplots(
     rows=1,
@@ -2768,8 +2784,13 @@ for platform, condition in editable_aas_per_platform_and_condition:
     )
 
 # correlate all x and y values
-x = distinct_proteins_per_editable_aas_df["EditableAAs"]
-y = distinct_proteins_per_editable_aas_df["NumOfProteins"]
+# Original 336 algorithm rows are retained as evidence; inference uses 21 displayed maxima.
+gene_platform_maxima = distinct_proteins_per_editable_aas_df.groupby(
+    ["Platform", "Gene", "EditableAAs"], as_index=False
+)["NumOfProteins"].max()
+assert len(gene_platform_maxima) == 21
+x = gene_platform_maxima["EditableAAs"]
+y = gene_platform_maxima["NumOfProteins"]
 r, pv = scipy.stats.pearsonr(x, y)
 
 # pearson_text = f"<b>Pearson's r</b><br>p-val = {pv:.2e}<br>ρ = {r:.2g}"
@@ -2828,6 +2849,14 @@ fig.write_image(
 fig.show()
 
 
+# %%
+# Persist the exact scientifically meaningful S6 plotting input.
+from pathlib import Path
+figure_s6_dir = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/phase4_batch/inputs")
+figure_s6_dir.mkdir(parents=True, exist_ok=True)
+(distinct_proteins_per_editable_aas_df).to_csv(figure_s6_dir / "figure_s6c_native_solutions.tsv", sep="\t", index=False, na_rep="NA")
+
+
 # %% [markdown]
 # # Combined expression plots for squid
 
@@ -2879,8 +2908,8 @@ in_dir = Path("/private7/projects/Combinatorics/Code/Notebooks")
 out_dir = in_dir
 
 # illumina_merged_assignment_file = Path(in_dir, "AssignedExpression.Illumina.tsv")
-illumina_merged_assignment_file = Path(in_dir, "AssignedExpression.Fixed.Illumina.tsv")
-pacbio_merged_assignment_file = Path(in_dir, "AssignedExpression.PacBio.tsv")
+illumina_merged_assignment_file = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/canonical_inputs/AssignedExpression.Fixed.Illumina.tsv")
+pacbio_merged_assignment_file = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/canonical_inputs/AssignedExpression.PacBio.tsv")
 # pacbio_umi_merged_assignment_file = Path(
 #     in_dir, "AssignedExpression.PacBio.WithUMIs.tsv"
 # )
@@ -2899,25 +2928,17 @@ expression_cols = [
 ]
 
 # %%
-illumina_merged_assignment_df = pd.read_table(
-    illumina_merged_assignment_file, usecols=expression_cols
-)
-illumina_merged_assignment_df[condition_col] = (
-    illumina_merged_assignment_df[condition_col].str.split("_").str[0]
-)
-# illumina_merged_assignment_df
+from pathlib import Path
+import sys
+canonical_dir = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/canonical_inputs")
+sys.path.insert(0, str(canonical_dir))
+from canonical_io import verified_merged_dataframe, read_merged
 
-# pacbio_merged_assignment_df = pd.read_table(pacbio_merged_assignment_file)
-pacbio_merged_assignment_df = pd.concat(
-    [
-        pd.read_table(pacbio_merged_assignment_file, usecols=expression_cols),
-        # pd.read_table(pacbio_umi_merged_assignment_file, usecols=expression_cols),
-    ]
-)
-pacbio_merged_assignment_df[condition_col] = pacbio_merged_assignment_df[
-    condition_col
-].apply(lambda x: "GRIA2" if x == "GRIA" else x)
+# Preserve identity and support columns alongside the original plotting columns.
+illumina_merged_assignment_df = read_merged("Illumina")
+pacbio_merged_assignment_df = read_merged("PacBio")
 pacbio_merged_assignment_df
+
 
 # %%
 pacbio_assignment_dfs = [
@@ -3372,6 +3393,20 @@ fig.write_image(Path(out_dir, "2x2_expression_vs_rank.PB1 and IL.svg"), width=wi
 
 fig.show()
 
+# %%
+# Persist the exact ranked expression inputs for Figure 4a.
+from pathlib import Path
+figure4_input_dir = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/phase4_batch/inputs")
+figure4_input_dir.mkdir(parents=True, exist_ok=True)
+figure4a_export_df = pd.concat([
+    assignment_df.assign(Platform=platform, Gene=condition)[
+        ["Platform", "Gene", "#Protein", "%RelativeExpression", "%CummulativeRelativeExpression"]]
+    for platform, condition, assignment_df in zip(joined_platforms, joined_conditions, joined_assignments_dfs)
+], ignore_index=True)
+assert not figure4a_export_df.duplicated(["Platform", "Gene", "#Protein"]).any()
+figure4a_export_df.to_csv(figure4_input_dir / "figure4a_expression.tsv", sep="\t", index=False, na_rep="NA")
+
+
 # %% [markdown]
 # ## Combined expression plots for long-reads squid genes
 
@@ -3756,6 +3791,14 @@ fig.write_image(
 )
 
 fig.show()
+
+# %%
+# Persist original Figure S10c inputs without rerunning the analysis.
+from pathlib import Path
+export_path = Path("figure_rebuild_work/phase4_batch/inputs/source_s10c.tsv")
+export_path.parent.mkdir(parents=True, exist_ok=True)
+(merged_umi_assignment_df).to_csv(export_path, sep="\t", index=False, na_rep="NA")
+
 
 # %%
 x_axis_name = "Isoform rank"
@@ -4687,6 +4730,14 @@ fig.write_image(
 fig.show()
 
 # %%
+# Persist original Figure S10b inputs without rerunning the analysis.
+from pathlib import Path
+export_path = Path("figure_rebuild_work/phase4_batch/inputs/source_s10b.tsv")
+export_path.parent.mkdir(parents=True, exist_ok=True)
+(pd.concat([df.assign(Fraction=fraction) for fraction, dfs in [(0.1, fraction01_assignment_dfs), (1.0, pacbio_assignment_dfs)] for df in dfs], ignore_index=True)).to_csv(export_path, sep="\t", index=False, na_rep="NA")
+
+
+# %%
 facet_col_spacing
 
 # %%
@@ -4888,6 +4939,14 @@ fig.write_image(
 )
 
 fig.show()
+
+# %%
+# Persist original Figure S10a inputs without rerunning the analysis.
+from pathlib import Path
+export_path = Path("figure_rebuild_work/phase4_batch/inputs/source_s10a.tsv")
+export_path.parent.mkdir(parents=True, exist_ok=True)
+(pd.concat(frac_1_merged_to_frac_01_assignment_dfs, ignore_index=True)).to_csv(export_path, sep="\t", index=False, na_rep="NA")
+
 
 # %%
 
@@ -5158,6 +5217,22 @@ fig.write_image(
 )
 
 fig.show()
+
+
+# %%
+# Persist the exact S1 read measurements and per-gene noise plotting observations.
+from pathlib import Path
+figure_s1_dir = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/phase4_batch/inputs")
+figure_s1_dir.mkdir(parents=True, exist_ok=True)
+figure_s1_reads = raw_reads_stats_df.reset_index(drop=True).copy()
+figure_s1_reads.insert(0, "SourceRow", range(len(figure_s1_reads)))
+figure_s1_reads.to_csv(figure_s1_dir / "figure_s1_reads.tsv", sep="\t", index=False, na_rep="NA")
+figure_s1_noise = pd.concat([
+    pd.DataFrame({"Trace": i, "Platform": "PacBio" if i < 2 else "Illumina",
+                  "Gene": trace.name, "Observation": range(len(trace.y)), "PercentNoise": trace.y})
+    for i, trace in enumerate(fig.data[:21])
+], ignore_index=True)
+figure_s1_noise.to_csv(figure_s1_dir / "figure_s1_noise.tsv", sep="\t", index=False, na_rep="NA")
 
 
 # %% jupyter={"source_hidden": true}
@@ -6672,6 +6747,14 @@ fig.write_image(
 fig.show()
 
 
+# %%
+# Persist the exact scientifically meaningful S6 plotting input.
+from pathlib import Path
+figure_s6_dir = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/phase4_batch/inputs")
+figure_s6_dir.mkdir(parents=True, exist_ok=True)
+(pd.concat([pacbio_dispersion_df, illumina_dispersion_df], ignore_index=True)).to_csv(figure_s6_dir / "figure_s6a_native_squid.tsv", sep="\t", index=False, na_rep="NA")
+
+
 # %% [markdown]
 # # Combined correlation and MI plots
 
@@ -6751,6 +6834,27 @@ illumina_corr = pd.read_table(illumina_corr_file).values
 
 pacbio_mi = pd.read_table(pacbio_mi_file).values
 illumina_mi = pd.read_table(illumina_mi_file).values
+
+# %%
+# Export PCLO matrix values, masks and the site identities established by native helpers.
+from pathlib import Path
+figure5_input_dir = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/phase4_batch/inputs")
+figure5_input_dir.mkdir(parents=True, exist_ok=True)
+figure5_matrix_parts = []
+for platform, tag, correlation, mutual_information in [
+    ("PacBio", "PB1", pacbio_corr, pacbio_mi), ("Illumina", "IL1", illumina_corr, illumina_mi)]:
+    pairs = pd.read_table(Path("/private6/projects/Combinatorics/Code/Notebooks") / f"Corrs.{tag}.tsv")
+    pairs = pairs.loc[pairs["Gene"].eq("PCLO")]
+    sites = np.array(sorted(set(pairs["Site1"]) | set(pairs["Site2"])))
+    for measure, values in [("Pearson", correlation), ("MI", mutual_information)]:
+        assert values.shape == (len(sites), len(sites))
+        rows, columns = np.indices(values.shape)
+        figure5_matrix_parts.append(pd.DataFrame({"Platform": platform, "Gene": "PCLO", "Measure": measure,
+            "RowIndex": rows.ravel(), "ColumnIndex": columns.ravel(), "RowSite": sites[rows.ravel()],
+            "ColumnSite": sites[columns.ravel()], "Masked": np.isnan(values).ravel(), "Value": values.ravel()}))
+figure5_matrix_export_df = pd.concat(figure5_matrix_parts, ignore_index=True)
+figure5_matrix_export_df.to_csv(figure5_input_dir / "figure5_pclo_matrices.tsv", sep="\t", index=False, na_rep="NA")
+
 
 # %%
 pacbio_corr
@@ -7489,6 +7593,22 @@ fig.write_image(
 
 fig.show()
 
+# %%
+# Export original GRIA2 site matrices with site identities and masks.
+from pathlib import Path
+figure_s11_pairs = pd.read_table("Corrs.PB1.tsv")
+figure_s11_pairs = figure_s11_pairs.loc[figure_s11_pairs.Gene.eq("GRIA2")]
+figure_s11_sites = np.array(sorted(set(figure_s11_pairs.Site1) | set(figure_s11_pairs.Site2)))
+figure_s11_parts = []
+for measure, values in [("Pearson", corr), ("MI", mi)]:
+    rows, columns = np.indices(values.shape)
+    figure_s11_parts.append(pd.DataFrame({"Gene": "GRIA2", "Platform": "PacBio", "Measure": measure,
+        "RowIndex": rows.ravel(), "ColumnIndex": columns.ravel(), "RowSite": figure_s11_sites[rows.ravel()],
+        "ColumnSite": figure_s11_sites[columns.ravel()], "Masked": np.isnan(values).ravel(), "Value": values.ravel()}))
+pd.concat(figure_s11_parts, ignore_index=True).to_csv(
+    Path("figure_rebuild_work/phase4_batch/inputs/figure_s11_matrices.tsv"), sep="\t", index=False, na_rep="NA")
+
+
 # %% [markdown]
 # # Combined entropy plots
 
@@ -7546,11 +7666,11 @@ platforms_conditions = [pacbio_conditions, illumina_conditions]
 
 # %%
 pacbio_files = [
-    Path(out_dir, "ShanonEntropy.PacBio.tsv"),
+    Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/canonical_inputs/ShanonEntropy.PacBio.tsv"),
     # Path(out_dir, "ShanonEntropy.NewPacBio.tsv")
 ]
 # illumina_file = Path(out_dir, "ShanonEntropy.Illumina.tsv")
-illumina_file = Path(out_dir, "ShanonEntropy.Illumina.FixedExpression.tsv")
+illumina_file = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/canonical_inputs/ShanonEntropy.Illumina.FixedExpression.tsv")
 
 # %%
 illumina_df = pd.read_table(illumina_file)
@@ -7813,13 +7933,13 @@ platforms_conditions = [
 in_dir = Path("/private7/projects/Combinatorics/Code/Notebooks")
 
 # illumina_merged_distinct_proteins_file = Path(in_dir, "DistinctProteins.Illumina.tsv")
-pacbio_kmeans_silhouette_scores_file = Path(in_dir, "KMeansMeanSilhouetteScores.PacBio.tsv")
+pacbio_kmeans_silhouette_scores_file = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/canonical_inputs/KMeansMeanSilhouetteScores.PacBio.tsv")
 # pacbio_umi_kmeans_silhouette_scores_file = Path(
 #     in_dir,
 #     "KMeansMeanSilhouetteScores.PacBio.WithUMIs.tsv",
 # )
 
-illumina_kmeans_silhouette_scores_file = Path(in_dir, "KMeansMeanSilhouetteScores.Illumina.UpdatedExpression.tsv")
+illumina_kmeans_silhouette_scores_file = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/canonical_inputs/KMeansMeanSilhouetteScores.Illumina.UpdatedExpression.tsv")
 
 # %%
 # pacbio_max_distinct_proteins_df = pd.read_table(pacbio_merged_max_distinct_proteins_file)
@@ -7879,6 +7999,34 @@ concat_squid_kmeans_silhouette_scores_df = pd.concat(
     ignore_index=True
 )
 concat_squid_kmeans_silhouette_scores_df
+
+# %%
+# Persist the already computed S7a silhouette scores in their plotted order.
+import json
+import hashlib
+from pathlib import Path
+
+figure_input_dir = Path('/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/phase1/inputs')
+s7_table = concat_squid_kmeans_silhouette_scores_df.reset_index(drop=True)
+s7_path = figure_input_dir / 'squid_original_figures7a_silhouette_plot.tsv'
+if not s7_path.exists():
+    s7_table.to_csv(s7_path, sep='\t', index=False, mode='x')
+s7_readback = pd.read_table(s7_path, keep_default_na=False, float_precision='round_trip')
+s7_readback = s7_readback.astype(s7_table.dtypes.to_dict())
+pd.testing.assert_frame_equal(s7_table, s7_readback, check_exact=True)
+s7_metadata_path = s7_path.with_suffix('.json')
+s7_metadata = {
+    'source_notebook': 'Code/Notebooks/various_plots.BQ30.ipynb',
+    'prepare_cell_id': '1c84ddeb', 'prepared_object': 'concat_squid_kmeans_silhouette_scores_df',
+    'columns': s7_table.columns.tolist(), 'rows': len(s7_table),
+    'dtypes': {column: str(dtype) for column, dtype in s7_table.dtypes.items()},
+    'ordering': 'Physical cached/prepared row order',
+    'sha256': hashlib.sha256(s7_path.read_bytes()).hexdigest(),
+}
+if s7_metadata_path.exists():
+    assert json.loads(s7_metadata_path.read_text())['sha256'] == s7_metadata['sha256']
+else:
+    s7_metadata_path.write_text(json.dumps(s7_metadata, indent=2))
 
 # %%
 
@@ -8166,7 +8314,7 @@ fig.show()
 # %%
 in_dir = Path("/private7/projects/Combinatorics/Code/Notebooks")
 
-pacbio_dissimilar_kmeans_silhouette_scores_file = Path(in_dir, "KMeansMeanSilhouetteScores.Dissimilar.PacBio.tsv")
+pacbio_dissimilar_kmeans_silhouette_scores_file = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/canonical_inputs/KMeansMeanSilhouetteScores.Dissimilar.PacBio.tsv")
 # pacbio_dissimilar_umi_kmeans_silhouette_scores_file = Path(
 #     in_dir,
 #     "KMeansMeanSilhouetteScores.Dissimilar.PacBio.UMIs.tsv",
@@ -8202,6 +8350,34 @@ pacbio_concat_dissimilar_kmeans_silhouette_scores_df["Color"] = (
 )
 
 pacbio_concat_dissimilar_kmeans_silhouette_scores_df
+
+# %%
+# Persist the already computed S7b silhouette scores in their plotted order.
+import json
+import hashlib
+from pathlib import Path
+
+figure_input_dir = Path('/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/phase1/inputs')
+s7_table = pacbio_concat_dissimilar_kmeans_silhouette_scores_df.reset_index(drop=True)
+s7_path = figure_input_dir / 'squid_original_figures7b_silhouette_plot.tsv'
+if not s7_path.exists():
+    s7_table.to_csv(s7_path, sep='\t', index=False, mode='x')
+s7_readback = pd.read_table(s7_path, keep_default_na=False, float_precision='round_trip')
+s7_readback = s7_readback.astype(s7_table.dtypes.to_dict())
+pd.testing.assert_frame_equal(s7_table, s7_readback, check_exact=True)
+s7_metadata_path = s7_path.with_suffix('.json')
+s7_metadata = {
+    'source_notebook': 'Code/Notebooks/various_plots.BQ30.ipynb',
+    'prepare_cell_id': '58f59d59', 'prepared_object': 'pacbio_concat_dissimilar_kmeans_silhouette_scores_df',
+    'columns': s7_table.columns.tolist(), 'rows': len(s7_table),
+    'dtypes': {column: str(dtype) for column, dtype in s7_table.dtypes.items()},
+    'ordering': 'Physical cached/prepared row order',
+    'sha256': hashlib.sha256(s7_path.read_bytes()).hexdigest(),
+}
+if s7_metadata_path.exists():
+    assert json.loads(s7_metadata_path.read_text())['sha256'] == s7_metadata['sha256']
+else:
+    s7_metadata_path.write_text(json.dumps(s7_metadata, indent=2))
 
 # %%
 pacbio_concat_dissimilar_kmeans_silhouette_scores_df.groupby("Gene")["MeanSilhouetteScore"].describe()
@@ -8479,6 +8655,22 @@ for neural_df in [
     ].values
     neural_df = neural_df.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
     neural_dfs.append(neural_df)
+
+# %%
+# Persist the four exact Figure 6 distributions, with eligible-gene denominators.
+from pathlib import Path
+figure6_input_dir = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/phase4_batch/inputs")
+figure6_input_dir.mkdir(parents=True, exist_ok=True)
+figure6_curve_export_df = pd.concat([
+    curve.assign(Cohort=cohort, DenominatorGenes=len(source))
+    for cohort, curve, source in [
+        ("WholeTranscriptome_TMR50", tmr50_df, tmr50_max_distinct_proteins_df),
+        ("WholeTranscriptome_TMR1000", tmr1000_df, tmr1000_max_distinct_proteins_df),
+        ("SingleCell_Neuronal_FixedTMR50", neural_dfs[0], neuronal_max_distinct_proteins_df),
+        ("SingleCell_NonNeuronal_FixedTMR50", neural_dfs[1], non_neuronal_max_distinct_proteins_df)]
+], ignore_index=True)
+figure6_curve_export_df.to_csv(figure6_input_dir / "figure6_distributions.tsv", sep="\t", index=False, na_rep="NA")
+
 
 # %% [markdown]
 # ## Plot
@@ -11198,6 +11390,52 @@ mm12_panel_totals_df = (
 )
 
 
+# %%
+# Persist existing counts and layout metadata; saved eligibility decisions stay unchanged.
+import json
+import hashlib
+from pathlib import Path
+
+figure_input_dir = Path('/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/phase1/inputs')
+figure_input_dir.mkdir(parents=True, exist_ok=True)
+mm12_plot_tables = {'mm12_panel_counts': mm12_panel_counts_df, 'mm12_sample_counts': mm12_sample_counts_df}
+assert not mm12_panel_counts_df.duplicated(['Figure', 'Dataset', 'Eligibility', 'Mismatch']).any()
+assert not mm12_sample_counts_df.duplicated(['Figure', 'Dataset', 'Platform', 'Sample', 'Chrom', 'Eligibility', 'Mismatch']).any()
+mm12_export_paths = [figure_input_dir / f'combined_s2_s15_{name}.tsv' for name in mm12_plot_tables]
+mm12_metadata_path = figure_input_dir / 'combined_s2_s15_mm12_metadata.json'
+for (name, table), path in zip(mm12_plot_tables.items(), mm12_export_paths):
+    if not path.exists():
+        table.to_csv(path, sep='\t', index=False, mode='x')
+    readback = pd.read_table(
+        path, keep_default_na=False, na_values=[''], float_precision='round_trip',
+    ).astype(table.dtypes.to_dict())
+    pd.testing.assert_frame_equal(table.reset_index(drop=True), readback, check_exact=True)
+mm12_export_metadata = {
+    'reference_figures': {'figure5': 'S2a', 'figures1to4': 'S15a-d'},
+    'source_notebook': 'Code/Notebooks/various_plots.BQ30.ipynb',
+    'prepare_cell_id': 'mm12-plots-counts', 'checks_cell_id': 'mm12-plots-panel-checks',
+    'dataset_order': mm12_datasets, 'dataset_labels': mm12_group_labels,
+    'mismatch_order': mm12_mismatches, 'mismatch_colors': mm12_color_map,
+    'figure_titles': mm12_figure_titles, 'subtitle': mm12_subtitle,
+    'eligibility_facets': {str(number): [eligibility for figure, eligibility in mm12_selection_masks if figure == number] for number in range(1, 6)},
+    'source_input_paths': [str(path.relative_to(mm12_root)) for path in mm12_input_paths],
+    'row_order': 'Physical TSV order, unchanged from prepared tables',
+    'site_unit': 'Dataset/Platform/Sample/Chrom/Position',
+    'normalization': 'Sum site counts across samples; separate denominator per Figure/Dataset/Eligibility',
+    'missing_percentage': 'NA when PanelTotal is zero; no placeholder percentage',
+    'panel_keys': ['Figure', 'Dataset', 'Eligibility', 'Mismatch'],
+    'sample_keys': ['Figure', 'Dataset', 'Platform', 'Sample', 'Chrom', 'Eligibility', 'Mismatch'],
+    'unified_layout_cells': ['af126453', '1fb847ad'],
+    'schemas': {name: {column: str(dtype) for column, dtype in table.dtypes.items()} for name, table in mm12_plot_tables.items()},
+    'checksums': {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in mm12_export_paths},
+}
+if mm12_metadata_path.exists():
+    saved_metadata = json.loads(mm12_metadata_path.read_text())
+    assert saved_metadata['checksums'] == mm12_export_metadata['checksums']
+else:
+    mm12_metadata_path.write_text(json.dumps(mm12_export_metadata, indent=2))
+
+
 # %% [markdown]
 # ## Figures
 #
@@ -11311,6 +11549,479 @@ for mm12_number in range(1, 6):
     mm12_figures[mm12_number].show()
 
 
+# %%
+# Complete replacement for the S14 plotting cell.
+# Uses the prepared mm12_panel_counts_df and the existing mm12_* settings.
+# Changes only layout; does not reload, filter, or recompute the data.
+
+from math import floor
+import pandas as pd
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+# =========================================================
+# S14 = combined version of original figures 1–4
+# Improved layout:
+# - no main S14 title
+# - no separator inside panel b
+# - panel b has two close rows
+# - inter-panel gaps controlled by spacer rows
+# - b row labels on the right
+# - more prominent column titles
+# =========================================================
+
+# ---------- helper for subplot axis names ----------
+def mm12_axis_name(axis_prefix, row, col, ncols=3):
+    axis_index = (row - 1) * ncols + col
+    return axis_prefix if axis_index == 1 else f"{axis_prefix}{axis_index}"
+
+# ---------- custom panel drawer ----------
+# Uses its own text logic so zero values never get labels.
+def mm12_add_panel_s14(fig, panel_df, row, col, y_max, dtick=10):
+    panel_df = panel_df.set_index("Mismatch").reindex(mm12_mismatches)
+    if panel_df["PanelTotal"].iloc[0] == 0:
+        fig.add_trace(
+            go.Scatter(
+                x=mm12_mismatches,
+                y=[None] * len(mm12_mismatches),
+                mode="markers",
+                marker=dict(opacity=0),
+                hoverinfo="skip",
+                showlegend=False,
+            ),
+            row=row,
+            col=col,
+        )
+    else:
+        bar_labels = [
+            f"{value:.1f}" if pd.notna(value) and value > 0 else ""
+            for value in panel_df["Percentage"]
+        ]
+        fig.add_trace(
+            go.Bar(
+                x=mm12_mismatches,
+                y=panel_df["Percentage"],
+                marker_color=[mm12_color_map[m] for m in mm12_mismatches],
+                text=bar_labels,
+                texttemplate="%{text}",
+                textposition="auto",
+                cliponaxis=False,
+                hovertemplate="%{x}: %{y:.1f}%<extra></extra>",
+                showlegend=False,
+            ),
+            row=row,
+            col=col,
+        )
+    fig.update_xaxes(
+        type="category",
+        categoryorder="array",
+        categoryarray=mm12_mismatches,
+        range=[-0.5, len(mm12_mismatches) - 0.5],
+        autorange=False,
+        tickmode="array",
+        tickvals=mm12_mismatches,
+        tickangle=45,
+        visible=True,
+        showticklabels=True,
+        showline=True,
+        showgrid=False,
+        zeroline=False,
+        row=row,
+        col=col,
+    )
+    fig.update_yaxes(
+        title_text="Percentage" if col == 1 else None,
+        range=[0, min(100, y_max)],
+        autorange=False,
+        tick0=0,
+        dtick=dtick,
+        visible=True,
+        showticklabels=(col == 1),
+        showline=False,
+        showgrid=True,
+        zeroline=False,
+        row=row,
+        col=col,
+    )
+# =========================================================
+# Layout plan with spacer rows
+# Actual plot rows:
+#   a  -> row 1
+#   b1 -> row 3
+#   b2 -> row 4
+#   c  -> row 6
+#   d  -> row 8
+# Spacer rows:
+#   2 between a and b
+#   5 between b and c
+#   7 between c and d
+# =========================================================
+mm12_plot_rows = {
+    "a": 1,
+    "b_top": 3,
+    "b_bottom": 4,
+    "c": 6,
+    "d": 8,
+}
+# Smaller gap inside b than between panels:
+# spacer rows create extra gap only between different panels.
+mm12_row_heights = [
+    0.16,  # row 1: a
+    0.035, # row 2: spacer
+    0.16,  # row 3: b top
+    0.16,  # row 4: b bottom
+    0.035, # row 5: spacer
+    0.16,  # row 6: c
+    0.035, # row 7: spacer
+    0.16,  # row 8: d
+]
+# No column_titles here; we add them manually for better control.
+mm12_s14 = make_subplots(
+    rows=8,
+    cols=3,
+    shared_xaxes=False,
+    shared_yaxes="rows",
+    # horizontal_spacing=0.055,
+    horizontal_spacing=0.075,
+    vertical_spacing=0.025,
+    row_heights=mm12_row_heights,
+    # x_title="Mismatch",
+)
+
+# ---------- row specs ----------
+mm12_s14_specs = [
+    dict(panel="a", source_figure=1, eligibility="All genes", row=mm12_plot_rows["a"]),
+    dict(panel="b", source_figure=2, eligibility="Passed", row=mm12_plot_rows["b_top"]),
+    dict(panel="b", source_figure=2, eligibility="Excluded", row=mm12_plot_rows["b_bottom"]),
+    dict(panel="c", source_figure=3, eligibility="Passed", row=mm12_plot_rows["c"]),
+    dict(panel="d", source_figure=4, eligibility="Passed", row=mm12_plot_rows["d"]),
+]
+# Original block titles/subtitles
+mm12_block_text = {
+    "a": dict(
+        title=mm12_figure_titles[1],
+        subtitle="",
+    ),
+    "b": dict(
+        title=mm12_figure_titles[2],
+        subtitle="",
+    ),
+    "c": dict(
+        title=mm12_figure_titles[3],
+        subtitle=mm12_subtitle,
+    ),
+    "d": dict(
+        title=mm12_figure_titles[4],
+        subtitle=mm12_subtitle,
+    ),
+}
+# Labels for panel b rows, on the right side
+mm12_b_subrow_labels = {
+    mm12_plot_rows["b_top"]: "≤3 suspected SNPs\n(editing detection enabled)",
+    mm12_plot_rows["b_bottom"]: "4+ suspected SNPs\n(editing detection disabled)",
+}
+
+# ---------- draw panels ----------
+for spec in mm12_s14_specs:
+    mm12_source_df = mm12_panel_counts_df.loc[
+        mm12_panel_counts_df["Figure"].eq(spec["source_figure"])
+        & mm12_panel_counts_df["Eligibility"].eq(spec["eligibility"])
+    ].copy()
+    mm12_dtick = 5 if spec["source_figure"] == 1 else 10
+    mm12_y_max = mm12_source_df["Percentage"].max()
+    if pd.isna(mm12_y_max):
+        mm12_y_max = 10
+    else:
+        mm12_y_max = min(100, max(mm12_dtick, 1.18 * mm12_y_max))
+    for col_idx, dataset in enumerate(mm12_datasets, start=1):
+        mm12_add_panel_s14(
+            mm12_s14,
+            mm12_source_df.loc[mm12_source_df["Dataset"].eq(dataset)],
+            row=spec["row"],
+            col=col_idx,
+            y_max=mm12_y_max,
+            dtick=mm12_dtick,
+        )
+
+# ---------- clean up axes ----------
+plot_rows_in_order = [
+    mm12_plot_rows["a"],
+    mm12_plot_rows["b_top"],
+    mm12_plot_rows["b_bottom"],
+    mm12_plot_rows["c"],
+    mm12_plot_rows["d"],
+]
+for r in plot_rows_in_order:
+    for c in range(1, 4):
+        mm12_s14.update_xaxes(
+            showticklabels=True,
+            tickangle=45,
+            row=r,
+            col=c,
+        )
+        if c > 1:
+            mm12_s14.update_yaxes(
+                showticklabels=False,
+                title_text=None,
+                row=r,
+                col=c,
+            )
+
+# ---------- overall layout ----------
+mm12_s14.update_layout(
+    # width=1260,
+    width=1380,
+    height=1580,
+    template=mm12_template,
+    showlegend=False,
+    bargap=0.2,
+    margin=dict(
+        l=95,   # smaller left margin
+        r=170,  # larger right margin for b row labels
+        t=70,
+        b=85,
+    ),
+)
+# =========================================================
+# Geometry helpers
+# =========================================================
+# Column domains based on top row
+mm12_col_domains = []
+for col in [1, 2, 3]:
+    xaxis_name = mm12_axis_name("xaxis", mm12_plot_rows["a"], col)
+    x0, x1 = mm12_s14.layout[xaxis_name].domain
+    mm12_col_domains.append((x0, x1))
+mm12_x_left = mm12_col_domains[0][0]
+mm12_x_right = mm12_col_domains[-1][1]
+mm12_col_centers = [(x0 + x1) / 2 for x0, x1 in mm12_col_domains]
+# Domains of all rows, using first column y-axis
+mm12_row_domains = {}
+for row in range(1, 9):
+    yaxis_name = mm12_axis_name("yaxis", row, 1)
+    mm12_row_domains[row] = mm12_s14.layout[yaxis_name].domain
+
+# ---------- column titles ----------
+mm12_top_y = mm12_row_domains[mm12_plot_rows["a"]][1]
+mm12_column_title_texts = [
+    "Squid's Long-reads",
+    "Squid's Short-reads",
+    "Whole-transcriptome octopus data",
+]
+for x_center, title_text in zip(mm12_col_centers, mm12_column_title_texts):
+    mm12_s14.add_annotation(
+        x=x_center,
+        y=mm12_top_y + 0.032,
+        xref="paper",
+        yref="paper",
+        text=f"<b>{title_text}</b>",
+        showarrow=False,
+        font=dict(size=15),
+        xanchor="center",
+        yanchor="bottom",
+        align="center",
+    )
+
+# ---------- block definitions ----------
+mm12_blocks = [
+    dict(panel="a", top_row=mm12_plot_rows["a"], bottom_row=mm12_plot_rows["a"]),
+    dict(panel="b", top_row=mm12_plot_rows["b_top"], bottom_row=mm12_plot_rows["b_bottom"]),
+    dict(panel="c", top_row=mm12_plot_rows["c"], bottom_row=mm12_plot_rows["c"]),
+    dict(panel="d", top_row=mm12_plot_rows["d"], bottom_row=mm12_plot_rows["d"]),
+]
+
+# ---------- panel spacing, letters and titles ----------
+# Keep the approved title-to-plot gaps. Reallocate the spacer rows so
+# the distance from each preceding X-axis to the next main title is equal.
+
+mm12_text_plot_gap_px = 10
+mm12_title_subtitle_gap_px = 4
+mm12_title_height_px = 22
+mm12_subtitle_height_px = 18
+
+mm12_inner_height_px = (
+    mm12_s14.layout.height
+    - mm12_s14.layout.margin.t
+    - mm12_s14.layout.margin.b
+)
+if mm12_inner_height_px <= 0:
+    raise ValueError("Figure height must exceed the top and bottom margins.")
+
+# Total height above the plot: 32 px without a subtitle; 54 px with one.
+mm12_header_heights_px = {
+    block["panel"]: (
+        mm12_text_plot_gap_px
+        + mm12_title_height_px
+        + (
+            mm12_subtitle_height_px + mm12_title_subtitle_gap_px
+            if mm12_block_text[block["panel"]]["subtitle"] else 0
+        )
+    )
+    for block in mm12_blocks
+}
+
+mm12_old_row_domains = {
+    row: tuple(mm12_s14.get_subplot(row, 1).yaxis.domain)
+    for row in range(1, 9)
+}
+
+# Use the existing total space: no change to figure height, plot heights,
+# or the internal gap between the two rows of b.
+mm12_axis_to_next_title_px = sum(
+    (
+        mm12_old_row_domains[previous["bottom_row"]][0]
+        - mm12_old_row_domains[current["top_row"]][1]
+    ) * mm12_inner_height_px
+    - mm12_header_heights_px[current["panel"]]
+    for previous, current in zip(mm12_blocks[:-1], mm12_blocks[1:])
+) / (len(mm12_blocks) - 1)
+
+if mm12_axis_to_next_title_px <= 0:
+    raise ValueError("Insufficient vertical space for the panel headings.")
+
+mm12_row_domains = dict(mm12_old_row_domains)
+mm12_previous_bottom = None
+
+for block in mm12_blocks:
+    panel = block["panel"]
+    old_top = mm12_old_row_domains[block["top_row"]][1]
+
+    if mm12_previous_bottom is None:
+        new_top = old_top  # Leave panel a and the column headings in place.
+    else:
+        new_top = mm12_previous_bottom - (
+            mm12_axis_to_next_title_px + mm12_header_heights_px[panel]
+        ) / mm12_inner_height_px
+
+    shift = new_top - old_top
+    for row in range(block["top_row"], block["bottom_row"] + 1):
+        old_bottom, old_top_of_row = mm12_old_row_domains[row]
+        new_domain = [
+            max(0.0, old_bottom + shift),
+            min(1.0, old_top_of_row + shift),
+        ]
+        mm12_row_domains[row] = tuple(new_domain)
+        for col in range(1, len(mm12_datasets) + 1):
+            mm12_s14.update_yaxes(domain=new_domain, row=row, col=col)
+
+    mm12_previous_bottom = mm12_row_domains[block["bottom_row"]][0]
+
+# Update the empty spacer-row domains to match the repositioned panels.
+for previous, current in zip(mm12_blocks[:-1], mm12_blocks[1:]):
+    spacer_row = previous["bottom_row"] + 1
+    pad_above = (
+        mm12_old_row_domains[previous["bottom_row"]][0]
+        - mm12_old_row_domains[spacer_row][1]
+    )
+    pad_below = (
+        mm12_old_row_domains[spacer_row][0]
+        - mm12_old_row_domains[current["top_row"]][1]
+    )
+    spacer_domain = [
+        mm12_row_domains[current["top_row"]][1] + pad_below,
+        mm12_row_domains[previous["bottom_row"]][0] - pad_above,
+    ]
+    if spacer_domain[0] >= spacer_domain[1]:
+        raise ValueError("The spacer row is too small for this layout.")
+    mm12_row_domains[spacer_row] = tuple(spacer_domain)
+    for col in range(1, len(mm12_datasets) + 1):
+        mm12_s14.update_yaxes(domain=spacer_domain, row=spacer_row, col=col)
+
+# Restore the approved placement relative to each panel's OWN plotting area.
+for block in mm12_blocks:
+    panel = block["panel"]
+    y_top = mm12_row_domains[block["top_row"]][1]
+    subtitle = mm12_block_text[panel]["subtitle"]
+    mm12_title_shift_px = mm12_text_plot_gap_px
+
+    if subtitle:
+        mm12_s14.add_annotation(
+            x=(mm12_x_left + mm12_x_right) / 2,
+            y=y_top,
+            yshift=mm12_text_plot_gap_px,
+            xref="paper", yref="paper",
+            xanchor="center", yanchor="bottom",
+            text=subtitle,
+            showarrow=False,
+            font=dict(size=13),
+            height=mm12_subtitle_height_px,
+            valign="middle", align="center",
+            borderpad=0, borderwidth=0,
+        )
+        mm12_title_shift_px += (
+            mm12_subtitle_height_px + mm12_title_subtitle_gap_px
+        )
+
+    mm12_s14.add_annotation(
+        x=(mm12_x_left + mm12_x_right) / 2,
+        y=y_top,
+        yshift=mm12_title_shift_px,
+        xref="paper", yref="paper",
+        xanchor="center", yanchor="bottom",
+        text=f"<b>{mm12_block_text[panel]['title']}</b>",
+        showarrow=False,
+        font=dict(size=15),
+        height=mm12_title_height_px,
+        valign="middle", align="center",
+        borderpad=0, borderwidth=0,
+    )
+
+    mm12_s14.add_annotation(
+        x=mm12_x_left - 0.05,
+        xshift=-13,
+        y=y_top,
+        yshift=mm12_title_shift_px + mm12_title_height_px / 2,
+        xref="paper", yref="paper",
+        yanchor="middle",
+        text=f"<b>{panel}</b>",
+        showarrow=False,
+        font=dict(size=21),
+        align="left",
+    )
+
+
+# Add headroom above 100% in panel b's upper row and in panel d.
+# Keep ticks and grid lines at 0, 10, ..., 100.
+for mm12_row in [
+    mm12_plot_rows["b_top"],
+    mm12_plot_rows["d"],
+]:
+    for mm12_col in range(1, len(mm12_datasets) + 1):
+        mm12_s14.update_yaxes(
+            range=[0, 105],
+            autorange=False,
+            tickmode="linear",
+            tick0=0,
+            dtick=10,
+            showgrid=True,
+            row=mm12_row,
+            col=mm12_col,
+        )
+
+# ---------- panel b internal row labels on the RIGHT ----------
+mm12_b_subrow_labels = {
+    mm12_plot_rows["b_top"]:
+        "≤3 suspected SNPs<br>(editing detection enabled)",
+    mm12_plot_rows["b_bottom"]:
+        "4+ suspected SNPs<br>(editing detection disabled)",
+}
+for b_row, label in mm12_b_subrow_labels.items():
+    y_axis = mm12_s14.get_subplot(b_row, 1).yaxis
+    # Center between zero and the highest displayed Y-axis tick.
+    top_tick = floor(y_axis.range[1] / y_axis.dtick) * y_axis.dtick
+    mm12_s14.add_annotation(
+        x=mm12_x_right + 0.03,
+        xref="paper",
+        y=top_tick / 2,
+        yref=y_axis.plotly_name.replace("axis", ""),
+        text=label,
+        textangle=90,
+        showarrow=False,
+        font=dict(size=10.5),
+        xanchor="left",
+        yanchor="middle",
+        align="center",
+    )
+mm12_s14.show()
+
 # %% [markdown]
 # ## Export
 #
@@ -11327,3 +12038,30 @@ for mm12_number, mm12_path in mm12_figure_paths.items():
     mm12_svg = mm12_figures[mm12_number].to_image(format='svg')
     with mm12_path.open('xb') as mm12_handle:
         mm12_handle.write(mm12_svg)
+
+# %%
+mm12_figure_paths
+
+# %%
+from pathlib import Path
+
+# Remove clipping from panel titles/subtitles while preserving their centers.
+for annotation in mm12_s14.layout.annotations:
+    if annotation.height is not None and annotation.yanchor == "bottom":
+        old_height = annotation.height
+
+        annotation.update(
+            yshift=(annotation.yshift or 0) + old_height / 2,
+            yanchor="middle",
+            height=None,
+            width=None,
+        )
+
+# Export again to the same file.
+mm12_s14.write_image(
+    Path(
+        mm12_output_dir,
+        "figures",
+        "Combined.12mm.Figures1-4ForS14.svg",
+    )
+)

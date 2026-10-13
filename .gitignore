@@ -28,3 +28,7 @@ Demo/*
 !Demo/DataTable.Squid.LongReads.Demo.csv
 Simulations/*
 Code/Notebooks/12mm/*
+Code/Notebooks/figure_rebuild_work
+Code/Notebooks/final_figures
+Code/Notebooks/PacBio3_TableS1_2026-10-07
+review_inputs

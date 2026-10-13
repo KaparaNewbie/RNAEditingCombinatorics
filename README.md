@@ -4,7 +4,7 @@ An accompanying repo to the paper:
 
 _**A-to-I editing generates unparalleled complexity in the neural proteome of cephalopods**_
 
-_Kobi Shapira, Ruti Balter, Joshua J C Rosenthal, Erez Y. Levanon & Eli Eisenberg_
+_Kobi Shapira, Ruti Balter, David Gorelik, Joshua J C Rosenthal, Erez Y. Levanon & Eli Eisenberg_
 
 <br>
 
@@ -895,6 +895,10 @@ whole_transcriptome_isoseq \
 --postfix .flnc.bam \
 > O.vulgaris/Alignment/PRJNA791920/IsoSeq.Polished.Unclustered/align.out &
 ```
+
+# O.vul SC raw data preprocessing & alignment
+
+[Please follow these instructions to preprocess and align the raw data](https://github.com/KaparaNewbie/OctopusSCRNAEditingCombinatorics).
 
 # Editing detection & distinct proteins finding
 

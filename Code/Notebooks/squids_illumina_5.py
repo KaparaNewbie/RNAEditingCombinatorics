@@ -2846,6 +2846,13 @@ fig.write_image(
 fig.show()
 
 # %%
+# Export the exact significant site-pair data used by Figure S12, before plotting.
+from pathlib import Path
+figure_s12_export = df[["Gene", "Site1", "Site2", "AbsDistance", "AbsDistance100BPsBin", "r", "fdr_by_rejection", "fdr_by_corrected_pv", "SitePairsInAbsDistance100BPsBin", "bin_start", "bin_label"]]
+figure_s12_export.to_csv(Path("figure_rebuild_work/phase4_batch/inputs/source_s12_IL1.tsv"), sep="\t", index=False, na_rep="NA")
+
+
+# %%
 from pathlib import Path
 
 import pandas as pd
@@ -7186,16 +7193,68 @@ def choose_sample_solutions(
 
 
 # %%
-maximal_solutions = [
-    # find_rand_maximal_solution(
-    #     expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
-    # )
-    find_rand_maximal_solution(
-        expression_file, expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
-    )
-    for expression_file, expression_df in zip(expression_files, expression_dfs)
-]
+# Approved correction: exact existing ordinary Illumina IDs; no random selection.
+from pathlib import Path
+import hashlib
+import json
+
+# maximal_solutions = [
+#     # find_rand_maximal_solution(
+#     #     expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
+#     # )
+#     find_rand_maximal_solution(
+#         expression_file, expression_df, seed, allowed_algorithms=["Ascending", "Descending"]
+#     )
+#     for expression_file, expression_df in zip(expression_files, expression_dfs)
+# ]
+# maximal_solutions
+
+selection_binding_path = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/canonical_inputs/ordinary_selection_bindings.json")
+selection_bindings = json.loads(selection_binding_path.read_text())
+ordinary_solution_ids = {
+    ("Illumina", "RUSC2", "ordinary_full_fraction"): "77",
+    ("Illumina", "TRIM2", "ordinary_full_fraction"): "68",
+    ("Illumina", "CA2D3", "ordinary_full_fraction"): "74",
+    ("Illumina", "ABL", "ordinary_full_fraction"): "76",
+    ("Illumina", "DGLA", "ordinary_full_fraction"): "68",
+    ("Illumina", "K0513", "ordinary_full_fraction"): "73",
+    ("Illumina", "KCNAS", "ordinary_full_fraction"): "73",
+    ("Illumina", "ACHA4", "ordinary_full_fraction"): "78",
+    ("Illumina", "ANR17", "ordinary_full_fraction"): "73",
+    ("Illumina", "TWK7", "ordinary_full_fraction"): "80",
+    ("Illumina", "SCN1", "ordinary_full_fraction"): "75",
+    ("Illumina", "CACB2", "ordinary_full_fraction"): "65",
+    ("Illumina", "RIMS2", "ordinary_full_fraction"): "74",
+    ("Illumina", "PCLO", "ordinary_full_fraction"): "73",
+    ("Illumina", "DOP1", "ordinary_full_fraction"): "76",
+    ("Illumina", "IQEC1", "ordinary_full_fraction"): "67",
+    ("Illumina", "CSKI1", "ordinary_full_fraction"): "65",
+    ("Illumina", "MTUS2", "ordinary_full_fraction"): "68",
+    ("Illumina", "ROBO2", "ordinary_full_fraction"): "73",
+}
+maximal_solutions = []
+for condition, expression_file, expression_df in zip(conditions, expression_files, expression_dfs):
+    gene = condition.split("_")[0]
+    solution_id = ordinary_solution_ids[("Illumina", gene, "ordinary_full_fraction")]
+    binding = selection_bindings["Illumina"][gene]
+    assert isinstance(solution_id, str) and solution_id == binding["solution_id"]
+    path = Path(expression_file).resolve()
+    assert path == Path(binding["expression_realpath"])
+    assert binding["assignment_policy"] == "native_entropy_considered_snapshot"
+    with path.open("rb") as handle:
+        assert hashlib.file_digest(handle, "sha256").hexdigest() == binding["expression_sha256"]
+    expression_df["#Solution"] = expression_df["#Solution"].astype(str)
+    allowed = expression_df.loc[expression_df["Algorithm"].isin(["Ascending", "Descending"])]
+    selected = allowed.loc[allowed["#Solution"].eq(solution_id)]
+    parameter_columns = list(binding["parameters"])
+    assert selected[parameter_columns].drop_duplicates().to_dict("records") == [binding["parameters"]]
+    assert len(selected) == binding["maximum_cardinality"] == allowed.groupby("#Solution").size().max()
+    assert selected["Protein"].is_unique
+    markers = list(path.parent.glob(path.name + ".MaxSolution_*"))
+    assert [p.name for p in markers] == [path.name + ".MaxSolution_" + solution_id]
+    maximal_solutions.append(solution_id)
 maximal_solutions
+
 
 # %%
 maximal_dfs = [
@@ -7303,7 +7362,7 @@ for (row, col), condition in zip(
     )
 
     top_x = [10, 100, 1000]
-    top_y = [assignment_df["%CummulativeRelativeExpression"][x].sum() for x in top_x]
+    top_y = [y.iloc[n - 1] for n in top_x]  # N is a 1-based isoform rank.
 
     # plot top 10/100/1000 expressed proteins
     fig.add_trace(
@@ -7356,6 +7415,23 @@ fig.write_image(
 )
 
 fig.show()
+
+# %%
+# Save Figure S9 with native gene/rank identities and trace roles.
+from pathlib import Path
+figure_s9_genes = ['RUSC2', 'TRIM2', 'CA2D3', 'ABL', 'DGLA', 'K0513', 'KCNAS', 'ACHA4', 'ANR17', 'TWK7', 'SCN1', 'CACB2', 'RIMS2', 'PCLO', 'DOP1', 'IQEC1', 'CSKI1', 'MTUS2', 'ROBO2']
+export_rows = []
+for trace_index, trace in enumerate(fig.data):
+    gene = figure_s9_genes[trace_index // 2]
+    role = ['CumulativeExpression', 'OriginalRankMarker'][trace_index % 2]
+    for point_index, (x, y) in enumerate(zip(trace.x, trace.y)):
+        label = trace.text[point_index] if trace.text is not None else ""
+        export_rows.append({"Platform": "Short-reads", "Gene": gene, "Role": role,
+            "Trace": trace_index, "Point": point_index, "Rank": x, "Value": y, "Label": label})
+export_path = Path("figure_rebuild_work/phase4_batch/inputs/source_s9_illumina.tsv")
+export_path.parent.mkdir(parents=True, exist_ok=True)
+pd.DataFrame(export_rows).to_csv(export_path, sep="\t", index=False, na_rep="NA")
+
 
 # %%
 # x_axis_name = "Distinct protein rank"
@@ -8110,19 +8186,46 @@ fig.show()
 # fig.show(config={'staticPlot': True, 'responsive': False})
 
 
+# %%
+# Save Figure S8 with native gene/rank identities and trace roles.
+from pathlib import Path
+figure_s8_genes = ['RUSC2', 'TRIM2', 'CA2D3', 'ABL', 'DGLA', 'K0513', 'KCNAS', 'ACHA4', 'ANR17', 'TWK7', 'SCN1', 'CACB2', 'RIMS2', 'PCLO', 'DOP1', 'IQEC1', 'CSKI1', 'MTUS2', 'ROBO2']
+export_rows = []
+for trace_index, trace in enumerate(fig.data):
+    gene = figure_s8_genes[trace_index // 2]
+    role = ['RelativeExpression', 'OriginalFit'][trace_index % 2]
+    for point_index, (x, y) in enumerate(zip(trace.x, trace.y)):
+        label = trace.text[point_index] if trace.text is not None else ""
+        export_rows.append({"Platform": "Short-reads", "Gene": gene, "Role": role,
+            "Trace": trace_index, "Point": point_index, "Rank": x, "Value": y, "Label": label})
+export_path = Path("figure_rebuild_work/phase4_batch/inputs/source_s8_illumina.tsv")
+export_path.parent.mkdir(parents=True, exist_ok=True)
+pd.DataFrame(export_rows).to_csv(export_path, sep="\t", index=False, na_rep="NA")
+
+
 # %% [markdown]
 # ##### Saving assignment dfs
 
 # %%
-merged_assignment_df = pd.concat(assignment_dfs).reset_index(drop=True)
-merged_assignment_df.insert(0, "Platform", "Short-reads")
+from pathlib import Path
+import sys
+canonical_dir = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/canonical_inputs")
+sys.path.insert(0, str(canonical_dir))
+from canonical_io import verified_merged_dataframe, read_merged
+
+# Rebuild from the approved snapshot after checking every source identity and support.
+merged_assignment_df = verified_merged_dataframe("Illumina", assignment_dfs)
 merged_assignment_df
 
+
 # %%
-merged_assignment_df.to_csv(
-    Path(out_dir, "AssignedExpression.Fixed.Illumina.tsv"), 
-    sep="\t", index=False
-)
+# Explicit destination; canonical source tables retain the validated snapshot.
+# Revalidate the current selected sources immediately before writing.
+merged_assignment_df = verified_merged_dataframe("Illumina", assignment_dfs)
+merged_assignment_df.to_csv(canonical_dir / "AssignedExpression.Fixed.Illumina.tsv", sep="\t", index=False, na_rep="NA")
+readback = read_merged("Illumina")
+assert readback[["Gene", "Protein"]].values.tolist() == merged_assignment_df[["Gene", "Protein"]].values.tolist()
+
 
 # %%
 
@@ -8339,7 +8442,7 @@ def prepare_ml_input_df_new(
     df = pd.concat([df_a, df_b], axis=1)
 
     df = df.sort_values(
-        relative_expression_sorting_col, ascending=False, ignore_index=True
+        relative_expression_sorting_col, ascending=False, ignore_index=True, kind="stable"
     )
 
     return df
@@ -9307,7 +9410,7 @@ concat_kmeans_silhouette_scores_df
 
 # %%
 concat_kmeans_silhouette_scores_df.to_csv(
-    Path(out_dir, "KMeansMeanSilhouetteScores.Illumina.UpdatedExpression.tsv"),
+    Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/canonical_inputs/KMeansMeanSilhouetteScores.Illumina.UpdatedExpression.tsv"),
     sep="\t",
     index=False
 )
@@ -9934,7 +10037,7 @@ shannon_df
 
 # %%
 shannon_df.to_csv(
-    Path(out_dir, "ShanonEntropy.Illumina.FixedExpression.tsv"), 
+    Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/canonical_inputs/ShanonEntropy.Illumina.FixedExpression.tsv"), 
     sep="\t", index=False
 )
 
@@ -10129,9 +10232,9 @@ es_in_rare_vs_abundant_isoforms_df
 
 # %%
 # cols = min(4, len(conditions))
-cols = min(5, len(conditions))
-rows = ceil(len(conditions) / cols)
-row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(conditions)]
+cols = min(5, len(shortened_conditions))
+rows = ceil(len(shortened_conditions) / cols)
+row_col_iter = list(product(range(1, rows + 1), range(1, cols + 1)))[: len(shortened_conditions)]
 
 fig = make_subplots(
     rows=rows,
@@ -10144,7 +10247,7 @@ fig = make_subplots(
     y_title="Mean edited positions in originally-supporting reads",
 )
 
-for condition, (row, col) in zip(conditions, row_col_iter):
+for condition, shortened_condition, (row, col) in zip(conditions, shortened_conditions, row_col_iter):
     fig.add_trace(
         go.Violin(
             x=rare_vs_abundant_isoforms_df.loc[
@@ -10153,7 +10256,8 @@ for condition, (row, col) in zip(conditions, row_col_iter):
             y=rare_vs_abundant_isoforms_df.loc[
                 rare_vs_abundant_isoforms_df[condition_col] == condition, "MeanEditedPositions"
             ],
-            line_color=color_discrete_map[condition],
+            # line_color=color_discrete_map[condition],
+            line_color=shortened_color_discrete_map[shortened_condition],
             fillcolor="white",
             box_visible=True,
             meanline_visible=True,
@@ -10196,6 +10300,13 @@ fig.write_image(
 )
 
 fig.show()
+
+# %%
+# Save S17 isoform identities and mean editing in originally supporting reads.
+from pathlib import Path
+figure_s17_table = rare_vs_abundant_isoforms_df.loc[:, [condition_col, "Protein", "#Protein", "#Solution", "Abundancy", "MeanEditedPositions"]].copy()
+figure_s17_table.insert(0, "Platform", "Short-reads")
+figure_s17_table.to_csv(Path("figure_rebuild_work/phase4_batch/inputs/source_s17_illumina.tsv"), sep="\t", index=False, na_rep="NA")
 
 
 # %%
@@ -10567,18 +10678,24 @@ one_condition_rare_vs_abundant_isoforms_dfs = [
 one_condition_rare_vs_abundant_isoforms_dfs[0]
 
 # %%
-one_condition_rare_vs_abundant_editing_frequency_per_site_dfs = [
-    make_one_condition_rare_vs_abundant_editing_frequency_per_site_df(
-        condition_col,
-        condition,
-        one_condition_rare_vs_abundant_isoforms_df,
-        first_site_col=6
-    )
-    for condition, one_condition_rare_vs_abundant_isoforms_df in zip(
-        conditions, one_condition_rare_vs_abundant_isoforms_dfs
-    )
-]
+# Read the corrected, authenticated site summaries; no repeat read expansion.
+from pathlib import Path
+import json
+import hashlib
+canonical_dir = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/canonical_inputs")
+site_bindings = json.loads((canonical_dir / "original_read_bindings.json").read_text())["cohorts"]
+site_bindings = [r for r in site_bindings if r["platform"] == "Illumina"]
+assert len(site_bindings) == len(conditions)
+one_condition_rare_vs_abundant_editing_frequency_per_site_dfs = []
+for condition, binding in zip(conditions, site_bindings, strict=True):
+    path = canonical_dir / f"Illumina.{binding['gene']}.S18.tsv"
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == binding["summary_sha256"]
+    summary = pd.read_table(path, dtype={"Solution": str}, float_precision="round_trip")
+    assert summary["Solution"].eq(binding["solution"]).all()
+    summary[condition_col] = condition
+    one_condition_rare_vs_abundant_editing_frequency_per_site_dfs.append(summary)
 one_condition_rare_vs_abundant_editing_frequency_per_site_dfs[0]
+
 
 # %%
 # num_of_sites_per_condition = []
@@ -10941,6 +11058,7 @@ fig.update_layout(
     barmode='group',
     bargap=0.15,        # optional: tweak spacing
     bargroupgap=0.05,   # optional: tweak spacing
+    title="Squid's Short-reads"
 )
 
 fig.write_image(
@@ -10953,6 +11071,14 @@ fig.write_image(
 )
         
 fig.show()
+
+# %%
+# Save full S18 per-site means, SEMs, coverage denominators and original FDR results.
+from pathlib import Path
+figure_s18_table = pd.concat(one_condition_rare_vs_abundant_editing_frequency_per_site_dfs, ignore_index=True)
+assert not figure_s18_table.duplicated([condition_col, "EditingSite"]).any()
+figure_s18_table.to_csv(Path("figure_rebuild_work/phase4_batch/inputs/source_s18_illumina.tsv"), sep="\t", index=False, na_rep="NA")
+
 
 # %%
 condition = conditions[0]
@@ -11478,7 +11604,30 @@ non_syns_per_read_df["MinNonSyns"].mean()
 non_syns_per_read_df["MinNonSyns"].std()
 
 # %%
-non_syns_per_read_df.groupby(condition_col)["MinNonSyns"].mean()
+# Table S2: one observation per original read; sample SD was approved on 12 Oct 2026.
+# non_syns_per_read_df is expanded from the original Reads, before solution selection.
+table_s2_recoding_groups = non_syns_per_read_df.groupby(condition_col, sort=False)["MinNonSyns"]
+table_s2_recoding = table_s2_recoding_groups.agg(OriginalReads="size", Mean="mean")
+table_s2_recoding["SD_ddof1_sample"] = table_s2_recoding_groups.std(ddof=1)
+assert len(table_s2_recoding) == 19 and table_s2_recoding.notna().all().all()
+assert table_s2_recoding["OriginalReads"].sum() == len(non_syns_per_read_df)
+table_s2_recoding = table_s2_recoding.reset_index()
+table_s2_recoding[condition_col] = table_s2_recoding[condition_col].astype("str").str.split("_").str[0]
+assert table_s2_recoding[condition_col].is_unique
+table_s2_export_dir = Path("figure_rebuild_work/finalization_2026-10-12/tables")
+table_s2_export_dir.mkdir(parents=True, exist_ok=True)
+table_s2_recoding.to_csv(table_s2_export_dir / "TableS2_recoding_sample_SD.tsv", sep="\t", index=False)
+table_s2_recoding
+
+# Keep the author's latest workbook; update only the adjacent recoding SD cells.
+import sys
+sys.path.insert(0, str(Path("figure_rebuild_work/finalization_2026-10-12/preparation").resolve()))
+from table_s2_export import export_sample_sd_workbook
+changed_sd_cells = export_sample_sd_workbook(
+    Path("../../review_inputs/Supplementary tables 12.xlsx"),
+    table_s2_export_dir / "Supplementary tables 12.xlsx", table_s2_recoding)
+assert set(changed_sd_cells) <= {f"Q{row}" for row in range(3, 22)}
+
 
 # %%
 non_syns_per_read_df.groupby(condition_col)["MinNonSyns"].mean().sum()
@@ -11646,4 +11795,22 @@ fig.write_image(
 )
 
 # fig.show()
+
+
+# %%
+# Persist the read-level min/max distributions and original mean/SD annotations.
+from pathlib import Path
+figure_s3_dir = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/phase4_batch/inputs")
+figure_s3_rows, figure_s3_stats = [], []
+for gene_order, (gene, read_df) in enumerate(zip(shortened_conditions, non_syns_per_read_dfs)):
+    for estimate in ["Min", "Max"]:
+        values = read_df[estimate + "NonSyns"].to_numpy()
+        counts = np.bincount(values)
+        figure_s3_rows.extend([{"Platform": "Illumina", "Gene": gene, "GeneOrder": gene_order,
+            "Estimate": estimate, "Substitutions": value, "Reads": int(count)}
+            for value, count in enumerate(counts)])
+        figure_s3_stats.append({"Gene": gene, "Estimate": estimate, "DenominatorReads": len(values),
+            "Mean": np.mean(values), "Std": np.std(values)})
+pd.DataFrame(figure_s3_rows).to_csv(figure_s3_dir / "figure_s3_illumina_native_counts.tsv", sep="\t", index=False)
+pd.DataFrame(figure_s3_stats).to_csv(figure_s3_dir / "figure_s3_illumina_native_statistics.tsv", sep="\t", index=False)
 
