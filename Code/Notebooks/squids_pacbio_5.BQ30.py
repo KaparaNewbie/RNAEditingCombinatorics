@@ -475,6 +475,23 @@ for chrom, primer_for, primer_rev in zip(chroms, primers_for, primers_rev):
 primers_ranges
 
 # %%
+chrom
+
+# %%
+primer_for, primer_rev
+
+# %%
+chrom_seq
+
+# %%
+primer_for_start, primer_rev_end
+
+# %%
+primer_rev_end - primer_for_start
+
+# %%
+
+# %%
 within_primers_editing_positions_per_sample = [
     len(
         df.loc[
@@ -934,7 +951,7 @@ def make_raw_reads_stats_df(
 
     df = pd.concat(dfs).reset_index(drop=True)
     
-    return
+    return df
 
 
 # %%
@@ -5403,6 +5420,9 @@ concat_edited_signature_positions_df["PositionInSignature"] = (
     )
 )
 
+
+
+
 concat_edited_signature_positions_df
 
 # %%
@@ -5947,6 +5967,345 @@ singatures_statistics_df = singatures_statistics_df.drop(columns=["TestResult"])
 
 
 singatures_statistics_df
+
+# %% [markdown]
+# #### Editing in motifs — corrected
+#
+# Reuse `positions_dfs`, `processed_prosite_results_df`, and `transcript_pos_to_aa_index` defined above.
+# Aggregate over signatures before assigning one label per nucleotide site: Yes, then NA, then No. NA means an excluded signature only; it is not outside.
+#
+
+# %%
+concat_edited_signature_positions_df = pd.concat(
+    [
+        df.loc[
+            (df["Edited"]) & (df["CDS"]),
+            [condition_col, "Chrom", "Position", "EditingFrequency"],
+        ]
+        for df in positions_dfs
+    ]
+).reset_index(drop=True)
+assert not concat_edited_signature_positions_df.duplicated(
+    [condition_col, "Chrom", "Position"]
+).any()
+
+concat_edited_signature_positions_df["ORFStart"] = (
+    concat_edited_signature_positions_df.apply(
+        lambda x: starts[conditions.index(x[condition_col])], axis=1
+    )
+)
+concat_edited_signature_positions_df["ORFEnd"] = (
+    concat_edited_signature_positions_df.apply(
+        lambda x: ends[conditions.index(x[condition_col])], axis=1
+    )
+)
+
+concat_edited_signature_positions_df["AAPosition"] = (
+    concat_edited_signature_positions_df.apply(
+        lambda x: transcript_pos_to_aa_index(x["ORFStart"], x["ORFEnd"], x["Position"]),
+        axis=1,
+    )
+)
+
+concat_edited_signature_positions_df
+
+# %%
+# Keep signature rows separate; a site can be inside one signature and outside another.
+edited_signature_membership_df = concat_edited_signature_positions_df.merge(
+    processed_prosite_results_df, on=[condition_col, "Chrom"], how="left"
+)
+edited_signature_membership_df["PositionInSignature"] = (
+    edited_signature_membership_df.apply(
+        lambda x: x["SignatureStart"] <= x["AAPosition"] < x["SignatureEnd"], axis=1
+    )
+)
+edited_signature_membership_df["InEligibleSignature"] = (
+    edited_signature_membership_df["PositionInSignature"]
+    & edited_signature_membership_df["SignatureScore"].ne(-1)
+)
+edited_signature_membership_df["InExcludedSignature"] = (
+    edited_signature_membership_df["PositionInSignature"]
+    & edited_signature_membership_df["SignatureScore"].eq(-1)
+)
+edited_signature_membership_df
+
+# %%
+edited_signature_membership_df.drop_duplicates(["Chrom", "Position"]).shape[0]
+
+# %%
+# Aggregate all signatures, then merge back to the unique sites.
+concat_edited_signature_positions_df = concat_edited_signature_positions_df.merge(
+    edited_signature_membership_df.groupby(
+        [condition_col, "Chrom", "Position"], as_index=False
+    )[["InEligibleSignature", "InExcludedSignature"]].any(),
+    on=[condition_col, "Chrom", "Position"],
+    how="left",
+    validate="one_to_one",
+)
+concat_edited_signature_positions_df["PositionInSignature"] = (
+    concat_edited_signature_positions_df.apply(
+        lambda x: (
+            "Yes" if x["InEligibleSignature"]
+            else "NA" if x["InExcludedSignature"] else "No"
+        ),
+        axis=1,
+    )
+)
+
+concat_edited_signature_positions_df
+
+# %%
+concat_signature_positions_df = pd.concat(
+    [
+        df.loc[
+            (df["CDS"]) & (df["RefBase"].eq("A")),
+            [condition_col, "Chrom", "Position", "EditingFrequency", "Edited"],
+        ]
+        for df in positions_dfs
+    ]
+).reset_index(drop=True)
+assert not concat_signature_positions_df.duplicated(
+    [condition_col, "Chrom", "Position"]
+).any()
+
+concat_signature_positions_df["ORFStart"] = concat_signature_positions_df.apply(
+    lambda x: starts[conditions.index(x[condition_col])], axis=1
+)
+concat_signature_positions_df["ORFEnd"] = concat_signature_positions_df.apply(
+    lambda x: ends[conditions.index(x[condition_col])], axis=1
+)
+
+concat_signature_positions_df["AAPosition"] = concat_signature_positions_df.apply(
+    lambda x: transcript_pos_to_aa_index(x["ORFStart"], x["ORFEnd"], x["Position"]),
+    axis=1,
+)
+
+concat_signature_positions_df
+
+# %%
+# Keep signature rows separate; a site can be inside one signature and outside another.
+signature_membership_df = concat_signature_positions_df.merge(
+    processed_prosite_results_df, on=[condition_col, "Chrom"], how="left"
+)
+signature_membership_df["PositionInSignature"] = (
+    signature_membership_df.apply(
+        lambda x: x["SignatureStart"] <= x["AAPosition"] < x["SignatureEnd"], axis=1
+    )
+)
+signature_membership_df["InEligibleSignature"] = (
+    signature_membership_df["PositionInSignature"]
+    & signature_membership_df["SignatureScore"].ne(-1)
+)
+signature_membership_df["InExcludedSignature"] = (
+    signature_membership_df["PositionInSignature"]
+    & signature_membership_df["SignatureScore"].eq(-1)
+)
+signature_membership_df
+
+# %%
+# Aggregate all signatures, then merge back to the unique sites.
+concat_signature_positions_df = concat_signature_positions_df.merge(
+    signature_membership_df.groupby(
+        [condition_col, "Chrom", "Position"], as_index=False
+    )[["InEligibleSignature", "InExcludedSignature"]].any(),
+    on=[condition_col, "Chrom", "Position"],
+    how="left",
+    validate="one_to_one",
+)
+concat_signature_positions_df["PositionInSignature"] = (
+    concat_signature_positions_df.apply(
+        lambda x: (
+            "Yes" if x["InEligibleSignature"]
+            else "NA" if x["InExcludedSignature"] else "No"
+        ),
+        axis=1,
+    )
+)
+
+concat_signature_positions_df
+
+# %%
+concat_edited_signature_positions_df.loc[
+    concat_edited_signature_positions_df[condition_col].eq("PCLO")
+]
+
+# %%
+# The inside and outside groups must not contain the same nucleotide site.
+for signature_positions_df in [
+    concat_edited_signature_positions_df, concat_signature_positions_df
+]:
+    assert signature_positions_df.loc[
+        signature_positions_df["PositionInSignature"].eq("Yes"),
+        [condition_col, "Chrom", "Position"],
+    ].merge(
+        signature_positions_df.loc[
+            signature_positions_df["PositionInSignature"].eq("No"),
+            [condition_col, "Chrom", "Position"],
+        ],
+        on=[condition_col, "Chrom", "Position"],
+    ).empty
+
+concat_edited_signature_positions_df.groupby(
+    [condition_col, "PositionInSignature"]
+).size().unstack(fill_value=0)
+
+
+# %%
+chroms_with_at_least_one_significant_signature = (
+    concat_edited_signature_positions_df.loc[
+        concat_edited_signature_positions_df["PositionInSignature"].eq("Yes"),
+    ]["Chrom"]
+    .unique()
+    .tolist()
+)
+
+significat_singatures_concat_edited_positions_df = (
+    concat_edited_signature_positions_df.loc[
+        concat_edited_signature_positions_df["Chrom"].isin(
+            chroms_with_at_least_one_significant_signature
+        )
+    ]
+)
+
+significat_singatures_concat_edited_positions_df
+
+# %%
+# Compare editing levels among edited sites, not enrichment of edited positions.
+singatures_statistics_df = (
+    significat_singatures_concat_edited_positions_df.groupby([condition_col, "Chrom"])[
+        ["PositionInSignature", "EditingFrequency"]
+    ]
+    .apply(
+        lambda x: scipy.stats.mannwhitneyu(
+            x.loc[x["PositionInSignature"] == "Yes", "EditingFrequency"],
+            x.loc[x["PositionInSignature"] == "No", "EditingFrequency"],
+            alternative="two-sided",
+            method="asymptotic",
+            use_continuity=True,
+        ),
+    )
+    .reset_index()
+    .rename(columns={0: "TestResult"})
+)
+
+singatures_statistics_df[["TestStatistic", "PVal"]] = singatures_statistics_df[
+    "TestResult"
+].apply(lambda x: pd.Series([x.statistic, x.pvalue]))
+singatures_statistics_df = singatures_statistics_df.drop(columns=["TestResult"])
+
+
+singatures_statistics_df
+
+
+# %% [markdown]
+# #### Editing-site enrichment in the union of functional domains — Fisher exact test (2026-11-09)
+#
+# This subsection runs independently from the notebook directory. It reads the native
+# coverage-filtered BQ30 positions and the saved ScanProsite result (cell 46a2ebfb),
+# without querying ScanProsite again. The eligible background is retained CDS A
+# positions outside problematic regions. `Edited` is the original squid call in these
+# files; the distinct octopus `EditedFinal` schema does not apply here. Accepted
+# signatures follow the corrected section: SignatureScore != -1. Accepted overlaps
+# count once; positions within only excluded signatures are unresolved and omitted.
+# An empty inside/outside population is untestable; zero edited calls alone is not.
+# The earlier Mann–Whitney calculation concerns editing levels among edited sites
+# and is preserved separately.
+
+# %%
+# Read original settings and saved annotations, then stream compact position fields.
+from pathlib import Path
+import ast, csv, gzip, json, sys
+import numpy as np
+import pandas as pd
+from scipy.stats import fisher_exact
+revision_dir = Path.cwd() / 'RevisionFisherBY_2026-11-09'
+assert revision_dir.is_dir(), 'Run from Code/Notebooks'
+sys.path.insert(0, str(revision_dir))
+from revision_support import source
+domain_notebook = json.loads(source(Path.cwd() / 'squids_pacbio_5.BQ30.ipynb').read_text())
+settings_cell = next(c for c in domain_notebook['cells'] if c.get('id') == 'cb5365e4')
+domain_settings = {}
+for node in ast.parse(''.join(settings_cell['source'])).body:
+    if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+        try:
+            domain_settings[node.targets[0].id] = ast.literal_eval(node.value)
+        except (ValueError, TypeError):
+            pass  # Only literal source settings are needed, not computed expressions.
+scan_cell = next(c for c in domain_notebook['cells'] if c.get('id') == '46a2ebfb')
+scan_output = next(o['data']['text/plain'] for o in scan_cell['outputs'] if 'text/plain' in o.get('data', {}))
+domain_annotations = ast.literal_eval(''.join(scan_output))
+csv.field_size_limit(1024**3)
+domain_site_tables, domain_annotation_rows = [], []
+
+# %%
+# Form one union per gene in zero-based, half-open protein coordinates.
+for gene, chrom, start, end, filename in zip(domain_settings['conditions'], domain_settings['chroms'],
+        domain_settings['starts'], domain_settings['ends'], domain_settings['positions_files']):
+    cols = ['Chrom', 'Position', 'RefBase', 'CDS', 'InProbRegion', 'Edited', 'TotalCoverage', 'A', 'G']
+    with gzip.open(source(filename), 'rt') as handle:
+        reader = csv.DictReader(handle, delimiter='	')
+        assert set(cols) <= set(reader.fieldnames)
+        sites = pd.DataFrame([{c: row[c] for c in cols} for row in reader])
+    for column in ['Position', 'TotalCoverage', 'A', 'G']:
+        sites[column] = pd.to_numeric(sites[column])
+    for column in ['CDS', 'InProbRegion', 'Edited']:
+        assert set(sites[column]) <= {'True', 'False'}, column
+        sites[column] = sites[column].eq('True')
+    assert sites.Chrom.eq(chrom).all() and sites.Position.is_unique
+    sites = sites.loc[sites.CDS & sites.RefBase.eq('A')].copy()
+    sites['Gene'] = {'GRIA': 'GRIA2', 'PCLO': 'PCLO'}[gene]
+    sites['AAPosition'] = (sites.Position - start) // 3
+    assert sites.Position.between(start, end - 1).all()
+    assert (start + 3 * sites.AAPosition + 3 <= end).all()
+    sites['InAcceptedDomain'], sites['InExcludedSignature'] = False, False
+    for annotation in domain_annotations[gene]:
+        score = annotation.get('score', annotation.get('level_tag'))
+        accepted = str(score) not in ['-1', '(-1)']
+        inside = sites.AAPosition.ge(annotation['start'] - 1) & sites.AAPosition.lt(annotation['stop'])
+        sites.loc[inside, 'InAcceptedDomain' if accepted else 'InExcludedSignature'] = True
+        domain_annotation_rows.append({'Gene': sites.Gene.iloc[0], 'Chrom': chrom, **annotation,
+            'Accepted': accepted, 'StartAA0': annotation['start'] - 1, 'EndAAExclusive': annotation['stop']})
+    sites['DomainClass'] = np.select([sites.InAcceptedDomain, sites.InExcludedSignature],
+                                    ['Inside', 'Unresolved'], default='Outside')
+    sites['Eligible'] = ~sites.InProbRegion & sites.TotalCoverage.gt(0) & sites.DomainClass.ne('Unresolved')
+    sites['ExclusionReason'] = np.select([sites.InProbRegion, sites.DomainClass.eq('Unresolved'),
+        sites.TotalCoverage.le(0)], ['ProblematicRegion', 'ExcludedSignatureOnly', 'NoCoverage'], default='')
+    sites['SourcePositions'] = str(Path(filename).resolve())
+    sites['SourceNotebook'] = 'squids_pacbio_5.BQ30.ipynb'
+    domain_site_tables.append(sites)
+domain_sites = pd.concat(domain_site_tables, ignore_index=True)
+assert not domain_sites.duplicated(['Chrom', 'Position']).any()
+
+# %%
+# Reproduce the corrected edited-site counts before testing eligible A positions.
+pclo_edited = domain_sites.loc[domain_sites.Gene.eq('PCLO') & domain_sites.Edited]
+assert len(pclo_edited) == 144
+assert pclo_edited.DomainClass.value_counts().to_dict() == {'Outside': 128, 'Inside': 16}
+assert pclo_edited.loc[pclo_edited.InAcceptedDomain, 'AAPosition'].nunique() == 14
+domain_summary_rows = []
+for gene, sites in domain_sites.groupby('Gene', sort=False):
+    eligible = sites.loc[sites.Eligible]
+    inside, outside = eligible.DomainClass.eq('Inside'), eligible.DomainClass.eq('Outside')
+    assert (inside ^ outside).all()
+    table = np.array([[int((inside & eligible.Edited).sum()), int((inside & ~eligible.Edited).sum())],
+                      [int((outside & eligible.Edited).sum()), int((outside & ~eligible.Edited).sum())]], dtype=np.int64)
+    assert (table >= 0).all() and table.sum() == len(eligible)
+    testable = bool((table.sum(axis=1) > 0).all())
+    odds, pvalue = fisher_exact(table, alternative='two-sided') if testable else (np.nan, np.nan)
+    domain_summary_rows.append({'Gene': gene, 'InsideEdited': table[0, 0], 'InsideNotEdited': table[0, 1],
+        'OutsideEdited': table[1, 0], 'OutsideNotEdited': table[1, 1], 'EligibleCDSAs': len(eligible),
+        'InsideEditingFraction': table[0, 0] / table[0].sum() if table[0].sum() else np.nan,
+        'OutsideEditingFraction': table[1, 0] / table[1].sum() if table[1].sum() else np.nan,
+        'OddsRatio': odds, 'FisherP': pvalue, 'Testable': testable,
+        'Status': 'Tested' if testable else 'Empty accepted-domain or outside background',
+        'UnresolvedSites': int(sites.DomainClass.eq('Unresolved').sum()),
+        'ExcludedSites': int((~sites.Eligible).sum()), 'SourcePositions': sites.SourcePositions.iloc[0],
+        'SourceNotebook': 'squids_pacbio_5.BQ30.ipynb', 'AnnotationCell': '46a2ebfb'})
+domain_summary = pd.DataFrame(domain_summary_rows)
+domain_sites.to_csv(revision_dir / 'domains_fisher_sites.tsv', sep='	', index=False, na_rep='NA')
+domain_summary.to_csv(revision_dir / 'domains_fisher_summary.tsv', sep='	', index=False, na_rep='NA')
+pd.DataFrame(domain_annotation_rows).to_csv(revision_dir / 'domains_annotations.tsv', sep='	', index=False)
+display(domain_summary)
 
 # %% [markdown]
 # ### NAs
@@ -10921,6 +11280,36 @@ def prepare_ml_input_df_new(
     return df
 
 
+# %% [markdown]
+# ###### Corrected binary recoding — 2026-11-16
+#
+# An ambiguous AA state is recoded (1) only when reference AA is impossible. A set containing both reference and alternative AA remains NA and retains the existing column-mean imputation. The legacy helpers above remain unchanged for the original Shannon entropy reference. The ML preparation calls below use the corrected helper; saved PCA/tSNE/UMAP/clustering outputs are historical until explicitly rerun. Only the S7 comparison is recomputed in this task.
+#
+
+# %%
+# Corrected shared preparation for PCA/tSNE, k-means and UMAP inputs.
+from pathlib import Path
+import sys
+recoding_helper_directory = Path("/private6/projects/Combinatorics/Code/Notebooks/entropy_audit_2026-11-12/updated_entropy_and_s7_comparison_2026-11-16")
+if str(recoding_helper_directory) not in sys.path:
+    sys.path.insert(0, str(recoding_helper_directory))
+from recoding_support import binary_recoding_state, prepare_recoding_input
+
+def prepare_ml_input_df_recoding_corrected(
+    assignment_df, unique_proteins_df, unique_proteins_first_col_pos,
+    relative_expression_sorting_col="%RelativeExpression", impute_nans=True,
+    use_sklearn_standard_scaler=False,
+):
+    # {ref, alt} remains NA; {alt1, alt2} is definite recoding and maps to 1.
+    metadata_columns = [condition_col, "Protein", relative_expression_sorting_col]
+    return prepare_recoding_input(
+        assignment_df, unique_proteins_df, unique_proteins_first_col_pos,
+        metadata_columns, relative_expression_sorting_col, impute_nans,
+        use_sklearn_standard_scaler,
+    )
+
+
+
 # %%
 def color_highest_expressed_proteins(n, rank_cutoff, color_options=["red", "black"]):
     colors = []
@@ -11097,7 +11486,7 @@ def run_tsnes(
 
 # %%
 weighted_exp_tsne_input_dfs = [
-    prepare_ml_input_df_new(
+    prepare_ml_input_df_recoding_corrected(
         assignment_df,
         unique_proteins_df,
         unique_proteins_first_col_pos,
@@ -11203,7 +11592,7 @@ assignment_dfs[0]
 
 # %%
 weighted_exp_tsne_input_dfs = [
-    prepare_ml_input_df_new(
+    prepare_ml_input_df_recoding_corrected(
         assignment_df,
         unique_proteins_df,
         unique_proteins_first_col_pos,
@@ -11406,7 +11795,7 @@ fig.show()
 
 # %%
 weighted_exp_umap_input_dfs = [
-    prepare_ml_input_df_new(
+    prepare_ml_input_df_recoding_corrected(
         assignment_df,
         unique_proteins_df,
         unique_proteins_first_col_pos,
@@ -12011,6 +12400,33 @@ def calc_entropies_new(
 
 
 # %%
+# max_sol_exp_df = max_sol_exp_dfs_new[i]
+assignment_df  = max_sol_exp_dfs_new[i].sort_values("Protein", ignore_index=True)
+assignment_df
+
+# %%
+unique_proteins_df = unique_proteins_dfs[i].sort_values("Protein", ignore_index=True)
+unique_proteins_df = unique_proteins_df.merge(
+    assignment_df.loc[:, ["Protein"]], on="Protein", how="right"
+).reset_index(drop=True)
+unique_proteins_df
+
+# %%
+assignment_df
+
+# %%
+assignment_df.iloc[:, ML_INPUT_FIRST_COL_POS_NEW:]
+
+# %%
+assignment_df.iloc[:, ML_INPUT_FIRST_COL_POS_NEW:].apply(np.mean)
+
+# %%
+
+# %%
+
+# %%
+
+# %%
 # Figure5c: non-imputed codons; observed-entropy formula unchanged.
 assert ML_INPUT_FIRST_COL_POS_NEW == len(ML_INPUT_METADATA_COLUMNS_NEW) == 3
 max_sol_exp_dfs_new = [
@@ -12195,6 +12611,309 @@ fig.show()
 # %%
 
 # %%
+
+# %% [markdown]
+# ##### Shannon's entropy - updated
+#
+# Observed entropy retains the selected full protein isoforms and their existing expression weights. The updated hypothetical entropy sums multi-state amino-acid entropies from original reads, counting their original multiplicities. Only a single definite AA under the existing A/G translation model is informative at a codon; ambiguous states are excluded without imputation. Each codon has its own informative-read denominator. This subsection runs independently in combinatorics2 and writes only new comparison products.
+#
+
+# %%
+# Exact Fig. 5c cohorts; independent of the notebook's live variables.
+import sys
+import json
+from pathlib import Path
+import numpy as np
+import pandas as pd
+
+assert Path(sys.prefix).name == "combinatorics2"
+entropy_update_dir = Path("/private6/projects/Combinatorics/Code/Notebooks/entropy_audit_2026-11-12/updated_entropy_and_s7_comparison_2026-11-16")
+entropy_notebook_dir = Path("/private6/projects/Combinatorics/Code/Notebooks")
+if str(entropy_update_dir) not in sys.path:
+    sys.path.insert(0, str(entropy_update_dir))
+from entropy_support import verified_read_amino_acid_counts, file_sha256, AMINO_ACIDS
+
+entropy_platform = "PacBio"
+entropy_cohorts = [c for c in json.loads((entropy_update_dir / "cohort_sources.json").read_text())
+                   if c["Platform"] == entropy_platform]
+entropy_original_figure = pd.read_table(
+    entropy_notebook_dir / "figure_rebuild_work/correction_2026-10-12/inputs/squid_original_figure5c_entropy_plot.tsv",
+    float_precision="round_trip")
+entropy_figure_platform = {"PacBio": "Long-reads", "Illumina": "Short-reads"}[entropy_platform]
+entropy_original_figure = entropy_original_figure.loc[
+    entropy_original_figure.Platform.eq(entropy_figure_platform)]
+assert entropy_original_figure.Gene.drop_duplicates().tolist() == [c["Gene"] for c in entropy_cohorts]
+
+
+# %%
+# Preserve selected protein identities, expression weights and the old comparison.
+entropy_observed_records = []
+for cohort in entropy_cohorts:
+    assert file_sha256(cohort["CanonicalAssignment"]) == cohort["Binding"]["canonical_sha256"]
+    assignment = pd.read_table(cohort["CanonicalAssignment"], dtype={"Protein": str, "#Solution": str},
+                               float_precision="round_trip")
+    assert assignment.Protein.is_unique and len(assignment) == cohort["ExpectedRows"]
+    assert assignment[list(cohort["Binding"]["parameters"])].drop_duplicates().to_dict("records") == [cohort["Binding"]["parameters"]]
+    probability = assignment["%RelativeExpression"] / 100
+    assert np.isfinite(probability).all() and probability.ge(0).all()
+    np.testing.assert_allclose(probability.sum(), 1.0, rtol=0, atol=1e-12)
+    positive_probability = probability.loc[probability.gt(0)]
+    observed_entropy = sum(-positive_probability * np.log2(positive_probability))
+    assert file_sha256(cohort["LegacyMatrix"]) == cohort["LegacyMatrixSHA256"]
+    with np.load(cohort["LegacyMatrix"], allow_pickle=False) as legacy:
+        np.testing.assert_array_equal(legacy["Protein"], assignment.Protein.to_numpy())
+        np.testing.assert_allclose(legacy["probability"], probability, rtol=0, atol=1e-15)
+        legacy_marginals = pd.DataFrame(legacy["nonimputed"]).apply(np.mean)
+    assert legacy_marginals.gt(0).all() and legacy_marginals.lt(1).all()
+    old_hypothetical = sum(-legacy_marginals * np.log2(legacy_marginals)
+                          - (1 - legacy_marginals) * np.log2(1 - legacy_marginals))
+    original = entropy_original_figure.loc[entropy_original_figure.Gene.eq(cohort["Gene"])].set_index("EntropyName").EntropyValue
+    np.testing.assert_allclose(observed_entropy, original["WeightedExpressionData"], rtol=0, atol=1e-12)
+    np.testing.assert_allclose(old_hypothetical, original["Hypothetical"], rtol=0, atol=1e-12)
+    entropy_observed_records.append({"Platform": entropy_platform, "Gene": cohort["Gene"],
+        "SelectedSolution": cohort["Solution"], "SelectedIsoforms": len(assignment),
+        "ProbabilitySum": float(probability.sum()), "ObservedEntropyBits": observed_entropy,
+        "AssignedOriginalReadMass": float(assignment.TotalWeightedSupportingReads.sum()),
+        "CurrentObservedEntropyBits": original["WeightedExpressionData"],
+        "OldHypotheticalEntropyBits": old_hypothetical,
+        "CurrentOldHypotheticalEntropyBits": original["Hypothetical"],
+        "ObservedReproductionDifferenceBits": observed_entropy - original["WeightedExpressionData"],
+        "OldHypotheticalReproductionDifferenceBits": old_hypothetical - original["Hypothetical"]})
+entropy_observed = pd.DataFrame(entropy_observed_records)
+
+
+# %%
+# Count original read multiplicities; verify every AA state before excluding ambiguity.
+entropy_state_tables, entropy_read_provenance, entropy_codon_order = [], {}, []
+for cohort in entropy_cohorts:
+    state_counts, read_provenance = verified_read_amino_acid_counts(cohort)
+    # Expression reassignment filters low-information unchosen proteins (expressionlevels.jl:825).
+    # The requested hypothetical uses original reads, not that assignment-filtered subset.
+    assigned_mass = cohort["Binding"]["support_totals"]["TotalWeightedSupportingReads"]
+    assert read_provenance["UniqueReads"]["OriginalReads"] >= assigned_mass - 1e-6
+    read_provenance["AssignedOriginalReadMass"] = assigned_mass
+    read_provenance["OriginalReadsOutsideExpressionAssignment"] = (
+        read_provenance["UniqueReads"]["OriginalReads"] - round(assigned_mass))
+    state_counts.insert(0, "Gene", cohort["Gene"])
+    state_counts.insert(0, "Platform", entropy_platform)
+    entropy_state_tables.append(state_counts)
+    entropy_read_provenance[cohort["Gene"]] = read_provenance
+    entropy_codon_order.extend({"Platform": entropy_platform, "Gene": cohort["Gene"],
+        "Codon": codon, "CodonIndex": i, "ReferenceAA": codon.split("(")[1][0]}
+        for i, codon in enumerate(read_provenance["Codons"]))
+    print(f"{entropy_platform} {cohort['Gene']}: {read_provenance['UniqueReads']['OriginalReads']} original reads; AA-state counts reconciled.")
+entropy_read_states = pd.concat(entropy_state_tables, ignore_index=True)
+entropy_site_keys = ["Platform", "Gene", "Codon"]
+
+
+# %%
+# One definite AA under the established A/G model is informative, including reference AA.
+# Multi-AA states receive no split mass and are excluded independently at each codon.
+entropy_informative = entropy_read_states.AAState.isin(AMINO_ACIDS)
+entropy_aa_frequencies = entropy_read_states.loc[entropy_informative].rename(columns={"AAState": "AA"}).copy()
+entropy_aa_frequencies["InformativeReads"] = entropy_aa_frequencies.groupby(
+    entropy_site_keys, sort=False).ReadCount.transform("sum")
+entropy_aa_frequencies["Frequency"] = (entropy_aa_frequencies.ReadCount
+                                       / entropy_aa_frequencies.InformativeReads)
+entropy_aa_frequencies["EntropyContributionBits"] = (
+    -entropy_aa_frequencies.Frequency * np.log2(entropy_aa_frequencies.Frequency))
+np.testing.assert_allclose(entropy_aa_frequencies.groupby(entropy_site_keys).Frequency.sum(),
+                           1.0, rtol=0, atol=1e-12)
+assert np.isfinite(entropy_aa_frequencies.EntropyContributionBits).all()
+entropy_codon_values = entropy_aa_frequencies.groupby(entropy_site_keys, sort=False).agg(
+    InformativeReads=("ReadCount", "sum"), DefiniteAAStates=("AA", "size"),
+    CodonEntropyBits=("EntropyContributionBits", "sum")).reset_index()
+
+
+# %%
+# Keep every original modeled codon, including invariant codons with zero entropy.
+entropy_per_codon = pd.DataFrame(entropy_codon_order).merge(
+    entropy_codon_values, on=entropy_site_keys, how="left", validate="one_to_one")
+assert entropy_per_codon.InformativeReads.notna().all(), "A codon has no informative original reads"
+entropy_read_totals = entropy_read_states.groupby(entropy_site_keys, sort=False).ReadCount.sum().rename("TotalOriginalReads")
+entropy_per_codon = entropy_per_codon.merge(entropy_read_totals, on=entropy_site_keys, validate="one_to_one")
+entropy_per_codon["ExcludedAmbiguousOrMissingReads"] = (
+    entropy_per_codon.TotalOriginalReads - entropy_per_codon.InformativeReads)
+entropy_per_codon["InformativeReadFraction"] = (
+    entropy_per_codon.InformativeReads / entropy_per_codon.TotalOriginalReads)
+assert entropy_per_codon.ExcludedAmbiguousOrMissingReads.ge(0).all()
+assert entropy_per_codon.InformativeReads.gt(0).all()
+entropy_gene_totals = entropy_per_codon.groupby(["Platform", "Gene"], sort=False).agg(
+    UpdatedHypotheticalEntropyBits=("CodonEntropyBits", "sum"),
+    AnalyzedCodons=("Codon", "size"), OriginalReads=("TotalOriginalReads", "first"),
+    MinInformativeReadsPerCodon=("InformativeReads", "min"),
+    MaxInformativeReadsPerCodon=("InformativeReads", "max")).reset_index()
+
+
+# %%
+# All 21 cohorts retain their original observed entropy definition and selected solutions.
+entropy_updated_per_gene = entropy_observed.merge(
+    entropy_gene_totals, on=["Platform", "Gene"], how="left", validate="one_to_one")
+assert len(entropy_updated_per_gene) == len(entropy_cohorts)
+assert entropy_updated_per_gene.UpdatedHypotheticalEntropyBits.notna().all()
+entropy_updated_per_gene["UpdatedMinusOldHypotheticalBits"] = (
+    entropy_updated_per_gene.UpdatedHypotheticalEntropyBits - entropy_updated_per_gene.OldHypotheticalEntropyBits)
+entropy_updated_per_gene["OriginalReadsOutsideExpressionAssignment"] = (
+    entropy_updated_per_gene.OriginalReads - entropy_updated_per_gene.AssignedOriginalReadMass.round().astype(int))
+print(entropy_updated_per_gene[["Platform", "Gene", "ObservedEntropyBits",
+    "OldHypotheticalEntropyBits", "UpdatedHypotheticalEntropyBits"]].to_string(index=False))
+
+
+# %%
+# New comparison products only; a repeated run verifies existing identical results.
+entropy_exports = {"entropy_updated_per_gene": entropy_updated_per_gene,
+    "entropy_updated_per_codon": entropy_per_codon,
+    "entropy_updated_aa_frequencies": entropy_aa_frequencies,
+    "entropy_original_read_state_counts": entropy_read_states}
+for name, table in entropy_exports.items():
+    path = entropy_update_dir / f"{name}.{entropy_platform}.tsv"
+    contents = table.to_csv(sep="\t", index=False)
+    if path.exists():
+        assert path.read_text() == contents, f"Changed analysis: select a new output directory before exporting {path}"
+    else:
+        with path.open("x") as handle:
+            handle.write(contents)
+path = entropy_update_dir / f"read_population_reconciliation.{entropy_platform}.json"
+if path.exists():
+    assert json.loads(path.read_text()) == entropy_read_provenance
+else:
+    with path.open("x") as handle:
+        json.dump(entropy_read_provenance, handle, indent=2)
+
+
+# %% [markdown]
+# ###### All reads and Originally-supporting reads
+#
+# All reads reuses the validated AA entropy above. Originally-supporting reads includes only the original read IDs of the exact selected proteins, before expression reassignment. Both use the same full codon set and definite-AA rule. A codon with no informative selected-protein reads has missing entropy, not zero. This extension runs independently in combinatorics2.
+#
+
+# %%
+# Reuse the three validated series; read only the new population from producer data.
+from pathlib import Path
+import sys
+import json
+import numpy as np
+import pandas as pd
+
+assert Path(sys.prefix).name == "combinatorics2"
+support_work = Path("/private6/projects/Combinatorics/Code/Notebooks/entropy_audit_2026-11-12/originally_supporting_reads_2026-11-16")
+support_previous = Path("/private6/projects/Combinatorics/Code/Notebooks/entropy_audit_2026-11-12/updated_entropy_and_s7_comparison_2026-11-16")
+if str(support_work) not in sys.path:
+    sys.path.insert(0, str(support_work))
+from original_support import selected_original_support, file_sha256, AMINO_ACIDS
+
+support_platform = "PacBio"
+support_protected = json.loads((support_work / "protected_previous_outputs.json").read_text())
+support_previous_tables = {}
+for name in ["entropy_updated_per_gene", "entropy_updated_per_codon", "entropy_original_read_state_counts"]:
+    path = support_previous / f"{name}.tsv"
+    assert file_sha256(path) == support_protected[str(path)]["sha256"]
+    table = pd.read_table(path, float_precision="round_trip", keep_default_na=False)
+    support_previous_tables[name] = table.loc[table.Platform.eq(support_platform)].copy()
+support_all_genes = support_previous_tables["entropy_updated_per_gene"]
+support_all_codons = support_previous_tables["entropy_updated_per_codon"]
+support_all_states = support_previous_tables["entropy_original_read_state_counts"]
+support_cohorts = [c for c in json.loads((support_previous / "cohort_sources.json").read_text())
+                   if c["Platform"] == support_platform]
+assert support_all_genes.Gene.tolist() == [c["Gene"] for c in support_cohorts]
+support_keys = ["Platform", "Gene", "Codon"]
+
+
+# %%
+# Direct original support is defined by protein membership, never reassigned weights.
+support_state_tables, support_isoform_tables, support_population_records = [], [], []
+for cohort in support_cohorts:
+    gene = cohort["Gene"]
+    codons = support_all_codons.loc[support_all_codons.Gene.eq(gene), "Codon"].tolist()
+    expected_states = support_all_states.loc[support_all_states.Gene.eq(gene)]
+    states, isoforms, reconciliation = selected_original_support(cohort, expected_states, codons)
+    assert reconciliation["TotalOriginalReads"] == support_all_genes.set_index("Gene").loc[gene, "OriginalReads"]
+    for table in [states, isoforms]:
+        table.insert(0, "Gene", gene)
+        table.insert(0, "Platform", support_platform)
+    support_state_tables.append(states)
+    support_isoform_tables.append(isoforms)
+    support_population_records.append({"Platform": support_platform, "Gene": gene, **reconciliation})
+    print(f"{support_platform} {gene}: {reconciliation['OriginallySupportingReads']:,} Originally-supporting reads / {reconciliation['TotalOriginalReads']:,} All reads; unique read IDs reconciled.")
+support_states = pd.concat(support_state_tables, ignore_index=True)
+support_isoforms = pd.concat(support_isoform_tables, ignore_index=True)
+support_populations = pd.DataFrame(support_population_records)
+
+
+# %%
+# Only one definite AA is informative; all multi-AA states are excluded.
+support_frequencies = support_states.loc[support_states.AAState.isin(AMINO_ACIDS)].rename(columns={"AAState": "AA"}).copy()
+support_frequencies["Population"] = "Originally-supporting reads"
+support_frequencies["InformativeReads"] = support_frequencies.groupby(support_keys, sort=False).ReadCount.transform("sum")
+support_frequencies["Frequency"] = support_frequencies.ReadCount / support_frequencies.InformativeReads
+support_frequencies["EntropyContributionBits"] = -support_frequencies.Frequency * np.log2(support_frequencies.Frequency)
+assert support_frequencies.ReadCount.gt(0).all()
+np.testing.assert_allclose(support_frequencies.groupby(support_keys).Frequency.sum(), 1, rtol=0, atol=1e-12)
+support_codon_estimates = support_frequencies.groupby(support_keys, sort=False).agg(
+    InformativeReads=("ReadCount", "sum"), DefiniteAAStates=("AA", "size"),
+    CodonEntropyBits=("EntropyContributionBits", "sum")).reset_index()
+
+
+# %%
+# Keep exactly the All reads codon set; non-estimable entropy stays missing.
+support_per_codon = support_all_codons[support_keys + ["CodonIndex", "ReferenceAA", "InformativeReads",
+    "DefiniteAAStates", "CodonEntropyBits", "TotalOriginalReads"]].rename(columns={
+    "InformativeReads": "AllReadsInformativeReads", "DefiniteAAStates": "AllReadsDefiniteAAStates",
+    "CodonEntropyBits": "All reads"}).merge(support_codon_estimates, on=support_keys, how="left", validate="one_to_one")
+support_per_codon[["InformativeReads", "DefiniteAAStates"]] = support_per_codon[[
+    "InformativeReads", "DefiniteAAStates"]].fillna(0).astype(int)
+support_per_codon["Estimable"] = support_per_codon.InformativeReads.gt(0)
+support_per_codon["Originally-supporting reads"] = support_per_codon.CodonEntropyBits
+support_per_codon["EntropyStatus"] = np.where(support_per_codon.Estimable, "Estimable", "No informative Originally-supporting reads")
+support_per_codon = support_per_codon.merge(support_populations[["Platform", "Gene", "OriginallySupportingReads"]],
+    on=["Platform", "Gene"], validate="many_to_one")
+support_per_codon["ExcludedAmbiguousOrMissingReads"] = support_per_codon.OriginallySupportingReads - support_per_codon.InformativeReads
+support_per_codon["OriginallySupportingMinusAllReadsBits"] = support_per_codon["Originally-supporting reads"] - support_per_codon["All reads"]
+assert support_per_codon.InformativeReads.le(support_per_codon.AllReadsInformativeReads).all()
+assert support_per_codon.ExcludedAmbiguousOrMissingReads.ge(0).all()
+assert support_per_codon.loc[~support_per_codon.Estimable, "CodonEntropyBits"].isna().all()
+support_gene_entropy = support_per_codon.groupby(["Platform", "Gene"], sort=False).agg(
+    OriginallySupportingEntropyBits=("CodonEntropyBits", lambda values: values.sum() if values.notna().all() else np.nan),
+    EntropyOverEstimableCodonsBits=("CodonEntropyBits", lambda values: values.sum(min_count=1)),
+    EligibleCodons=("Codon", "size"), ZeroInformativeOriginallySupportingCodons=("Estimable", lambda values: int((~values).sum())),
+    AllReadsVariableCodons=("AllReadsDefiniteAAStates", lambda values: int(values.gt(1).sum()))).reset_index()
+
+
+# %%
+# Reuse the exact plotted values for Observed, Old hypothetical and All reads.
+support_comparison = support_all_genes[["Platform", "Gene", "CurrentObservedEntropyBits",
+    "CurrentOldHypotheticalEntropyBits", "UpdatedHypotheticalEntropyBits"]].rename(columns={
+    "CurrentObservedEntropyBits": "Observed", "CurrentOldHypotheticalEntropyBits": "Old hypothetical",
+    "UpdatedHypotheticalEntropyBits": "All reads"})
+support_comparison = support_comparison.merge(support_populations, on=["Platform", "Gene"], validate="one_to_one")
+support_comparison = support_comparison.merge(support_gene_entropy, on=["Platform", "Gene"], validate="one_to_one").rename(
+    columns={"OriginallySupportingEntropyBits": "Originally-supporting reads"})
+support_comparison["OriginallySupportingMinusAllReadsBits"] = support_comparison["Originally-supporting reads"] - support_comparison["All reads"]
+support_comparison["SameCodonSet"] = True
+support_comparison["AllEligibleCodonsEstimable"] = support_comparison.ZeroInformativeOriginallySupportingCodons.eq(0)
+for label, previous in [("Observed", "CurrentObservedEntropyBits"), ("Old hypothetical", "CurrentOldHypotheticalEntropyBits"),
+                        ("All reads", "UpdatedHypotheticalEntropyBits")]:
+    np.testing.assert_array_equal(support_comparison[label], support_all_genes[previous])
+print(support_comparison[["Platform", "Gene", "All reads", "Originally-supporting reads",
+    "OriginallySupportingReads", "ZeroInformativeOriginallySupportingCodons"]].to_string(index=False))
+
+
+# %%
+# New audit outputs only; repeat exports verify identical data without replacement.
+support_exports = {"entropy_population_comparison": support_comparison,
+    "entropy_original_support_per_codon": support_per_codon,
+    "entropy_original_support_aa_frequencies": support_frequencies,
+    "selected_isoform_original_read_reconciliation": support_isoforms,
+    "entropy_original_support_state_counts": support_states}
+for name, table in support_exports.items():
+    path = support_work / f"{name}.{support_platform}.tsv"
+    contents = table.to_csv(sep="\t", index=False)
+    if path.exists():
+        assert path.read_text() == contents, f"Changed calculation; select a new output directory: {path}"
+    else:
+        with path.open("x") as handle:
+            handle.write(contents)
+
 
 # %% [markdown]
 # ##### Combinatorics
@@ -13853,7 +14572,7 @@ assignment_dissimilar_dfs_by_dissimilarity_and_condition[("Miyata", "GRIA")]
 
 # %%
 # dissimilar_weighted_exp_clustering_input_dfs = [
-#     prepare_ml_input_df_new(
+#     prepare_ml_input_df_recoding_corrected(
 #         assignment_df,
 #         unique_proteins_df,
 #         unique_proteins_first_col_pos,
@@ -13868,7 +14587,7 @@ for condition, unique_proteins_df in zip(conditions, unique_proteins_dfs):
         assignment_df = assignment_dissimilar_dfs_by_dissimilarity_and_condition[
             (dissimilarity, condition)
         ]
-        dissimilar_weighted_exp_clustering_input_df = prepare_ml_input_df_new(
+        dissimilar_weighted_exp_clustering_input_df = prepare_ml_input_df_recoding_corrected(
             assignment_df,
             unique_proteins_df,
             unique_proteins_first_col_pos,
@@ -14648,4 +15367,791 @@ for gene_order, (gene, read_df) in enumerate(zip(fixed_conditions, non_syns_per_
             "Mean": np.mean(values), "Std": np.std(values)})
 pd.DataFrame(figure_s3_rows).to_csv(figure_s3_dir / "figure_s3_pacbio_native_counts.tsv", sep="\t", index=False)
 pd.DataFrame(figure_s3_stats).to_csv(figure_s3_dir / "figure_s3_pacbio_native_statistics.tsv", sep="\t", index=False)
+
+
+# %% [markdown]
+# ## Original-supporting-read Fisher analysis for Figure S18 (2026-11-09)
+#
+# Run this subsection independently from the notebook directory. It uses saved native
+# inputs and the authenticated, previously selected isoform ranks. Historical t-test
+# cells and outputs above are retained for provenance. Each original read contributes
+# one call per site; -1 is missing. A site is testable when both groups have at least
+# one A/G observation, including sites where every observed call is A (Fisher P=1).
+# BH is applied separately within each gene/platform over testable sites.
+
+# %%
+# Authenticate saved cohort definitions; no expression reassignment or graph search.
+from pathlib import Path
+import sys, json, math
+import numpy as np
+import pandas as pd
+from scipy.stats import fisher_exact
+from statsmodels.stats.multitest import multipletests
+revision_dir = Path.cwd() / 'RevisionFisherBY_2026-11-09'
+assert revision_dir.is_dir(), 'Run from Code/Notebooks'
+sys.path.insert(0, str(revision_dir))
+from revision_support import source, original_support, CANONICAL
+s18_platform = 'PacBio'
+s18_bindings = json.loads(source(CANONICAL / 'original_read_bindings.json').read_text())['cohorts']
+s18_protein_bindings = json.loads(source(CANONICAL / 'pattern_bindings.json').read_text())['cohorts']
+s18_results = []
+
+# %%
+# Recover native read multiplicities and count A/G/missing calls in fixed groups.
+for binding in [b for b in s18_bindings if b['platform'] == s18_platform]:
+    protein_binding = next(b for b in s18_protein_bindings if
+        (b['platform'], b['gene'], b['cohort']) == (s18_platform, binding['gene'], 'ordinary_full_fraction'))
+    assignment, protein_ids, rna = original_support(binding, protein_binding)
+    n_common, n_rare = math.ceil(len(assignment) * .01), math.ceil(len(assignment) * .30)
+    common_ids, rare_ids = assignment.Protein.iloc[:n_common], assignment.Protein.iloc[-n_rare:]
+    assert common_ids.tolist() == binding['common_IDs']
+    assert rare_ids.tolist() == binding['rare_IDs']
+    assert set(common_ids).isdisjoint(rare_ids)
+    result = pd.DataFrame({'Platform': s18_platform, 'Gene': binding['gene'],
+        'EditingSite': binding['sites'], 'SiteOrder': np.arange(len(binding['sites'])),
+        'Solution': binding['solution'], 'CommonIsoforms': n_common, 'RareIsoforms': n_rare})
+    for group, ids in [('Common', common_ids), ('Rare', rare_ids)]:
+        selected = rna.loc[np.isin(protein_ids, ids)]
+        states = selected[binding['sites']].to_numpy()
+        weights = selected.NumOfReads.to_numpy(dtype=np.int64)
+        result[group + 'OriginalReads'] = int(weights.sum())
+        for call, state in [('A', 0), ('G', 1), ('NA', -1)]:
+            result[group + call] = weights @ (states == state).astype(np.int64)
+        assert result[[group + c for c in ['A', 'G', 'NA']]].sum(axis=1).eq(weights.sum()).all()
+        denominator = result[group + 'A'] + result[group + 'G']
+        result[group + 'EditingPercent'] = 100 * result[group + 'G'] / denominator.where(denominator.gt(0))
+    old = pd.read_table(source(CANONICAL / (s18_platform + '.' + binding['gene'] + '.S18.tsv'),
+                       binding['summary_sha256']), dtype={'EditingSite': str}, float_precision='round_trip')
+    old = old[['EditingSite', 'pv', 'fdr_bh_corrected_pv', 'fdr_bh_rejection',
+               '%ExpressionWeightedMeanCommonEditing', '%MeanRareEditing']].add_prefix('OldT_')
+    result = result.merge(old, left_on='EditingSite', right_on='OldT_EditingSite',
+                          how='left', validate='one_to_one', indicator=True)
+    assert result.pop('_merge').eq('both').all()
+    result['SourceNotebook'] = 'squids_pacbio_5.BQ30.ipynb'
+    result['SourceUniqueReads'] = binding['unique_reads_source']
+    result['SourceUniqueProteins'] = protein_binding['unique_proteins_file']
+    s18_results.append(result)
+
+# %%
+# Test each integer 2x2 table and adjust only defined tests within its gene.
+for result in s18_results:
+    result['Testable'] = (result.CommonA + result.CommonG).gt(0) & (result.RareA + result.RareG).gt(0)
+    result['FisherOddsRatio'] = np.nan
+    result['FisherP'] = np.nan
+    for index, row in result.loc[result.Testable].iterrows():
+        table = np.array([[row.CommonA, row.CommonG], [row.RareA, row.RareG]], dtype=np.int64)
+        assert (table >= 0).all()
+        odds, pvalue = fisher_exact(table, alternative='two-sided')
+        result.loc[index, ['FisherOddsRatio', 'FisherP']] = odds, pvalue
+    valid = result.Testable
+    result['FisherBH'] = np.nan
+    if valid.any():
+        result.loc[valid, 'FisherBH'] = multipletests(result.loc[valid, 'FisherP'], method='fdr_bh')[1]
+    result['Significant'] = result.FisherBH.le(.05)
+    result['Direction'] = np.select(
+        [result.RareEditingPercent.gt(result.CommonEditingPercent),
+         result.RareEditingPercent.lt(result.CommonEditingPercent)], ['HigherInRare', 'LowerInRare'], default='Equal')
+    result.loc[~valid, 'Direction'] = 'Untestable'
+    result['Status'] = np.select([~valid, result.Significant], ['Untestable', 'Significant'], default='Nonsignificant')
+s18_fisher_sites = pd.concat(s18_results, ignore_index=True)
+assert not s18_fisher_sites.duplicated(['Platform', 'Gene', 'EditingSite']).any()
+
+# %%
+# S4 percentages use the explicitly reported number of testable sites.
+s18_summary_rows = []
+for (platform, gene), data in s18_fisher_sites.groupby(['Platform', 'Gene'], sort=False):
+    tested, significant = int(data.Testable.sum()), int(data.Significant.sum())
+    higher = int((data.Significant & data.Direction.eq('HigherInRare')).sum())
+    lower = int((data.Significant & data.Direction.eq('LowerInRare')).sum())
+    assert higher + lower == significant
+    counts = {'Platform': platform, 'Gene': gene, 'ReadType': {'PacBio': 'Long-reads', 'Illumina': 'Short-reads'}[platform],
+        'NumOfEditingSites': len(data), 'NumOfUntestableSites': len(data) - tested,
+        'NumOfTestableSites': tested, 'NumOfSignificantSites': significant,
+        'NumOfSignificantSitesHigherInRare': higher, 'NumOfSignificantSitesLowerInRare': lower,
+        'NumOfInsignificantSites': tested - significant, 'SourceNotebook': data.SourceNotebook.iloc[0]}
+    for label in ['SignificantSites', 'SignificantSitesHigherInRare', 'SignificantSitesLowerInRare', 'InsignificantSites']:
+        counts['%Of' + label] = 100 * counts['NumOf' + label] / tested if tested else np.nan
+    assert counts['NumOfUntestableSites'] + significant + counts['NumOfInsignificantSites'] == len(data)
+    s18_summary_rows.append(counts)
+s18_fisher_summary = pd.DataFrame(s18_summary_rows)
+s18_fisher_sites.to_csv(revision_dir / f's18_fisher_sites.{s18_platform}.tsv', sep='	', index=False, na_rep='NA')
+s18_fisher_summary.to_csv(revision_dir / f's18_fisher_summary.{s18_platform}.tsv', sep='	', index=False, na_rep='NA')
+display(s18_fisher_summary)
+
+# %% [markdown]
+# ## BY masks for Pearson correlation figures (2026-11-09)
+#
+# Run independently from this notebook's directory. Use the saved original pairwise
+# Pearson r and raw P values, excluding undefined P values within each gene/platform.
+# Only the correction and display mask change. Preserve site order, lower triangle,
+# historical Bonferroni files and the existing BY analysis for S12. MI is not filtered
+# by this test and is unchanged. Exports supply Figure 5a and the related S11a.
+
+# %%
+from pathlib import Path
+import sys
+import numpy as np
+import pandas as pd
+from statsmodels.stats.multitest import multipletests
+revision_dir = Path.cwd() / 'RevisionFisherBY_2026-11-09'
+assert revision_dir.is_dir(), 'Run from Code/Notebooks'
+sys.path.insert(0, str(revision_dir))
+from revision_support import source
+by_platform = 'PacBio'
+by_pairs = pd.read_table(source(Path.cwd() / 'Corrs.PB1.tsv'), float_precision='round_trip')
+by_genes = ['GRIA2', 'PCLO']
+by_results, by_summaries = [], []
+
+# %%
+# Recompute both adjustments on the identical defined-pair testing family.
+for gene in by_genes:
+    pairs = by_pairs.loc[by_pairs.Gene.eq(gene)].copy()
+    assert not pairs.duplicated(['Site1', 'Site2']).any()
+    assert pairs.Site1.lt(pairs.Site2).all()
+    valid = pairs.pv.notna()
+    assert pairs.loc[valid, 'pv'].between(0, 1).all()
+    assert pairs.loc[valid, 'r'].between(-1, 1).all()
+    pairs['BYAdjustedP'], pairs['BonferroniAdjustedP'] = np.nan, np.nan
+    pairs.loc[valid, 'BYAdjustedP'] = multipletests(pairs.loc[valid, 'pv'], alpha=.05, method='fdr_by')[1]
+    pairs.loc[valid, 'BonferroniAdjustedP'] = multipletests(pairs.loc[valid, 'pv'], alpha=.05, method='bonferroni')[1]
+    np.testing.assert_allclose(pairs.loc[valid, 'BYAdjustedP'], pairs.loc[valid, 'fdr_by_corrected_pv'], rtol=1e-12, atol=0)
+    pairs['BYSignificant'] = pairs.BYAdjustedP.lt(.05)
+    pairs['BonferroniSignificant'] = pairs.BonferroniAdjustedP.le(.05)
+    sites = sorted(set(pairs.Site1) | set(pairs.Site2))
+    assert len(pairs) == len(sites) * (len(sites) - 1) // 2
+    site_index = pd.Index(sites)
+    rows, columns = site_index.get_indexer(pairs.Site2), site_index.get_indexer(pairs.Site1)
+    historical = np.full((len(sites), len(sites)), np.nan)
+    revised = historical.copy()
+    old_mask, new_mask = pairs.BonferroniSignificant, pairs.BYSignificant
+    historical[rows[old_mask], columns[old_mask]] = pairs.loc[old_mask, 'r']
+    revised[rows[new_mask], columns[new_mask]] = pairs.loc[new_mask, 'r']
+    old_file = source(Path.cwd() / f'{gene}MaskedBonferroniCorr.{by_platform}.tsv')
+    saved = pd.read_table(old_file, float_precision='round_trip').to_numpy()
+    np.testing.assert_array_equal(np.isnan(historical), np.isnan(saved))
+    np.testing.assert_allclose(historical, saved, rtol=1e-13, atol=1e-15, equal_nan=True)
+    pd.DataFrame(revised).to_csv(revision_dir / f'{gene}MaskedBYCorr.{by_platform}.tsv', sep='	', index=False)
+    pd.Series(sites, name='EditingSite').to_csv(revision_dir / f'{gene}.BYSiteOrder.{by_platform}.tsv', sep='	', index=False)
+    pairs['Platform'] = by_platform
+    pairs['SourceNotebook'] = 'squids_pacbio_5.BQ30.ipynb'
+    by_results.append(pairs)
+    by_summaries.append({'Platform': by_platform, 'Gene': gene, 'TotalPairs': len(pairs),
+        'DefinedTests': int(valid.sum()), 'UndefinedPairs': int((~valid).sum()),
+        'BonferroniSignificant': int(old_mask.sum()), 'BYSignificant': int(new_mask.sum()),
+        'NewlyDisplayedPairs': int((new_mask & ~old_mask).sum()),
+        'Family': 'Defined unordered site pairs within gene/platform', 'SourceNotebook': pairs.SourceNotebook.iloc[0]})
+
+# %%
+by_pair_results = pd.concat(by_results, ignore_index=True)
+by_summary = pd.DataFrame(by_summaries)
+by_pair_results.to_csv(revision_dir / f'pearson_by_pairs.{by_platform}.tsv', sep='	', index=False, na_rep='NA')
+by_summary.to_csv(revision_dir / f'bonferroni_vs_by.{by_platform}.tsv', sep='	', index=False)
+display(by_summary)
+
+# %% [markdown]
+# ## Diagnostic: PacBio1 amplicon and original read-length accounting (2026-11-09)
+#
+# Run independently from the notebook directory, using original saved BAMs and FASTA.
+# Figure S1a plots BAM query-sequence length from all records in the two original
+# aligned BAMs, before the later read-quality and editing-site filters. The historical
+# `Deletions` column counts CIGAR D operations, not deleted bases. This diagnostic
+# retains both measures. For on-target aligned reads, the exact identity is:
+#
+# query length − primer amplicon length = reference overhang − uncovered amplicon
+#  + inserted bases − deleted bases − skipped reference bases + soft-clipped bases.
+#
+# Hard-clipped bases are absent from the BAM query sequence and do not enter its length.
+# Medians of terms are not added: reconstruct each read first, then take quantiles.
+
+# %%
+from pathlib import Path
+import sys, json
+import numpy as np
+import pandas as pd
+from Bio import SeqIO
+from Bio.Seq import Seq
+revision_dir = Path.cwd() / 'RevisionFisherBY_2026-11-09'
+assert revision_dir.is_dir(), 'Run from Code/Notebooks'
+sys.path.insert(0, str(revision_dir))
+from revision_support import source
+from read_diagnostics import literal_settings, bam_length_rows
+amplicon_settings = literal_settings('squids_pacbio_5.BQ30', 'cb5365e4')
+amplicon_sequences = {r.id: str(r.seq).upper() for r in SeqIO.parse(
+    source(amplicon_settings['transcriptome_file']), 'fasta') if r.id in amplicon_settings['chroms']}
+amplicon_primers = []
+for gene, chrom, forward, reverse in zip(amplicon_settings['fixed_conditions'], amplicon_settings['chroms'],
+        amplicon_settings['primers_for'], amplicon_settings['primers_rev']):
+    sequence, reverse_match = amplicon_sequences[chrom], str(Seq(reverse).reverse_complement())
+    assert sequence.count(forward) == sequence.count(reverse_match) == 1
+    left, right = sequence.index(forward), sequence.index(reverse_match) + len(reverse_match)
+    assert (left + 1, right, right - left) == {'GRIA2': (231, 3127, 2897), 'PCLO': (2157, 5239, 3083)}[gene]
+    amplicon_primers.append({'Gene': gene, 'Chrom': chrom, 'ForwardPrimer': forward, 'ReversePrimer': reverse,
+        'PrimerStart1': left + 1, 'PrimerEnd1': right, 'AmpliconLength': right - left,
+        'SourceFASTA': amplicon_settings['transcriptome_file'], 'SourceNotebook': 'squids_pacbio_5.BQ30.ipynb'})
+
+# %%
+# Inspect every original aligned record and verify the exact saved S1 plotting input.
+amplicon_reads, amplicon_headers = [], {}
+saved_raw_stats = pd.read_table(source(Path.cwd() / 'RawReadsStats.Squid.PacBio.csv'), float_precision='round_trip')
+for primers, bam_path in zip(amplicon_primers, amplicon_settings['aligned_bam_files']):
+    gene = primers['Gene']
+    reads, header = bam_length_rows(bam_path, gene, primers['Chrom'], primers['PrimerStart1'] - 1, primers['PrimerEnd1'])
+    expected = saved_raw_stats.loc[saved_raw_stats.Gene.eq(gene)].reset_index(drop=True)
+    assert len(reads) == len(expected)
+    for column in ['ReadLen', 'NumOfPasses', 'ReadQuality', 'Deletions']:
+        np.testing.assert_array_equal(reads[column], expected[column])
+    reads['SourceNotebook'] = 'squids_pacbio_5.BQ30.ipynb'
+    reads['OriginalLengthProducerCell'] = '62eece44'
+    reads['OriginalLengthExportCell'] = '628c1866'
+    amplicon_reads.append(reads)
+    amplicon_headers[gene] = header
+amplicon_reads = pd.concat(amplicon_reads, ignore_index=True)
+amplicon_reads.to_csv(revision_dir / 'pacbio1_length_per_read.tsv.gz', sep='	', index=False)
+(revision_dir / 'pacbio1_bam_headers.json').write_text(json.dumps(amplicon_headers, indent=2) + '\n')
+
+# %%
+# Summarize actual CIGAR mechanisms and reconstruct the observed medians per read.
+amplicon_summaries, amplicon_mechanisms = [], []
+for primers in amplicon_primers:
+    reads = amplicon_reads.loc[amplicon_reads.Gene.eq(primers['Gene'])]
+    quantiles = reads.ReadLen.quantile([.25, .5, .75]).to_numpy()
+    np.testing.assert_array_equal(quantiles, {'GRIA2': [2899, 2902, 2909], 'PCLO': [3049, 3053, 3070]}[primers['Gene']])
+    on_target = reads.loc[reads.OnTarget]
+    reconstruction = (primers['AmpliconLength'] + on_target.ReferenceOverhangBases
+        - on_target.UncoveredAmpliconBases + on_target.InsertionBases - on_target.DeletionBases
+        - on_target.ReferenceSkipBases + on_target.SoftClippedBases)
+    np.testing.assert_array_equal(reconstruction, on_target.ReadLen)
+    amplicon_summaries.append({**primers, 'NumberOfRecords': len(reads), 'UniqueReadIDs': reads.Read.nunique(),
+        'Q1': quantiles[0], 'Median': quantiles[1], 'Q3': quantiles[2],
+        'MedianMinusAmplicon': quantiles[1] - primers['AmpliconLength'],
+        'OnTargetRecords': len(on_target), 'SourceBAM': reads.SourceBAM.iloc[0],
+        'Measurement': 'len(BAM query sequence), all original aligned records',
+        'ProducerCell': '62eece44', 'ExportCell': '628c1866',
+        'SavedValuesReconstructedExactly': True, 'PerReadAccountingVerified': True})
+    for term in ['InsertionBases', 'DeletionBases', 'SoftClippedBases', 'ReferenceSkipBases',
+                 'ReferenceOverhangBases', 'UncoveredAmpliconBases']:
+        present = on_target[term].gt(0)
+        amplicon_mechanisms.append({'Gene': primers['Gene'], 'Mechanism': term,
+            'RecordsWithMechanism': int(present.sum()), 'OnTargetRecords': len(on_target),
+            'FractionWithMechanism': present.mean(), 'MeanBases': on_target[term].mean(),
+            'MedianBases': on_target[term].median(),
+            'RepresentativeOriginalReadIDs': ','.join(on_target.loc[present, 'Read'].head(3)),
+            'SourceBAM': reads.SourceBAM.iloc[0], 'SourceNotebook': 'squids_pacbio_5.BQ30.ipynb'})
+pd.DataFrame(amplicon_summaries).to_csv(revision_dir / 'pacbio1_amplicon_provenance.tsv', sep='	', index=False)
+pd.DataFrame(amplicon_mechanisms).to_csv(revision_dir / 'pacbio1_length_discrepancy_analysis.tsv', sep='	', index=False)
+display(pd.DataFrame(amplicon_summaries)[['Gene', 'AmpliconLength', 'NumberOfRecords', 'Q1', 'Median', 'Q3']])
+
+# %% [markdown]
+# ### Diagnostic: median-read examples and plotted-versus-filtered populations (2026-11-09)
+#
+# Run after the amplicon diagnostic. Quantify the observed median using actual
+# per-read CIGAR terms; do not add medians of separate terms. Trace repeated deletion
+# intervals and compare the complete plotted population with final read identities.
+
+# %%
+from pathlib import Path
+import sys, re
+from collections import Counter
+import numpy as np
+import pandas as pd
+revision_dir = Path.cwd() / 'RevisionFisherBY_2026-11-09'
+sys.path.insert(0, str(revision_dir))
+from revision_support import source
+from read_diagnostics import literal_settings
+settings = literal_settings('squids_pacbio_5.BQ30', 'cb5365e4')
+reads = pd.read_table(source(revision_dir / 'pacbio1_length_per_read.tsv.gz'))
+terms = ['ReferenceOverhangBases', 'UncoveredAmpliconBases', 'InsertionBases',
+         'DeletionBases', 'ReferenceSkipBases', 'SoftClippedBases']
+median_examples, population_rows, deletion_rows = [], [], []
+
+# %%
+for gene, data in reads.groupby('Gene', sort=False):
+    target = data.loc[data.OnTarget]
+    median = data.ReadLen.median()
+    assert target.ReadLen.median() == median
+    reconstructed = target.AmpliconLength + target.ReferenceOverhangBases - target.UncoveredAmpliconBases
+    reconstructed += target.InsertionBases - target.DeletionBases - target.ReferenceSkipBases + target.SoftClippedBases
+    assert reconstructed.median() == median
+    at_median = target.loc[target.ReadLen.eq(median)]
+    combinations = at_median.groupby(terms, sort=False).size().sort_values(ascending=False)
+    for values, count in combinations.head(5).items():
+        matching = at_median.loc[at_median[terms].eq(values).all(axis=1)]
+        row = matching.iloc[0]
+        median_examples.append({'Gene': gene, 'MedianQueryLength': median, 'AmpliconLength': row.AmpliconLength,
+            **dict(zip(terms, values)), 'ReadsWithThisMedianDecomposition': count, 'AllReadsAtMedian': len(at_median),
+            'RepresentativeRead': row.Read, 'CIGAR': row.CIGAR, 'SourceBAM': row.SourceBAM})
+    intervals = Counter()
+    for row in target.itertuples():
+        position = int(row.ReferenceStart0)
+        for length, operation in re.findall(r'(\d+)([MIDNSHP=X])', row.CIGAR):
+            length = int(length)
+            if operation == 'D':
+                intervals[(position, position + length, length)] += 1
+            if operation in 'MDN=X':
+                position += length
+        assert position == row.ReferenceEnd0
+    for (start, end, length), count in intervals.most_common(15):
+        deletion_rows.append({'Gene': gene, 'DeletionStart0': start, 'DeletionEnd0': end,
+            'DeletionLength': length, 'Records': count, 'OnTargetRecords': len(target),
+            'FractionOfTargetRecords': count / len(target)})
+
+# %%
+for gene, reads_path, map_path in zip(settings['fixed_conditions'], settings['reads_files'], settings['old_to_new_reads_files']):
+    data = reads.loc[reads.Gene.eq(gene)]
+    final = pd.read_table(source(reads_path), usecols=['Read'], dtype=str, keep_default_na=False)
+    mapping = pd.read_table(source(map_path), dtype=str, keep_default_na=False).set_index('NewRead')
+    final_ids = set(mapping.loc[final.Read, 'OldRead'])
+    assert len(final_ids) == len(final) and final_ids <= set(data.Read)
+    population_rows.append({'Gene': gene, 'PlottedBAMRecords': len(data), 'PlottedUniqueIDs': data.Read.nunique(),
+        'PlottedOnTargetRecords': int(data.OnTarget.sum()), 'PlottedOffTargetRecords': int((~data.OnTarget).sum()),
+        'FinalAnalysisUniqueReads': len(final_ids), 'PlottedUniqueIDsAbsentFromFinal': len(set(data.Read) - final_ids),
+        'SameReadPopulation': set(data.Read) == final_ids, 'SourceReads': reads_path,
+        'SourceNameMap': map_path, 'SourceNotebook': 'squids_pacbio_5.BQ30.ipynb'})
+pd.DataFrame(median_examples).assign(SourceNotebook='squids_pacbio_5.BQ30.ipynb').to_csv(
+    revision_dir / 'pacbio1_median_read_examples.tsv', sep='\t', index=False)
+pd.DataFrame(deletion_rows).assign(SourceNotebook='squids_pacbio_5.BQ30.ipynb').to_csv(
+    revision_dir / 'pacbio1_deletion_intervals.tsv', sep='\t', index=False)
+pd.DataFrame(population_rows).to_csv(revision_dir / 'pacbio1_plotted_vs_final_reads.tsv', sep='\t', index=False)
+display(pd.DataFrame(population_rows))
+
+# %% [markdown]
+# ### Independent S18 check against uncollapsed original reads (2026-11-09)
+#
+# Run after the Fisher subsection. Recount the first, middle and last editing site
+# for every cohort directly from its native read matrix. Also check all four KCNAS
+# sites that the old zero-SEM t-test excluded. No read-pattern multiplicities or
+# canonical state arrays enter this independent calculation.
+
+# %%
+from pathlib import Path
+import sys, json
+import pandas as pd
+revision_dir = Path.cwd() / 'RevisionFisherBY_2026-11-09'
+sys.path.insert(0, str(revision_dir))
+from revision_support import source, CANONICAL, verify_direct_read_counts
+verify_platform = 'PacBio'
+bindings = json.loads(source(CANONICAL / 'original_read_bindings.json').read_text())['cohorts']
+proteins = json.loads(source(CANONICAL / 'pattern_bindings.json').read_text())['cohorts']
+results = pd.read_table(source(revision_dir / f's18_fisher_sites.{verify_platform}.tsv'), dtype={'EditingSite': str})
+verified = []
+for binding in [b for b in bindings if b['platform'] == verify_platform]:
+    protein = next(b for b in proteins if (b['platform'], b['gene'], b['cohort']) ==
+                   (verify_platform, binding['gene'], 'ordinary_full_fraction'))
+    data = results.loc[results.Gene.eq(binding['gene'])]
+    verified.append(verify_direct_read_counts(binding, protein, data))
+verification = pd.concat(verified, ignore_index=True)
+verification['SourceNotebook'] = 'squids_pacbio_5.BQ30.ipynb'
+verification.to_csv(revision_dir / f's18_direct_read_verification.{verify_platform}.tsv', sep='\t', index=False)
+display(verification.groupby('Gene', sort=False).DirectNativeCountsMatch.agg(['count', 'all']))
+
+# %%
+# Independently validate the domain table against the original reference sequence.
+from Bio import SeqIO
+from read_diagnostics import literal_settings
+import numpy as np
+settings = literal_settings('squids_pacbio_5.BQ30', 'cb5365e4')
+reference = {record.id: str(record.seq).upper() for record in SeqIO.parse(
+    source(settings['transcriptome_file']), 'fasta') if record.id in settings['chroms']}
+classified = pd.read_table(source(revision_dir / 'domains_fisher_sites.tsv'))
+for chrom, start, end in zip(settings['chroms'], settings['starts'], settings['ends']):
+    sites = classified.loc[classified.Chrom.eq(chrom)]
+    assert all(reference[chrom][int(position)] == 'A' for position in sites.Position)
+    np.testing.assert_array_equal((sites.Position - start) // 3, sites.AAPosition)
+    assert sites.Position.ge(start).all() and sites.Position.lt(end).all()
+    assert (start + 3 * sites.AAPosition + 3 <= end).all()
+    assert (sites.A + sites.G).gt(0).all()
+provenance = {'source_notebook': 'squids_pacbio_5.BQ30.ipynb', 'settings_cell': 'cb5365e4',
+    'saved_scanprosite_cell': '46a2ebfb', 'reference': settings['transcriptome_file'],
+    'native_population': 'Coverage-filtered saved CDS A positions; BQ30 mpileup; rq>=0.998 reads',
+    'coordinate_system': '0-based transcript and amino-acid indices; half-open ORFs and signature intervals',
+    'annotation_rule': 'score != -1; accepted union takes precedence over excluded-only signature overlap',
+    'reference_adenosines_and_complete_codon_mapping_verified': True,
+    'all_retained_background_positions_have_informative_A_or_G_coverage': True}
+(revision_dir / 'domains_provenance.json').write_text(json.dumps(provenance, indent=2) + '\n')
+
+# %% [markdown]
+# ## PacBio1 amplicon boundary overhangs and excess query lengths — 2026-11-11
+#
+# Run this isolated subsection from Code/Notebooks in the existing combinatorics2
+# environment. It streams the two original pre-filtering Figure S1a BAMs and writes
+# only to RevisionFisherBY_2026-11-09/amplicon_overhang_followup_2026-11-11/.
+# Original cells and outputs above remain unchanged. No upstream pipeline is run.
+#
+# All BAM records are reconciled; boundary/mechanism percentages use on-target
+# primary records, which must have unique original read IDs. Left/right refer to
+# reference coordinates, including on reverse-strand alignments. Query bases aligned
+# outside primers exclude insertions, deletions and soft clips. Insertions exactly
+# at a primer boundary are reported separately. The CIGAR identity is checked on
+# every on-target alignment, including separately reported nonprimary records.
+#
+# Statistics use population SD and linear quantiles. All exact length distributions
+# and observed mechanism combinations are exported. Empty subgroups have N=0 and
+# undefined statistics. Synthetic checks are separate from full native validation.
+
+# %%
+from pathlib import Path
+import sys, ast, json, gzip
+import numpy as np
+import pandas as pd
+import pysam
+from Bio import SeqIO
+from Bio.Seq import Seq
+notebook_dir = Path.cwd()
+followup = notebook_dir / 'RevisionFisherBY_2026-11-09/amplicon_overhang_followup_2026-11-11'
+assert followup.is_dir(), 'Run from Code/Notebooks'
+sys.path.insert(0, str(followup))
+from overhang_tools import (source_hash, stream_bam, distribution_stats,
+                           frequency_rows, synthetic_checks)
+notebook_path = notebook_dir / 'squids_pacbio_5.BQ30.ipynb'
+saved_notebook = json.loads(notebook_path.read_text())
+settings_source = ''.join(next(c for c in saved_notebook['cells'] if c.get('id') == 'cb5365e4')['source'])
+required_settings = {'fixed_conditions', 'chroms', 'primers_for', 'primers_rev', 'transcriptome_file', 'aligned_bam_files'}
+settings = {}
+for node in ast.parse(settings_source).body:
+    if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+        name = node.targets[0].id
+        if name in required_settings:
+            settings[name] = ast.literal_eval(node.value)
+assert set(settings) == required_settings
+reference_path = Path(settings['transcriptome_file']).resolve()
+sequences = {}
+for record in SeqIO.parse(reference_path, 'fasta'):
+    if record.id in settings['chroms']:
+        sequences[record.id] = str(record.seq).upper()
+    if len(sequences) == len(settings['chroms']):
+        break
+assert set(sequences) == set(settings['chroms'])
+
+# %%
+# Reconfirm the original oligos and coordinates rather than assuming the old table.
+configurations = []
+expected = {'GRIA2': (231, 3127, 2897, 91529, 90146), 'PCLO': (2157, 5239, 3083, 82595, 82575)}
+for gene, chrom, forward, reverse, bam in zip(settings['fixed_conditions'], settings['chroms'],
+        settings['primers_for'], settings['primers_rev'], settings['aligned_bam_files'], strict=True):
+    reference_sequence = sequences[chrom]
+    reverse_complement = str(Seq(reverse).reverse_complement())
+    assert reference_sequence.count(forward) == reference_sequence.count(reverse_complement) == 1
+    left = reference_sequence.index(forward)
+    right = reference_sequence.index(reverse_complement) + len(reverse_complement)
+    assert (left + 1, right, right - left) == expected[gene][:3]
+    configurations.append({'Gene': gene, 'Chrom': chrom, 'ForwardPrimer': forward, 'ReversePrimer': reverse,
+        'LeftBoundary0': left, 'RightBoundary0': right, 'AmpliconLengthBp': right - left,
+        'SourceFASTA': str(reference_path), 'SourceBAM': str(Path(bam).resolve()),
+        'ExpectedRecords': expected[gene][3], 'ExpectedOnTargetRecords': expected[gene][4],
+        'SettingsCell': 'cb5365e4', 'SourceNotebook': str(notebook_path),
+        'PrimerSearchSequences': {'Forward': forward, 'ForwardReverseComplement': str(Seq(forward).reverse_complement()),
+                                 'Reverse': reverse, 'ReverseComplement': reverse_complement}})
+pd.DataFrame(configurations).drop(columns='PrimerSearchSequences').to_csv(
+    followup / 'primer_boundary_verification.tsv', sep='\t', index=False)
+sources = [reference_path, notebook_path, notebook_path.with_suffix('.py'),
+           *[Path(c['SourceBAM']) for c in configurations],
+           notebook_dir / 'RevisionFisherBY_2026-11-09/pacbio1_length_per_read.tsv.gz']
+input_hashes = {str(path): {'sha256': source_hash(path), 'bytes': path.stat().st_size} for path in sources}
+(followup / 'input_manifest.json').write_text(json.dumps(input_hashes, indent=2) + '\n')
+
+# %%
+# Stream sequences one at a time. Preserve clipped sequence evidence separately.
+synthetic_checks().to_csv(followup / 'synthetic_checks.tsv', sep='\t', index=False)
+scan_results = []
+for configuration in configurations:
+    gene = configuration['Gene']
+    scan_results.append(stream_bam(configuration, followup / f'{gene}.per_read.tsv.gz',
+                                  followup / f'{gene}.soft_clip_sequences.tsv.gz'))
+(followup / 'stream_validation.json').write_text(json.dumps(scan_results, indent=2) + '\n')
+
+# %%
+# Reconcile the new CIGAR measurements with the already verified old per-read table.
+reads = pd.concat([pd.read_table(followup / f"{c['Gene']}.per_read.tsv.gz",
+    dtype={'ReadID': str}, keep_default_na=True) for c in configurations], ignore_index=True)
+assert not reads.duplicated(['Gene', 'ReadID']).any()
+previous = pd.read_table(notebook_dir / 'RevisionFisherBY_2026-11-09/pacbio1_length_per_read.tsv.gz',
+    usecols=['Gene', 'Read', 'ReadLen', 'OnTarget', 'InsertionBases', 'DeletionBases',
+             'SoftClippedBases', 'ReferenceSkipBases'], dtype={'Read': str}).set_index(['Gene', 'Read'])
+current = reads.set_index(['Gene', 'ReadID']).loc[previous.index]
+for new, old in [('QueryLengthBp', 'ReadLen'), ('OnTarget', 'OnTarget'), ('InsertionBp', 'InsertionBases'),
+                 ('DeletionBp', 'DeletionBases'), ('SoftClipBp', 'SoftClippedBases'), ('ReferenceSkipBp', 'ReferenceSkipBases')]:
+    np.testing.assert_array_equal(current[new], previous[old])
+del previous, current
+target = reads.loc[reads.OnTarget]
+failures = target.loc[~target.LengthIdentityVerified.eq(True)]
+failures.to_csv(followup / 'failed_length_identities.tsv', sep='\t', index=False)
+assert failures.empty, 'Inspect failed_length_identities.tsv before proceeding'
+assert target.CIGARIdentityVerified.all()
+assert target.LengthIdentityResidualBp.eq(0).all()
+primary = reads.loc[reads.BoundaryAnalysisEligible].copy()
+assert primary.Primary.all() and primary.OnTarget.all()
+assert not primary.duplicated(['Gene', 'ReadID']).any()
+reads.to_csv(followup / 'per_read_amplicon_overhangs.tsv.gz', sep='\t', index=False, na_rep='NA')
+
+# %%
+# Report nested counts and the mutually exclusive allocation of every plotted record.
+population_rows = []
+for config in configurations:
+    gene = config['Gene']
+    group = reads.loc[reads.Gene.eq(gene)]
+    assert len(group) == config['ExpectedRecords']
+    assert int(group.OnTarget.sum()) == config['ExpectedOnTargetRecords']
+    masks = {'AllBAMRecords': pd.Series(True, index=group.index), 'OnTarget': group.OnTarget,
+        'OffTargetMapped': ~group.OnTarget & ~group.Unmapped, 'Primary': group.Primary,
+        'Secondary': group.Secondary, 'Supplementary': group.Supplementary, 'Unmapped': group.Unmapped,
+        'OnTargetPrimary': group.BoundaryAnalysisEligible,
+        'OnTargetNonPrimary': group.OnTarget & ~group.Primary}
+    for label, mask in masks.items():
+        population_rows.append({'Gene': gene, 'SummaryType': 'NestedPopulation', 'Population': label,
+            'Records': int(mask.sum()), 'UniqueReadIDs': group.loc[mask, 'ReadID'].nunique(),
+            'DenominatorAllRecords': len(group), 'PercentAllRecords': 100 * mask.mean(), 'SourceBAM': config['SourceBAM']})
+    for (population, flag, orientation), selected in group.groupby(['Population', 'Flag', 'Orientation'], sort=False):
+        population_rows.append({'Gene': gene, 'SummaryType': 'ExclusivePopulationFlagOrientation',
+            'Population': population, 'Flag': flag, 'Orientation': orientation, 'Records': len(selected),
+            'UniqueReadIDs': selected.ReadID.nunique(), 'DenominatorAllRecords': len(group),
+            'PercentAllRecords': 100 * len(selected) / len(group), 'SourceBAM': config['SourceBAM']})
+populations = pd.DataFrame(population_rows)
+populations.to_csv(followup / 'all_read_population_reconciliation.tsv', sep='\t', index=False, na_rep='NA')
+display(populations.loc[populations.SummaryType.eq('NestedPopulation'),
+    ['Gene', 'Population', 'Records', 'UniqueReadIDs', 'PercentAllRecords']])
+
+# %%
+# Reference-based categories, with explicit denominators and orientation strata.
+category_rows, joint_rows = [], []
+categories = ['NONE', 'LEFT_ONLY', 'RIGHT_ONLY', 'BOTH']
+for gene, group in primary.groupby('Gene', sort=False):
+    all_records = reads.Gene.eq(gene).sum()
+    for orientation in ['All', 'Forward', 'Reverse']:
+        cohort = group if orientation == 'All' else group.loc[group.Orientation.eq(orientation)]
+        for category in categories:
+            subset = cohort.loc[cohort.OverhangClass.eq(category)]
+            category_rows.append({'Gene': gene, 'Orientation': orientation, 'OverhangClass': category,
+                'Reads': len(subset), 'DenominatorOnTargetPrimary': len(cohort),
+                'PercentOnTargetPrimary': 100 * len(subset) / len(cohort) if len(cohort) else np.nan,
+                'DenominatorAllPlottedRecords': int(all_records), 'PercentAllPlottedRecords': 100 * len(subset) / all_records,
+                'CrossesLeftMissesRight': int(subset.LeftCrossesButMissesRight.sum()),
+                'CrossesRightMissesLeft': int(subset.RightCrossesButMissesLeft.sum()),
+                'RepresentativeReadIDs': ';'.join(subset.ReadID.head(3))})
+        for population, subset in [('AllOnTargetPrimary', cohort), ('BothBoundaryCrossers', cohort.loc[cohort.OverhangClass.eq('BOTH')])]:
+            counts = subset.groupby(['LeftOverhangBp', 'RightOverhangBp']).size().reset_index(name='Reads')
+            counts['Gene'], counts['Orientation'], counts['Population'] = gene, orientation, population
+            counts['Denominator'] = len(subset)
+            counts['Percent'] = 100 * counts.Reads / len(subset) if len(subset) else np.nan
+            joint_rows.append(counts)
+category_summary = pd.DataFrame(category_rows)
+category_summary.to_csv(followup / 'overhang_category_summary.tsv', sep='\t', index=False)
+pd.concat(joint_rows, ignore_index=True).to_csv(followup / 'both_sides_joint_distribution.tsv', sep='\t', index=False)
+display(category_summary.loc[category_summary.Orientation.eq('All'),
+    ['Gene', 'OverhangClass', 'Reads', 'DenominatorOnTargetPrimary', 'PercentOnTargetPrimary']])
+
+# %%
+overhang_measures = ['LeftOverhangBp', 'RightOverhangBp', 'TotalReferenceOverhangBp',
+    'LeftAlignedQueryOutsideBp', 'RightAlignedQueryOutsideBp', 'TotalAlignedQueryOutsideBp']
+overhang_statistics, overhang_frequencies, correlations = [], [], []
+for gene, group in primary.groupby('Gene', sort=False):
+    for orientation in ['All', 'Forward', 'Reverse']:
+        cohort = group if orientation == 'All' else group.loc[group.Orientation.eq(orientation)]
+        both = cohort.loc[cohort.OverhangClass.eq('BOTH')]
+        for measure in overhang_measures:
+            for population, selected in [('AllOnTargetPrimary', cohort), ('PositiveRelevantMeasure', cohort.loc[cohort[measure].gt(0)]),
+                                         ('BothBoundaryCrossers', both)]:
+                labels = {'Gene': gene, 'Orientation': orientation, 'Population': population, 'Measure': measure}
+                stats = distribution_stats(selected[measure])
+                overhang_statistics.append({**labels, 'DenominatorOnTargetPrimary': len(cohort),
+                    'SelectedPercent': 100 * len(selected) / len(cohort) if len(cohort) else np.nan, **stats})
+                overhang_frequencies.extend(frequency_rows(selected[measure], labels, include_small=True))
+        variable = len(both) >= 2 and both.LeftOverhangBp.nunique() > 1 and both.RightOverhangBp.nunique() > 1
+        correlations.append({'Gene': gene, 'Orientation': orientation, 'BothReads': len(both),
+            'PearsonLeftRight': both.LeftOverhangBp.corr(both.RightOverhangBp) if variable else np.nan,
+            'Status': 'Descriptive correlation; no test' if variable else 'Undefined: fewer than two reads or constant extent'})
+pd.DataFrame(overhang_statistics).to_csv(followup / 'overhang_distribution_statistics.tsv', sep='\t', index=False, na_rep='NA')
+pd.DataFrame(overhang_frequencies).to_csv(followup / 'overhang_length_distributions.tsv', sep='\t', index=False, na_rep='NA')
+pd.DataFrame(correlations).to_csv(followup / 'both_sides_correlations.tsv', sep='\t', index=False, na_rep='NA')
+
+# %%
+# All plotted records are compared with their intended gene's reference amplicon length.
+length_rows, excess_stats, excess_frequencies = [], [], []
+for gene, group in reads.groupby('Gene', sort=False):
+    populations_to_compare = {'AllBAMRecords': group, 'OnTargetPrimary': group.loc[group.BoundaryAnalysisEligible],
+        'OnTargetNonPrimary': group.loc[group.OnTarget & ~group.Primary],
+        'OffTargetMapped': group.loc[~group.OnTarget & ~group.Unmapped], 'Unmapped': group.loc[group.Unmapped]}
+    for population, cohort in populations_to_compare.items():
+        for status, mask in [('Shorter', cohort.ExcessLengthBp.lt(0)), ('Equal', cohort.ExcessLengthBp.eq(0)),
+                             ('Longer', cohort.ExcessLengthBp.gt(0))]:
+            length_rows.append({'Gene': gene, 'Population': population, 'LengthClass': status,
+                'Reads': int(mask.sum()), 'Denominator': len(cohort), 'Percent': 100 * mask.mean() if len(cohort) else np.nan})
+        selected = cohort.loc[cohort.ExcessLengthBp.gt(0)]
+        labels = {'Gene': gene, 'Population': population, 'Measure': 'ExcessLengthBp'}
+        excess_stats.append({**labels, **distribution_stats(selected.ExcessLengthBp)})
+        excess_frequencies.extend(frequency_rows(selected.ExcessLengthBp, labels))
+pd.DataFrame(length_rows).to_csv(followup / 'longer_than_amplicon_summary.tsv', sep='\t', index=False, na_rep='NA')
+pd.DataFrame(excess_stats).to_csv(followup / 'excess_length_statistics.tsv', sep='\t', index=False, na_rep='NA')
+pd.DataFrame(excess_frequencies).to_csv(followup / 'excess_length_distributions.tsv', sep='\t', index=False, na_rep='NA')
+longer = primary.loc[primary.ExcessLengthBp.gt(0)].copy()
+strata = ['1-5', '6-10', '11-20', '21-50', '51-100', '>100']
+longer['ExcessStratum'] = pd.cut(longer.ExcessLengthBp, [0, 5, 10, 20, 50, 100, np.inf], labels=strata)
+assert longer.ExcessStratum.notna().all()
+display(pd.DataFrame(length_rows).loc[lambda x: x.Population.isin(['AllBAMRecords', 'OnTargetPrimary'])])
+
+# %%
+# Marginals overlap. Full and positive-contribution combinations partition each cohort.
+mechanism_masks = {
+    'LeftReferenceOverhang': longer.LeftOverhangBp.gt(0), 'RightReferenceOverhang': longer.RightOverhangBp.gt(0),
+    'BothReferenceOverhangs': longer.OverhangClass.eq('BOTH'), 'AnyReferenceOverhang': longer.TotalReferenceOverhangBp.gt(0),
+    'NoReferenceOverhang': longer.TotalReferenceOverhangBp.eq(0), 'Insertion': longer.InsertionBp.gt(0),
+    'SoftClip': longer.SoftClipBp.gt(0), 'Deletion': longer.DeletionBp.gt(0),
+    'IncompleteAmplicon': longer.UncoveredAmpliconBp.gt(0), 'ReferenceSkip': longer.ReferenceSkipBp.gt(0),
+    'HardClip': longer.HardClipBp.gt(0), 'InternalSoftClip': longer.InternalSoftClipBp.gt(0),
+    'LeftCrossesMissesRight': longer.LeftCrossesButMissesRight.eq(True),
+    'RightCrossesMissesLeft': longer.RightCrossesButMissesLeft.eq(True)}
+longer['PositiveCombination'] = ('O=' + longer.TotalReferenceOverhangBp.gt(0).astype(int).astype(str)
+    + '|I=' + longer.InsertionBp.gt(0).astype(int).astype(str) + '|S=' + longer.SoftClipBp.gt(0).astype(int).astype(str))
+longer['FullCombination'] = (longer.OverhangClass + '|I=' + longer.InsertionBp.gt(0).astype(int).astype(str)
+    + '|S=' + longer.SoftClipBp.gt(0).astype(int).astype(str) + '|D=' + longer.DeletionBp.gt(0).astype(int).astype(str)
+    + '|U=' + longer.UncoveredAmpliconBp.gt(0).astype(int).astype(str) + '|N=' + longer.ReferenceSkipBp.gt(0).astype(int).astype(str))
+assert longer.PositiveContributionBp.gt(0).all()
+mechanism_rows = []
+for gene, group in longer.groupby('Gene', sort=False):
+    for stratum in ['All', *strata]:
+        cohort = group if stratum == 'All' else group.loc[group.ExcessStratum.eq(stratum)]
+        for category in ['All', *categories]:
+            selected = cohort if category == 'All' else cohort.loc[cohort.OverhangClass.eq(category)]
+            labels = {'Gene': gene, 'ExcessStratum': stratum, 'OverhangClass': category, 'Denominator': len(selected)}
+            for mechanism, mask in mechanism_masks.items():
+                count = int(mask.loc[selected.index].sum())
+                mechanism_rows.append({**labels, 'SummaryType': 'Marginal', 'Mechanism': mechanism,
+                    'Count': count, 'Percent': 100 * count / len(selected) if len(selected) else np.nan})
+        for column in ['OverhangClass', 'PositiveCombination', 'FullCombination']:
+            counts = cohort[column].value_counts()
+            assert counts.sum() == len(cohort)
+            for label, count in counts.items():
+                mechanism_rows.append({'Gene': gene, 'ExcessStratum': stratum, 'OverhangClass': 'All',
+                    'Denominator': len(cohort), 'SummaryType': column, 'Mechanism': label,
+                    'Count': int(count), 'Percent': 100 * count / len(cohort) if len(cohort) else np.nan})
+
+# %%
+# Signed amounts reconcile excess exactly; sums of overlapping marginal counts do not.
+components = ['LeftOverhangBp', 'RightOverhangBp', 'TotalReferenceOverhangBp',
+    'LeftAlignedQueryOutsideBp', 'RightAlignedQueryOutsideBp', 'TotalAlignedQueryOutsideBp',
+    'InsertionBp', 'InsertionLeftOutsideBp', 'InsertionAtLeftBoundaryBp', 'InsertionInsideBp',
+    'InsertionAtRightBoundaryBp', 'InsertionRightOutsideBp', 'LeftSoftClipBp', 'RightSoftClipBp', 'SoftClipBp',
+    'DeletionBp', 'ReferenceSkipBp', 'LeftUncoveredAmpliconBp', 'RightUncoveredAmpliconBp', 'UncoveredAmpliconBp',
+    'DisjointBoundaryGapBp', 'HardClipBp', 'InternalSoftClipBp', 'PaddingBp',
+    'PositiveContributionBp', 'NegativeContributionBp', 'ExcessLengthBp']
+component_frequencies = []
+for gene, group in longer.groupby('Gene', sort=False):
+    for stratum in ['All', *strata]:
+        cohort = group if stratum == 'All' else group.loc[group.ExcessStratum.eq(stratum)]
+        for category in ['All', *categories]:
+            selected = cohort if category == 'All' else cohort.loc[cohort.OverhangClass.eq(category)]
+            for component in components:
+                labels = {'Gene': gene, 'ExcessStratum': stratum, 'OverhangClass': category}
+                stats = distribution_stats(selected[component])
+                mechanism_rows.append({**labels, 'Denominator': len(selected), 'SummaryType': 'ComponentBases',
+                    'Mechanism': component, 'Count': stats['PositiveN'],
+                    'Percent': 100 * stats['PositiveN'] / len(selected) if len(selected) else np.nan, **stats})
+                if category == 'All':
+                    component_frequencies.extend(frequency_rows(selected[component], {**labels, 'Component': component}))
+        assert cohort.PositiveContributionBp.sum() - cohort.NegativeContributionBp.sum() == cohort.ExcessLengthBp.sum()
+mechanisms = pd.DataFrame(mechanism_rows)
+mechanisms.to_csv(followup / 'longer_read_mechanisms.tsv', sep='\t', index=False, na_rep='NA')
+pd.DataFrame(component_frequencies).to_csv(followup / 'longer_read_component_distributions.tsv', sep='\t', index=False)
+longer[['Gene', 'ReadID', 'ExcessStratum', 'OverhangClass', 'PositiveCombination', 'FullCombination']].to_csv(
+    followup / 'longer_read_combination_assignments.tsv.gz', sep='\t', index=False)
+
+# %%
+# Screen only known oligos; exact matches are sequence evidence, not proof of an adapter.
+sequence_rows = []
+for gene, group in reads.groupby('Gene', sort=False):
+    for population in ['AllBAMRecords', 'OnTargetPrimary', 'LongerOnTargetPrimary']:
+        cohort = group if population == 'AllBAMRecords' else group.loc[group.BoundaryAnalysisEligible]
+        if population == 'LongerOnTargetPrimary':
+            cohort = cohort.loc[cohort.ExcessLengthBp.gt(0)]
+        for side in ['Left', 'Right']:
+            clipped = cohort[side + 'SoftClipBp'].gt(0)
+            full = cohort[side + 'SoftClipFullPrimerMatch']
+            partial = cohort[side + 'SoftClipBoundaryPartialBp'].ge(12)
+            sequence_rows.append({'Gene': gene, 'Population': population, 'ReferenceSide': side,
+                'Reads': len(cohort), 'ReadsWithClip': int(clipped.sum()), 'ExactFullPrimerMatchReads': int(full.sum()),
+                'PercentOfClippedReadsWithFullMatch': 100 * full.sum() / clipped.sum() if clipped.any() else np.nan,
+                'ExpectedBoundaryPartialAtLeast12BpReads': int(partial.sum()),
+                'PartialMatchDefinition': 'left clip suffix matches forward-primer prefix; right clip prefix matches reverse-complement-primer suffix'})
+pd.DataFrame(sequence_rows).to_csv(followup / 'soft_clip_primer_summary.tsv', sep='\t', index=False, na_rep='NA')
+special = []
+for gene, group in reads.groupby('Gene', sort=False):
+    for measure in ['HardClipBp', 'InternalSoftClipBp', 'PaddingBp', 'ReferenceSkipBp', 'DisjointBoundaryGapBp']:
+        special.append({'Gene': gene, 'Measure': measure, 'PositiveRecords': int(group[measure].gt(0).sum())})
+pd.DataFrame(special).to_csv(followup / 'special_cigar_cases.tsv', sep='\t', index=False)
+
+# %%
+# Include each observed longer-read combination and extreme extents, not only median reads.
+selection = {}
+for (gene, combination), group in longer.groupby(['Gene', 'FullCombination'], sort=False):
+    for index in group.sort_values('ReadID').head(2).index:
+        selection.setdefault(index, []).append('LongerCombination:' + combination)
+for (gene, category), group in primary.groupby(['Gene', 'OverhangClass'], sort=False):
+    for index in group.sort_values('ReadID').head(2).index:
+        selection.setdefault(index, []).append('BoundaryClass:' + category)
+for gene, group in primary.groupby('Gene', sort=False):
+    for component in ['ExcessLengthBp', 'LeftOverhangBp', 'RightOverhangBp', 'InsertionBp', 'SoftClipBp', 'DeletionBp']:
+        selection.setdefault(group[component].idxmax(), []).append('Maximum:' + component)
+representatives = reads.loc[list(selection)].copy()
+representatives['SelectionReason'] = [';'.join(selection[i]) for i in representatives.index]
+representatives.to_csv(followup / 'representative_reads.tsv', sep='\t', index=False, na_rep='NA')
+checks = []
+for config in configurations:
+    selected = representatives.loc[representatives.Gene.eq(config['Gene'])].set_index('ReadID')
+    found = set()
+    with pysam.AlignmentFile(config['SourceBAM'], 'rb') as bam:
+        for read in bam.fetch(until_eof=True):
+            if read.query_name not in selected.index:
+                continue
+            expected_row = selected.loc[read.query_name]
+            aligned_pairs = read.get_aligned_pairs(matches_only=True)
+            left_count = sum(position < config['LeftBoundary0'] for query, position in aligned_pairs)
+            right_count = sum(position >= config['RightBoundary0'] for query, position in aligned_pairs)
+            assert left_count == expected_row.LeftAlignedQueryOutsideBp
+            assert right_count == expected_row.RightAlignedQueryOutsideBp
+            assert read.query_length == expected_row.QueryLengthBp and read.cigarstring == expected_row.CIGAR
+            found.add(read.query_name)
+            checks.append({'Gene': config['Gene'], 'ReadID': read.query_name, 'IndependentAlignedPairsMatch': True})
+    assert found == set(selected.index)
+pd.DataFrame(checks).to_csv(followup / 'independent_representative_checks.tsv', sep='\t', index=False)
+
+# %%
+# Diagnostic figures are saved here only; the manuscript's final_figures are untouched.
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
+plot_dir = followup / 'figures'
+plot_dir.mkdir(exist_ok=True)
+for gene, group in primary.groupby('Gene', sort=False):
+    fig, axes = plt.subplots(2, 3, figsize=(12, 7), constrained_layout=True)
+    for axis, column, title in zip(axes[0], ['LeftOverhangBp', 'RightOverhangBp', 'TotalReferenceOverhangBp'],
+                                  ['Left reference overhang', 'Right reference overhang', 'Total reference overhang']):
+        counts = group[column].value_counts().sort_index()
+        axis.bar(counts.index, counts.values, width=.8, color='#2678b2')
+        axis.set(yscale='log', xlabel='Extent [bp]', ylabel='Reads', title=title,
+                 xlim=(-.5, counts.index.max() + .5), xticks=np.arange(int(counts.index.max()) + 1))
+    joint = group.groupby(['LeftOverhangBp', 'RightOverhangBp']).size().reset_index(name='Count')
+    points = axes[1, 0].scatter(joint.LeftOverhangBp, joint.RightOverhangBp, c=joint.Count,
+                               s=8 + 6 * np.log10(joint.Count), norm=LogNorm(), cmap='viridis')
+    axes[1, 0].set(xlabel='Left extent [bp]', ylabel='Right extent [bp]', title='Joint reference extents')
+    axes[1, 0].set(xlim=(-.25, joint.LeftOverhangBp.max() + .25),
+                   ylim=(-.25, joint.RightOverhangBp.max() + .25),
+                   xticks=np.arange(int(joint.LeftOverhangBp.max()) + 1),
+                   yticks=np.arange(int(joint.RightOverhangBp.max()) + 1))
+    colorbar = fig.colorbar(points, ax=axes[1, 0], label='Reads')
+    colorbar.solids.set_rasterized(False)
+    long_group = longer.loc[longer.Gene.eq(gene)]
+    counts = long_group.ExcessLengthBp.value_counts().sort_index()
+    axes[1, 1].plot(counts.index, counts.values, '.', markersize=4)
+    axes[1, 1].set(yscale='log', xlabel='Excess recorded query length [bp]', ylabel='Reads', title=f'Longer reads (n={len(long_group):,})')
+    axes[1, 1].set(xscale='log', xlim=(.9, counts.index.max() * 1.1))
+    labels = ['Left extension', 'Right extension', 'Insertions', 'Soft clips', 'Deletions', 'Ref. skips', 'Uncovered']
+    columns = ['LeftOverhangBp', 'RightOverhangBp', 'InsertionBp', 'SoftClipBp', 'DeletionBp', 'ReferenceSkipBp', 'UncoveredAmpliconBp']
+    means = long_group[columns].mean().to_numpy() * np.array([1, 1, 1, 1, -1, -1, -1])
+    axes[1, 2].barh(labels, means, color=['#2678b2'] * 4 + ['#b84343'] * 3)
+    axes[1, 2].axvline(0, color='black', linewidth=.7)
+    axes[1, 2].set(xlabel='Mean signed contribution [bp]', title='Longer-read accounting')
+    fig.suptitle(f'{gene}: original on-target primary reads (n={len(group):,})', fontsize=14)
+    for extension in ['pdf', 'svg', 'png']:
+        fig.savefig(plot_dir / f'{gene}.overhangs_and_excess.{extension}', dpi=600)
+    plt.close(fig)
 

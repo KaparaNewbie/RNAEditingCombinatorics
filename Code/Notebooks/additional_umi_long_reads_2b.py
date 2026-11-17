@@ -1131,6 +1131,9 @@ concat_bams_df = concat_bams_df.rename(columns={"NR2": "Read"})
 concat_bams_df
 
 # %%
+concat_bams_df.groupby(["Gene"]).size().reset_index(name="Reads")
+
+# %%
 # concat_bams_df.groupby(["Gene", "Sample"]).size().reset_index(name="Reads")
 
 # %%

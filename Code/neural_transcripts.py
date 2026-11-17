@@ -38,8 +38,11 @@ def determine_obim_neural_transcripts(
     sra_df = pd.read_csv(sra_run_table_file, usecols=["Run", "Tissue"]).rename(
         columns={"Run": "Sample"}
     )
+    # Correction 2026-11-09: trim tissue whitespace before matching SRA labels.
+    sra_df["Tissue"] = sra_df["Tissue"].str.strip()
     neural_tissues = [
-        "optic_lobe",
+        # Correction 2026-11-09: SRA uses "optic lobe"; "optic_lobe" made it non-neural.
+        "optic lobe",
         "axial nerve cord",
         "subesophageal brain",
         "supraesophageal brain",
@@ -118,6 +121,14 @@ def neural_obim_to_ovul_transcripts(
     obim_to_ovul_orthologs_df = obim_to_ovul_orthologs_df.explode("ObimChrom").explode(
         "OvulChrom", ignore_index=True
     )
+    # Correction 2026-11-09: comma-separated OrthoFinder IDs can retain leading
+    # spaces that prevent merges; strip both ends of each exploded identifier.
+    obim_to_ovul_orthologs_df["ObimChrom"] = obim_to_ovul_orthologs_df[
+        "ObimChrom"
+    ].str.strip()
+    obim_to_ovul_orthologs_df["OvulChrom"] = obim_to_ovul_orthologs_df[
+        "OvulChrom"
+    ].str.strip()
     obim_to_ovul_orthologs_df = obim_to_ovul_orthologs_df.merge(
         obim_neural_transcripts_df.loc[:, ["ObimChrom", "IsNeuralTranscript"]],
         on="ObimChrom",

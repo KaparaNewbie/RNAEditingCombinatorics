@@ -705,11 +705,6 @@ pacbio_umi_color_discrete_map
 # # Editing levels in PCLO - squid
 
 # %%
-px.colors
-
-# %%
-
-# %%
 known_sites_file = (
     "/private7/projects/Combinatorics/D.pealeii/Annotations/D.pea.EditingSites.csv"
 )
@@ -1138,14 +1133,6 @@ fig.write_image(
 fig.show()
 
 # %%
-# Persist the native S2 table; validate the original cohort before manuscript use.
-from pathlib import Path
-figure_s2_dir = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/phase4_batch/inputs")
-figure_s2_dir.mkdir(parents=True, exist_ok=True)
-merged_ref_base_positions_df.to_csv(figure_s2_dir / "figure_s2_pclo_comparison_candidate.tsv", sep="\t", index=False, na_rep="NA")
-
-
-# %%
 cat_merged_ref_base_positions_df = merged_ref_base_positions_df.copy()
 cat_merged_ref_base_positions_df["Position"] = cat_merged_ref_base_positions_df["Position"].astype(str)
 cat_merged_ref_base_positions_df
@@ -1335,6 +1322,410 @@ current_study_min_x, current_study_max_x
 # fig.update_layout(template=template, height=600)
 
 # fig.show()
+
+# %% [markdown]
+# ## Editing levels in PCLO - squid - fixed
+
+# %% [markdown]
+# Fixed editing definition for current study.
+# Previously, we compared previously detected sites with sites with editing freq > 0 in current study,
+# which is not symmetric.
+
+# %%
+known_sites_file = (
+    "/private7/projects/Combinatorics/D.pealeii/Annotations/D.pea.EditingSites.csv"
+)
+positions_files = [
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
+    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.comp141882_c0_seq14.positions.csv",
+]
+sep = "\t"
+strands = ["+", "+"]
+condition_col = "Platform"
+conditions = ["PacBio", "Illumina"]
+chrom = "comp141882_c0_seq14"
+colors = [
+    px.colors.qualitative.G10[1],
+    px.colors.qualitative.Dark24[13],
+    # px.colors.qualitative.Set3[11]
+    px.colors.qualitative.Vivid[5],
+]
+start = 0
+end = 6294
+
+# %%
+col_suffixes = conditions + ["Known"]
+col_suffixes
+
+# %%
+editing_freq_cols = [f"EditingFrequency_{col_suffix}" for col_suffix in col_suffixes]
+editing_percent_cols = [f"%Editing_{col_suffix}" for col_suffix in col_suffixes]
+edited_cols = [f"Edited_{col_suffix}" for col_suffix in col_suffixes]
+
+# %%
+positions_dfs = []
+for positions_file, condition in zip(positions_files, conditions):
+    positions_df = pd.read_csv(positions_file, sep=sep).drop(
+        ["CDS", "Phred"], axis=1, errors="ignore"
+    )  # ignore error from droping these cols which only exist in Illumina data
+    positions_df.insert(0, condition_col, condition)
+    positions_dfs.append(positions_df)
+positions_dfs[0]
+
+# %%
+ref_base_positions_dfs = []
+
+for positions_df, strand, col_suffix in zip(positions_dfs, strands, col_suffixes[:2]):
+    ref_base = "A" if strand == "+" else "T"
+    alt_base = "G" if strand == "+" else "C"
+    positions_df = (
+        positions_df.loc[positions_df["RefBase"] == ref_base]
+        .sort_values(["Chrom", "Position"])
+        .reset_index(drop=True)
+    )
+    positions_df.insert(
+        positions_df.columns.get_loc("EditingFrequency"),
+        "EditedReads",
+        positions_df[alt_base],
+    )
+    positions_df = positions_df.drop(
+        [
+            "MappedBases",
+            "Reads",
+            "Noise",
+            "RefBase",
+            "A",
+            "T",
+            "C",
+            "G",
+            "InProbRegion",
+        ],
+        axis=1,
+    )
+    # positions_df = positions_df.rename(
+    #     columns={
+    #         "Edited": f"Edited_{col_suffix}",
+    #     }
+    # )
+    ref_base_positions_dfs.append(positions_df)
+
+ref_base_positions_dfs[0]
+
+# %%
+ref_base_positions_dfs[1]
+
+# %%
+known_sites_df = pd.read_csv(known_sites_file)
+
+new_known_sites_cols = [
+    "Chrom",
+    "SwissProt",
+    "Position",
+    "OriginalAA",
+    "NewAA",
+    "RefBase",
+    "Editing",
+    "EditingFrequency",
+    "DNA",
+]
+known_sites_df = known_sites_df.set_axis(new_known_sites_cols, axis="columns")
+known_sites_df.insert(
+    5, "Coverage", known_sites_df["RefBase"] + known_sites_df["Editing"]
+)
+known_sites_df = known_sites_df.drop(["RefBase", "DNA"], axis="columns")
+known_sites_df["Position"] = known_sites_df["Position"] - 1
+
+# known_sites_df["Position"] = known_sites_df["Position"].astype(int)
+known_sites_df = known_sites_df.loc[
+    (known_sites_df["Chrom"] == chrom)
+    & (start <= known_sites_df["Position"])
+    & (known_sites_df["Position"] < end)
+]
+
+known_sites_df.insert(
+    3, "Edited", True
+)
+
+known_sites_df
+
+
+# %%
+def current_study_min_max_positions(merged_ref_base_positions_df):
+    currently_edited_positions = merged_ref_base_positions_df.loc[
+        (merged_ref_base_positions_df["Edited_PacBio"]) | (merged_ref_base_positions_df["Edited_Illumina"]),
+    ].sort_values("Position")["Position"]
+    min_position = currently_edited_positions.iloc[0]
+    max_position = currently_edited_positions.iloc[-1]
+    return min_position, max_position
+
+
+# %%
+merged_ref_base_positions_df = (
+    ref_base_positions_dfs[0]
+    .loc[:, ["Chrom", "Position", "EditingFrequency", "Edited"]]
+    .merge(
+        ref_base_positions_dfs[1].loc[:, ["Chrom", "Position", "EditingFrequency", "Edited"]],
+        how="outer",
+        on=["Chrom", "Position"],
+        suffixes=[f"_{condition}" for condition in conditions],
+    )
+)
+
+merged_ref_base_positions_df = merged_ref_base_positions_df.merge(
+    known_sites_df.loc[
+        known_sites_df["Chrom"] == chrom, ["Chrom", "Position", "EditingFrequency", "Edited"]
+    ].rename(columns={"EditingFrequency": "EditingFrequency_Known", "Edited": f"Edited_{col_suffixes[2]}"}),
+    how="outer",
+    on=["Chrom", "Position"],
+)
+
+for editing_freq_col, editing_percent_col, edited_col in zip(
+    editing_freq_cols, editing_percent_cols, edited_cols
+):
+    merged_ref_base_positions_df[editing_percent_col] = (
+        merged_ref_base_positions_df[editing_freq_col] * 100
+    )
+    # merged_ref_base_positions_df[edited_col] = (
+    #     merged_ref_base_positions_df[editing_percent_col] > 0
+    # )
+    merged_ref_base_positions_df[edited_col] = (
+        merged_ref_base_positions_df[edited_col].fillna(False)
+    )
+
+merged_ref_base_positions_df = (
+    merged_ref_base_positions_df
+    .astype(
+        {
+            col: bool
+            for col in edited_cols
+        }
+    )
+)
+
+merged_ref_base_positions_df = merged_ref_base_positions_df.drop(
+    editing_freq_cols, axis=1
+)
+
+# merged_ref_base_positions_df["Position"] = merged_ref_base_positions_df["Position"].astype("str")
+merged_ref_base_positions_df = merged_ref_base_positions_df.sort_values(
+    ["Chrom", "Position"]
+).reset_index(drop=True)
+
+current_study_min_x, current_study_max_x = current_study_min_max_positions(merged_ref_base_positions_df)
+merged_ref_base_positions_df = merged_ref_base_positions_df.loc[
+    (merged_ref_base_positions_df["Position"] >= current_study_min_x) &
+    (merged_ref_base_positions_df["Position"] <= current_study_max_x)
+]
+merged_ref_base_positions_df = merged_ref_base_positions_df.loc[
+    (merged_ref_base_positions_df["Edited_PacBio"]) |
+    (merged_ref_base_positions_df["Edited_Illumina"]) |
+    (merged_ref_base_positions_df["Edited_Known"])
+]
+
+merged_ref_base_positions_df
+
+# %%
+# Export the fixed call-based cohort; these frequencies are already percentages.
+from pathlib import Path
+import hashlib
+import json
+
+figure_s2_dir = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/phase4_batch/inputs")
+merged_ref_base_positions_df.to_csv(
+    figure_s2_dir / "figure_s2_pclo_comparison_candidate.tsv",
+    sep="\t", index=False, na_rep="NA",
+)
+
+# Update the authenticated table actually read by load_table("s2_pclo").
+figure_s2_dir = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/finalization_2026-10-12/inputs")
+figure_s2_pclo_df = merged_ref_base_positions_df.rename(columns={
+    "%Editing_PacBio": "PacBio", "%Editing_Illumina": "Illumina",
+    "%Editing_Known": "EditingFrequencyKnown",
+})
+assert not figure_s2_pclo_df.duplicated(["Chrom", "Position"]).any()
+figure_s2_path = figure_s2_dir / "s2_pclo.tsv"
+figure_s2_pclo_df.to_csv(figure_s2_path, sep="\t", index=False, na_rep="NA")
+figure_s2_metadata = {
+    "file": figure_s2_path.name, "rows": len(figure_s2_pclo_df),
+    "columns": list(figure_s2_pclo_df),
+    "sha256": hashlib.sha256(figure_s2_path.read_bytes()).hexdigest(),
+    "source_notebook": "various_plots.BQ30.ipynb",
+    "source_section": "Editing levels in PCLO - squid - fixed",
+    "source_cell_ids": ["634f0793", "176e5731", "8e57cf9f", "e9d18c28", "f6dad854", "d9e8cd76"],
+    "known_file_sha256": hashlib.sha256(Path(known_sites_file).read_bytes()).hexdigest(),
+    "selection": "Catalog sites, or Edited_PacBio | Edited_Illumina; within the current-study edited-site interval.",
+    "frequency_unit": "percent; missing measurements remain missing",
+    "current_study_interval": [int(current_study_min_x), int(current_study_max_x)],
+}
+figure_s2_path.with_suffix(".json").write_text(json.dumps(figure_s2_metadata, indent=2))
+
+
+# %%
+col_suffixes_updated_legend = {
+    "PacBio": "Long-reads",
+    "Illumina": "Short-reads",
+    "Known": "Known (Short-reads)    ",
+}
+
+# %%
+merged_ref_base_positions_df.loc[
+            merged_ref_base_positions_df["Edited_Known"]
+        ]
+
+# %%
+merged_ref_base_positions_df.loc[
+    ~merged_ref_base_positions_df["Edited_Known"],
+    ["%Editing_PacBio", "%Editing_Illumina"]
+].max()
+
+# %%
+merged_ref_base_positions_df.loc[
+    ~merged_ref_base_positions_df["Edited_Known"],
+    ["%Editing_PacBio", "%Editing_Illumina"]
+].stack().describe().round(2)
+
+# %%
+fig = make_subplots(
+    rows=2,
+    cols=1,
+    shared_xaxes=True,
+    # subplot_titles=["Known positions", "New positions"],
+    row_titles=["Known<br>positions", "De-novo<br>positions"],
+    x_title="Position",
+    y_title="Editing level in squid's PCLO [%]",
+    # vertical_spacing=0.15,
+    vertical_spacing=0.13,
+)
+
+symbols = ["circle", "square"]
+
+# current_study_min_x = end
+# current_study_max_x = start
+
+# current_study_min_x, current_study_max_x = current_study_min_max_positions(merged_ref_base_positions_df)
+
+# colors = [
+#     px.colors.qualitative.G10[1],
+#     # px.colors.qualitative.Dark24[13],
+#     # px.colors.qualitative.Set3[11]
+#     px.colors.qualitative.G10[4],
+#     px.colors.qualitative.Vivid[5],
+# ]
+# colors = px.colors.qualitative.Pastel[:3]
+colors = px.colors.qualitative.Pastel[:2] + [px.colors.qualitative.Pastel[4]]
+
+for row in [1, 2]:
+    if row == 1:
+        df = merged_ref_base_positions_df.loc[
+            merged_ref_base_positions_df["Edited_Known"]
+        ]
+    else:
+        df = merged_ref_base_positions_df.loc[
+            ~merged_ref_base_positions_df["Edited_Known"]
+        ]
+
+    for color, editing_percent_col, edited_col, col_suffix in zip(
+        colors,
+        editing_percent_cols,
+        edited_cols,
+        col_suffixes,
+    ):
+        if row == 2 and col_suffix == "Known":
+            continue
+
+        x = df["Position"]
+        y = df[editing_percent_col]
+        
+        if row == 1:
+            fig.add_trace(
+                go.Scatter(
+                    x=x,
+                    y=y,
+                    # mode="lines+markers",
+                    mode="markers",
+                    marker=dict(
+                        color=color,
+                        opacity=0.7,
+                        # size=4,
+                        size=6,
+                        # line=dict(
+                        #     width=2,
+                        #     color='DarkSlateGrey'
+                        # )
+                    ),
+                    # name=col_suffix,
+                    name=col_suffixes_updated_legend[col_suffix],
+                ),
+                row=row,
+                col=1,
+            )
+        else:
+            fig.add_trace(
+                go.Scatter(
+                    x=x,
+                    y=y,
+                    # mode="lines+markers",
+                    mode="markers",
+                    marker=dict(color=color, 
+                                opacity=0.7, 
+                                # size=4,
+                                size=6
+                               ),
+                    showlegend=False,
+                ),
+                row=row,
+                col=1,
+            )
+
+# fig.update_xaxes(
+#     range=[current_study_min_x, current_study_max_x],
+# )
+
+lowest_y_greater_than_0 = (
+    pd.Series(
+        merged_ref_base_positions_df.loc[
+            :, ["%Editing_PacBio", "%Editing_Illumina", "%Editing_Known"]
+        ].values.reshape(-1)
+    )
+    .replace(0, np.nan)
+    .min()
+)
+
+fig["layout"]["yaxis"].update(
+    range=[0, 100],
+    tick0=0,
+)
+
+fig["layout"]["yaxis2"].update(
+    range=[np.log(lowest_y_greater_than_0) / np.log(10), 2],
+    type="log",
+    tick0=0,
+)
+
+width = 1100
+height = 600
+
+fig.update_layout(
+    template=template,
+    width=width,
+    height=height,
+    legend=dict(
+        orientation="h", 
+        x=0.83,
+        y=0.8,
+        xref="container",
+        yref="container",
+        xanchor="right",
+    ),
+)
+
+# fig.write_image(
+#     "Comparison of editing levels across platforms and studies in squid’s PCLO - log(y) for new positions.svg",
+#     width=width,
+#     height=height,
+# )
+
+fig.show()
 
 # %% [markdown]
 # # ADAR motif - squid
@@ -1684,8 +2075,8 @@ known_sites_file = (
 pacbio_positions_files = [
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
     "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998.positions.csv.gz",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz",
-    "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz",
+    # "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/ADAR1.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz",
+    # "/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/UMILongReads.MergedSamples/IQEC.Merged.r64296e203404D01.aligned.sorted.MinRQ998.positions.csv.gz",
 ]
 illumina_positions_files = [
     f"/private7/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/Illumina/reads.sorted.aligned.filtered.{chrom}.positions.csv"
@@ -1746,7 +2137,9 @@ strands = pacbio_strands + illumina_strands
 
 condition_col = "Transcript-Platform"
 
-pacbio_transcripts = ["GRIA", "PCLO", "ADAR1", "IQEC1"]
+pacbio_transcripts = ["GRIA", "PCLO", 
+                    #   "ADAR1", "IQEC1"
+                      ]
 illumina_transcripts = [
     "RUSC2_MOUSE",
     "TRIM2_BOVIN",
@@ -1798,9 +2191,6 @@ for positions_df, condition in zip(positions_dfs, conditions):
     positions_df.insert(0, condition_col, condition)
 positions_dfs[0]
 
-
-# %%
-positions_dfs[5]
 
 # %%
 len(positions_dfs)
@@ -1897,17 +2287,16 @@ merged_ref_base_positions_df
 # ## Current vs. known editing levels
 
 # %%
-both_df = merged_ref_base_positions_df.loc[
-    merged_ref_base_positions_df["Edited"]
-    & merged_ref_base_positions_df["KnownEditing"]
-]
+# both_df = merged_ref_base_positions_df.loc[
+#     merged_ref_base_positions_df["Edited"]
+#     & merged_ref_base_positions_df["KnownEditing"]
+# ]
 
-all_df = merged_ref_base_positions_df.loc[
-    merged_ref_base_positions_df["Edited"]
-    | merged_ref_base_positions_df["KnownEditing"]
-]
-all_df
-
+# all_df = merged_ref_base_positions_df.loc[
+#     merged_ref_base_positions_df["Edited"]
+#     | merged_ref_base_positions_df["KnownEditing"]
+# ]
+# all_df
 
 # %%
 def editing_status_color(
@@ -2034,17 +2423,15 @@ all_df = merged_ref_base_positions_df.loc[
     | merged_ref_base_positions_df["KnownEditing"]
 ]
 
+ic(
+    both_df.shape[0],
+    edited_df.shape[0],
+    known_editing_df.shape[0],
+    all_df.shape[0]
+)
+
 assert len(both_df) + len(edited_df) + len(known_editing_df) == len(all_df)
 
-
-# %%
-len(both_df)
-
-# %%
-len(edited_df)
-
-# %%
-len(known_editing_df)
 
 # %%
 # edited_df["Transcript-Platform"] = edited_df["Transcript-Platform"].apply(
@@ -2101,6 +2488,7 @@ for (x, y), name, color in zip(xs_ys, names, colors):
 # y_all = all_df["%EditingKnown"].fillna(0)
 
 pearson_df = all_df.loc[:, ["%Editing", "%EditingKnown"]].reset_index(drop=True).dropna()
+ic(pearson_df.shape[0])
 x_all = pearson_df["%Editing"]
 y_all = pearson_df["%EditingKnown"]
 
@@ -2144,11 +2532,11 @@ fig.update_layout(
 fig.update_xaxes(range=[0, 100])
 fig.update_yaxes(range=[0, 100])
 
-fig.write_image(
-    Path(out_dir, "Correlation between current vs previously-reported editing levels - Squid w UMIs.svg"),
-    width=600,
-    height=500,
-)
+# fig.write_image(
+#     Path(out_dir, "Correlation between current vs previously-reported editing levels - Squid w UMIs.svg"),
+#     width=600,
+#     height=500,
+# )
 
 fig.show()
 
@@ -2219,14 +2607,14 @@ fig.update_layout(
 # fig.update_xaxes(range=[0, 100])
 fig.update_yaxes(range=[0, 100])
 
-fig.write_image(
-    Path(
-        out_dir, 
-        "Distribution of pooled editing levels according to their editing status in current vs. previous study - Squid w UMIs.svg"
-    ),
-    width=600,
-    height=500,
-)
+# fig.write_image(
+#     Path(
+#         out_dir, 
+#         "Distribution of pooled editing levels according to their editing status in current vs. previous study - Squid w UMIs.svg"
+#     ),
+#     width=600,
+#     height=500,
+# )
 
 fig.show()
 
@@ -6290,14 +6678,17 @@ pacbio_concat_signature_positions_df["PositionInSignature"].value_counts(dropna=
 pacbio_concat_signature_positions_df.groupby("Gene")["PositionInSignature"].value_counts(dropna=False)
 
 # %%
-pacbio_concat_signature_positions_df.loc[
-    (pacbio_concat_signature_positions_df["PositionInSignature"].eq("Yes"))
-    & (pacbio_concat_signature_positions_df["Edited"]),
-    [
-        "Chrom", "Gene", "Position", "EditingFrequency", 
-        "AAPosition", "SignatureAccession", "SignatureStart", "SignatureEnd"
-    ]
+# Signature-specific rows come from the detailed membership export.
+pacbio_motif_membership_df = pd.read_table(
+    in_dir / "EditingInMotifs.PacBio.Membership.tsv", na_filter=False,
+    dtype={"Edited": bool, "InEligibleSignature": bool},
+)
+pacbio_motif_membership_df.loc[
+    pacbio_motif_membership_df["InEligibleSignature"] & pacbio_motif_membership_df["Edited"],
+    ["Chrom", "Gene", "Position", "EditingFrequency", "AAPosition",
+     "SignatureAccession", "SignatureStart", "SignatureEnd"],
 ].reset_index(drop=True)
+
 
 # %%
 pacbio_concat_signature_positions_proportion_df = (
@@ -6639,8 +7030,17 @@ octopus_dispersion_df.loc[octopus_dispersion_df["%SolutionsDispersion"] > 0].sor
 # dispersion_quartiles
 
 # %%
+len(octopus_dispersion_df.loc[octopus_dispersion_df["%SolutionsDispersion"] > 0])
+
+# %%
 percent_of_octopus_genes_with_nonzero_dispersion = 100 * len(octopus_dispersion_df.loc[octopus_dispersion_df["%SolutionsDispersion"] > 0]) / len(octopus_dispersion_df)
 percent_of_octopus_genes_with_nonzero_dispersion
+
+# %%
+np.round(
+    percent_of_octopus_genes_with_nonzero_dispersion,
+    1
+)
 
 # %%
 column_widths = [len(pacbio_conditions), len(illumina_conditions), len(illumina_conditions)/2]

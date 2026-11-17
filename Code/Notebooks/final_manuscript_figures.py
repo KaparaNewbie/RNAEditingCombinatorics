@@ -7,24 +7,26 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.19.4
 #   kernelspec:
-#     display_name: Python 3 (combinatorics2)
+#     display_name: Python 3 (ipykernel)
 #     language: python
 #     name: python3
 # ---
 
 # %%
-# Render the three revised figures; reuse the other 22 approved vector assets.
-FIGURES_TO_BUILD = ['Figure2b', 'FigureS2', 'FigureS19']
+# Layout changes only; all scientific inputs are already persisted.
+FIGURES_TO_BUILD = ['Figure5', 'Figure6', 'FigureS4', 'FigureS1', 'FigureS2', 'FigureS3', 'FigureS5', 'FigureS6', 'FigureS8', 'FigureS9', 'FigureS10', 'FigureS11', 'FigureS12', 'FigureS16', 'FigureS17', 'FigureS20', 'FigureS15', 'FigureS18', 'FigureS14']
 RENDER_FIGURE3 = False
+
 
 # %% [markdown]
 # The current collection is `Notebooks/final_figures/`, with SVG, PDF, and PNG previews.
-# The default run renders Figure2b, S2 and Plotly S19 from persisted tables and
-# authenticates the other approved artwork. Figure2b uses the approved 4.90 × 4.55 cm
-# Arial design; the remaining figures retain Open Sans. S19 simulation is a separate,
-# completed preparation; this notebook never reruns it. `dimensions_cm.tsv` records
-# intended manuscript sizes. Figure1 and the remaining BioRender Figure2 assembly
-# are external/manual.
+# The default run renders Figure2b, S2 and Plotly S19 from persisted tables, assembles
+# Figure2 from approved PDFs, and authenticates the other approved artwork. Figure2b
+# uses the approved 4.90 × 4.55 cm Arial design; Figure2 retains the BioRender design.
+# The other plotting sections retain Open Sans. Neither S19 simulation nor any other
+# scientific preparation is rerun here. `dimensions_cm.tsv` records actual final sizes.
+# Figure1 remains external/manual. Figure2 assembly requires the documented Docker
+# image; the notebook runs it without changing the combinatorics2 environment.
 
 # %%
 # Plotting dependencies only; the selected environment is explicit and checked.
@@ -348,7 +350,7 @@ if RENDER_FIGURE3:
     display(Image(filename=str(OUTPUT_DIR / 'previews/Figure3_print_scale.png')))
 
 # %% [markdown]
-# # Supplemental figures — S7 and S15
+# # Supplemental figure S15
 # Continue after the Figure 3 cells above. Figure 3 **revision8** is the approved
 # baseline, including the absence of X/Y tick marks in panels b–d. Its drawing
 # cells and input tables are unchanged by this extension.
@@ -358,7 +360,8 @@ if RENDER_FIGURE3:
 # designated reference SVGs were checked separately; their small layout manifest
 # is bundled in `figure_rebuild_work/phase3_s7_s15/reference_layout.json`.
 #
-# S7 uses a **180 × 160 mm** canvas; S15 uses **180 × 250 mm** to accommodate its
+# The canonical S7 producer is at the end of this notebook.
+# S15 uses **180 × 250 mm** to accommodate its
 # five plot rows and annotations at the requested 7/6 pt sizes. These are review
 # dimensions, with no cropping or scaling of the vector exports. All supplemental
 # outputs and checks are written to `figure_rebuild_work/phase3_s7_s15/`.
@@ -448,122 +451,6 @@ def export_supplement(figure, name, panel_regions):
 
 
 # %% [markdown]
-# ## Figure S7 — corrected exact clustering
-#
-# The complete canonical matrices were clustered with the original k ranges, seed and n_init.
-# Distances are processed in chunks with every observation included in each silhouette.
-# S7b uses documented current maximal metric-specific choices for a new corrected run;
-# these choices are not claimed as proven historical inputs. Labels and RNG checkpoints are saved.
-#
-
-# %%
-# Load the two persisted silhouette tables; do not repeat clustering.
-s7_tables, s7_metadata = {}, {}
-for panel in ['a', 'b']:
-    path = INPUT_DIR / f'squid_original_figures7{panel}_silhouette_plot.tsv'
-    meta = json.loads(path.with_suffix('.json').read_text())
-    assert hashlib.sha256(path.read_bytes()).hexdigest() == meta['sha256']
-    table = pd.read_table(path, float_precision='round_trip')
-    assert table.columns.tolist() == meta['columns'] and len(table) == meta['rows']
-    assert not table.duplicated(meta['keys']).any() and table.notna().all().all()
-    assert table['Gene'].map(meta['gene_colors']).eq(table['Color']).all()
-    s7_tables[panel], s7_metadata[panel] = table, meta
-assert len(s7_tables['a']) == 1050 and len(s7_tables['b']) == 152
-s7_colors = s7_metadata['a']['gene_colors']
-s7_figure = plt.figure(figsize=(180 / 25.4, 160 / 25.4), dpi=150)
-s7_artist_checks = []
-
-# %%
-if 'FigureS7' in FIGURES_TO_BUILD:
-    # Panel a: 50 stored points per gene/platform, joined in their original order.
-    # Both panels use the same 55 mm columns, 8 mm gutter and legend column.
-    S7_COLUMN_X_MM, S7_COLUMN_WIDTH_MM = [18, 81], 55
-    S7_X_TITLE_CENTER_MM, S7_LEGEND_X_MM = 77, 144
-    s7a_layout = reference_layout['s7']['a']
-    for platform, x in zip(s7a_layout['groups'], S7_COLUMN_X_MM):
-        axis = supplement_axes(s7_figure, x, 12, S7_COLUMN_WIDTH_MM, 60)
-        platform_table = s7_tables['a'].loc[s7_tables['a']['Platform'].eq(platform)]
-        for gene in s7a_layout['legend_order']:
-            curve = platform_table.loc[platform_table['Gene'].eq(gene)]
-            if curve.empty:  # A shared gene legend covers both platform cohorts.
-                continue
-            assert curve['ClusterSize'].tolist() == list(range(10, 501, 10))
-            line, = axis.plot(curve['ClusterSize'], curve['MeanSilhouetteScore'],
-                              color=s7_colors[gene], linewidth=0.6)
-            line.set_gid(f'S7a-{platform}-{gene}')
-            np.testing.assert_array_equal(line.get_xydata(), curve[['ClusterSize', 'MeanSilhouetteScore']])
-            s7_artist_checks.append({'panel': 'a', 'group': platform, 'gene': gene, 'points': len(curve)})
-        axis.set(xlim=s7a_layout['limits']['x'], ylim=s7a_layout['limits']['y'])
-        axis.set_xticks(range(0, 501, 100))
-        axis.set_yticks(np.arange(0, 0.201, 0.05))
-        axis.set_title(platform, pad=4)
-        if platform == 'Long-reads':
-            axis.set_ylabel('Mean silhouette score of MiniBatchKMeans', labelpad=3)
-        supplement_style(axis, hide_y=platform == 'Short-reads')
-        axis.grid(True, axis='x')
-    supplement_text(s7_figure, S7_X_TITLE_CENTER_MM, 81, 'Number of clusters (k)', 'axis', ha='center')
-    supplement_text(s7_figure, 3, 7, 'a', 'panel', weight='bold')
-
-# %%
-if 'FigureS7' in FIGURES_TO_BUILD:
-    # One alphabetical legend, matching the reference's trace and color ordering.
-    supplement_text(s7_figure, S7_LEGEND_X_MM, 12, 'Gene', 'legend_heading')
-    for row, gene in enumerate(s7a_layout['legend_order']):
-        top = 17.2 + row * 2.7
-        s7_figure.add_artist(Line2D(np.array([S7_LEGEND_X_MM, S7_LEGEND_X_MM + 3]) / 180,
-            [1 - top / 160] * 2, transform=s7_figure.transFigure,
-            color=s7_colors[gene], linewidth=0.6))
-        supplement_text(s7_figure, S7_LEGEND_X_MM + 4.5, top, gene, 'legend', va='center')
-
-# %%
-if 'FigureS7' in FIGURES_TO_BUILD:
-    # Panel b: the stored scores for 3–40 dissimilar clusters; circles only.
-    s7b_layout = reference_layout['s7']['b']
-    for category, x in zip(s7b_layout['groups'], S7_COLUMN_X_MM):
-        axis = supplement_axes(s7_figure, x, 100, S7_COLUMN_WIDTH_MM, 48)
-        for gene in s7b_layout['legend_order']:
-            points = s7_tables['b'].loc[s7_tables['b']['Dissimilarity'].eq(category)
-                                       & s7_tables['b']['Gene'].eq(gene)]
-            assert points['ClusterSize'].tolist() == list(range(3, 41))
-            dots = axis.scatter(points['ClusterSize'], points['MeanSilhouetteScore'],
-                s=1.8**2, facecolor=s7_colors[gene], edgecolor=s7_colors[gene], linewidth=0.25,
-                clip_on=False)  # Keep complete circles at the k=40 boundary.
-            dots.set_gid(f'S7b-{category.replace(" ", "")}-{gene}')
-            np.testing.assert_array_equal(dots.get_offsets(), points[['ClusterSize', 'MeanSilhouetteScore']])
-            s7_artist_checks.append({'panel': 'b', 'group': category, 'gene': gene, 'points': len(points)})
-        # Remove the reference's automatic X padding so 40 aligns with panel a's 500.
-        axis.set(xlim=(0, 40), ylim=s7b_layout['limits']['y'])
-        axis.set_xticks(range(0, 41, 10))
-        axis.set_yticks(np.arange(0, 0.101, 0.02))
-        axis.set_title(category, pad=4)
-        if category == 'Miyata':
-            axis.set_ylabel('Mean silhouette score of MiniBatchKMeans', labelpad=3)
-        supplement_style(axis, hide_y=category == 'Grantham 100')
-        axis.grid(True, axis='x')
-    supplement_text(s7_figure, 3, 87, 'b', 'panel', weight='bold')
-    supplement_text(s7_figure, 18, 90, 'Long-reads', 'heading')
-    supplement_text(s7_figure, S7_X_TITLE_CENTER_MM, 157, 'Number of dissimilar clusters (k)', 'axis', ha='center')
-    supplement_text(s7_figure, S7_LEGEND_X_MM, 100, 'Gene', 'legend_heading')
-    for row, gene in enumerate(s7b_layout['legend_order']):
-        top = 105.2 + row * 2.7  # Same heading offset and item spacing as panel a.
-        s7_figure.add_artist(Line2D([(S7_LEGEND_X_MM + 1.5) / 180], [1 - top / 160],
-            transform=s7_figure.transFigure, marker='o', markersize=2.4,
-            markeredgewidth=0.25, color=s7_colors[gene], linestyle='none'))
-        supplement_text(s7_figure, S7_LEGEND_X_MM + 4.5, top, gene, 'legend', va='center')
-
-# %%
-if 'FigureS7' in FIGURES_TO_BUILD:
-    # Keep both complete panels on one physical canvas.
-    assert sum(item['points'] for item in s7_artist_checks if item['panel'] == 'a') == 1050
-    assert sum(item['points'] for item in s7_artist_checks if item['panel'] == 'b') == 152
-    (SUPPLEMENT_DIR / 'evidence/FigureS7_data_checks.json').write_text(json.dumps({
-        'scientific_artist_arrays_exact': True, 'traces': s7_artist_checks,
-        'legend_order': {p: reference_layout['s7'][p]['legend_order'] for p in ['a', 'b']},
-        'input_sha256': {p: s7_metadata[p]['sha256'] for p in ['a', 'b']},
-        'clustering_recomputed_upstream': True, 'plotting_notebook_runs_clustering': False}, indent=2))
-    export_supplement(s7_figure, 'FigureS7', {'a': (0, 0, 180, 84), 'b': (0, 84, 180, 160)})
-
-# %% [markdown]
 # ## Figure S15 — combined mismatch-frequency panels
 # The reference is `Combined.12mm.Figures1-4ForS14.svg`; the final figure number
 # is **S15**. Sources: `various_plots.BQ30.ipynb`, cells `af126453` and `1fb847ad`.
@@ -651,7 +538,7 @@ def label_s15_bars(axis, bars, values, row, dataset):
 # Each row has the same category/color order, with separate original denominators.
 def draw_s15_row(row, top):
     for column, (dataset, x) in enumerate(zip(s15_meta['dataset_order'], [16, 67, 118])):
-        axis = supplement_axes(s15_figure, x, top, 44, 30)
+        axis = supplement_axes(s15_figure, x, top, 44, S15_ROW_HEIGHT_MM)
         facet = s15_panels.loc[s15_panels['Figure'].eq(row['figure'])
             & s15_panels['Dataset'].eq(dataset) & s15_panels['Eligibility'].eq(row['eligibility'])]
         values = facet['Percentage'].to_numpy()
@@ -677,22 +564,28 @@ def draw_s15_row(row, top):
 
 
 # %%
-# One visible clearance for column headings -> a and for a -> b -> c -> d.
-# Glyph offsets were measured in the 600 dpi SVG/PDF and are verified after export.
+# Reduce plotting heights only; preserve the 8 mm group and 10 mm internal gaps.
+S15_ROW_HEIGHT_MM = 28.5  # 5% less than the approved 30 mm rows.
+S15_INTERNAL_ROW_GAP_MM = 10.0
 S15_GROUP_GAP_MM = 8.0
+S15_COLUMN_HEADING_GAP_MM = 6.0  # Column headings 2 mm closer to panel a.
 S15_COLUMN_HEADING_INK_BOTTOM_MM = 7.60
 S15_TITLE_INK_ASCENT_MM, S15_X_TICK_INK_DEPTH_MM = 1.90, 5.71
 s15_panel_tops = []
 previous_content_bottom = S15_COLUMN_HEADING_INK_BOTTOM_MM
 for family in range(1, 5):
     heading_to_plot = 1.7 if family in [1, 2] else 5.7  # c/d include a subtitle.
-    title_baseline = previous_content_bottom + S15_GROUP_GAP_MM + S15_TITLE_INK_ASCENT_MM
+    gap = S15_COLUMN_HEADING_GAP_MM if family == 1 else S15_GROUP_GAP_MM
+    title_baseline = previous_content_bottom + gap + S15_TITLE_INK_ASCENT_MM
     plot_top = title_baseline + heading_to_plot
     s15_panel_tops.append(plot_top)
-    panel_height = 70 if family == 2 else 30  # b: two 30 mm rows, 10 mm apart.
+    panel_height = (2 * S15_ROW_HEIGHT_MM + S15_INTERNAL_ROW_GAP_MM
+                    if family == 2 else S15_ROW_HEIGHT_MM)
     previous_content_bottom = plot_top + panel_height + S15_X_TICK_INK_DEPTH_MM
-s15_row_tops = [s15_panel_tops[0], s15_panel_tops[1], s15_panel_tops[1] + 40,
+s15_row_tops = [s15_panel_tops[0], s15_panel_tops[1],
+                s15_panel_tops[1] + S15_ROW_HEIGHT_MM + S15_INTERNAL_ROW_GAP_MM,
                 s15_panel_tops[2], s15_panel_tops[3]]
+
 
 # %%
 if 'FigureS15' in FIGURES_TO_BUILD:
@@ -713,23 +606,38 @@ if 'FigureS15' in FIGURES_TO_BUILD:
         (reference_layout['s15']['rows'][1], s15_row_tops[1], '≤3 suspected SNPs\n(editing detection enabled)'),
         (reference_layout['s15']['rows'][2], s15_row_tops[2], '4+ suspected SNPs\n(editing detection disabled)')]:
         highest_tick = np.floor(row['ylim'][1] / row['dtick']) * row['dtick']
-        center_top = top + 30 * (1 - highest_tick / 2 / row['ylim'][1])
+        center_top = top + S15_ROW_HEIGHT_MM * (1 - highest_tick / 2 / row['ylim'][1])
         supplement_text(s15_figure, 172, center_top, label, 'heading',
                         ha='center', va='center', rotation=270)
 
 # %%
 if 'FigureS15' in FIGURES_TO_BUILD:
-    # Validate all facets and export the complete S15; family 5 is not included.
+    # Validate all facets, then use the common native-size export/crop workflow.
     assert len(s15_artist_checks) == 15
     assert sum(item['bars'] for item in s15_artist_checks) == 132
     assert sum(item['missing'] for item in s15_artist_checks) == 48
-    (SUPPLEMENT_DIR / 'evidence/FigureS15_data_checks.json').write_text(json.dumps({
-        'scientific_artist_arrays_exact': True, 'sample_aggregation_exact': True,
+    s15_figure.canvas.draw()
+    renderer = s15_figure.canvas.get_renderer()
+    side_labels = [text for text in s15_figure.texts if text.get_rotation() == 270]
+    side_bounds = [text.get_window_extent(renderer).extents * 25.4 / s15_figure.dpi
+                   for text in side_labels]
+    # The unchanged two-line labels fit beside their rows, within the 10 mm gap.
+    assert all(box[3] - box[1] < S15_ROW_HEIGHT_MM + 4 for box in side_bounds)
+    assert side_bounds[0][1] > side_bounds[1][3]
+    s15_checks = {'scientific_artist_arrays_exact': True, 'sample_aggregation_exact': True,
         'facets': s15_facet_checks, 'artists': s15_artist_checks,
         'labels_moved_outside_for_6pt_readability': s15_label_adjustments,
-        'input_sha256': s15_meta['checksums'], 'raw_positions_loaded': False}, indent=2))
-    export_supplement(s15_figure, 'FigureS15', {'a': (0, 0, 180, 57),
-        'b': (0, 57, 180, 147), 'c': (0, 147, 180, 196), 'd': (0, 196, 180, 250)})
+        'input_sha256': s15_meta['checksums'], 'raw_positions_loaded': False,
+        'row_height_mm': S15_ROW_HEIGHT_MM, 'row_tops_mm': s15_row_tops,
+        'group_gap_mm': S15_GROUP_GAP_MM, 'internal_row_gap_mm': S15_INTERNAL_ROW_GAP_MM,
+        'column_heading_gap_mm': S15_COLUMN_HEADING_GAP_MM,
+        'side_label_bounds_mm': [box.tolist() for box in side_bounds]}
+    # S15 precedes the batch setup; import its exporter without executing other figures.
+    sys.path.insert(0, str(WORK_DIR / 'finalization_2026-10-12/preparation'))
+    sys.path.insert(0, str(WORK_DIR / 'layout_word_2026-10-14/preparation'))
+    from word_layout import export_layout_figure
+    export_layout_figure(s15_figure, 'FigureS15', s15_checks)
+
 
 # %% [markdown]
 # ## Remaining manuscript figures
@@ -752,6 +660,8 @@ from matplotlib import font_manager
 from matplotlib.lines import Line2D
 from matplotlib.ticker import FuncFormatter, LogLocator, NullFormatter
 BATCH_DIR = CORRECTION_DIR
+# Original saved violin paths: no KDE or scientific analysis is rerun.
+sys.path.insert(0, str(WORK_DIR / 'phase4_batch/preparation'))
 FINALIZATION_DIR = WORK_DIR / 'finalization_2026-10-12'
 sys.path.insert(0, str(FINALIZATION_DIR / 'preparation'))
 from batch_helpers import load_table, axes_mm, text_mm, check_xy, export_figure, check_layout_spacing
@@ -769,6 +679,10 @@ mpl.rcParams.update({'font.family': 'Open Sans', 'font.size': 6,
 REVISION_DIR = WORK_DIR / 's2_s19_revision_2026-10-12'
 sys.path.insert(0, str(REVISION_DIR / 'preparation'))
 BATCH_LAYOUT = json.loads((BATCH_DIR / 'layouts.json').read_text())
+WORD_LAYOUT_DIR = WORK_DIR / 'layout_word_2026-10-14'
+sys.path.insert(0, str(WORD_LAYOUT_DIR / 'preparation'))
+from word_layout import export_layout_figure as export_figure, place_clear_legends, balance_middle_panel
+
 
 # %% [markdown] figure="Figure4"
 # ## Figure 4 — ranked expression and TPM recurrence
@@ -912,6 +826,8 @@ if 'Figure5' in FIGURES_TO_BUILD:
     from matplotlib.cm import ScalarMappable
     import hashlib
     figure5_table, figure5_metadata = load_table('figure5_pclo_matrices')
+    # Revised BY masks; MI and all original graphical metadata are preserved.
+    figure5_table = pd.read_table(NOTEBOOK_DIR / 'RevisionFisherBY_2026-11-09/figure5_pclo_matrices.BY.tsv', float_precision='round_trip')
     entropy_path = BATCH_DIR / 'inputs/squid_original_figure5c_entropy_plot.tsv'
     entropy_metadata = json.loads(entropy_path.with_suffix('.json').read_text())
     assert hashlib.sha256(entropy_path.read_bytes()).hexdigest() == entropy_metadata['sha256']
@@ -925,7 +841,7 @@ if 'Figure5' in FIGURES_TO_BUILD:
 if 'Figure5' in FIGURES_TO_BUILD:
     # Exact reference RGB interpolation; each finite cell is a vector rectangle.
     for row, measure in enumerate(['Pearson', 'MI']):
-        top = [20, 91][row]
+        top = [20, 97][row]
         scale = figure5_metadata['color_scales'][measure]
         stops = np.array([point[0] for point in scale])
         channels = np.array([[int(point[1][k:k + 2], 16) for k in [1, 3, 5]] for point in scale])
@@ -1004,7 +920,7 @@ if 'Figure5' in FIGURES_TO_BUILD:
         frameon=False, ncol=2, handlelength=.8, handleheight=.8, handletextpad=.5, columnspacing=1.5)
     for handle, name in zip(entropy_legend.legend_handles, ['Observed', 'Hypothetical']):
         handle.set_gid(f'Figure5-legend-{name}')
-    text_mm(figure5, 94.5, 220, 'Gene', 'axis', ha='center')
+    text_mm(figure5, 94.5, 214, 'Gene', 'axis', ha='center')
     figure5.canvas.draw()
     legend_box = entropy_legend.get_window_extent(figure5.canvas.get_renderer())
     target_y_px = axis.transData.transform((0, 32.5))[1]
@@ -1014,7 +930,7 @@ if 'Figure5' in FIGURES_TO_BUILD:
 
 # %% figure="Figure5"
 if 'Figure5' in FIGURES_TO_BUILD:
-    assert sum(record['finite_cells'] for record in figure5_cell_checks) == 18879
+    assert sum(record['finite_cells'] for record in figure5_cell_checks) == 20263  # BY Pearson + unchanged MI
     assert entropy_bars_checked == 42
     figure5.canvas.draw()
     square_checks = []
@@ -1046,7 +962,7 @@ if 'Figure6' in FIGURES_TO_BUILD:
     figure6_cohorts, figure6_cohort_metadata = load_table('figure6_cohorts')
     assert figure6_cohorts.groupby('Cohort').size().to_dict() == figure6_metadata['denominators']
     assert not figure6_cohorts.duplicated(['Cohort', 'Chrom']).any()
-    figure6 = plt.figure(figsize=np.array(BATCH_LAYOUT['Figure6']['canvas_mm']) / 25.4)
+    figure6 = plt.figure(figsize=np.array([180, 174]) / 25.4)
     figure6_axes = []
     figure6_lower_y = figure6_table['CummulativeTranscripts'].min() ** 1.1
     figure6_points_checked = 0
@@ -1087,8 +1003,21 @@ if 'Figure6' in FIGURES_TO_BUILD:
         figure6_axes.append(axis)
         text_mm(figure6, 79, top - 2, ['Whole-transcriptome long-reads', 'Single-cell'][row], ha='center')
     text_mm(figure6, 20, 5, 'Octopus data')
-    text_mm(figure6, 5, 87.5, '% of genes', 'axis', rotation=90, va='center', ha='center')
-    text_mm(figure6, 79, 166, 'Distinct protein isoforms per gene', 'axis', ha='center')
+    figure6_y_title = text_mm(figure6, 5, 87.5, '% of genes', 'axis', rotation=90, va='center', ha='center')
+    figure6_x_title = text_mm(figure6, 79, 166, 'Distinct protein isoforms per gene', 'axis', ha='center')
+    # Match visible title-to-tick-label gaps, rather than unequal anchor distances.
+    figure6.canvas.draw()
+    renderer = figure6.canvas.get_renderer()
+    y_boxes = [t.get_window_extent(renderer) for a in figure6_axes
+               for t in a.get_yticklabels(which='both') if t.get_visible() and t.get_text()]
+    x_boxes = [t.get_window_extent(renderer) for t in figure6_axes[1].get_xticklabels() if t.get_visible()]
+    y_clearance = min(b.x0 for b in y_boxes) - figure6_y_title.get_window_extent(renderer).x1
+    x_top = min(b.y0 for b in x_boxes) - y_clearance
+    shift = x_top - figure6_x_title.get_window_extent(renderer).y1
+    figure6_x_title.set_y(figure6_x_title.get_position()[1] + shift / figure6.bbox.height)
+    figure6_title_gap_mm = float(y_clearance * 25.4 / figure6.dpi)
+    assert figure6_title_gap_mm > 0
+
 
 
 # %% figure="Figure6"
@@ -1111,7 +1040,7 @@ if 'Figure6' in FIGURES_TO_BUILD:
         for item, style in enumerate(figure6_metadata['styles'][row * 2:row * 2 + 2]):
             y = top + 5.2 + item * 4
             color = '#00aaff' if style['color'] == 'rgb(0,170,255)' else style['color']
-            figure6.add_artist(Line2D([146/180, 151/180], [1-y/169]*2, transform=figure6.transFigure,
+            figure6.add_artist(Line2D([146/180, 151/180], [1-y/174]*2, transform=figure6.transFigure,
                 color=color, linestyle=(0, (figure6_dash_pt/.65, figure6_dash_pt/.65)), linewidth=.65, marker='o', markersize=1.5, markeredgewidth=0))
             text_mm(figure6, 153, y, style['label'].replace('>=', '≥'), 'legend', va='center')
 
@@ -1120,7 +1049,7 @@ if 'Figure6' in FIGURES_TO_BUILD:
 if 'Figure6' in FIGURES_TO_BUILD:
     assert figure6_points_checked == 192
     layout_checks = check_layout_spacing(figure6)
-    export_figure(figure6, 'Figure6', {'layout_clearance':layout_checks, 'four_curve_arrays_exact': True, 'points': figure6_points_checked,
+    export_figure(figure6, 'Figure6', {'equal_axis_title_clearance_mm':figure6_title_gap_mm, 'layout_clearance':layout_checks, 'four_curve_arrays_exact': True, 'points': figure6_points_checked,
         'denominators': figure6_metadata['denominators'], 'mean_markers_exact': 2,
         'fixed_TMR50_neuronal_cohorts': True, 'original_MannWhitney_annotation': True})
 
@@ -1281,8 +1210,8 @@ if 'FigureS1' in FIGURES_TO_BUILD:
 # %% figure="FigureS1"
 if 'FigureS1' in FIGURES_TO_BUILD:
     s1_a = axes_mm(figure_s1, 17, 24, 56, 49, grid='both')
-    s1_b = axes_mm(figure_s1, 112, 24, 52, 49, grid=None)
-    s1_b_percent = axes_mm(figure_s1, 112, 24, 52, 49, grid=None)
+    s1_b = axes_mm(figure_s1, 101, 24, 52, 49, grid=None)
+    s1_b_percent = axes_mm(figure_s1, 101, 24, 52, 49, grid=None)
     s1_b_percent.patch.set_visible(False)
     s1_b_percent.yaxis.tick_right()
     s1_b_percent.yaxis.set_label_position('right')
@@ -1308,28 +1237,31 @@ if 'FigureS1' in FIGURES_TO_BUILD:
     s1_b.set_xticks([.99,.992,.994,.996,.998,1], ['0.99','0.992','0.994','0.996','0.998','1'])
     s1_b.grid(axis='y', color='black', alpha=.4, linewidth=.3)
     s1_b_percent.grid(axis='y', color='lightpink', linestyle='--', linewidth=.4)
-    for x, title, letter in [(17,'Long-reads coverage','a'),(112,'Long-reads quality','b')]:
-        text_mm(figure_s1,x,12,title)
-        text_mm(figure_s1,x-15,12,letter,'panel')
-    text_mm(figure_s1,77,26,'Gene','legend_heading')
-    for j,(gene,color) in enumerate(s1_colors.items()):
-        y=32+j*5
-        figure_s1.add_artist(Line2D([77/180,82/180],[1-y/190]*2,
-            transform=figure_s1.transFigure,color=color,linewidth=.8))
-        text_mm(figure_s1,84,y,gene,'legend',va='center')
-        x=112+j*25
-        figure_s1.add_artist(mpl.patches.Rectangle((x/180,1-20/190),2/180,2/190,
-            transform=figure_s1.transFigure,facecolor=color,edgecolor='none',alpha=.5))
-        text_mm(figure_s1,x+3,19,gene,'legend',va='center')
+    s1_heading_gap_mm, s1_letter_gap_mm = 3.0, 4.0
+    s1_heading_artists, s1_panel_letters = [], []
+    for x, title, letter in [(17,'Long-reads coverage','a'),(101,'Long-reads quality','b')]:
+        s1_heading_artists.append(text_mm(figure_s1,x,24-s1_heading_gap_mm,title,va='bottom'))
+        s1_panel_letters.append(text_mm(figure_s1,x-s1_letter_gap_mm,24-s1_heading_gap_mm,
+                                       letter,'panel',ha='right',va='bottom'))
+    # Vertical right-side legends; each handle retains its trace's alpha and meaning.
+    from matplotlib.patches import Patch
+    for axis, left, filled in [(s1_a, 76, False), (s1_b, 168, True)]:
+        handles = [Patch(facecolor=color, edgecolor='none', alpha=.5, label=gene) if filled else
+                   Line2D([], [], color=color, alpha=.75, linewidth=.65, label=gene)
+                   for gene, color in s1_colors.items()]
+        axis.legend(handles=handles, title='Gene', loc='upper left',
+            bbox_to_anchor=(left/180, 1-25/190), bbox_transform=figure_s1.transFigure,
+            frameon=False, borderaxespad=0, handlelength=1, handletextpad=.5,
+            labelspacing=.6, borderpad=0, alignment='left')
 
 
 # %% figure="FigureS1"
 if 'FigureS1' in FIGURES_TO_BUILD:
-    text_mm(figure_s1,2,102,'c','panel')
-    text_mm(figure_s1,17,102,'Noise levels')
+    s1_panel_letters.append(text_mm(figure_s1,17-s1_letter_gap_mm,92,'c','panel',ha='right'))
+    text_mm(figure_s1,17,92,'Noise levels')
     for platform, x, width, title in [('PacBio',17,16,'Squid’s\nLong-reads'),
                                      ('Illumina',45,88,'Squid’s\nShort-reads')]:
-        axis = axes_mm(figure_s1,x,120,width,46)
+        axis = axes_mm(figure_s1,x,110,width,46)
         styles = [s for s in s1_noise_meta['styles'] if s['platform'] == platform]
         for position, style in enumerate(styles):
             geometry = s1_geometry[style['trace']]
@@ -1345,11 +1277,11 @@ if 'FigureS1' in FIGURES_TO_BUILD:
         axis.set(xlim=(-.5,len(styles)-.5), ylim=(0,9))
         axis.set_xticks(range(len(styles)), [s['gene'] for s in styles], rotation=60, ha='right')
         axis.set_yticks([0,2,4,6,8])
-        text_mm(figure_s1,x+width/2,112,title,ha='center',va='center')
-        text_mm(figure_s1,x+width/2,179.5,'Gene','axis',ha='center')
+        text_mm(figure_s1,x+width/2,102,title,ha='center',va='center')
+        text_mm(figure_s1,x+width/2,169.5,'Gene','axis',ha='center')
         if platform == 'PacBio':
             axis.set_ylabel('Per-site noise level [%]')
-    axis = axes_mm(figure_s1,145,120,30,46,grid='x')
+    axis = axes_mm(figure_s1,145,110,30,46,grid='x')
     axis.set_xscale('log')
     data = s1_octopus.loc[s1_octopus.Genes.gt(0)]
     bars = axis.barh((data.Left+data.Right)/2,data.Genes,height=data.Right-data.Left,color='black',linewidth=0)
@@ -1360,8 +1292,8 @@ if 'FigureS1' in FIGURES_TO_BUILD:
     axis.xaxis.set_minor_formatter(NullFormatter())
     axis.tick_params(which='both', bottom=False, top=False, left=False, right=False)
     axis.set_yticks([0,2,4,6,8])
-    text_mm(figure_s1,160,112,'Whole-transcriptome\noctopus data',ha='center',va='center')
-    text_mm(figure_s1,160,179.5,'Genes','axis',ha='center')
+    text_mm(figure_s1,160,102,'Whole-transcriptome\noctopus data',ha='center',va='center')
+    text_mm(figure_s1,160,169.5,'Genes','axis',ha='center')
 
 
 # %% figure="FigureS1"
@@ -1370,21 +1302,32 @@ if 'FigureS1' in FIGURES_TO_BUILD:
     c_bounds = np.array([a.get_position().bounds for a in figure_s1.axes[-3:]]) * [180,190,180,190]
     c_gutters = c_bounds[1:,0] - (c_bounds[:-1,0]+c_bounds[:-1,2])
     np.testing.assert_allclose(c_gutters, [12,12], atol=1e-10)
+    # Measure visible text edges so the same gaps survive every fresh export.
+    figure_s1.canvas.draw()
+    renderer = figure_s1.canvas.get_renderer()
+    mm_per_pixel = 25.4 / figure_s1.dpi
+    title_gaps = [(t.get_window_extent(renderer).y0-a.get_window_extent(renderer).y1)*mm_per_pixel
+                  for t,a in zip(s1_heading_artists,[s1_a,s1_b])]
+    letter_gaps = [(a.get_window_extent(renderer).x0-t.get_window_extent(renderer).x1)*mm_per_pixel
+                   for t,a in zip(s1_panel_letters,[s1_a,s1_b,figure_s1.axes[3]])]
+    np.testing.assert_allclose(title_gaps,s1_heading_gap_mm,atol=1e-9)
+    np.testing.assert_allclose(letter_gaps,s1_letter_gap_mm,atol=1e-9)
+    b_letter = s1_panel_letters[1].get_window_extent(renderer)
+    previous_panel_right = max(s1_a.get_window_extent(renderer).x1,s1_a.get_legend().get_window_extent(renderer).x1)
+    assert (b_letter.x0-previous_panel_right)*mm_per_pixel > s1_letter_gap_mm
     layout_checks = check_layout_spacing(figure_s1)
-    export_figure(figure_s1,'FigureS1',{'layout_clearance':layout_checks, 'panel_c_gutters_mm':c_gutters.tolist(), 'exact_curve_points':s1_points_checked,'histogram_means':402,
+    export_figure(figure_s1,'FigureS1',{'heading_gaps_mm':title_gaps, 'panel_letter_gaps_mm':letter_gaps, 'b_letter_closer_to_own_panel':True, 'layout_clearance':layout_checks, 'panel_c_gutters_mm':c_gutters.tolist(), 'exact_curve_points':s1_points_checked,'histogram_means':402,
         'noise_observations':len(s1_noise),'original_violin_contours':21,'exact_outliers':1118,
         'octopus_denominator':1711,'no_new_KDE_estimation':True})
 
 
 # %% [markdown] figure="FigureS2"
-# ## Figure S2 — original cohorts recovered and verified
+# ## Figure S2 — original cohorts and corrected PCLO selection
 #
-# Complete panels a–f, 180 × 260 mm. Original site flags, site identities, frequencies,
-# strand-aware motifs and PCLO comparisons were recovered from the existing original
-# position files and FASTAs. Every original scatter/distribution value and all Venn
-# counts match the reference; motif probabilities come from sequences and were
-# independently checked against the original vector glyphs. No UMI cohort substitution.
-# The notebook reads the authenticated small tables; it does not rerun site preparation.
+# Panels a–f retain their 180 × 260 mm native canvas before the existing exterior crop.
+# Panels a–d and f use the existing verified inputs. Panel e uses the fixed PCLO
+# catalog/call-based selection in `various_plots.BQ30.ipynb`, retaining missing
+# measurements and showing both current platforms where measurements are available.
 #
 
 # %%
@@ -1465,8 +1408,8 @@ if 'FigureS2' in FIGURES_TO_BUILD:
 
 # %%
 if 'FigureS2' in FIGURES_TO_BUILD:
-    text_mm(figure_s2,2,165,'c','panel')
-    axis=axes_mm(figure_s2,16,167,42,35,grid='both')
+    text_mm(figure_s2,2,155,'c','panel')
+    axis=axes_mm(figure_s2,16,157,42,35,grid='both')
     for label,color in [('Both','black'),('De-novo','green'),('Known','red')]:
         data=s2_pooled.loc[s2_pooled.Detected.eq(label)]
         points=axis.scatter(data.PercentEditing.fillna(0),data.PercentEditingKnown.fillna(0),
@@ -1487,8 +1430,8 @@ if 'FigureS2' in FIGURES_TO_BUILD:
 
 # %%
 if 'FigureS2' in FIGURES_TO_BUILD:
-    text_mm(figure_s2,2,224,'d','panel')
-    axis=axes_mm(figure_s2,16,226,42,22)
+    text_mm(figure_s2,2,206,'d','panel')
+    axis=axes_mm(figure_s2,16,208,42,22)
     for record,color in zip(s2_boxes.itertuples(),['black','green','red']):
         data=s2_distribution.loc[s2_distribution.Detected.eq(record.Detected)]
         axis.scatter(data.DisplayX,data.DisplayValue,s=.35,color=color,linewidths=0,alpha=.65)
@@ -1507,43 +1450,45 @@ if 'FigureS2' in FIGURES_TO_BUILD:
 
 # %%
 if 'FigureS2' in FIGURES_TO_BUILD:
-    text_mm(figure_s2,76,165,'e','panel')
-    colors=['#66c5cc','#f6cf71','#87c55f']
+    text_mm(figure_s2,76,155,'e','panel')
+    colors=['#269da5','#cf951c','#60a03b']
     columns=['PacBio','Illumina','EditingFrequencyKnown']
     labels=['Long-reads','Short-reads','Known (Short-reads)']
-    minimum=s2_pclo[columns].replace(0,np.nan).min().min()
-    for known,top,height in [(True,167,25),(False,200,23)]:
+    for known,top,height in [(True,157,21),(False,183,21)]:
         axis=axes_mm(figure_s2,90,top,82,height,grid='both')
-        data=s2_pclo.loc[s2_pclo.EditingFrequencyKnown.gt(0).eq(known)]
+        data=s2_pclo.loc[s2_pclo.Edited_Known.eq(known)]
+        if not known:data=data.loc[data.Edited_PacBio | data.Edited_Illumina]
         for column,color,label in zip(columns,colors,labels):
             if not known and column=='EditingFrequencyKnown':continue
-            points=data if known else data.loc[data[column].gt(0)]
-            artist=axis.scatter(points.Position,points[column],s=1.5,color=color,alpha=.7,linewidths=0,label=label)
+            points=data.loc[data[column].notna()]  # Show measurements even when this platform did not call the site.
+            artist=axis.scatter(points.Position,points[column],s=2,color=color,alpha=.95,linewidths=0,label=label)
             check_xy(artist,points.Position,points[column],'scatter');s2_counts['e']+=len(points)
         axis.set_xlim(s2_pclo.Position.min()-80,s2_pclo.Position.max()+80)
         axis.set_xticks([2500,3500,4500,5500])
         if known:
             axis.set(ylim=(0,100),yticks=[0,20,40,60,80,100]);axis.set_xticklabels([])
-            axis.legend(loc='lower center',bbox_to_anchor=(.5,1.12),ncol=3,frameon=False,
+            handles=[Line2D([],[],marker='o',linestyle='none',color=color,
+                markersize=3,markeredgewidth=0,alpha=1,label=label)
+                for color,label in zip(colors,labels)]
+            axis.legend(handles=handles,loc='lower center',bbox_to_anchor=(.5,1.12),ncol=3,frameon=False,
                 columnspacing=.8,handlelength=.5,handletextpad=.3,borderaxespad=0)
         else:
-            axis.set(yscale='log',ylim=(minimum,100),yticks=[.01,.1,1,10,100])
-            axis.set_yticklabels(['0.01','0.1','1','10','100'])
+            axis.set(yscale='linear',ylim=(0,5),yticks=[0,1,2,3,4,5])
             axis.yaxis.set_minor_locator(mpl.ticker.NullLocator())
             axis.set_xlabel('Position',labelpad=1)
         axis.tick_params(which='both',left=False,right=False,bottom=False,top=False)
         text_mm(figure_s2,175,top+height/2,'Known\npositions' if known else 'De-novo\npositions',
                 'annotation',rotation=-90,ha='center',va='center')
-    text_mm(figure_s2,82,195,'Editing level in squid’s PCLO [%]','axis',rotation=90,ha='center',va='center')
+    text_mm(figure_s2,82,180.5,'Editing level in squid’s PCLO [%]','axis',rotation=90,ha='center',va='center')
 
 
 # %%
 if 'FigureS2' in FIGURES_TO_BUILD:
-    text_mm(figure_s2,76,236,'f','panel')
+    text_mm(figure_s2,76,218,'f','panel')
     logo_colors={'A':'#008000','C':'#0000ff','G':'#ffa600','T':'#ff0000'}
     titles=['Squid\nLong-reads','Squid\nShort-reads','Whole-transcriptome\noctopus data']
     for col,(platform,title) in enumerate(zip(['PacBio','Illumina','Octopus'],titles)):
-        axis=axes_mm(figure_s2,88+31*col,242,25,12,grid=None)
+        axis=axes_mm(figure_s2,88+31*col,224,25,12,grid=None)
         data=s2_motifs.loc[s2_motifs.Platform.eq(platform)]
         for offset,group in data.groupby('Offset',sort=True):
             bottom=0
@@ -1566,7 +1511,10 @@ if 'FigureS2' in FIGURES_TO_BUILD:
 if 'FigureS2' in FIGURES_TO_BUILD:
     np.testing.assert_allclose(max(s2_group_bottoms['Illumina']),max(s2_group_bottoms['Octopus']),atol=1e-10)
     assert min(x[0] for x in s2_group_extents['Illumina'])-max(x[1] for x in s2_group_extents['PacBio']) == 9
-    assert s2_counts=={'a':36,'b':22,'c':1331,'d':1331,'e':914,'f':27},s2_counts
+    assert not s2_pclo.duplicated(['Chrom','Position']).any()
+    s2_expected_e=int(s2_pclo[['PacBio','Illumina']].notna().sum().sum()
+        + s2_pclo.loc[s2_pclo.Edited_Known,'EditingFrequencyKnown'].notna().sum())
+    assert s2_counts=={'a':36,'b':22,'c':1331,'d':1331,'e':s2_expected_e,'f':27},s2_counts
     figure_s2.canvas.draw()
     for title,diagram,platform,facet in s2_venn_title_checks:
         top=max(patch.get_window_extent().y1 for patch in diagram.patches if patch is not None)
@@ -1581,9 +1529,15 @@ if 'FigureS2' in FIGURES_TO_BUILD:
     for index,(artist,box) in enumerate(boxes):
         for other,other_box in boxes[index+1:]:
             assert not box.overlaps(other_box),('S2 Venn labels overlap',artist.get_text(),other.get_text())
-    export_figure(figure_s2,'FigureS2',{'source':'Original cohorts recovered; no UMI substitution',
+    s2_position_label=next(a.xaxis.label for a in figure_s2.axes if a.xaxis.label.get_text()=='Position')
+    s2_ef_gap=(s2_position_label.get_window_extent(s2_renderer).y0
+        - max(a.title.get_window_extent(s2_renderer).y1 for a in figure_s2.axes[-3:]))*25.4/figure_s2.dpi
+    assert s2_ef_gap>=2,('S2 E/F clearance',s2_ef_gap)
+    export_figure(figure_s2,'FigureS2',{'source':'Original A-D/F cohorts; E uses the fixed PCLO call-based cohort',
         'panels':s2_counts,'reference_validation':'finalization_2026-10-12/evidence/S2_recovery_validation.json',
-        'venn_label_overlaps':0,'clipping_checked':True})
+        'venn_label_overlaps':0,'clipping_checked':True,'E_F_clearance_mm':s2_ef_gap,
+        'pclo_sites':len(s2_pclo),'pclo_known_sites':int(s2_pclo.Edited_Known.sum()),
+        'pclo_new_sites':int((~s2_pclo.Edited_Known).sum())})
 
 
 # %% [markdown] figure="FigureS3"
@@ -1613,7 +1567,7 @@ if 'FigureS3' in FIGURES_TO_BUILD:
                 x,top,width,height=17+index*42,22,32,20
                 first_column=index==0
             else:
-                x,top,width,height=17+(index%4)*42,83+(index//4)*33,32,20
+                x,top,width,height=17+(index%4)*42,67+(index//4)*33,32,20
                 first_column=index%4==0
             axis=axes_mm(figure_s3,x,top,width,height,hide_y=not first_column)
             styles=s3_stats.loc[s3_stats.Platform.eq(platform)&s3_stats.Gene.eq(gene)]
@@ -1633,9 +1587,15 @@ if 'FigureS3' in FIGURES_TO_BUILD:
             axis.set_yticks([0,2000,4000,6000,8000] if platform=='PacBio' else [0,100000,200000,300000])
             axis.yaxis.set_major_formatter(FuncFormatter(lambda value,_: '0' if value==0 else f'{value/1000:g}k'))
             s3_facets.append(close_facet_title(axis, gene, grid_top=8000 if platform=='PacBio' else 300000))
-        text_mm(figure_s3,17,10 if platform=='PacBio' else 72,'Squid’s Long-reads' if platform=='PacBio' else 'Squid’s Short-reads')
-        text_mm(figure_s3,54 if platform=='PacBio' else 92,52 if platform=='PacBio' else 243,'Non-syn substitutions per read','axis',ha='center')
-        text_mm(figure_s3,4,32 if platform=='PacBio' else 155,'Reads','axis',rotation=90,ha='center',va='center')
+        # Put each platform heading 1.5 mm above its rendered gene-title boxes.
+        figure_s3.canvas.draw()
+        renderer = figure_s3.canvas.get_renderer()
+        group_facets = s3_facets[-len(genes):]
+        gene_title_top = max(title.get_window_extent(renderer).y1 for _, title, _ in group_facets)
+        heading_top = 250 - gene_title_top * 25.4 / figure_s3.dpi - 1.5
+        text_mm(figure_s3,17,heading_top,'Squid’s Long-reads' if platform=='PacBio' else 'Squid’s Short-reads',va='bottom')
+        text_mm(figure_s3,54 if platform=='PacBio' else 92,52 if platform=='PacBio' else 227,'Non-syn substitutions per read','axis',ha='center')
+        text_mm(figure_s3,4,32 if platform=='PacBio' else 139,'Reads','axis',rotation=90,ha='center',va='center')
 
 
 # %% figure="FigureS3"
@@ -1686,8 +1646,8 @@ if 'FigureS4' in FIGURES_TO_BUILD:
             axis.tick_params(labelbottom=row==2)
             if row==0:
                 threshold=[.1,.3,.5,1][col]
-                text_mm(figure_s4,x+15,18,f'Editing / sample\n≥ {threshold:g}%',ha='center',va='center')
-        text_mm(figure_s4,155,top+13.5,['All sites','Editing ≥ 1%','Editing ≥ 5%'][row],
+                text_mm(figure_s4,x+15,26.4,f'Editing / sample ≥ {threshold:g}%',ha='center',va='bottom')
+        text_mm(figure_s4,154.3,top+13.5,['All sites','Editing ≥ 1%','Editing ≥ 5%'][row],
                 rotation=-90,ha='center',va='center')
     text_mm(figure_s4,4,72.5,'Sites showing editing [%]','axis',rotation=90,ha='center',va='center')
     text_mm(figure_s4,160,29,'Sample','legend_heading')
@@ -1771,8 +1731,12 @@ if 'FigureS5' in FIGURES_TO_BUILD:
         expected_step = 10 if maximum <= 60 else 20
         np.testing.assert_allclose(np.diff(axis.get_yticks()), expected_step)
         s5_y_ticks.append({'gene': gene, 'maximum_data_y': float(maximum), 'dtick': expected_step})
+    # Candidate boxes include the rendered frame and the full marker radius.
+    s5_legend_checks = place_clear_legends(figure_s5, s5_metadata['gene_order'])
+    hexb = s5_table.loc[s5_table.Gene.eq('HEXB') & s5_table.EditingSite.eq(2365), 'MeanEditingPercent']
+    np.testing.assert_allclose(sorted(hexb), [52.49221183800623,58.70206489675516], rtol=0, atol=1e-12)
     layout_checks = check_layout_spacing(figure_s5)
-    export_figure(figure_s5,'FigureS5',{'layout_clearance':layout_checks, 'y_tick_rule': s5_y_ticks, 'points':488,'original_site_haplotype_rows':494,
+    export_figure(figure_s5,'FigureS5',{'legend_clearance':s5_legend_checks, 'layout_clearance':layout_checks, 'y_tick_rule': s5_y_ticks, 'points':488,'original_site_haplotype_rows':494,
         'missing_means_preserved':6,'identified_sites':247,'exact_plotted_arrays':True,
         'reference_in_panel_legends':True,'cohort_and_denominator_definition_preserved':True})
 
@@ -1799,6 +1763,9 @@ if 'FigureS6' in FIGURES_TO_BUILD:
     figure_s6=plt.figure(figsize=np.array(BATCH_LAYOUT['FigureS6']['canvas_mm'])/25.4)
 
 
+# %%
+s6_histogram
+
 # %% figure="FigureS6"
 if 'FigureS6' in FIGURES_TO_BUILD:
     text_mm(figure_s6,2,8,'a','panel')
@@ -1812,7 +1779,7 @@ if 'FigureS6' in FIGURES_TO_BUILD:
         axis.set_xticks(range(len(data)),data.Gene,rotation=60,ha='right')
         axis.set_yticks([0,.5,1,1.5,2],['0','0.5','1','1.5','2'])
         text_mm(figure_s6,x+width/2,19,title,ha='center',va='center')
-        text_mm(figure_s6,x+width/2,69,'Gene','axis',ha='center')
+        text_mm(figure_s6,x+width/2,66.3,'Gene','axis',ha='center')
     axis=axes_mm(figure_s6,145,26,30,28,grid='x')
     axis.set_xscale('log')
     data=s6_histogram.loc[s6_histogram.Genes.gt(0)]
@@ -1825,23 +1792,24 @@ if 'FigureS6' in FIGURES_TO_BUILD:
     axis.xaxis.set_minor_formatter(NullFormatter())
     axis.tick_params(which='both',left=False,right=False,bottom=False,top=False)
     text_mm(figure_s6,159,19,'Whole-transcriptome\noctopus data',ha='center',va='center')
-    text_mm(figure_s6,160,69,'Genes','axis',ha='center')
+    text_mm(figure_s6,160,66.3,'Genes','axis',ha='center')
     text_mm(figure_s6,4,40,'Dispersion [%]','axis',rotation=90,ha='center',va='center')
 
 
 # %% figure="FigureS6"
 if 'FigureS6' in FIGURES_TO_BUILD:
-    text_mm(figure_s6,2,82,'b','panel')
-    text_mm(figure_s6,18,82,'Recoding events in PCLO 100 most expressed isoforms')
-    text_mm(figure_s6,18,91,'Recoding substitution','legend_heading',va='center')
+    s6_upper_artists = [*figure_s6.axes, *figure_s6.texts, *figure_s6.artists]
+    text_mm(figure_s6,2,76,'b','panel')
+    text_mm(figure_s6,18,76,'Recoding events in PCLO 100 most expressed isoforms')
+    text_mm(figure_s6,18,83,'Recoding substitution','legend_heading',va='center')
     legend=s6_recoding.loc[s6_recoding.ShowLegend].drop_duplicates('Trace')
     for index,style in enumerate(legend.itertuples()):
         x=59+index*10.3
-        figure_s6.add_artist(Rectangle((x/180,1-92/260),2/180,2/260,
+        figure_s6.add_artist(Rectangle((x/180,1-84/260),2/180,2/260,
             transform=figure_s6.transFigure,facecolor=style.Color,edgecolor='none'))
-        text_mm(figure_s6,x+2.7,91,style.NewAA,'legend',va='center')
+        text_mm(figure_s6,x+2.7,83,style.NewAA,'legend',va='center')
     s6_bars_checked=0
-    for start,stop,top in [(0,66,99),(66,131,139)]:
+    for start,stop,top in [(0,66,88),(66,131,128)]:
         axis=axes_mm(figure_s6,18,top,157,20)
         stacked=np.zeros(stop-start,dtype=int)
         for trace,data in s6_recoding.groupby('Trace',sort=False):
@@ -1857,15 +1825,17 @@ if 'FigureS6' in FIGURES_TO_BUILD:
         axis.set(xlim=(-.5,stop-start-.5),ylim=(0,90))
         axis.set_yticks([0,20,40,60,80])
         axis.set_xticks(range(stop-start),s6_recoding_meta['codon_order'][start:stop],rotation=90)
-    text_mm(figure_s6,4,129,'Count','axis',rotation=90,ha='center',va='center')
-    text_mm(figure_s6,96.5,182,'Codon position (genomically encoded AA)','axis',ha='center')
+    text_mm(figure_s6,4,118,'Count','axis',rotation=90,ha='center',va='center')
+    text_mm(figure_s6,96.5,167,'Codon position (genomically encoded AA)','axis',ha='center')
     assert s6_bars_checked==len(s6_recoding)
 
 
 # %% figure="FigureS6"
 if 'FigureS6' in FIGURES_TO_BUILD:
-    text_mm(figure_s6,2,194,'c','panel')
-    axis=axes_mm(figure_s6,19,198,93,51,grid='both')
+    s6_middle_artists = [a for a in [*figure_s6.axes, *figure_s6.texts, *figure_s6.artists]
+                         if a not in s6_upper_artists]
+    text_mm(figure_s6,2,178,'c','panel')
+    axis=axes_mm(figure_s6,19,182,93,51,grid='both')
     for style in s6_maxima.itertuples():
         marker='*' if style.Marker=='star' else 'o'
         point=axis.scatter([style.EditableCodons],[style.MaximumIsoforms],marker=marker,
@@ -1877,7 +1847,7 @@ if 'FigureS6' in FIGURES_TO_BUILD:
     axis.set_yticks([0,5000,10000,15000,20000],['0','5k','10k','15k','20k'])
     axis.text(110,2500,s6_maxima_meta['annotation'],fontsize=6,ha='center',va='center',
               bbox={'facecolor':'white','edgecolor':'none','alpha':.9,'pad':1})
-    for platform,heading_top in [('Long-reads',198),('Short-reads',215)]:
+    for platform,heading_top in [('Long-reads',182),('Short-reads',199)]:
         text_mm(figure_s6,123,heading_top,platform,'legend_heading')
         data=s6_maxima.loc[s6_maxima.Platform.eq(platform)]
         for index,style in enumerate(data.itertuples()):
@@ -1895,8 +1865,11 @@ if 'FigureS6' in FIGURES_TO_BUILD:
 if 'FigureS6' in FIGURES_TO_BUILD:
     bounds_mm = np.array([a.get_position().bounds for a in figure_s6.axes[:3]]) * [180,260,180,260]
     np.testing.assert_allclose(bounds_mm[1:,0]-(bounds_mm[:-1,0]+bounds_mm[:-1,2]), [12,12], atol=1e-10)
+    s6_lower_artists = [a for a in [*figure_s6.axes, *figure_s6.texts, *figure_s6.artists]
+                        if a not in s6_upper_artists+s6_middle_artists]
+    s6_panel_spacing = balance_middle_panel(figure_s6, s6_upper_artists, s6_middle_artists, s6_lower_artists)
     layout_checks = check_layout_spacing(figure_s6)
-    export_figure(figure_s6,'FigureS6',{'layout_clearance':layout_checks, 'dispersion_genes':1283,'histogram_denominator':1262,
+    export_figure(figure_s6,'FigureS6',{'panel_gap_balance':s6_panel_spacing, 'layout_clearance':layout_checks, 'dispersion_genes':1283,'histogram_denominator':1262,
         'unfiltered_codons':131,'isoforms_in_recoding_panel':100,'exact_recoding_counts':1725,
         'recoding_table_rows_checked':s6_bars_checked,'original_codon_category_order':True,
         'maxima_plotted':21,'pearson_solution_rows':336,'original_pearson_annotation_verified':True})
@@ -1940,7 +1913,7 @@ if 'FigureS8' in FIGURES_TO_BUILD:
         column=facet if long_reads else facet%4
         row=0 if long_reads else facet//4
         left=18+column*39
-        top=22 if long_reads else 72+row*37
+        top=22 if long_reads else 68+row*36.2
         width,height=(34,24)
         axis=axes_mm(figure_s8,left,top,width,height,grid='both',hide_y=column!=0)
         data=s8_expression.loc[s8_expression.Platform.eq(platform)&s8_expression.Gene.eq(gene)]
@@ -1977,11 +1950,11 @@ if 'FigureS8' in FIGURES_TO_BUILD:
         axis.tick_params(which='both',left=False,right=False,bottom=False,top=False)
         s8_facets.append(close_facet_title(axis, gene))
         s8_points+=len(data);s8_detail_points+=len(details)
-    text_mm(figure_s8,18,10,'Squid’s Long-reads')
-    text_mm(figure_s8,18,64,'Squid’s Short-reads')
+    text_mm(figure_s8,18,14,'Squid’s Long-reads')
+    text_mm(figure_s8,18,60,'Squid’s Short-reads')
     text_mm(figure_s8,54.5,55,'Isoform rank','axis',ha='center')
-    text_mm(figure_s8,93.5,256,'Distinct protein rank','axis',ha='center')
-    for center in [34,160]:
+    text_mm(figure_s8,93.5,248.8,'Distinct protein rank','axis',ha='center')
+    for center in [34,156.4]:
         text_mm(figure_s8,3.5,center,'Relative expression [%]',
                 'axis',rotation=90,ha='center',va='center')
     assert s8_points==len(s8_expression)==400407
@@ -2047,7 +2020,7 @@ if 'FigureS9' in FIGURES_TO_BUILD:
         column=facet if long_reads else facet%4
         row=0 if long_reads else facet//4
         left=18+column*39
-        top=22 if long_reads else 72+row*37
+        top=22 if long_reads else 68+row*36.2
         width,height=(34,24)
         axis=axes_mm(figure_s9,left,top,width,height,grid='both',hide_y=column!=0)
         data=s9_expression.loc[s9_expression.Platform.eq(platform)&s9_expression.Gene.eq(gene)]
@@ -2070,11 +2043,11 @@ if 'FigureS9' in FIGURES_TO_BUILD:
         axis.tick_params(which='both',left=False,right=False,bottom=False,top=False)
         s9_facets.append(close_facet_title(axis, gene))
         s9_points+=len(data);s9_detail_points+=len(details)
-    text_mm(figure_s9,18,10,'Squid’s Long-reads')
-    text_mm(figure_s9,18,64,'Squid’s Short-reads')
+    text_mm(figure_s9,18,14,'Squid’s Long-reads')
+    text_mm(figure_s9,18,60,'Squid’s Short-reads')
     text_mm(figure_s9,54.5,55,'Isoform rank','axis',ha='center')
-    text_mm(figure_s9,93.5,256,'Distinct protein rank','axis',ha='center')
-    for center in [34,160]:
+    text_mm(figure_s9,93.5,248.8,'Distinct protein rank','axis',ha='center')
+    for center in [34,156.4]:
         text_mm(figure_s9,3.5,center,'Cumulative relative expression [%]',
                 'axis',rotation=90,ha='center',va='center')
     assert s9_points==len(s9_expression)==400407
@@ -2114,9 +2087,13 @@ if 'FigureS10' in FIGURES_TO_BUILD:
 # %% figure="FigureS10"
 if 'FigureS10' in FIGURES_TO_BUILD:
     text_mm(figure_s10,2,12,'a','panel')
+    s10_equations = []
+    s10_equation_artists = []
+    s10_a_height = 69 * .4 / np.ptp(s10_meta['a_limits'])
+    assert s10_paired['%RelativeExpression1.0'].max() < .4 and s10_fits.Y.max() < .4
     for style in [s for s in s10_meta['styles'] if s['Panel']=='a']:
         x=19+style['Facet']*83
-        axis=axes_mm(figure_s10,x,22,69,69,grid='both',hide_y=style['Facet']!=0)
+        axis=axes_mm(figure_s10,x,16,69,s10_a_height,grid='both',hide_y=style['Facet']!=0)
         data=s10_paired.loc[s10_paired.Gene.eq(style['Gene'])]
         fits=s10_fits.loc[s10_fits.Gene.eq(style['Gene'])]
         points=axis.scatter(data['%RelativeExpression0.1'],data['%RelativeExpression1.0'],
@@ -2124,19 +2101,35 @@ if 'FigureS10' in FIGURES_TO_BUILD:
         check_xy(points,data['%RelativeExpression0.1'],data['%RelativeExpression1.0'],'scatter')
         line,=axis.plot(fits.X,fits.Y,color='gray',alpha=.5,linestyle='--',linewidth=1)
         check_xy(line,fits.X,fits.Y)
-        axis.set(xlim=s10_meta['a_limits'],ylim=s10_meta['a_limits'],aspect='equal')
-        axis.set_xticks(np.arange(0,.51,.1));axis.set_yticks(np.arange(0,.51,.1))
+        axis.set(xlim=s10_meta['a_limits'],ylim=(0,.4),aspect='equal')
+        axis.set_xticks(np.arange(0,.51,.1));axis.set_yticks(np.arange(0,.41,.1))
         axis.xaxis.set_major_formatter(FuncFormatter(lambda v,p:f'{v:g}'))
         axis.yaxis.set_major_formatter(FuncFormatter(lambda v,p:f'{v:g}'))
-        text_mm(figure_s10,x+34.5,18,style['Gene'],ha='center')
+        text_mm(figure_s10,x+34.5,12,style['Gene'],ha='center')
+        # Read the equation from the saved straight line; do not refit the data.
+        first, last = fits.loc[fits.X.idxmin()], fits.loc[fits.X.idxmax()]
+        slope = (last.Y-first.Y)/(last.X-first.X)
+        intercept = first.Y-slope*first.X
+        np.testing.assert_allclose(fits.Y, slope*fits.X+intercept, rtol=0, atol=1e-14)
+        equation = f'y = {slope:.2f}x'
+        assert intercept < 0
+        if round(intercept, 2) != 0:
+            equation += f' − {abs(intercept):.2f}'
+        equation_text = axis.text(.05,.25,equation,transform=axis.get_yaxis_transform(),
+                                  fontsize=6,ha='left',va='center')
+        s10_equation_artists.append((axis,equation_text))
+        s10_equations.append({'gene':style['Gene'],'slope':slope,'intercept':intercept,
+            'equation':equation,'annotation_x_axes':.05,'annotation_y_data':.25,'max_observed_y':float(data['%RelativeExpression1.0'].max()),
+            'max_saved_fit_y':float(fits.Y.max()),'source':'persisted fit coordinates; no refit'})
         s10_points+=len(data)+len(fits)
-    text_mm(figure_s10,95,100,'Subsampled data (10%) relative expression [%]','axis',ha='center')
-    text_mm(figure_s10,7,56.5,'Full data relative expression [%]','axis',ha='center',va='center',rotation=90)
+    text_mm(figure_s10,95,16+s10_a_height+9,'Subsampled data (10%) relative expression [%]','axis',ha='center')
+    text_mm(figure_s10,7,16+s10_a_height/2,'Full data relative expression [%]','axis',ha='center',va='center',rotation=90)
+    s10_upper_artists = [*figure_s10.axes, *figure_s10.texts, *figure_s10.artists]
 
 
 # %% figure="FigureS10"
 if 'FigureS10' in FIGURES_TO_BUILD:
-    for panel,letter_top,top,height in [('b',113,121,39),('c',187,202,32)]:
+    for panel,letter_top,top,height in [('b',100,107,39),('c',166,181,32)]:
         text_mm(figure_s10,2,letter_top,panel,'panel')
         genes=['GRIA2','PCLO'] if panel=='b' else ['GRIA2','ADAR1','IQEC1']
         for facet,gene in enumerate(genes):
@@ -2163,20 +2156,30 @@ if 'FigureS10' in FIGURES_TO_BUILD:
                 frameon=False,handletextpad=.3,borderaxespad=.2,labelspacing=.4)
             text_mm(figure_s10,left+width/2,top-3,gene,ha='center')
         text_mm(figure_s10,95,top+height+9,'Isoform rank','axis',ha='center')
-        text_mm(figure_s10,5,top+height/2,'Cumulative relative expression [%]','axis',ha='center',va='center',rotation=90)
-    text_mm(figure_s10,19,187,'Cumulative expression vs. distinct unique proteins')
-    text_mm(figure_s10,19,193,'Data are based on reads with recognizable barcodes','subtitle')
+        text_mm(figure_s10,7,top+height/2,'Cumulative relative expression [%]','axis',ha='center',va='center',rotation=90)
+        if panel=='b':
+            s10_middle_artists = [a for a in [*figure_s10.axes, *figure_s10.texts, *figure_s10.artists]
+                                 if a not in s10_upper_artists]
+    text_mm(figure_s10,19,166,'Cumulative expression vs. distinct unique proteins')
+    text_mm(figure_s10,19,172,'Data are based on reads with recognizable barcodes','subtitle')
 
 
 # %% figure="FigureS10"
 if 'FigureS10' in FIGURES_TO_BUILD:
     assert s10_points==len(s10_paired)+len(s10_fits)+len(s10_cumulative)
     sizes_mm = np.array([a.get_position().bounds[2:] for a in figure_s10.axes]) * [180,250]
-    np.testing.assert_allclose(sizes_mm[:2], [[69,69],[69,69]], atol=1e-10)
+    np.testing.assert_allclose(sizes_mm[:2], [[69,s10_a_height],[69,s10_a_height]], atol=1e-10)
     np.testing.assert_allclose(sizes_mm[:4,0], 69, atol=1e-10)
-    assert all(a.get_aspect()==1 and a.get_xlim()==a.get_ylim() for a in figure_s10.axes[:2])
+    assert all(a.get_aspect()==1 and a.get_ylim()==(0,.4) for a in figure_s10.axes[:2])
+    s10_lower_artists = [a for a in [*figure_s10.axes, *figure_s10.texts, *figure_s10.artists]
+                         if a not in s10_upper_artists+s10_middle_artists]
+    s10_panel_spacing = balance_middle_panel(figure_s10, s10_upper_artists, s10_middle_artists, s10_lower_artists)
+    renderer = figure_s10.canvas.get_renderer()
+    for axis, label in s10_equation_artists:
+        bounds = label.get_window_extent(renderer)
+        np.testing.assert_allclose(axis.transData.inverted().transform(bounds.get_points().mean(axis=0))[1], .25, atol=1e-12)
     layout_checks = check_layout_spacing(figure_s10)
-    export_figure(figure_s10,'FigureS10',{'layout_clearance':layout_checks, 'points':s10_points,'paired_protein_IDs_verified':True,
+    export_figure(figure_s10,'FigureS10',{'panel_gap_balance':s10_panel_spacing, 'y_title_x_mm':7, 'saved_regression_equations':s10_equations, 'equal_xy_unit_scale':True, 'layout_clearance':layout_checks, 'points':s10_points,'paired_protein_IDs_verified':True,
         'cumulative_ranks_and_values_exact':True,'regressions_preserved_without_refitting':True,
         'distinct_recognizable_barcode_cohort_in_c':True})
 
@@ -2184,7 +2187,7 @@ if 'FigureS10' in FIGURES_TO_BUILD:
 # %% [markdown] figure="FigureS11"
 # ## Figure S11 — GRIA2 editing-site interdependencies
 # Complete a–b assembly, 180 × 255 mm. Both native vector matrices retain
-# 109 ordered sites, original Bonferroni/upper-triangle masks and exact colors.
+# 109 ordered sites, revised BY/lower-triangle display masks and exact colors.
 #
 
 # %% figure="FigureS11"
@@ -2195,15 +2198,17 @@ if 'FigureS11' in FIGURES_TO_BUILD:
     from matplotlib.colors import LinearSegmentedColormap,Normalize
     from matplotlib.cm import ScalarMappable
     s11_table,s11_meta=load_table('figure_s11_matrices')
+    # Same correction as Figure 5a; the MI rows remain unchanged.
+    s11_table = pd.read_table(NOTEBOOK_DIR / 'RevisionFisherBY_2026-11-09/figure_s11_matrices.BY.tsv', float_precision='round_trip')
     figure_s11=plt.figure(figsize=np.array(BATCH_LAYOUT['FigureS11']['canvas_mm'])/25.4)
     s11_finite_cells=0
 
 
 # %% figure="FigureS11"
 if 'FigureS11' in FIGURES_TO_BUILD:
-    text_mm(figure_s11,90,10,'Editing-site interdependencies in GRIA2 (Long-reads)',ha='center')
+    text_mm(figure_s11,90,8,'Editing-site interdependencies in GRIA2 (Long-reads)',ha='center')
     for row,measure in enumerate(['Pearson','MI']):
-        top=[24,143][row]
+        top=[18,136][row]
         data=s11_table.loc[s11_table.Measure.eq(measure)]
         n=len(s11_meta['site_order'])
         values=data.Value.to_numpy().reshape(n,n)
@@ -2226,8 +2231,8 @@ if 'FigureS11' in FIGURES_TO_BUILD:
         np.testing.assert_array_equal(collection.get_facecolors()[:,:3],colors)
         assert len(collection.get_paths())==len(cells)
         s11_finite_cells+=len(cells)
-        text_mm(figure_s11,7,top-6,['a','b'][row],'panel')
-        text_mm(figure_s11,85,top-6,['Site-site correlations','Normalized mutual information'][row],ha='center')
+        text_mm(figure_s11,7,top-3,['a','b'][row],'panel')
+        text_mm(figure_s11,85,top-.6,['Site-site correlations','Normalized mutual information'][row],ha='center',va='bottom')
         color_axis=axes_mm(figure_s11,143,top+15,4,75,grid=None)
         continuous_colorbar(color_axis,scale,-1 if measure=='Pearson' else 0,1,
             np.arange(-1,1.01,.25) if measure=='Pearson' else np.arange(0,1.01,.2))
@@ -2270,7 +2275,7 @@ if 'FigureS12' in FIGURES_TO_BUILD:
             column=facet if long_reads else facet%5
             row=0 if long_reads else facet//5
             left=18+column*(72 if long_reads else 27)
-            top=22 if long_reads else 96+row*40
+            top=22 if long_reads else 88+row*40
             width,height=(60,43) if long_reads else (23,23)
             axis=axes_mm(figure_s12,left,top,width,height,hide_y=column!=0)
             data=s12_boxes.loc[s12_boxes.Platform.eq(platform)&s12_boxes.Gene.eq(gene)]
@@ -2296,11 +2301,11 @@ if 'FigureS12' in FIGURES_TO_BUILD:
             axis.set_yticks(np.arange(-.5,1.01,.1) if long_reads else np.arange(-.4,1.01,.2))
             axis.yaxis.set_major_formatter(FuncFormatter(lambda v,p:'0' if abs(v)<1e-12 else f'{v:.1f}'.removesuffix('.0')))
             text_mm(figure_s12,left+width/2,top-3,gene,ha='center')
-        heading_top=12 if long_reads else 84
+        heading_top=14 if long_reads else 80
         text_mm(figure_s12,18,heading_top,'Squid’s '+platform)
-        text_mm(figure_s12,84,75 if long_reads else 251,'Absolute distance between site pairs [bp]','axis',ha='center')
-        text_mm(figure_s12,4,43.5 if long_reads else 167.5,'Pearson’s r','axis',rotation=90,ha='center',va='center')
-        legend_top=25 if long_reads else 99
+        text_mm(figure_s12,84,75 if long_reads else 243,'Absolute distance between site pairs [bp]','axis',ha='center')
+        text_mm(figure_s12,4,43.5 if long_reads else 159.5,'Pearson’s r','axis',rotation=90,ha='center',va='center')
+        legend_top=25 if long_reads else 91
         text_mm(figure_s12,157,legend_top,'Pairs','legend_heading')
         for index,style in enumerate(s for s in s12_meta['styles'] if s['Platform']==platform):
             color=tuple(float(v)/255 for v in style['Color'][4:-1].split(','))
@@ -2374,15 +2379,28 @@ if 'FigureS13' in FIGURES_TO_BUILD:
 
 # %% [markdown] figure="FigureS14"
 # ## Figure S14 — neural versus non-neural pooled octopus genes
-# Original whole-transcriptome cohort, 180 × 112 mm. Denominators are 79 neural
-# and 1488 non-neural genes; 144 Missing annotations are retained in the cohort
-# table and excluded from the two plotted groups, as in the source.
+# Corrected classification on the unchanged 1,711-gene whole-transcriptome cohort.
+# The two curves include 178 neural and 1,460 non-neural genes; 73 unclassified genes
+# remain in the cohort table and are excluded from the curves and test. The completed
+# 19 October comparison is reused. The original 180 × 112 mm canvas and styling are retained.
 #
 
 # %% figure="FigureS14"
 if 'FigureS14' in FIGURES_TO_BUILD:
-    s14_data,s14_meta=load_table('figure_s14_curves')
-    figure_s14=plt.figure(figsize=np.array(BATCH_LAYOUT['FigureS14']['canvas_mm'])/25.4)
+    s14_input_dir = WORK_DIR / 's14_correction_2026-10-29/inputs'
+    s14_meta = json.loads((s14_input_dir / 'figure_s14_curves.json').read_text())
+    s14_path = s14_input_dir / s14_meta['file']
+    assert hashlib.sha256(s14_path.read_bytes()).hexdigest() == s14_meta['sha256']
+    s14_data = pd.read_table(s14_path, float_precision='round_trip')
+    assert len(s14_data) == s14_meta['rows'] and list(s14_data) == s14_meta['columns']
+    s14_cohort_path = s14_input_dir / 'figure_s14_cohorts.tsv'
+    s14_cohort_meta = json.loads(s14_cohort_path.with_suffix('.json').read_text())
+    assert hashlib.sha256(s14_cohort_path.read_bytes()).hexdigest() == s14_cohort_meta['sha256']
+    s14_cohort = pd.read_table(s14_cohort_path, float_precision='round_trip')
+    assert len(s14_cohort) == 1711 and s14_cohort.Chrom.is_unique
+    assert s14_cohort.IsNeural.value_counts().to_dict() == s14_meta['denominators']
+    assert s14_meta['denominators'] == {'Yes': 178, 'No': 1460, 'Missing': 73}
+    figure_s14 = plt.figure(figsize=np.array(BATCH_LAYOUT['FigureS14']['canvas_mm']) / 25.4)
 
 
 # %% figure="FigureS14"
@@ -2408,9 +2426,20 @@ if 'FigureS14' in FIGURES_TO_BUILD:
 
 # %% figure="FigureS14"
 if 'FigureS14' in FIGURES_TO_BUILD:
-    assert len(s14_data)==134
-    export_figure(figure_s14,'FigureS14',{'exact_curve_points':134,'denominators':s14_meta['denominators'],
-        'native_MannWhitney_annotation_verified':True,'all_reference_vector_coordinates_verified':True})
+    # Each point is the percentage of its own group with at least x isoforms.
+    assert set(s14_data.IsNeural) == {'Yes', 'No'}
+    for condition, curve in s14_data.groupby('IsNeural', sort=False):
+        values = s14_cohort.loc[s14_cohort.IsNeural.eq(condition), 'NumOfProteins']
+        assert curve.Denominator.eq(len(values)).all()
+        np.testing.assert_array_equal(curve.NumOfProteins, np.sort(values.unique()))
+        expected = [100 * values.ge(count).sum() / len(values) for count in curve.NumOfProteins]
+        np.testing.assert_allclose(curve.CummulativeTranscripts, expected, rtol=0, atol=1e-12)
+    export_figure(figure_s14, 'FigureS14', {
+        'exact_curve_points': len(s14_data), 'denominators': s14_meta['denominators'],
+        'corrected_curve_definition_verified': True, 'corrected_input_sha_verified': True,
+        'MannWhitney_result_source': 'Completed S14 correction audit D094; no new test',
+        'MannWhitney_U': s14_meta['mannwhitneyu']['statistic'],
+        'MannWhitney_P': s14_meta['mannwhitneyu']['pvalue']})
 
 
 # %% [markdown] figure="FigureS16"
@@ -2466,10 +2495,10 @@ if 'FigureS16' in FIGURES_TO_BUILD:
 
 # %% figure="FigureS16"
 if 'FigureS16' in FIGURES_TO_BUILD:
-    text_mm(figure_s16,2,116,'b','panel')
+    text_mm(figure_s16,10,121,'b','panel')
     for row,metric,title,top,height,limits in [
         (0,'CoveredPercent','Mean % of covered isoforms',122,44,(46,86)),
-        (1,'FalsePositivePercent','Mean % of false-positive isoforms',176,44,(3.8,10.4))]:
+        (1,'FalsePositivePercent','Mean % of false-positive isoforms',171,44,(3.8,10.4))]:
         axis=axes_mm(figure_s16,22,top,66.7,height,grid='both')
         for trace,data in s16_data.loc[s16_data.Panel.eq('b')&s16_data.Metric.eq(metric)].groupby('Trace',sort=False):
             s16_checked_points+=s16_errorbar(axis,data)
@@ -2477,7 +2506,7 @@ if 'FigureS16' in FIGURES_TO_BUILD:
         axis.set_xticks([20000,40000,60000,80000,100000],['20k','40k','60k','80k','100k'])
         axis.set_yticks(np.arange(50,86,5) if row==0 else np.arange(4,11))
         axis.tick_params(labelbottom=row==1)
-    text_mm(figure_s16,55.35,229,'Simulated reads','axis',ha='center')
+    text_mm(figure_s16,55.35,224,'Simulated reads','axis',ha='center')
     text_mm(figure_s16,99,122,'NA probability, mock gene','legend_heading',va='top')
     for group,probability in enumerate(s16_meta['unknown_probabilities']):
         top=132
@@ -2524,9 +2553,9 @@ if 'FigureS17' in FIGURES_TO_BUILD:
 # %% figure="FigureS17"
 if 'FigureS17' in FIGURES_TO_BUILD:
     for platform,top,width,height,pitch,columns in [
-        ('Long-reads',23,26.8,25,0,2),('Short-reads',90,26.8,25,43,5)]:
+        ('Long-reads',23,26.8,25,0,2),('Short-reads',72,26.8,25,43,5)]:
         genes=s17_stats.loc[s17_stats.Platform.eq(platform),'Gene'].drop_duplicates()
-        text_mm(figure_s17,18,top-15,platform)
+        text_mm(figure_s17,18,top-9,platform)
         for facet,gene in enumerate(genes):
             row,column=divmod(facet,columns)
             left=22+column*31
@@ -2560,7 +2589,7 @@ if 'FigureS17' in FIGURES_TO_BUILD:
             if column: axis.tick_params(labelleft=False)
             axis.set_title(gene,fontsize=7,pad=4)
     text_mm(figure_s17,5,35.5,'Mean edited positions in\noriginally-supporting reads',rotation=90,ha='center',va='center')
-    text_mm(figure_s17,5,167,'Mean edited positions in originally-supporting reads',rotation=90,ha='center',va='center')
+    text_mm(figure_s17,5,149,'Mean edited positions in originally-supporting reads',rotation=90,ha='center',va='center')
 
 
 # %% figure="FigureS17"
@@ -2575,25 +2604,30 @@ if 'FigureS17' in FIGURES_TO_BUILD:
 # %% [markdown] figure="FigureS18"
 # ## Figure S18 — editing at each site in common and rare isoforms
 #
-# Complete PacBio and Illumina inputs have been recovered. The original protein-level rare
-# mean/SEM, expression-weighted common mean, missing-data denominators and within-gene FDR
-# are retained. The author approved smaller facet text for S18 only, to display every site without
+# PacBio and Illumina bars now show original-read G/(A+G) percentages.
+# Two-sided Fisher tests and within-gene BH correction determine significance;
+# the previous isoform SEM bars have been removed (2026-11-09). The author approved smaller facet text for S18 only, to display every site without
 # label overlap on one 180 × 260 mm page. The source arrangement is retained (two full-width PacBio rows, then three columns of Illumina genes).
 #
 
 # %% figure="FigureS18"
 if 'FigureS18' in FIGURES_TO_BUILD:
-    s18_table, s18_meta = load_table('figure_s18_full')
+    # Read only revised read-level means and Fisher/BH results.
+    s18_table = pd.read_table(NOTEBOOK_DIR / 'RevisionFisherBY_2026-11-09/figure_s18_fisher.tsv', float_precision='round_trip')
     assert s18_table.groupby(['Platform', 'Gene']).ngroups == 21
     assert not s18_table.duplicated(['Platform', 'Gene', 'EditingSite']).any()
     s18_width, s18_height = 180, 260  # Author-approved single-page maximum; facet text may shrink.
     figure_s18 = plt.figure(figsize=np.array([s18_width, s18_height]) / 25.4)
     s18_colors = {'Common': ['#238bca', '#0f275c'], 'Rare': ['#ff9324', '#ffcf66']}
     s18_axes, s18_checks = [], []
-    text_mm(figure_s18, 3, 7, 'a', 'panel')
-    text_mm(figure_s18, 16, 9, 'Long-reads')
-    text_mm(figure_s18, 3, 78, 'b', 'panel')
-    text_mm(figure_s18, 16, 80, 'Short-reads')
+    # Move the complete Short-reads group up 6 mm; keep all facet sizes/row pitches.
+    s18_group_top_mm = {'Long-reads': 18, 'Short-reads': 83}
+    s18_headers = {}
+    for letter, platform in zip('ab', s18_group_top_mm, strict=True):
+        top = s18_group_top_mm[platform] - 7.5
+        s18_headers[platform] = (
+            text_mm(figure_s18, 3, top, letter, 'panel'),
+            text_mm(figure_s18, 16, top, platform))
 
 
 # %% figure="FigureS18"
@@ -2604,24 +2638,20 @@ if 'FigureS18' in FIGURES_TO_BUILD:
         for index, gene in enumerate(genes):
             row, column = (index, 0) if platform == 'Long-reads' else divmod(index, 3)
             left = 16 if platform == 'Long-reads' else 16 + column * 54
-            top = 18 + row * 29 if platform == 'Long-reads' else 89 + row * 24
+            top = s18_group_top_mm[platform] + row * (29 if platform == 'Long-reads' else 24)
             width = 156 if platform == 'Long-reads' else 48
             panel_height_mm = 18 if platform == 'Long-reads' else 13
             axis = axes_mm(figure_s18, left, top, width, panel_height_mm, hide_y=column > 0)
             data = s18_table.loc[s18_table.Platform.eq(platform) & s18_table.Gene.eq(gene)].sort_values('SiteOrder')
-            both = data.NumCommonProteins.gt(0) & data.NumRareProteins.gt(0)
+            both = data.Testable
             x = np.arange(len(data))
-            for shift, group, value, error in [(-.2125, 'Common', '%ExpressionWeightedMeanCommonEditing', 'CommonDummySEM'),
-                                               (.2125, 'Rare', '%MeanRareEditing', '%SEMRareEditing')]:
+            for shift, group, value in [(-.2125, 'Common', 'CommonEditingPercent'),
+                                       (.2125, 'Rare', 'RareEditingPercent')]:
                 colors = [s18_colors[group][0 if covered else 1] for covered in both]
                 bars = axis.bar(x + shift, data[value], width=.40375, color=colors, edgecolor='none', zorder=3)
                 np.testing.assert_array_equal([bar.get_height() for bar in bars], data[value])
-                if group == 'Rare':
-                    axis.errorbar(x + shift, data[value], yerr=data[error], fmt='none', ecolor='#2a3f5f',
-                                  elinewidth=.35, capsize=1, capthick=.35, zorder=4)
-            upper = pd.concat([data['%ExpressionWeightedMeanCommonEditing'],
-                               data['%MeanRareEditing'] + data['%SEMRareEditing'].fillna(0)], axis=1).max(axis=1)
-            stars = data.fdr_bh_rejection.fillna(False)
+            upper = data[['CommonEditingPercent', 'RareEditingPercent']].max(axis=1)
+            stars = data.Significant.fillna(False)
             star_height = upper + max(1, .03 * upper.max())
             for position, height in zip(x[stars], star_height[stars]):
                 axis.text(position, height, '*', color='black', fontsize=6, ha='center', va='center')
@@ -2631,16 +2661,16 @@ if 'FigureS18' in FIGURES_TO_BUILD:
             if column == 0: axis.set_ylabel('Editing [%]', labelpad=3)
             axis.tick_params(axis='y', labelsize=4 if platform == 'Long-reads' else 3)
             axis.set_title(gene, fontsize=7, y=1 + 2.1/panel_height_mm, pad=0, va='bottom')
-            details = f'{len(data)} sites, {data.pv.notna().sum()} testable, {stars.sum()} significant'
+            details = f'{len(data)} sites, {stars.sum()} ({100 * stars.sum() / len(data):.1f}%) significant'
             annotation = axis.text(.5, 1 + .25/panel_height_mm, details, fontsize=3.5,
                                    transform=axis.transAxes, ha='center', va='bottom', color='#2a3f5f')
             annotation.set_gid('s18-author-approved-compact-text')
             assert star_height.max() < 107
             s18_axes.append(axis)
             s18_checks.append({'platform': platform, 'gene': gene, 'sites': len(data), 'significant': int(stars.sum())})
-    assert s18_table.NumCommonProteins.gt(0).all() and s18_table.NumRareProteins.gt(0).all()
+    assert s18_table.Testable.all()  # Both original-read groups cover every plotted site.
     legend_handles = [Patch(color=s18_colors[group][0], label=group) for group in ['Common', 'Rare']]
-    figure_s18.legend(handles=legend_handles, loc='lower right', bbox_to_anchor=(.97, .025), frameon=False,
+    s18_legend = figure_s18.legend(handles=legend_handles, loc='lower right', bbox_to_anchor=(.97, .025), frameon=False,
                      title='Both groups covered', fontsize=6, title_fontsize=7)
 
 
@@ -2665,13 +2695,45 @@ if 'FigureS18' in FIGURES_TO_BUILD:
     for axis in s18_axes:
         bounds = [label.get_window_extent(renderer) for label in axis.get_xticklabels() if label.get_visible()]
         assert all(right.x0 >= left.x1 for left, right in zip(bounds, bounds[1:])), 'S18 site labels overlap'
+    # Both platform headings sit 1.5 mm above their first gene title; letters share Y.
+    heading_checks = []
+    for platform, (letter, heading) in s18_headers.items():
+        first_axis = next(axis for axis, check in zip(s18_axes, s18_checks, strict=True)
+                          if check['platform'] == platform)
+        title_top = first_axis.title.get_window_extent(renderer).y1
+        target_bottom = title_top + 1.5 * figure_s18.dpi / 25.4
+        shift_y = (target_bottom - heading.get_window_extent(renderer).y0) / figure_s18.bbox.height
+        new_y = heading.get_position()[1] + shift_y
+        for artist in [letter, heading]:
+            artist.set_position((artist.get_position()[0], new_y))
+        gap_mm = (heading.get_window_extent(renderer).y0 - title_top) * 25.4 / figure_s18.dpi
+        np.testing.assert_allclose(gap_mm, 1.5, atol=1e-8)
+        assert letter.get_position()[1] == heading.get_position()[1]
+        heading_checks.append({'platform': platform, 'letter_and_heading_y': new_y,
+                               'heading_to_first_gene_title_mm': gap_mm})
+    figure_s18.canvas.draw()
+    # Align the full rendered legend box with the last Short-reads plotting row.
+    last_row_bottom = min(axis.get_window_extent(renderer).y0
+                          for axis, check in zip(s18_axes, s18_checks, strict=True)
+                          if check['platform'] == 'Short-reads')
+    old_legend_bottom = s18_legend.get_window_extent(renderer).y0
+    shift = (last_row_bottom - old_legend_bottom) / figure_s18.bbox.height
+    s18_legend.set_bbox_to_anchor((.97, .025 + shift), transform=figure_s18.transFigure)
+    figure_s18.canvas.draw()
+    legend_bottom = s18_legend.get_window_extent(renderer).y0
+    np.testing.assert_allclose(legend_bottom, last_row_bottom, atol=1e-8)
+    legend_alignment = {'legend_bottom_mm_from_page_bottom': legend_bottom * 25.4 / figure_s18.dpi,
+        'last_row_bottom_mm_from_page_bottom': last_row_bottom * 25.4 / figure_s18.dpi,
+        'legend_raised_mm': (legend_bottom - old_legend_bottom) * 25.4 / figure_s18.dpi}
     spacing_checks = check_layout_spacing(figure_s18)
     export_figure(figure_s18, 'FigureS18', {'canvas_mm': [s18_width, s18_height], 'facets': s18_checks,
         'text_exception': 'Author explicitly permits smaller facet text to show every site on one 180 x 260 mm page.',
-        'spacing_checks': spacing_checks,
+        'spacing_checks': spacing_checks, 'legend_alignment': legend_alignment,
+        'platform_heading_checks': heading_checks, 'short_reads_shift_up_mm': 6,
         'all_sites_and_gene_platforms_present': True, 'site_tick_labels_do_not_overlap': True,
-        'FDR': 'BH within each gene; original valid-site mask', 'rare_unit': 'protein',
-        'common_mean': 'expression weighted, nonmissing-protein denominator'})
+        'FDR': 'Two-sided Fisher; BH over testable sites within each gene',
+        'rare_unit': 'original supporting read', 'common_mean': '100*G/(A+G), original supporting reads',
+        'error_bars': 'none; historical isoform SEM removed'})
 
 
 # %% [markdown] figure="FigureS19"
@@ -2810,8 +2872,8 @@ if 'FigureS20' in FIGURES_TO_BUILD:
 
 # %% figure="FigureS20"
 if 'FigureS20' in FIGURES_TO_BUILD:
-    text_mm(figure_s20,2,5,'a',weight='bold')
-    axis=axes_mm(figure_s20,25,15,65,67)
+    text_mm(figure_s20,10,17,'a',weight='bold')
+    axis=axes_mm(figure_s20,25,15,65,53.6)
     for summary in s20_boxes.itertuples():
         data=s20_expression.loc[s20_expression.Platform.eq(summary.Platform)]
         stats={'q1':summary.Q1,'med':summary.Median,'q3':summary.Q3,
@@ -2831,10 +2893,10 @@ if 'FigureS20' in FIGURES_TO_BUILD:
 
 # %% figure="FigureS20"
 if 'FigureS20' in FIGURES_TO_BUILD:
-    text_mm(figure_s20,2,108,'b',weight='bold')
+    text_mm(figure_s20,10,93.6,'b',weight='bold')
     for column,comparison in enumerate(['Strict comparison','Soft comparison']):
         data=s20_chimeras.loc[s20_chimeras.Comparison.eq(comparison)].sort_values('DisplayOrder')
-        axis=axes_mm(figure_s20,23+column*79,121,68,57)
+        axis=axes_mm(figure_s20,23+column*79,95.6,68,45.6)
         bars=axis.bar(data.DisplayOrder,data.ChimericPercent,width=.8,color=data.Color,linewidth=0,zorder=3)
         np.testing.assert_array_equal([bar.get_height() for bar in bars],data.ChimericPercent)
         np.testing.assert_array_equal(100*data.RecoveredChimericCount/data.ActualYRareProteins,data.ChimericPercent)
@@ -2849,7 +2911,7 @@ if 'FigureS20' in FIGURES_TO_BUILD:
         for platform,group in data.groupby('Platform',sort=False):
             axis.text(group.DisplayOrder.mean(),-.32,s20_labels[platform],
                 transform=axis.get_xaxis_transform(),fontsize=7,ha='center',va='top')
-    text_mm(figure_s20,5,149,'Chimeric rare proteins [%]',rotation=90,ha='center',va='center')
+    text_mm(figure_s20,12.5,118.4,'Chimeric rare proteins [%]',rotation=90,ha='center',va='center')
 
 
 # %% figure="FigureS20"
@@ -2921,12 +2983,535 @@ if 'FigureS6c_gene_maxima_review' in FIGURES_TO_BUILD:
 
 
 # %% [markdown]
-# The sole current collection is `Notebooks/final_figures/`. SVG/PDF and PNG previews
-# are refreshed automatically; dimensions_cm.tsv records the intended physical size
-# in the manuscript. Reports, inputs and backups remain in figure_rebuild_work.
+# ## Final publication layout and 600 DPI exports
+#
+# The 14 October layout is applied at native physical scale. Internal placement changes are specified above in millimetres. The final step crops only measured exterior white space; it never scales an assembled page. Crop rectangles use PDF points (72 per inch), origin at the original page top left. Unchanged artwork is bound to the approved backup by SHA-256. Figure 1 awaits the author’s BioRender revision.
+#
+
+# %% [markdown]
+# ## Figure 2 — approved PDF assembly
+#
+# Use the updated `Fig 2 wo panel b.pdf` as the clean base, and
+# `Fig 2 partially vectoric.pdf` as the placement reference. Frozen, hashed copies
+# and the current approved `final_figures/pdf/Figure2b.pdf` are preserved in
+# `figure_rebuild_work/figure2_assembly_2026-10-13/inputs/`.
+#
+# Place the whole 49 × 45.5 mm panel page at x=367.08 pt, y=10.065 pt, measured
+# from the top-left of the base page (x right, y down). Keep the original 510 ×
+# 629.04 pt MediaBox/CropBox: 179.916667 × 221.911333 mm. The existing b is retained.
+# Docker performs composition and SVG export; no scientific calculations or font
+# installation on the host. The final PNG is an uncropped PDF render at 600 DPI.
+#
 
 # %%
-# One current copy per figure, with manuscript dimensions in centimetres.
-from curate_current import refresh_final_collection
-final_figure_index = refresh_final_collection()
-display(final_figure_index[['Figure', 'Width_cm', 'Height_cm', 'Status']])
+if 'Figure2' in FIGURES_TO_BUILD:
+    # Explicit saved sources, physical dimensions and top-left page coordinates.
+    FIGURE2_ASSEMBLY = WORK_DIR / 'figure2_assembly_2026-10-13'
+    sys.path.insert(0, str(FIGURE2_ASSEMBLY / 'preparation'))
+    from assemble_runner import run_stage, validate_svg_render, publish_figure2
+    figure2_config = json.loads((FIGURE2_ASSEMBLY / 'inputs/assembly_parameters.json').read_text())
+    figure2_sources = {'base': 'inputs/BioRender_base.pdf',
+                      'reference': 'inputs/BioRender_reference.pdf',
+                      'panel': 'inputs/Figure2b_approved.pdf'}
+    figure2_top_left_pt = (367.08, 10.065)  # origin top-left; x right, y down
+    figure2_size_mm = (49.0, 45.5)  # entire asset page, including labels and legend
+    figure2_page_pt = (510.0, 629.04)  # retain the actual BioRender page dimensions
+    assert tuple(figure2_config['placement']['top_left_pt']) == figure2_top_left_pt
+    assert tuple(figure2_config['placement']['size_mm']) == figure2_size_mm
+    assert tuple(figure2_config['page']['MediaBox_pt'][2:]) == figure2_page_pt
+    for role, relative_path in figure2_sources.items():
+        binding = figure2_config['sources'][role]
+        assert binding['file'] == relative_path
+        assert hashlib.sha256((FIGURE2_ASSEMBLY / relative_path).read_bytes()).hexdigest() == binding['sha256']
+    print('Figure2: approved whole-page PDF insertion at 49 × 45.5 mm; original canvas retained.')
+
+
+# %%
+if 'Figure2' in FIGURES_TO_BUILD:
+    # A temporary, network-disabled Docker container inserts the vector PDF page.
+    # Resource limits: two CPUs, 4 GiB RAM, 180 seconds per stage.
+    run_stage('assemble')
+
+
+# %%
+if 'Figure2' in FIGURES_TO_BUILD:
+    # Export SVG with live Unicode text and embedded original glyphs, plus 600 DPI PNG.
+    run_stage('export')
+
+
+# %%
+if 'Figure2' in FIGURES_TO_BUILD:
+    # Check the original content stream, all vector cells, fonts and unchanged panels.
+    run_stage('validate')
+    validate_svg_render()
+    publish_figure2()  # Archive any prior Figure2 export before replacement.
+    display(Image(filename=str(FIGURE2_ASSEMBLY / 'previews/Figure2_review.png')))
+
+
+# %%
+# Legacy collection refresh; run the dedicated S7 section afterward to retain corrected S7.
+# Final bounds are identical in PDF, SVG and 600 DPI PNG.
+from word_export import refresh_final_collection
+word_export_plan = json.loads((WORD_LAYOUT_DIR / 'inputs/export_plan.json').read_text())
+assert word_export_plan['safe_margin_mm'] == 2.3
+assert word_export_plan['physical_scale'] == 1.0
+final_figure_index = refresh_final_collection(word_export_plan)
+display(final_figure_index[['Figure','Width_cm','Height_cm','Pixel_width','Pixel_height','Status']])
+
+# Crop translation is (-left, -top); the physical content scale stays exactly 1.
+crop_transformations = final_figure_index[['Figure','Crop_left_mm','Crop_top_mm',
+    'Crop_right_mm','Crop_bottom_mm','Content_scale']]
+display(crop_transformations)
+
+
+# %% [markdown]
+# ## Fisher/BY revision: assemble results, S4 and affected figures (2026-11-09)
+#
+# First run the new S18 and BY subsections in both original producer notebooks.
+# The first cell below assembles their authenticated outputs and changes only S4 in
+# a new complete XLSX workbook. The second cell executes only the existing renderer
+# cells for Figure 5, S11 and S18 in a separate bounded process.
+#
+# The original raw canvases are 180×225, 180×255 and 180×260 mm, respectively.
+# The established final collection has cropped pages: the exporter preserves those
+# exact existing physical sizes and crop rectangles at scale 1, and also retains
+# full-canvas SVG/PDF copies. Historical figure files and notebook outputs are backed
+# up under this revision directory. Rendering writes dated review artifacts; final
+# promotion follows dimension, vector, numerical and visual checks.
+
+# %%
+from pathlib import Path
+import sys, runpy
+revision_dir = Path.cwd() / 'RevisionFisherBY_2026-11-09'
+assert revision_dir.is_dir(), 'Run from Code/Notebooks'
+sys.path.insert(0, str(revision_dir))
+runpy.run_path(str(revision_dir / 'prepare_artifacts.py'), run_name='__main__')
+
+# %%
+# Use the original renderer cells; retain both full canvases and existing final crops.
+import subprocess
+subprocess.run([sys.executable, str(revision_dir / 'render_revised_figures.py')],
+               check=True, timeout=1800)
+
+# %% [markdown]
+# ## Entropy comparison — 2026-11-16
+#
+# The Figure 5c producer compares Observed, Old hypothetical, All reads and
+# Originally-supporting reads. Run the comparison setup and producer/export cells
+# in combinatorics2. Figures use SVG, PDF and 600 DPI PNG; repeated filenames receive
+# a new version. S7 has one dedicated canonical producer in the following section.
+#
+
+# %%
+COMPARISON_FIGURES_TO_BUILD = ["Figure5c_entropy_comparison"]
+
+
+# %%
+# Independent plotting setup using the established Open Sans figure typography.
+import sys
+import json
+import hashlib
+from pathlib import Path
+import numpy as np
+import pandas as pd
+import matplotlib as mpl
+mpl.use("Agg")
+import matplotlib.pyplot as plt
+from matplotlib import font_manager
+from matplotlib.patches import Patch
+from matplotlib.lines import Line2D
+
+assert Path(sys.prefix).name == "combinatorics2"
+comparison_work = Path("/private6/projects/Combinatorics/Code/Notebooks/entropy_audit_2026-11-12/updated_entropy_and_s7_comparison_2026-11-16")
+comparison_notebooks = Path("/private6/projects/Combinatorics/Code/Notebooks")
+comparison_final = comparison_notebooks / "final_figures"
+comparison_inputs = comparison_notebooks / "figure_rebuild_work/correction_2026-10-12/inputs"
+for name in ["OpenSans-Regular.ttf", "OpenSans-Bold.ttf"]:
+    font_manager.fontManager.addfont(comparison_inputs.parent / "fonts" / name)
+mpl.rcParams.update({"font.family": "Open Sans", "font.size": 6, "axes.labelsize": 7,
+    "axes.titlesize": 7, "xtick.labelsize": 6, "ytick.labelsize": 6,
+    "legend.fontsize": 6, "pdf.fonttype": 42, "svg.fonttype": "none",
+    "axes.linewidth": .35, "grid.linewidth": .35, "grid.color": "#dbe4ef",
+    "xtick.major.width": .35, "ytick.major.width": .35, "savefig.facecolor": "white"})
+comparison_outputs = []
+
+
+# %%
+def export_comparison_figure(figure, stem, output_directory=None):
+    manifest_directory = comparison_work if output_directory is None else output_directory
+    destinations = [("svg", "svg"), ("pdf", "pdf"), ("previews", "png")]
+    output_stem, version = stem, 1
+    while True:
+        paths = [comparison_final / folder / f"{output_stem}.{extension}" for folder, extension in destinations]
+        manifest = manifest_directory / f"{output_stem}.manifest.json"
+        if not any(path.exists() for path in [*paths, manifest]):
+            break
+        version += 1
+        output_stem = f"{stem}_v{version}"
+    for path in paths:
+        figure.savefig(path, dpi=600, facecolor="white")
+        comparison_outputs.append({"Figure": output_stem, "Path": str(path), "Format": path.suffix[1:],
+            "Bytes": path.stat().st_size, "SHA256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "WidthMM": float(figure.get_figwidth()*25.4), "HeightMM": float(figure.get_figheight()*25.4),
+            "PNG_DPI": 600 if path.suffix == ".png" else "vector"})
+    with manifest.open("x") as handle:
+        json.dump([r for r in comparison_outputs if r["Figure"] == output_stem], handle, indent=2)
+    print("Written:", *[str(path) for path in paths], sep="\n")
+
+
+
+# %% [markdown]
+# ### Figure 5c — Observed, Old hypothetical, All reads and Originally-supporting reads
+#
+
+# %%
+if "Figure5c_entropy_comparison" in COMPARISON_FIGURES_TO_BUILD:
+    support_figure_work = Path("/private6/projects/Combinatorics/Code/Notebooks/entropy_audit_2026-11-12/originally_supporting_reads_2026-11-16")
+    comparison_entropy = pd.read_table(support_figure_work / "entropy_population_comparison.tsv", float_precision="round_trip")
+    comparison_entropy_previous = pd.read_table(comparison_work / "entropy_updated_per_gene.tsv", float_precision="round_trip")
+    comparison_entropy_style = json.loads((comparison_inputs / "squid_original_figure5c_entropy_plot.json").read_text())
+    assert len(comparison_entropy) == 21 and not comparison_entropy.duplicated(["Platform", "Gene"]).any()
+    for platform, label in [("PacBio", "Long-reads"), ("Illumina", "Short-reads")]:
+        assert comparison_entropy.loc[comparison_entropy.Platform.eq(platform), "Gene"].tolist() == comparison_entropy_style["gene_order"][label]
+    for label, previous in [("Observed", "CurrentObservedEntropyBits"), ("Old hypothetical", "CurrentOldHypotheticalEntropyBits"),
+                            ("All reads", "UpdatedHypotheticalEntropyBits")]:
+        np.testing.assert_array_equal(comparison_entropy[label], comparison_entropy_previous[previous])
+
+
+# %%
+if "Figure5c_entropy_comparison" in COMPARISON_FIGURES_TO_BUILD:
+    entropy_comparison_figure = plt.figure(figsize=(180/25.4, 88/25.4))
+    entropy_comparison_bar_count = 0
+    entropy_series = ["Observed", "Old hypothetical", "All reads", "Originally-supporting reads"]
+    entropy_upper_limit = max(40, np.ceil(comparison_entropy[entropy_series].max().max()/10)*10)
+    for platform, title, left, width in [("PacBio", "Long-reads (PacBio1)", 14, 27),
+                                        ("Illumina", "Short-reads (Illumina)", 48, 129)]:
+        axis = entropy_comparison_figure.add_axes([left/180, 24/88, width/180, 51/88])
+        rows = comparison_entropy.loc[comparison_entropy.Platform.eq(platform)]
+        colors = [comparison_entropy_style["gene_colors"][gene] for gene in rows.Gene]
+        x = np.arange(len(rows))
+        for offset, column, alpha, hatch in [(-.30, "Observed", 1, "////"), (-.10, "Old hypothetical", .35, None),
+                (.10, "All reads", 1, None), (.30, "Originally-supporting reads", 1, "...")]:
+            outlined = column == "Originally-supporting reads"
+            bars = axis.bar(x + offset, rows[column], width=.18, color="white" if outlined else colors,
+                alpha=alpha, hatch=hatch, edgecolor=colors if outlined else "white", linewidth=.45, zorder=3)
+            np.testing.assert_allclose([bar.get_height() for bar in bars], rows[column], rtol=0, atol=0, equal_nan=True)
+            for j, value in enumerate(rows[column]):
+                if pd.isna(value): axis.text(x[j]+offset, .8, "N/A", rotation=90, ha="center", fontsize=5)
+            entropy_comparison_bar_count += len(bars)
+        axis.set(ylim=(0, entropy_upper_limit), xlim=(-.65, len(rows)-.35), title=title)
+        axis.set_xticks(x, rows.Gene, rotation=55, ha="right", rotation_mode="anchor")
+        axis.set_yticks(np.arange(0, entropy_upper_limit+1, 10))
+        axis.spines[:].set_visible(False)
+        axis.grid(axis="y", zorder=0)
+        axis.tick_params(axis="both", length=0, pad=2, labelleft=platform == "PacBio")
+        if platform == "PacBio": axis.set_ylabel("Shannon entropy [bits]")
+    entropy_comparison_figure.legend(handles=[
+        Patch(facecolor="#555555", edgecolor="white", hatch="////", label="Observed"),
+        Patch(facecolor="#bbbbbb", label="Old hypothetical"), Patch(facecolor="#555555", label="All reads"),
+        Patch(facecolor="white", edgecolor="#555555", hatch="...", linewidth=.45, label="Originally-supporting reads")],
+        loc="lower center", bbox_to_anchor=(.5, .015), ncol=4, frameon=False, columnspacing=1.5)
+    assert entropy_comparison_bar_count == 84
+
+
+# %%
+if "Figure5c_entropy_comparison" in COMPARISON_FIGURES_TO_BUILD:
+    export_comparison_figure(entropy_comparison_figure, "Figure5c_entropy_comparison", output_directory=support_figure_work)
+    plt.close(entropy_comparison_figure)
+
+
+# %% [markdown]
+# ## Figure S7 — corrected AA-to-binary mapping
+#
+# This is the sole S7 producer. Both panels use the validated 16 November corrected
+# scores; panel b connects consecutive cluster sizes with lines and circle markers.
+# Run this section in combinatorics2 after any legacy collection refresh above.
+# It needs no upstream cells, clustering or live-kernel state. Exports replace
+# `final_figures/{svg,pdf,previews}/FigureS7.{svg,pdf,png}` at the fixed publication
+# size (PNG: 600 DPI). Previous variants were archived before removal.
+#
+
+# %%
+# Independent plotting setup for the sole canonical S7 producer.
+from pathlib import Path
+import os
+import sys
+import json
+import hashlib
+import numpy as np
+import pandas as pd
+s7_work = Path("/private6/projects/Combinatorics/Code/Notebooks/entropy_audit_2026-11-12/s7_canonical_2026-11-16")
+os.environ.setdefault("MPLCONFIGDIR", str(s7_work / "matplotlib_cache"))
+import matplotlib as mpl
+mpl.use("Agg")
+import matplotlib.pyplot as plt
+from matplotlib import font_manager
+from matplotlib.lines import Line2D
+from matplotlib.text import Text
+from matplotlib.ticker import FuncFormatter
+from matplotlib.transforms import Bbox
+assert Path(sys.prefix).name == "combinatorics2"
+BUILD_FIGURE_S7 = True
+s7_notebooks = s7_work.parents[1]
+s7_input_dir = s7_notebooks / "figure_rebuild_work/correction_2026-10-12"
+s7_final_dir = s7_notebooks / "final_figures"
+s7_previous = s7_work.parent / "updated_entropy_and_s7_comparison_2026-11-16"
+s7_validation_work = s7_work.parent / "eli_per_codon_population_comparison_2026-11-16"
+s7_manifest = json.loads((s7_validation_work / "input_manifest.json").read_text())
+
+
+# %%
+# Preserve the original publication font roles and drawing style.
+S7_TEXT_PT = {'panel': 7, 'axis': 7, 'heading': 7, 'legend_heading': 7,
+           'tick': 6, 'legend': 6, 'annotation': 6}
+for font in ['OpenSans-Regular.ttf', 'OpenSans-Bold.ttf']:
+    font_manager.fontManager.addfont(s7_input_dir / "fonts" / font)
+assert Path(font_manager.findfont('Open Sans', fallback_to_default=False)).name == 'OpenSans-Regular.ttf'
+mpl.rcParams.update({'font.family': 'Open Sans', 'font.size': 6,
+    'axes.labelsize': 7, 'axes.titlesize': 7, 'xtick.labelsize': 6,
+    'ytick.labelsize': 6, 'legend.fontsize': 6, 'legend.title_fontsize': 7,
+    'pdf.fonttype': 42, 'ps.fonttype': 42, 'svg.fonttype': 'none',
+    'axes.linewidth': 0.35, 'grid.linewidth': 0.35, 'grid.color': '#dbe4ef',
+    'xtick.major.width': 0.35, 'ytick.major.width': 0.35,
+    'xtick.major.size': 2, 'ytick.major.size': 2,
+    'svg.hashsalt': 'combinatorics-figure3', 'savefig.facecolor': 'white'})
+
+S7_INK = "#2a3f5f"
+
+
+# %%
+# Preserve the original millimetre coordinates and unobtrusive axes.
+def s7_axes(figure, x, top, width, height):
+    canvas_width, canvas_height = figure.get_size_inches() * 25.4
+    return figure.add_axes([x / canvas_width, 1 - (top + height) / canvas_height,
+                            width / canvas_width, height / canvas_height])
+
+def s7_text(figure, x, top, label, role, **kwargs):
+    canvas_width, canvas_height = figure.get_size_inches() * 25.4
+    artist = figure.text(x / canvas_width, 1 - top / canvas_height, label,
+        fontsize=S7_TEXT_PT[role], color=S7_INK, **kwargs)
+    artist.set_gid(f"role-{role}-{len(figure.texts)}")
+    return artist
+
+def s7_style(axis, hide_y=False):
+    axis.spines[["top", "right", "left", "bottom"]].set_visible(False)
+    axis.grid(True, axis="y", zorder=0)
+    axis.tick_params(pad=1.5, labelleft=not hide_y)
+    axis.tick_params(axis="y", which="both", left=False, right=False)
+    axis.tick_params(axis="x", which="both", bottom=False, top=False)
+    axis.set_axisbelow(True)
+    axis.yaxis.set_major_formatter(FuncFormatter(lambda value, pos: f"{value / 1000:g}k" if value >= 1000 else f"{value:g}"))
+    axis.tick_params(colors=S7_INK)
+    for text in [axis.title, axis.xaxis.label, axis.yaxis.label]:
+        text.set_color(S7_INK)
+
+
+
+# %%
+# Bind each corrected score to its original plotted row; retain order and colors.
+s7_path = s7_previous / "s7_old_vs_updated_summary.tsv"
+assert hashlib.sha256(s7_path.read_bytes()).hexdigest() == s7_manifest[str(s7_path)]["sha256"]
+s7_scores = pd.read_table(s7_path, float_precision="round_trip")
+assert len(s7_scores) == 1202
+s7_tables, s7_metadata = {}, {}
+for panel in ["a", "b"]:
+    path = s7_input_dir / f"inputs/squid_original_figures7{panel}_silhouette_plot.tsv"
+    meta = json.loads(path.with_suffix(".json").read_text())
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == meta["sha256"]
+    current = pd.read_table(path, float_precision="round_trip")
+    corrected = s7_scores.loc[s7_scores.Panel.eq(panel)].copy()
+    corrected["Platform"] = corrected.Platform.map({"PacBio": "Long-reads", "Illumina": "Short-reads"})
+    assert corrected.Platform.notna().all()
+    if panel == "b":
+        assert set(corrected.Dissimilarity) == {"Miyata", "Grantham100"}
+        corrected["Dissimilarity"] = corrected.Dissimilarity.map({"Miyata": "Miyata", "Grantham100": "Grantham 100"})
+    keys = meta["keys"]
+    merged = current.merge(corrected[keys + ["OldMeanSilhouetteScore", "UpdatedMeanSilhouetteScore"]],
+        on=keys, how="left", sort=False, validate="one_to_one")
+    assert len(merged) == len(corrected) == meta["rows"] and merged.notna().all().all()
+    np.testing.assert_array_equal(merged.MeanSilhouetteScore, merged.OldMeanSilhouetteScore)
+    assert merged.Gene.map(meta["gene_colors"]).eq(merged.Color).all()
+    merged["MeanSilhouetteScore"] = merged.UpdatedMeanSilhouetteScore
+    s7_tables[panel] = merged[current.columns].copy()
+    s7_metadata[panel] = meta
+s7_colors = s7_metadata["a"]["gene_colors"]
+s7_reference_layout = json.loads((s7_input_dir / "reference_layout.json").read_text())
+
+
+# %%
+# Fixed publication crop, independent of the output being replaced.
+# Values are copied exactly from the verified pre-edit FigureS7.svg.
+s7_crop = [1.9200000525, 8.6400000487, 445.9162182421, 444.9033069513]
+s7_width_mm, s7_height_mm = 157.309328247, 156.951999068
+s7_bbox = Bbox.from_bounds(s7_crop[0] / 72,
+    160 / 25.4 - s7_crop[1] / 72 - s7_height_mm / 25.4,
+    s7_width_mm / 25.4, s7_height_mm / 25.4)
+if BUILD_FIGURE_S7:
+    s7_figure = plt.figure(figsize=(180 / 25.4, 160 / 25.4), dpi=150)
+    s7_artist_checks = []
+
+
+# %%
+if BUILD_FIGURE_S7:
+    # Panel a: 50 stored points per gene/platform, joined in their original order.
+    # Both panels use the same 55 mm columns, 8 mm gutter and legend column.
+    S7_COLUMN_X_MM, S7_COLUMN_WIDTH_MM = [18, 81], 55
+    S7_X_TITLE_CENTER_MM, S7_LEGEND_X_MM = 77, 144
+    s7a_layout = s7_reference_layout['s7']['a']
+    for platform, x in zip(s7a_layout['groups'], S7_COLUMN_X_MM):
+        axis = s7_axes(s7_figure, x, 12, S7_COLUMN_WIDTH_MM, 60)
+        platform_table = s7_tables['a'].loc[s7_tables['a']['Platform'].eq(platform)]
+        for gene in s7a_layout['legend_order']:
+            curve = platform_table.loc[platform_table['Gene'].eq(gene)]
+            if curve.empty:  # A shared gene legend covers both platform cohorts.
+                continue
+            assert curve['ClusterSize'].tolist() == list(range(10, 501, 10))
+            line, = axis.plot(curve['ClusterSize'], curve['MeanSilhouetteScore'],
+                              color=s7_colors[gene], linewidth=0.6)
+            line.set_gid(f'S7a-{platform}-{gene}')
+            np.testing.assert_array_equal(line.get_xydata(), curve[['ClusterSize', 'MeanSilhouetteScore']])
+            s7_artist_checks.append({'panel': 'a', 'group': platform, 'gene': gene, 'points': len(curve)})
+        axis.set(xlim=s7a_layout['limits']['x'], ylim=s7a_layout['limits']['y'])
+        axis.set_xticks(range(0, 501, 100))
+        axis.set_yticks(np.arange(0, 0.201, 0.05))
+        axis.set_title(platform, pad=4)
+        if platform == 'Long-reads':
+            axis.set_ylabel('Mean silhouette score of MiniBatchKMeans', labelpad=3)
+        s7_style(axis, hide_y=platform == 'Short-reads')
+        axis.grid(True, axis='x')
+    s7_text(s7_figure, S7_X_TITLE_CENTER_MM, 81, 'Number of clusters (k)', 'axis', ha='center')
+    s7_text(s7_figure, 3, 7, 'a', 'panel', weight='bold')
+
+# %%
+if BUILD_FIGURE_S7:
+    # One alphabetical legend, matching the reference's trace and color ordering.
+    s7_text(s7_figure, S7_LEGEND_X_MM, 12, 'Gene', 'legend_heading')
+    for row, gene in enumerate(s7a_layout['legend_order']):
+        top = 17.2 + row * 2.7
+        s7_figure.add_artist(Line2D(np.array([S7_LEGEND_X_MM, S7_LEGEND_X_MM + 3]) / 180,
+            [1 - top / 160] * 2, transform=s7_figure.transFigure,
+            color=s7_colors[gene], linewidth=0.6))
+        s7_text(s7_figure, S7_LEGEND_X_MM + 4.5, top, gene, 'legend', va='center')
+
+# %%
+if BUILD_FIGURE_S7:
+    # Panel b: connect the stored scores for 3–40 dissimilar clusters.
+    s7b_layout = s7_reference_layout['s7']['b']
+    for category, x in zip(s7b_layout['groups'], S7_COLUMN_X_MM):
+        axis = s7_axes(s7_figure, x, 100, S7_COLUMN_WIDTH_MM, 48)
+        for gene in s7b_layout['legend_order']:
+            points = s7_tables['b'].loc[s7_tables['b']['Dissimilarity'].eq(category)
+                                       & s7_tables['b']['Gene'].eq(gene)]
+            assert points['ClusterSize'].tolist() == list(range(3, 41))
+            line, = axis.plot(points['ClusterSize'], points['MeanSilhouetteScore'],
+                color=s7_colors[gene], linewidth=0.6, linestyle='-',
+                marker='o', markersize=1.8, markeredgewidth=0.25,
+                clip_on=False)  # Keep complete circles at the k=40 boundary.
+            line.set_gid(f'S7b-{category.replace(" ", "")}-{gene}')
+            np.testing.assert_array_equal(line.get_xydata(), points[['ClusterSize', 'MeanSilhouetteScore']])
+            s7_artist_checks.append({'panel': 'b', 'group': category, 'gene': gene, 'points': len(points)})
+        # Remove the reference's automatic X padding so 40 aligns with panel a's 500.
+        # PCLO / Grantham 100 / k=5 is 0.109803, above the old 0.105820 limit.
+        axis.set(xlim=(0, 40), ylim=(0, 0.12))
+        axis.set_xticks(range(0, 41, 10))
+        axis.set_yticks(np.arange(0, 0.121, 0.02))
+        axis.set_title(category, pad=4)
+        if category == 'Miyata':
+            axis.set_ylabel('Mean silhouette score of MiniBatchKMeans', labelpad=3)
+        s7_style(axis, hide_y=category == 'Grantham 100')
+        axis.grid(True, axis='x')
+    s7_text(s7_figure, 3, 87, 'b', 'panel', weight='bold')
+    s7_text(s7_figure, 18, 90, 'Long-reads', 'heading')
+    s7_text(s7_figure, S7_X_TITLE_CENTER_MM, 157, 'Number of dissimilar clusters (k)', 'axis', ha='center')
+    s7_text(s7_figure, S7_LEGEND_X_MM, 100, 'Gene', 'legend_heading')
+    for row, gene in enumerate(s7b_layout['legend_order']):
+        top = 105.2 + row * 2.7  # Same heading offset and item spacing as panel a.
+        s7_figure.add_artist(Line2D(np.array([S7_LEGEND_X_MM, S7_LEGEND_X_MM + 3]) / 180,
+            [1 - top / 160] * 2, transform=s7_figure.transFigure, linewidth=0.6,
+            marker='o', markersize=1.8, markeredgewidth=0.25,
+            color=s7_colors[gene], linestyle='-'))
+        s7_text(s7_figure, S7_LEGEND_X_MM + 4.5, top, gene, 'legend', va='center')
+
+# %%
+# Verify every plotted value, original axes, and text inside the fixed crop.
+if BUILD_FIGURE_S7:
+    assert sum(item["points"] for item in s7_artist_checks if item["panel"] == "a") == 1050
+    assert sum(item["points"] for item in s7_artist_checks if item["panel"] == "b") == 152
+    s7_figure.canvas.draw()
+    s7_renderer = s7_figure.canvas.get_renderer()
+    s7_text_checks = []
+    for artist in s7_figure.findobj(Text):
+        if not artist.get_visible() or not artist.get_text():
+            continue
+        bounds = artist.get_window_extent(s7_renderer).extents / s7_figure.dpi
+        assert artist.get_fontsize() in [6, 7] and artist.get_fontfamily() == ["Open Sans"]
+        assert bounds[0] >= s7_bbox.x0 and bounds[1] >= s7_bbox.y0, artist.get_text()
+        assert bounds[2] <= s7_bbox.x1 and bounds[3] <= s7_bbox.y1, artist.get_text()
+        s7_text_checks.append({"text": artist.get_text(), "bounds_inches": bounds.tolist(), "size_pt": artist.get_fontsize()})
+    for axis in s7_figure.axes:
+        assert not any(spine.get_visible() for spine in axis.spines.values())
+        for line in axis.lines:
+            assert np.asarray(line.get_ydata()).min() >= axis.get_ylim()[0]
+            assert np.asarray(line.get_ydata()).max() <= axis.get_ylim()[1]
+        for collection in axis.collections:
+            assert collection.get_offsets()[:, 1].min() >= axis.get_ylim()[0]
+            assert collection.get_offsets()[:, 1].max() <= axis.get_ylim()[1]
+    s7b_lines = [line for axis in s7_figure.axes for line in axis.lines
+                  if (line.get_gid() or "").startswith("S7b-")]
+    assert len(s7b_lines) == 4
+    assert all(line.get_linestyle() == "-" and line.get_marker() == "o" for line in s7b_lines)
+    s7_checks = {"traces": s7_artist_checks, "text": s7_text_checks,
+        "canvas_mm": [180, 160], "export_mm": [s7_width_mm, s7_height_mm],
+        "crop_original_viewbox": s7_crop, "all_1202_plotted_values_exact": True,
+        "panel_b_lines_and_markers": True,
+        "clustering_rerun": False, "axes": [{"xlim": list(ax.get_xlim()), "ylim": list(ax.get_ylim()),
+            "position": list(ax.get_position().bounds)} for ax in s7_figure.axes]}
+
+
+# %%
+# Replace the canonical S7 exports; the pre-edit files have a verified backup.
+if BUILD_FIGURE_S7:
+    s7_stem = "FigureS7"
+    s7_outputs = []
+    for folder, extension in [("svg", "svg"), ("pdf", "pdf"), ("previews", "png")]:
+        path = s7_final_dir / folder / f"{s7_stem}.{extension}"
+        s7_figure.savefig(path, format=extension, dpi=600,
+            bbox_inches=s7_bbox, pad_inches=0)
+        s7_outputs.append({"Figure": s7_stem, "Path": str(path), "Format": extension,
+            "SHA256": hashlib.sha256(path.read_bytes()).hexdigest(), "Bytes": path.stat().st_size,
+            "WidthMM": s7_width_mm, "HeightMM": s7_height_mm,
+            "PNG_DPI": 600 if extension == "png" else "vector"})
+    (s7_work / "FigureS7.manifest.json").write_text(
+        json.dumps({"outputs": s7_outputs, "checks": s7_checks}, indent=2) + "\n")
+    print("Written:\n" + "\n".join(row["Path"] for row in s7_outputs))
+
+
+# %%
+# Update only S7 in the publication catalogs; retain all other rows verbatim.
+if BUILD_FIGURE_S7:
+    from PIL import Image as PILImage
+    with PILImage.open(s7_final_dir / "previews/FigureS7.png") as image:
+        s7_pixel_width, s7_pixel_height = image.size
+        assert all(abs(dpi - 600) < 0.01 for dpi in image.info["dpi"])
+    s7_catalog_updates = {
+        "Width_cm": f"{s7_width_mm / 10:.6f}", "Height_cm": f"{s7_height_mm / 10:.6f}",
+        "Pixel_width": str(s7_pixel_width), "Pixel_height": str(s7_pixel_height),
+        "Effective_DPI_x": f"{s7_pixel_width / (s7_width_mm / 25.4):.6f}",
+        "Effective_DPI_y": f"{s7_pixel_height / (s7_height_mm / 25.4):.6f}",
+        "Vector_source": "final_figures/pdf/FigureS7.pdf",
+        "Change": "Corrected saved silhouette scores; S7b lines and markers; fixed publication crop",
+        "Status": "complete; native-size vector PDF/SVG and 600 DPI PNG"}
+    for row in s7_outputs:
+        s7_catalog_updates[row["Format"].upper() + "_bytes"] = str(row["Bytes"])
+    for filename in ["index.tsv", "dimensions_cm.tsv"]:
+        path = s7_final_dir / filename
+        lines = path.read_text().splitlines(keepends=True)
+        columns = lines[0].rstrip("\n").split("\t")
+        matches = [i for i, line in enumerate(lines[1:], 1) if line.split("\t")[0] == "FigureS7"]
+        assert len(matches) == 1 and set(s7_catalog_updates) <= set(columns)
+        row = dict(zip(columns, lines[matches[0]].rstrip("\n").split("\t"), strict=True))
+        row.update(s7_catalog_updates)
+        lines[matches[0]] = "\t".join(row[column] for column in columns) + "\n"
+        path.write_text("".join(lines))
+    print("S7 catalog entries updated; all other figure rows preserved.")
+

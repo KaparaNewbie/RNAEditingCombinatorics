@@ -21521,3 +21521,284 @@ fig.write_image(
 
 fig.show()
 
+
+# %% [markdown]
+# ## Diagnostic: exact PacBio3 and PacBio1 PCLO read-stage reconciliation (2026-11-09)
+#
+# Run this isolated diagnostic from the notebook directory. The upstream PacBio3
+# per-replicate inputs also belong to `additional_umi_long_reads_2b.ipynb`. All inputs
+# are saved native BAM/position/read files; no alignment, pileup, graph optimization
+# or expression reassignment is rerun. Raw CCS is a sample-level population shared
+# across target genes, not a separately observed gene-specific raw count.
+#
+# Stage counts are unique original read IDs; BAM record counts are retained separately.
+# The final matrix is defined by membership at any retained CDS & Edited & ~InProbRegion
+# position, which may include uninformative calls. Exclusion diagnostics distinguish
+# raw BAM quality from mpileup's possibly BAQ-adjusted quality and report unresolved
+# filtering explicitly rather than attributing it to a guessed mechanism.
+
+# %%
+from pathlib import Path
+import sys, json
+import numpy as np
+import pandas as pd
+revision_dir = Path.cwd() / 'RevisionFisherBY_2026-11-09'
+assert revision_dir.is_dir(), 'Run from Code/Notebooks'
+sys.path.insert(0, str(revision_dir))
+from revision_support import source
+from read_diagnostics import alignment_metadata, saved_position_sets, excluded_read_evidence
+project_root = Path.cwd().parents[1]
+pacbio3_raw_dir = project_root / 'D.pealeii/Data/AdditionalRawWithUMIs/CCS'
+pacbio3_alignment_dir = project_root / 'D.pealeii/Alignment/AdditionalUMILongReads'
+pacbio3_native_dir = project_root / 'D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads'
+stage_rows, stage_changes, stage_headers, excluded_tables = [], [], {}, []
+raw_by_sample, mapped_by_sample, sample_by_read = {}, {}, {}
+for sample in ['JR1', 'JR2', 'JR3']:
+    raw_path = pacbio3_raw_dir / f'{sample}.r841072252411_C01.hifireads.bam'
+    raw, stage_headers[f'{sample}.raw'] = alignment_metadata(raw_path)
+    mapped, stage_headers[f'{sample}.mapped'] = alignment_metadata(pacbio3_alignment_dir / f'{sample}.aligned.sorted.bam')
+    assert raw.Read.is_unique and set(mapped.Read) <= set(raw.Read)
+    assert set(raw.Read).isdisjoint(sample_by_read)
+    sample_by_read.update(dict.fromkeys(raw.Read, sample))
+    raw_by_sample[sample], mapped_by_sample[sample] = raw, mapped
+
+# %%
+# Declare the native inputs and ORF coordinates from the original producer notebooks.
+read_stage_cohorts = [
+    ('PacBio3', 'GRIA2', 'comp141693_c0_seq1', 170, 2999),
+    ('PacBio3', 'ADAR1', 'comp134400_c0_seq1_extended', 0, 3741),
+    ('PacBio3', 'IQEC1', 'comp141565_c6_seq3', 988, 4195),
+    ('PacBio1', 'PCLO', 'comp141882_c0_seq14', 0, 6294),
+]
+stage_native = {}
+for dataset, gene, chrom, orf_start, orf_end in read_stage_cohorts:
+    if dataset == 'PacBio3':
+        prefix = pacbio3_native_dir / f'{chrom}.merged.MinRQ998'
+    else:
+        prefix = project_root / 'D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.C0x1291.aligned.sorted.MinRQ998'
+    mapping = pd.read_table(source(str(prefix) + '.OldToNewReads.csv.gz'), dtype=str, keep_default_na=False).set_index('NewRead')
+    assert mapping.index.is_unique and mapping.OldRead.is_unique
+    pileup, selected, positions = saved_position_sets(str(prefix) + '.positions.csv.gz')
+    final = pd.read_table(source(str(prefix) + '.reads.csv.gz'), usecols=['Read'], dtype=str, keep_default_na=False)
+    assert final.Read.is_unique and set(final.Read) == selected and selected <= pileup <= set(mapping.index)
+    for suffix in ['unique_reads', 'unique_proteins']:
+        support = pd.read_table(source(str(prefix) + '.' + suffix + '.csv.gz'), usecols=['Reads', 'NumOfReads'], dtype={'Reads': str})
+        ids = support.Reads.str.split(',').explode()
+        np.testing.assert_array_equal(support.Reads.str.count(',') + 1, support.NumOfReads)
+        assert ids.is_unique and set(ids) == selected
+    filtered, stage_headers[f'{dataset}.{gene}.filtered'] = alignment_metadata(str(prefix) + '.bam')
+    stage_native[(dataset, gene)] = dict(prefix=prefix, mapping=mapping, positions=positions, filtered=filtered,
+        name_map=set(mapping.OldRead), pileup=set(mapping.loc[sorted(pileup), 'OldRead']),
+        final=set(mapping.loc[sorted(selected), 'OldRead']))
+
+# %%
+# Reconcile exact sets at every transition; save gained/lost IDs, not just differences.
+for dataset, gene, chrom, orf_start, orf_end in read_stage_cohorts:
+    native = stage_native[(dataset, gene)]
+    samples = ['JR1', 'JR2', 'JR3'] if dataset == 'PacBio3' else ['PacBio1']
+    for sample in samples:
+        if dataset == 'PacBio3':
+            raw, mapped = raw_by_sample[sample], mapped_by_sample[sample]
+            by_chrom, stage_headers[f'{sample}.{gene}.by_chrom'] = alignment_metadata(
+                pacbio3_alignment_dir / 'ByChrom' / chrom / f'{sample}.aligned.sorted.{chrom}.bam')
+            assert set(by_chrom.Read) == set(mapped.loc[mapped.Reference.eq(chrom), 'Read'])
+        else:
+            raw, stage_headers['PacBio1.PCLO.raw'] = alignment_metadata(project_root / 'D.pealeii/Data/CCS/BasicCCS/PCLO-CNS-RESUB.C0x1291.ccs.bam')
+            mapped, stage_headers['PacBio1.PCLO.mapped'] = alignment_metadata(project_root / 'D.pealeii/Alignment/BestN1/PCLO-CNS-RESUB.C0x1291.aligned.sorted.bam')
+        raw_ids = set(raw.Read)
+        primary = mapped.loc[mapped.Mapped & mapped.Primary & mapped.Reference.eq(chrom)]
+        filtered = native['filtered'].loc[native['filtered'].Read.isin(raw_ids)]
+        primary_filtered = filtered.loc[filtered.Mapped & filtered.Primary & filtered.Reference.eq(chrom)]
+        expected = set(primary.loc[primary.RQ.ge(.998), 'Read'])
+        assert set(primary_filtered.Read) == expected
+        overlapping = primary_filtered.loc[primary_filtered.Start0.lt(orf_end) & primary_filtered.End0.gt(orf_start)]
+        stages = {'RawCCS_sample_level': raw_ids, 'MappedAllReferences': set(mapped.loc[mapped.Mapped, 'Read']),
+            'MappedTarget': set(mapped.loc[mapped.Mapped & mapped.Reference.eq(chrom), 'Read']),
+            'PrimaryMappedTarget': set(primary.Read), 'FilteredPrimaryTarget_RQ998': set(primary_filtered.Read),
+            'FilteredPrimaryORFOverlap': set(overlapping.Read), 'RawPileupNameMap': native['name_map'] & raw_ids,
+            'SavedPileupPositions': native['pileup'] & raw_ids, 'FinalReadMatrix': native['final'] & raw_ids,
+            'UniqueRNAAndProteinSupport': native['final'] & raw_ids}
+        previous_name, previous = None, None
+        for name, ids in stages.items():
+            gained, lost = (set(), set()) if previous is None else (ids - previous, previous - ids)
+            stage_rows.append({'Dataset': dataset, 'Gene': gene, 'Replicate': sample, 'Stage': name,
+                'UniqueReadIDs': len(ids), 'PreviousStage': previous_name, 'Gained': len(gained), 'Lost': len(lost),
+                'SourcePrefix': str(native['prefix']), 'SourceNotebook': 'squids_pacbio_5.additional_UMIs.MergedSamples.ipynb'})
+            stage_changes.extend({'Dataset': dataset, 'Gene': gene, 'Replicate': sample, 'FromStage': previous_name,
+                'ToStage': name, 'Change': direction, 'Read': read} for direction, values in [('Lost', lost), ('Gained', gained)] for read in sorted(values))
+            previous_name, previous = name, ids
+
+# %%
+# Prove per-read coverage of selected editing sites for every pileup-to-matrix loss.
+for dataset, gene, chrom, orf_start, orf_end in read_stage_cohorts:
+    native = stage_native[(dataset, gene)]
+    lost_ids = native['pileup'] - native['final']
+    coordinates = native['positions'].loc[native['positions'].SelectedForReadMatrix, 'Position']
+    evidence = excluded_read_evidence(str(native['prefix']) + '.bam', lost_ids, coordinates)
+    if len(evidence):
+        evidence['Dataset'], evidence['Gene'] = dataset, gene
+        evidence['Replicate'] = evidence.Read.map(sample_by_read) if dataset == 'PacBio3' else 'PacBio1'
+        assert evidence.Replicate.notna().all()
+        evidence['SavedSelectedSiteMembership'] = 0
+        evidence['SourceNotebook'] = 'squids_pacbio_5.additional_UMIs.MergedSamples.ipynb'
+        excluded_tables.append(evidence)
+    native['positions'].to_csv(revision_dir / f'{dataset}.{gene}.stage_positions.tsv', sep='	', index=False)
+read_stage_summary = pd.DataFrame(stage_rows)
+read_stage_summary.to_csv(revision_dir / 'pacbio3_read_stage_reconciliation.tsv', sep='	', index=False)
+pd.DataFrame(stage_changes).to_csv(revision_dir / 'read_stage_changed_ids.tsv.gz', sep='	', index=False)
+pd.concat(excluded_tables, ignore_index=True).fillna(0).to_csv(revision_dir / 'read_stage_exclusion_evidence.tsv', sep='	', index=False)
+(revision_dir / 'read_stage_bam_headers.json').write_text(json.dumps(stage_headers, indent=2) + '\n')
+display(read_stage_summary.loc[read_stage_summary.Stage.isin(['SavedPileupPositions', 'FinalReadMatrix']),
+    ['Dataset', 'Gene', 'Replicate', 'Stage', 'UniqueReadIDs', 'Lost']])
+
+# %% [markdown]
+# ### Diagnostic: resolve base-quality filtering in lost reads (2026-11-09)
+#
+# Run after the read-stage diagnostic. Recompute BAQ only on the saved reads lost at
+# the relevant transitions, using samtools calmd -Abr and the original indexed
+# reference. This does not regenerate pileups or rerun the sequencing pipeline.
+# The original PacBio3 command records disable_baq=False and min_bq=30.
+# Retain original qualities, BAQ-adjusted qualities and counts at the exact sites.
+
+# %%
+from pathlib import Path
+import sys, subprocess, json
+import pandas as pd
+import pysam
+revision_dir = Path.cwd() / 'RevisionFisherBY_2026-11-09'
+assert revision_dir.is_dir()
+sys.path.insert(0, str(revision_dir))
+from revision_support import source
+from read_diagnostics import excluded_read_evidence
+root = Path.cwd().parents[1]
+samtools = Path(sys.prefix) / 'bin/samtools'
+assert samtools.is_file()
+changes = pd.read_table(source(revision_dir / 'read_stage_changed_ids.tsv.gz'))
+stage_summary = pd.read_table(source(revision_dir / 'pacbio3_read_stage_reconciliation.tsv'))
+relevant = changes.loc[changes.Change.eq('Lost') & changes.ToStage.isin(
+    ['RawPileupNameMap', 'SavedPileupPositions', 'FinalReadMatrix'])].copy()
+baq_dir = revision_dir / 'baq_diagnostics'
+baq_dir.mkdir(exist_ok=True)
+baq_results, baq_commands = [], []
+
+# %%
+# Make small diagnostic BAM copies; apply the same default BAQ algorithm to each read.
+for (dataset, gene), lost in relevant.groupby(['Dataset', 'Gene'], sort=False):
+    native_prefix = stage_summary.loc[stage_summary.Dataset.eq(dataset) & stage_summary.Gene.eq(gene), 'SourcePrefix'].unique()
+    assert len(native_prefix) == 1
+    bam_path = Path(native_prefix[0] + '.bam')
+    reference = root / ('D.pealeii/Annotations/Jan2025/orfs_squ.fa' if dataset == 'PacBio3' else 'D.pealeii/Annotations/orfs_squ.fa')
+    assert Path(str(reference) + '.fai').is_file(), 'Reference index must already exist'
+    source(reference)
+    raw_subset = baq_dir / f'{dataset}.{gene}.original.bam'
+    adjusted_subset = baq_dir / f'{dataset}.{gene}.BAQ.bam'
+    ids, written = set(lost.Read), set()
+    with pysam.AlignmentFile(source(bam_path), 'rb') as native:
+        with pysam.AlignmentFile(raw_subset, 'wb', header=native.header) as subset:
+            for read in native.fetch(until_eof=True):
+                if read.query_name in ids and not (read.is_secondary or read.is_supplementary):
+                    subset.write(read)
+                    assert read.query_name not in written
+                    written.add(read.query_name)
+    assert written == ids
+    command = [str(samtools), 'calmd', '-Abr', str(raw_subset), str(reference)]
+    with adjusted_subset.open('wb') as output, (baq_dir / f'{dataset}.{gene}.log').open('w') as errors:
+        subprocess.run(command, stdout=output, stderr=errors, check=True, timeout=300)
+    baq_commands.append(command)
+    positions = pd.read_table(source(revision_dir / f'{dataset}.{gene}.stage_positions.tsv'))
+    for transition, group in lost.groupby('ToStage', sort=False):
+        if transition == 'FinalReadMatrix':
+            coordinates = positions.loc[positions.SelectedForReadMatrix, 'Position']
+        elif transition == 'SavedPileupPositions':
+            coordinates = positions.Position
+        else:
+            start, end = {'GRIA2': (170, 2999), 'ADAR1': (0, 3741), 'IQEC1': (988, 4195), 'PCLO': (0, 6294)}[gene]
+            coordinates = range(start, end)
+        original = excluded_read_evidence(raw_subset, set(group.Read), coordinates)
+        adjusted = excluded_read_evidence(adjusted_subset, set(group.Read), coordinates)
+        adjusted = adjusted[['Read', 'SelectedSitesRawQ30', 'SelectedCoordinatesRawQ30']].rename(columns={
+            'SelectedSitesRawQ30': 'SelectedSitesBAQ30', 'SelectedCoordinatesRawQ30': 'SelectedCoordinatesBAQ30'})
+        evidence = original.merge(adjusted, on='Read', validate='one_to_one')
+        evidence['Dataset'], evidence['Gene'], evidence['ToStage'] = dataset, gene, transition
+        evidence = evidence.merge(group[['Read', 'Replicate']], on='Read', validate='one_to_one')
+        baq_only = evidence.SelectedSitesRawQ30.gt(0) & evidence.SelectedSitesBAQ30.eq(0)
+        evidence.loc[baq_only, 'ExclusionReason'] = 'BAQ lowers every otherwise qualifying base below Q30'
+        baq_results.append(evidence)
+
+# %%
+baq_evidence = pd.concat(baq_results, ignore_index=True)
+baq_evidence['SourceNotebook'] = 'squids_pacbio_5.additional_UMIs.MergedSamples.ipynb'
+baq_evidence.to_csv(revision_dir / 'read_stage_BAQ_evidence.tsv', sep='\t', index=False)
+(revision_dir / 'baq_commands.json').write_text(json.dumps(baq_commands, indent=2) + '\n')
+baq_summary = baq_evidence.groupby(['Dataset', 'Gene', 'Replicate', 'ToStage', 'ExclusionReason'],
+    sort=False).size().reset_index(name='Reads')
+baq_summary.to_csv(revision_dir / 'read_stage_exclusion_summary.tsv', sep='\t', index=False)
+display(baq_summary)
+
+# %% [markdown]
+# ### Diagnostic: current Table S3 count columns and unique RNA patterns (2026-11-09)
+#
+# Run after read-stage reconciliation. Read the confirmed current workbook without
+# editing it. Check the per-replicate and pooled mapped/pileup counts, and recover
+# unique RNA-pattern counts from native read IDs. Pooled distinct isoforms are the
+# saved maximum full-fraction graph solution, not the sum of replicate counts.
+
+# %%
+from pathlib import Path
+import sys
+import pandas as pd
+import openpyxl
+revision_dir = Path.cwd() / 'RevisionFisherBY_2026-11-09'
+sys.path.insert(0, str(revision_dir))
+from revision_support import source
+from read_diagnostics import alignment_metadata, literal_settings
+root = Path.cwd().parents[1]
+settings = literal_settings('squids_pacbio_5.additional_UMIs.MergedSamples', 'c8b1820c')
+workbook = openpyxl.load_workbook(source(root / 'review_inputs/9.11.2026/Supplementary_tables_12_revised_completed.xlsx'),
+                                 read_only=True, data_only=True)
+rows = list(workbook['Table S3'].values)
+s3 = pd.DataFrame(rows[1:], columns=rows[0]).iloc[:12].copy()
+s3['Gene'] = s3.Gene.ffill()
+stages = pd.read_table(source(revision_dir / 'pacbio3_read_stage_reconciliation.tsv'))
+s3_checks = []
+
+# %%
+for gene, chrom, start, end, graph_file in zip(settings['fixed_conditions'], settings['chroms'],
+        settings['starts'], settings['ends'], settings['distinct_unique_proteins_files']):
+    prefix = root / f'D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/{chrom}.merged.MinRQ998'
+    mapping = pd.read_table(source(str(prefix) + '.OldToNewReads.csv.gz'), dtype=str, keep_default_na=False).set_index('NewRead')
+    patterns = pd.read_table(source(str(prefix) + '.unique_reads.csv.gz'), usecols=['Transcript', 'Reads'], dtype=str)
+    by_sample, aligned_orf = {}, {}
+    for sample in ['JR1', 'JR2', 'JR3']:
+        bam = root / f'D.pealeii/Alignment/AdditionalUMILongReads/ByChrom/{chrom}/{sample}.aligned.sorted.{chrom}.bam'
+        records, _ = alignment_metadata(bam)
+        valid = records.Mapped & records.Primary
+        by_sample[sample] = set(records.loc[valid, 'Read'])
+        aligned_orf[sample] = records.loc[valid & records.Start0.lt(end) & records.End0.gt(start), 'Read'].nunique()
+    sample_by_old = {read: sample for sample, ids in by_sample.items() for read in ids}
+    assert sum(map(len, by_sample.values())) == len(sample_by_old)
+    sample_by_short = mapping.OldRead.map(sample_by_old).to_dict()
+    assert not mapping.OldRead.map(sample_by_old).isna().any()
+    pattern_samples = patterns.Reads.map(lambda text: {sample_by_short[read] for read in text.split(',')})
+    graph = pd.read_table(source(graph_file), usecols=['Fraction', 'NumUniqueSamples'])
+    maximum = int(graph.loc[graph.Fraction.eq(1), 'NumUniqueSamples'].max())
+    for replicate in [1, 2, 3, 'Pooled']:
+        samples = ['JR1', 'JR2', 'JR3'] if replicate == 'Pooled' else [f'JR{replicate}']
+        stage = stages.loc[stages.Dataset.eq('PacBio3') & stages.Gene.eq(gene) & stages.Replicate.isin(samples)]
+        counts = {'Aligned Reads (overlap ORF)': sum(aligned_orf[s] for s in samples),
+            'Num Of Filtered Mapped Reads': int(stage.loc[stage.Stage.eq('FilteredPrimaryTarget_RQ998'), 'UniqueReadIDs'].sum()),
+            'Filtered Aligned Reads (overlap ORF)': int(stage.loc[stage.Stage.eq('FilteredPrimaryORFOverlap'), 'UniqueReadIDs'].sum()),
+            'Reads retained for pileup analysis': int(stage.loc[stage.Stage.eq('SavedPileupPositions'), 'UniqueReadIDs'].sum()),
+            'Unique Reads (unique editing status)': int(pattern_samples.map(lambda observed: bool(observed & set(samples))).sum())}
+        if replicate == 'Pooled':
+            counts['Distinct encoded protein isoforms '] = maximum
+        current = s3.loc[s3.Gene.eq(gene) & s3.Replicate.astype(str).eq(str(replicate))]
+        assert len(current) == 1
+        for label, observed in counts.items():
+            expected = int(current.iloc[0][label])
+            s3_checks.append({'Gene': gene, 'Replicate': replicate, 'Column': label, 'WorkbookValue': expected,
+                'NativeValue': observed, 'Matches': expected == observed, 'SourcePrefix': str(prefix),
+                'SourceNotebook': 'squids_pacbio_5.additional_UMIs.MergedSamples.ipynb'})
+s3_count_checks = pd.DataFrame(s3_checks)
+s3_count_checks.to_csv(revision_dir / 'current_S3_count_verification.tsv', sep='\t', index=False)
+display(s3_count_checks.groupby(['Column'], sort=False).Matches.agg(['count', 'all']))
