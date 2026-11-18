@@ -811,11 +811,9 @@ if 'Figure4' in FIGURES_TO_BUILD:
 
 # %% [markdown] figure="Figure5"
 # ## Figure 5 — PCLO site dependencies and entropy
-# The original masked correlation/MI caches carry 144 PacBio and 45 Illumina
-# sites. Numeric site order is verified against the source helpers, pairwise
-# caches and original read headers. Four undefined PacBio MI values remain NA.
-# Entropy reuses the previously verified table. Heatmap cells are native vectors.
+# The original masked correlation/MI caches carry 144 PacBio and 45 Illumina sites. Numeric site order is verified against the source helpers, pairwise caches and original read headers. Four undefined PacBio MI values remain NA. Heatmap cells are native vectors.
 #
+# Panel c loads `figure_sources/figure5c_entropy.tsv`, produced by the canonical Shannon subsections in the PacBio and Illumina notebooks. Observed entropy uses selected-isoform assigned-expression probabilities; hypothetical entropy sums categorical AA entropies from informative original All reads, with a denominator per codon. The two empirical constructions do not define an exact total-correlation gap. Historical JSON supplies only gene order and colors.
 
 # %% figure="Figure5"
 if 'Figure5' in FIGURES_TO_BUILD:
@@ -828,14 +826,28 @@ if 'Figure5' in FIGURES_TO_BUILD:
     figure5_table, figure5_metadata = load_table('figure5_pclo_matrices')
     # Revised BY masks; MI and all original graphical metadata are preserved.
     figure5_table = pd.read_table(NOTEBOOK_DIR / 'RevisionFisherBY_2026-11-09/figure5_pclo_matrices.BY.tsv', float_precision='round_trip')
-    entropy_path = BATCH_DIR / 'inputs/squid_original_figure5c_entropy_plot.tsv'
-    entropy_metadata = json.loads(entropy_path.with_suffix('.json').read_text())
-    assert hashlib.sha256(entropy_path.read_bytes()).hexdigest() == entropy_metadata['sha256']
-    entropy_table = pd.read_table(entropy_path, float_precision='round_trip')
+    entropy_path = NOTEBOOK_DIR / 'figure_sources/figure5c_entropy.tsv'
+    entropy_source_metadata = json.loads(entropy_path.with_suffix('.json').read_text())
+    assert entropy_source_metadata['Complete'], 'Run both entropy producer notebooks first'
+    assert hashlib.sha256(entropy_path.read_bytes()).hexdigest() == entropy_source_metadata['TableSHA256']
+    entropy_cohort_path = NOTEBOOK_DIR / 'figure_sources/figure5c_cohorts.tsv'
+    assert hashlib.sha256(entropy_cohort_path.read_bytes()).hexdigest() == entropy_source_metadata['CohortManifestSHA256']
+    entropy_summary_df = pd.read_table(entropy_path, float_precision='round_trip')
+    assert entropy_summary_df.columns.tolist() == ['Platform', 'Gene', 'ObservedEntropyBits', 'HypotheticalEntropyBits']
+    assert len(entropy_summary_df) == 21 and not entropy_summary_df.duplicated(['Platform', 'Gene']).any()
+    assert np.isfinite(entropy_summary_df[['ObservedEntropyBits', 'HypotheticalEntropyBits']]).all().all()
+    # Historical metadata supplies layout/color only; no historical entropy values are loaded.
+    entropy_metadata = json.loads((BATCH_DIR / 'inputs/squid_original_figure5c_entropy_plot.json').read_text())
+    for platform, label in [('PacBio', 'Long-reads'), ('Illumina', 'Short-reads')]:
+        assert entropy_summary_df.loc[entropy_summary_df.Platform.eq(platform), 'Gene'].tolist() == entropy_metadata['gene_order'][label]
+    entropy_table = entropy_summary_df.rename(columns={
+        'ObservedEntropyBits': 'WeightedExpressionData', 'HypotheticalEntropyBits': 'Hypothetical'}).melt(
+        id_vars=['Platform', 'Gene'], var_name='EntropyName', value_name='EntropyValue')
+    entropy_table['Platform'] = entropy_table['Platform'].replace({'PacBio': 'Long-reads', 'Illumina': 'Short-reads'})
     assert len(entropy_table) == 42
+    figure5_output_dir = FINAL_FIGURES_DIR
     figure5 = plt.figure(figsize=np.array(BATCH_LAYOUT['Figure5']['canvas_mm']) / 25.4)
     figure5_cell_checks = []
-
 
 # %% figure="Figure5"
 if 'Figure5' in FIGURES_TO_BUILD:
@@ -943,9 +955,41 @@ if 'Figure5' in FIGURES_TO_BUILD:
         square_checks.append({'square': True, 'centered_diagonal': len(vertices) == 7,
                               'side_pt': float(np.ptp(square[:,0]) * 72 / figure5.dpi)})
     layout_checks = check_layout_spacing(figure5)
-    export_figure(figure5, 'Figure5', {'legend_center': figure5_legend_check, 'legend_squares': square_checks, 'layout_clearance':layout_checks, 'heatmaps': figure5_cell_checks, 'entropy_bars_exact': entropy_bars_checked,
-        'matrix_values_site_order_masks_and_reference_rgb_verified': True})
-
+    # Preserve the official physical crop and write the three normal Figure5 files.
+    from matplotlib.transforms import Bbox
+    from matplotlib.text import Text
+    from io import StringIO
+    import base64
+    import re
+    import subprocess
+    figure5_layout = json.loads((NOTEBOOK_DIR / 'figure_sources/figure5c_layout.json').read_text())
+    left_pt, top_pt, width_pt, height_pt = figure5_layout['ViewBoxPoints']
+    figure5_crop = Bbox.from_bounds(left_pt / 72, figure5.get_size_inches()[1] - (top_pt + height_pt) / 72,
+        figure5_layout['WidthMM'] / 25.4, figure5_layout['HeightMM'] / 25.4)
+    crop_bounds_mm = np.array(figure5_crop.extents) * 25.4
+    for text_artist in figure5.findobj(Text):
+        if text_artist.get_visible() and text_artist.get_text():
+            bounds_mm = text_artist.get_window_extent(figure5.canvas.get_renderer()).extents * 25.4 / figure5.dpi
+            assert (bounds_mm[:2] >= crop_bounds_mm[:2] - .02).all() and (bounds_mm[2:] <= crop_bounds_mm[2:] + .02).all(), text_artist.get_text()
+    for figure5_axis in figure5.axes:
+        for entropy_bar in figure5_axis.patches:
+            if (entropy_bar.get_gid() or '').startswith('Figure5-entropy-'):
+                assert 0 <= entropy_bar.get_height() <= figure5_axis.get_ylim()[1]
+    for folder in ['svg', 'pdf', 'previews']:
+        (figure5_output_dir / folder).mkdir(parents=True, exist_ok=True)
+    figure5_svg_buffer = StringIO()
+    figure5.savefig(figure5_svg_buffer, format='svg', metadata={'Creator': 'Combinatorics manuscript figures'})
+    figure5_svg = figure5_svg_buffer.getvalue()
+    figure5_font_css = ''
+    for font_name, font_weight in [('OpenSans-Regular.ttf', 400), ('OpenSans-Bold.ttf', 700)]:
+        font_data = base64.b64encode((BATCH_DIR / 'fonts' / font_name).read_bytes()).decode('ascii')
+        figure5_font_css += "@font-face{font-family:'Open Sans';font-weight:" + str(font_weight) + ";src:url(data:font/ttf;base64," + font_data + ") format('truetype');}"
+    figure5_svg = re.sub(r'<svg\b[^>]*>', lambda match: figure5_layout['SVGHeader'] + '<defs><style>' + figure5_font_css + '</style></defs>', figure5_svg, count=1)
+    (figure5_output_dir / 'svg/Figure5.svg').write_text(figure5_svg)
+    figure5.savefig(figure5_output_dir / 'pdf/Figure5.pdf', bbox_inches=figure5_crop, pad_inches=0,
+        metadata={'Creator': 'Combinatorics manuscript figures'})
+    subprocess.run(['pdftoppm', '-r', '600', '-singlefile', '-png',
+        str(figure5_output_dir / 'pdf/Figure5.pdf'), str(figure5_output_dir / 'previews/Figure5')], check=True, timeout=120)
 
 # %% [markdown] figure="Figure6"
 # ## Figure 6 — octopus transcriptome and single-cell distributions
@@ -3055,14 +3099,23 @@ from word_export import refresh_final_collection
 word_export_plan = json.loads((WORD_LAYOUT_DIR / 'inputs/export_plan.json').read_text())
 assert word_export_plan['safe_margin_mm'] == 2.3
 assert word_export_plan['physical_scale'] == 1.0
-final_figure_index = refresh_final_collection(word_export_plan)
+# Preserve canonical Figure5 if the legacy all-figure refresh copies historical artwork.
+figure5_current_artwork = {
+    FINAL_FIGURES_DIR / folder / f"Figure5.{extension}":
+        (FINAL_FIGURES_DIR / folder / f"Figure5.{extension}").read_bytes()
+    for folder, extension in [("svg", "svg"), ("pdf", "pdf"), ("previews", "png")]
+}
+try:
+    final_figure_index = refresh_final_collection(word_export_plan)
+finally:
+    for figure5_path, figure5_contents in figure5_current_artwork.items():
+        figure5_path.write_bytes(figure5_contents)
 display(final_figure_index[['Figure','Width_cm','Height_cm','Pixel_width','Pixel_height','Status']])
 
 # Crop translation is (-left, -top); the physical content scale stays exactly 1.
 crop_transformations = final_figure_index[['Figure','Crop_left_mm','Crop_top_mm',
     'Crop_right_mm','Crop_bottom_mm','Content_scale']]
 display(crop_transformations)
-
 
 # %% [markdown]
 # ## Fisher/BY revision: assemble results, S4 and affected figures (2026-11-09)

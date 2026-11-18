@@ -10197,307 +10197,196 @@ fig.write_image(
 fig.show()
 
 # %% [markdown]
-# ##### Shannon's entropy - updated
+# ##### Shannon's entropy - updated - 2
 #
-# Observed entropy retains the selected full protein isoforms and their existing expression weights. The updated hypothetical entropy sums multi-state amino-acid entropies from original reads, counting their original multiplicities. Only a single definite AA under the existing A/G translation model is informative at a codon; ambiguous states are excluded without imputation. Each codon has its own informative-read denominator. This subsection runs independently in combinatorics2 and writes only new comparison products.
+# Use the tables already loaded in this notebook: `proteins_dfs` for All reads and `assignment_dfs` for the selected isoforms' assigned expression. This calculation does not read files or modify these input tables.
 #
+# Prerequisites: the configuration (`15476213`, including `shortened_conditions`), protein loader (`48af6b84`), distinct-solution table (`614b39fa`, `distinct_unique_proteins_df`), expression loader (`3315d242-59d2-46d8-a357-6135580134dd`), selected solutions (`44188eea-3709-4c3a-9502-8f7a7fe0cdc2`, `maximal_solutions`), and selected expression tables (`fa844ec8-e291-4d09-8dca-777bf8ad0b97`, `assignment_dfs`). In a fresh kernel, initialize those existing upstream cells and their prerequisites first; this section does not load missing inputs automatically.
+#
+# **All reads hypothetical:** each protein-table row represents a unique RNA pattern, weighted by its original `NumOfReads`. Keep a single definite AA, including stop; exclude multi-AA/missing states only at that codon. Sum categorical AA entropies over all modeled codons, including invariant codons.
+#
+# **Observed:** normalize the selected distinct isoforms' `TotalWeightedSupportingReads`, including eligible reassigned support. These probabilities and the All-reads marginals describe different empirical constructions; their entropy difference is not exact total correlation.
+#
+# `NumOfReadsPerAAInCodon` counts reads with one particular AA; `TotalNumOfInformativeReadsInCodon` counts reads with any definite AA at that codon; `AAFrequencyPerCodon` is their ratio.
+#
+# Stop at `entropy_summary_df` to inspect the calculation without file I/O. The separate final export cell reads the small existing figure-source table and its metadata, then updates the Illumina rows in `figure_sources/figure5c_entropy.tsv`. Run the PacBio and Illumina exports sequentially; the final-figure notebook requires all 21 cohorts.
+#
+# Earlier diagnostic evidence remains archived under `entropy_audit_2026-11-12/`; it is not a calculation dependency. The saved summary below predates this in-memory correction and has not been rerun.
 
 # %%
-# Exact Fig. 5c cohorts; independent of the notebook's live variables.
-import sys
-import json
-from pathlib import Path
+# Use the existing notebook tables in their established gene order.
 import numpy as np
 import pandas as pd
-
-assert Path(sys.prefix).name == "combinatorics2"
-entropy_update_dir = Path("/private6/projects/Combinatorics/Code/Notebooks/entropy_audit_2026-11-12/updated_entropy_and_s7_comparison_2026-11-16")
-entropy_notebook_dir = Path("/private6/projects/Combinatorics/Code/Notebooks")
-if str(entropy_update_dir) not in sys.path:
-    sys.path.insert(0, str(entropy_update_dir))
-from entropy_support import verified_read_amino_acid_counts, file_sha256, AMINO_ACIDS
 
 entropy_platform = "Illumina"
-entropy_cohorts = [c for c in json.loads((entropy_update_dir / "cohort_sources.json").read_text())
-                   if c["Platform"] == entropy_platform]
-entropy_original_figure = pd.read_table(
-    entropy_notebook_dir / "figure_rebuild_work/correction_2026-10-12/inputs/squid_original_figure5c_entropy_plot.tsv",
-    float_precision="round_trip")
-entropy_figure_platform = {"PacBio": "Long-reads", "Illumina": "Short-reads"}[entropy_platform]
-entropy_original_figure = entropy_original_figure.loc[
-    entropy_original_figure.Platform.eq(entropy_figure_platform)]
-assert entropy_original_figure.Gene.drop_duplicates().tolist() == [c["Gene"] for c in entropy_cohorts]
+definite_amino_acids = list("ACDEFGHIKLMNPQRSTVWY*")
+assert shortened_conditions == [
+    "RUSC2", "TRIM2", "CA2D3", "ABL", "DGLA", "K0513", "KCNAS", "ACHA4", "ANR17",
+    "TWK7", "SCN1", "CACB2", "RIMS2", "PCLO", "DOP1", "IQEC1", "CSKI1", "MTUS2", "ROBO2",
+]
+assert len(proteins_dfs) == len(assignment_dfs) == len(shortened_conditions)
 
-
-# %%
-# Preserve selected protein identities, expression weights and the old comparison.
-entropy_observed_records = []
-for cohort in entropy_cohorts:
-    assert file_sha256(cohort["CanonicalAssignment"]) == cohort["Binding"]["canonical_sha256"]
-    assignment = pd.read_table(cohort["CanonicalAssignment"], dtype={"Protein": str, "#Solution": str},
-                               float_precision="round_trip")
-    assert assignment.Protein.is_unique and len(assignment) == cohort["ExpectedRows"]
-    assert assignment[list(cohort["Binding"]["parameters"])].drop_duplicates().to_dict("records") == [cohort["Binding"]["parameters"]]
-    probability = assignment["%RelativeExpression"] / 100
-    assert np.isfinite(probability).all() and probability.ge(0).all()
-    np.testing.assert_allclose(probability.sum(), 1.0, rtol=0, atol=1e-12)
-    positive_probability = probability.loc[probability.gt(0)]
-    observed_entropy = sum(-positive_probability * np.log2(positive_probability))
-    assert file_sha256(cohort["LegacyMatrix"]) == cohort["LegacyMatrixSHA256"]
-    with np.load(cohort["LegacyMatrix"], allow_pickle=False) as legacy:
-        np.testing.assert_array_equal(legacy["Protein"], assignment.Protein.to_numpy())
-        np.testing.assert_allclose(legacy["probability"], probability, rtol=0, atol=1e-15)
-        legacy_marginals = pd.DataFrame(legacy["nonimputed"]).apply(np.mean)
-    assert legacy_marginals.gt(0).all() and legacy_marginals.lt(1).all()
-    old_hypothetical = sum(-legacy_marginals * np.log2(legacy_marginals)
-                          - (1 - legacy_marginals) * np.log2(1 - legacy_marginals))
-    original = entropy_original_figure.loc[entropy_original_figure.Gene.eq(cohort["Gene"])].set_index("EntropyName").EntropyValue
-    np.testing.assert_allclose(observed_entropy, original["WeightedExpressionData"], rtol=0, atol=1e-12)
-    np.testing.assert_allclose(old_hypothetical, original["Hypothetical"], rtol=0, atol=1e-12)
-    entropy_observed_records.append({"Platform": entropy_platform, "Gene": cohort["Gene"],
-        "SelectedSolution": cohort["Solution"], "SelectedIsoforms": len(assignment),
-        "ProbabilitySum": float(probability.sum()), "ObservedEntropyBits": observed_entropy,
-        "AssignedOriginalReadMass": float(assignment.TotalWeightedSupportingReads.sum()),
-        "CurrentObservedEntropyBits": original["WeightedExpressionData"],
-        "OldHypotheticalEntropyBits": old_hypothetical,
-        "CurrentOldHypotheticalEntropyBits": original["Hypothetical"],
-        "ObservedReproductionDifferenceBits": observed_entropy - original["WeightedExpressionData"],
-        "OldHypotheticalReproductionDifferenceBits": old_hypothetical - original["Hypothetical"]})
-entropy_observed = pd.DataFrame(entropy_observed_records)
-
+for source_gene_name, gene_proteins_df in zip(conditions, proteins_dfs, strict=True):
+    assert gene_proteins_df["Gene"].eq(source_gene_name).all()
+    assert gene_proteins_df["UniqueRead"].is_unique
+    assert np.isfinite(gene_proteins_df["NumOfReads"]).all()
+    assert gene_proteins_df["NumOfReads"].gt(0).all()
 
 # %%
-# Count original read multiplicities; verify every AA state before excluding ambiguity.
-entropy_state_tables, entropy_read_provenance, entropy_codon_order = [], {}, []
-for cohort in entropy_cohorts:
-    state_counts, read_provenance = verified_read_amino_acid_counts(cohort)
-    # Expression reassignment filters low-information unchosen proteins (expressionlevels.jl:825).
-    # The requested hypothetical uses original reads, not that assignment-filtered subset.
-    assigned_mass = cohort["Binding"]["support_totals"]["TotalWeightedSupportingReads"]
-    assert read_provenance["UniqueReads"]["OriginalReads"] >= assigned_mass - 1e-6
-    read_provenance["AssignedOriginalReadMass"] = assigned_mass
-    read_provenance["OriginalReadsOutsideExpressionAssignment"] = (
-        read_provenance["UniqueReads"]["OriginalReads"] - round(assigned_mass))
-    state_counts.insert(0, "Gene", cohort["Gene"])
-    state_counts.insert(0, "Platform", entropy_platform)
-    entropy_state_tables.append(state_counts)
-    entropy_read_provenance[cohort["Gene"]] = read_provenance
-    entropy_codon_order.extend({"Platform": entropy_platform, "Gene": cohort["Gene"],
-        "Codon": codon, "CodonIndex": i, "ReferenceAA": codon.split("(")[1][0]}
-        for i, codon in enumerate(read_provenance["Codons"]))
-    print(f"{entropy_platform} {cohort['Gene']}: {read_provenance['UniqueReads']['OriginalReads']} original reads; AA-state counts reconciled.")
-entropy_read_states = pd.concat(entropy_state_tables, ignore_index=True)
-entropy_site_keys = ["Platform", "Gene", "Codon"]
+# All reads: count definite AAs using original read multiplicities.
+amino_acid_count_tables = []
+for gene_name, gene_proteins_df in zip(shortened_conditions, proteins_dfs, strict=True):
+    codon_cols = gene_proteins_df.columns[
+        gene_proteins_df.columns.str.fullmatch(r"\d+:\d+\([A-Z*]\)")
+    ]
+    for codon_col in codon_cols:
+        informative_codon_rows = gene_proteins_df[codon_col].isin(definite_amino_acids)
+        amino_acid_counts_df = (
+            gene_proteins_df.loc[informative_codon_rows, [codon_col, "NumOfReads"]]
+            .groupby(codon_col, sort=False, observed=True)["NumOfReads"]
+            .sum()
+            .rename_axis("AA")
+            .reset_index(name="NumOfReadsPerAAInCodon")
+        )
+        assert not amino_acid_counts_df.empty
+        assert amino_acid_counts_df["NumOfReadsPerAAInCodon"].gt(0).all()
+        amino_acid_count_tables.append(amino_acid_counts_df.assign(Gene=gene_name, Codon=codon_col))
 
-
-# %%
-# One definite AA under the established A/G model is informative, including reference AA.
-# Multi-AA states receive no split mass and are excluded independently at each codon.
-entropy_informative = entropy_read_states.AAState.isin(AMINO_ACIDS)
-entropy_aa_frequencies = entropy_read_states.loc[entropy_informative].rename(columns={"AAState": "AA"}).copy()
-entropy_aa_frequencies["InformativeReads"] = entropy_aa_frequencies.groupby(
-    entropy_site_keys, sort=False).ReadCount.transform("sum")
-entropy_aa_frequencies["Frequency"] = (entropy_aa_frequencies.ReadCount
-                                       / entropy_aa_frequencies.InformativeReads)
-entropy_aa_frequencies["EntropyContributionBits"] = (
-    -entropy_aa_frequencies.Frequency * np.log2(entropy_aa_frequencies.Frequency))
-np.testing.assert_allclose(entropy_aa_frequencies.groupby(entropy_site_keys).Frequency.sum(),
-                           1.0, rtol=0, atol=1e-12)
-assert np.isfinite(entropy_aa_frequencies.EntropyContributionBits).all()
-entropy_codon_values = entropy_aa_frequencies.groupby(entropy_site_keys, sort=False).agg(
-    InformativeReads=("ReadCount", "sum"), DefiniteAAStates=("AA", "size"),
-    CodonEntropyBits=("EntropyContributionBits", "sum")).reset_index()
-
+amino_acid_frequencies_df = pd.concat(amino_acid_count_tables, ignore_index=True)
+gene_codon_group_cols = ["Gene", "Codon"]
+amino_acid_frequencies_df["TotalNumOfInformativeReadsInCodon"] = (
+    amino_acid_frequencies_df.groupby(gene_codon_group_cols)["NumOfReadsPerAAInCodon"].transform("sum")
+)
+amino_acid_frequencies_df["AAFrequencyPerCodon"] = (
+    amino_acid_frequencies_df["NumOfReadsPerAAInCodon"]
+    / amino_acid_frequencies_df["TotalNumOfInformativeReadsInCodon"]
+)
+np.testing.assert_allclose(
+    amino_acid_frequencies_df.groupby(gene_codon_group_cols)["AAFrequencyPerCodon"].sum(),
+    1.0, rtol=0, atol=1e-12,
+)
+# Calculate categorical AA entropy per codon, including invariant codons.
+amino_acid_frequencies_df["AAEntropyContributionBits"] = (
+    -amino_acid_frequencies_df["AAFrequencyPerCodon"]
+    * np.log2(amino_acid_frequencies_df["AAFrequencyPerCodon"])
+)
+assert np.isfinite(amino_acid_frequencies_df["AAEntropyContributionBits"]).all()
+amino_acid_frequencies_df
 
 # %%
-# Keep every original modeled codon, including invariant codons with zero entropy.
-entropy_per_codon = pd.DataFrame(entropy_codon_order).merge(
-    entropy_codon_values, on=entropy_site_keys, how="left", validate="one_to_one")
-assert entropy_per_codon.InformativeReads.notna().all(), "A codon has no informative original reads"
-entropy_read_totals = entropy_read_states.groupby(entropy_site_keys, sort=False).ReadCount.sum().rename("TotalOriginalReads")
-entropy_per_codon = entropy_per_codon.merge(entropy_read_totals, on=entropy_site_keys, validate="one_to_one")
-entropy_per_codon["ExcludedAmbiguousOrMissingReads"] = (
-    entropy_per_codon.TotalOriginalReads - entropy_per_codon.InformativeReads)
-entropy_per_codon["InformativeReadFraction"] = (
-    entropy_per_codon.InformativeReads / entropy_per_codon.TotalOriginalReads)
-assert entropy_per_codon.ExcludedAmbiguousOrMissingReads.ge(0).all()
-assert entropy_per_codon.InformativeReads.gt(0).all()
-entropy_gene_totals = entropy_per_codon.groupby(["Platform", "Gene"], sort=False).agg(
-    UpdatedHypotheticalEntropyBits=("CodonEntropyBits", "sum"),
-    AnalyzedCodons=("Codon", "size"), OriginalReads=("TotalOriginalReads", "first"),
-    MinInformativeReadsPerCodon=("InformativeReads", "min"),
-    MaxInformativeReadsPerCodon=("InformativeReads", "max")).reset_index()
+per_codon_entropy_df = amino_acid_frequencies_df.groupby(gene_codon_group_cols, sort=False).agg(
+    TotalNumOfInformativeReadsInCodon=("NumOfReadsPerAAInCodon", "sum"),
+    CodonEntropyBits=("AAEntropyContributionBits", "sum"),
+).reset_index()
 
+total_original_reads_by_gene = pd.Series(
+    [gene_proteins_df["NumOfReads"].sum() for gene_proteins_df in proteins_dfs],
+    index=shortened_conditions,
+)
+per_codon_entropy_df["TotalNumOfOriginalReads"] = (
+    per_codon_entropy_df["Gene"].map(total_original_reads_by_gene)
+)
+assert per_codon_entropy_df.notna().all().all()
+assert per_codon_entropy_df["TotalNumOfInformativeReadsInCodon"].gt(0).all()
+assert per_codon_entropy_df["TotalNumOfInformativeReadsInCodon"].le(
+    per_codon_entropy_df["TotalNumOfOriginalReads"]
+).all()
 
-# %%
-# All 21 cohorts retain their original observed entropy definition and selected solutions.
-entropy_updated_per_gene = entropy_observed.merge(
-    entropy_gene_totals, on=["Platform", "Gene"], how="left", validate="one_to_one")
-assert len(entropy_updated_per_gene) == len(entropy_cohorts)
-assert entropy_updated_per_gene.UpdatedHypotheticalEntropyBits.notna().all()
-entropy_updated_per_gene["UpdatedMinusOldHypotheticalBits"] = (
-    entropy_updated_per_gene.UpdatedHypotheticalEntropyBits - entropy_updated_per_gene.OldHypotheticalEntropyBits)
-entropy_updated_per_gene["OriginalReadsOutsideExpressionAssignment"] = (
-    entropy_updated_per_gene.OriginalReads - entropy_updated_per_gene.AssignedOriginalReadMass.round().astype(int))
-print(entropy_updated_per_gene[["Platform", "Gene", "ObservedEntropyBits",
-    "OldHypotheticalEntropyBits", "UpdatedHypotheticalEntropyBits"]].to_string(index=False))
-
+per_codon_entropy_df
 
 # %%
-# New comparison products only; a repeated run verifies existing identical results.
-entropy_exports = {"entropy_updated_per_gene": entropy_updated_per_gene,
-    "entropy_updated_per_codon": entropy_per_codon,
-    "entropy_updated_aa_frequencies": entropy_aa_frequencies,
-    "entropy_original_read_state_counts": entropy_read_states}
-for name, table in entropy_exports.items():
-    path = entropy_update_dir / f"{name}.{entropy_platform}.tsv"
-    contents = table.to_csv(sep="\t", index=False)
-    if path.exists():
-        assert path.read_text() == contents, f"Changed analysis: select a new output directory before exporting {path}"
-    else:
-        with path.open("x") as handle:
-            handle.write(contents)
-path = entropy_update_dir / f"read_population_reconciliation.{entropy_platform}.json"
-if path.exists():
-    assert json.loads(path.read_text()) == entropy_read_provenance
-else:
-    with path.open("x") as handle:
-        json.dump(entropy_read_provenance, handle, indent=2)
-
-
-# %% [markdown]
-# ###### All reads and Originally-supporting reads
-#
-# All reads reuses the validated AA entropy above. Originally-supporting reads includes only the original read IDs of the exact selected proteins, before expression reassignment. Both use the same full codon set and definite-AA rule. A codon with no informative selected-protein reads has missing entropy, not zero. This extension runs independently in combinatorics2.
-#
+# Add codon entropies to obtain the All-reads hypothetical entropy per gene.
+hypothetical_entropy_df = per_codon_entropy_df.groupby("Gene", sort=False).agg(
+    HypotheticalEntropyBits=("CodonEntropyBits", "sum"),
+    NumOfModeledCodons=("Codon", "size"),
+).reset_index()
+assert hypothetical_entropy_df["Gene"].tolist() == shortened_conditions
+np.testing.assert_array_equal(
+    hypothetical_entropy_df["NumOfModeledCodons"],
+    [17, 31, 26, 57, 52, 32, 24, 37, 36, 43, 50, 21, 42, 39, 57, 54, 37, 45, 48],
+)
+hypothetical_entropy_df
 
 # %%
-# Reuse the three validated series; read only the new population from producer data.
+# Check that the existing expression tables retain the selected full-fraction isoforms.
+selection_parameter_cols = ["Fraction", "FractionRepetition", "Algorithm", "AlgorithmRepetition"]
+for source_gene_name, selected_solution_id, selected_isoform_expression_df in zip(
+    conditions, maximal_solutions, assignment_dfs, strict=True
+):
+    assert selected_isoform_expression_df["Gene"].eq(source_gene_name).all()
+    assert selected_isoform_expression_df["Protein"].is_unique
+    assert selected_isoform_expression_df["#Solution"].eq(selected_solution_id).all()
+    assert selected_isoform_expression_df["Fraction"].eq(1).all()
+    selected_solution_parameters_df = selected_isoform_expression_df[selection_parameter_cols].drop_duplicates()
+    assert len(selected_solution_parameters_df) == 1
+    selected_solution_df = distinct_unique_proteins_df.loc[
+        distinct_unique_proteins_df["Gene"].eq(source_gene_name)
+    ].merge(
+        selected_solution_parameters_df,
+        on=selection_parameter_cols, how="inner", validate="many_to_one",
+    )
+    assert len(selected_solution_df) == 1
+    selected_protein_ids = selected_solution_df["Proteins"].iloc[0].split(",")
+    assert len(selected_protein_ids) == len(set(selected_protein_ids))
+    assert set(selected_protein_ids) == set(selected_isoform_expression_df["Protein"])
+
+# %%
+# Observed entropy: normalize the existing selected isoforms' final assigned mass.
+observed_entropy_records = []
+for gene_name, selected_isoform_expression_df in zip(shortened_conditions, assignment_dfs, strict=True):
+    assigned_isoform_expression_mass = selected_isoform_expression_df["TotalWeightedSupportingReads"]
+    assert np.isfinite(assigned_isoform_expression_mass).all() and assigned_isoform_expression_mass.gt(0).all()
+    isoform_expression_probabilities = assigned_isoform_expression_mass / assigned_isoform_expression_mass.sum()
+    np.testing.assert_allclose(isoform_expression_probabilities.sum(), 1.0, rtol=0, atol=1e-12)
+    observed_entropy_records.append({
+        "Gene": gene_name,
+        "ObservedEntropyBits": sum(-isoform_expression_probabilities * np.log2(isoform_expression_probabilities)),
+        "NumOfSelectedIsoforms": len(selected_isoform_expression_df),
+        "ExpressionProbabilitySum": float(isoform_expression_probabilities.sum()),
+    })
+
+observed_entropy_df = pd.DataFrame(observed_entropy_records)
+entropy_summary_df = observed_entropy_df.merge(hypothetical_entropy_df, on="Gene", validate="one_to_one")
+entropy_summary_df.insert(0, "Platform", entropy_platform)
+assert entropy_summary_df["Gene"].tolist() == shortened_conditions
+assert np.isfinite(entropy_summary_df[["ObservedEntropyBits", "HypotheticalEntropyBits"]]).all().all()
+entropy_summary_df
+
+# %%
+# Export only: this cell reads/writes small figure-source files, not native analysis inputs.
 from pathlib import Path
-import sys
+import hashlib
 import json
-import numpy as np
-import pandas as pd
 
-assert Path(sys.prefix).name == "combinatorics2"
-support_work = Path("/private6/projects/Combinatorics/Code/Notebooks/entropy_audit_2026-11-12/originally_supporting_reads_2026-11-16")
-support_previous = Path("/private6/projects/Combinatorics/Code/Notebooks/entropy_audit_2026-11-12/updated_entropy_and_s7_comparison_2026-11-16")
-if str(support_work) not in sys.path:
-    sys.path.insert(0, str(support_work))
-from original_support import selected_original_support, file_sha256, AMINO_ACIDS
-
-support_platform = "Illumina"
-support_protected = json.loads((support_work / "protected_previous_outputs.json").read_text())
-support_previous_tables = {}
-for name in ["entropy_updated_per_gene", "entropy_updated_per_codon", "entropy_original_read_state_counts"]:
-    path = support_previous / f"{name}.tsv"
-    assert file_sha256(path) == support_protected[str(path)]["sha256"]
-    table = pd.read_table(path, float_precision="round_trip", keep_default_na=False)
-    support_previous_tables[name] = table.loc[table.Platform.eq(support_platform)].copy()
-support_all_genes = support_previous_tables["entropy_updated_per_gene"]
-support_all_codons = support_previous_tables["entropy_updated_per_codon"]
-support_all_states = support_previous_tables["entropy_original_read_state_counts"]
-support_cohorts = [c for c in json.loads((support_previous / "cohort_sources.json").read_text())
-                   if c["Platform"] == support_platform]
-assert support_all_genes.Gene.tolist() == [c["Gene"] for c in support_cohorts]
-support_keys = ["Platform", "Gene", "Codon"]
-
-
-# %%
-# Direct original support is defined by protein membership, never reassigned weights.
-support_state_tables, support_isoform_tables, support_population_records = [], [], []
-for cohort in support_cohorts:
-    gene = cohort["Gene"]
-    codons = support_all_codons.loc[support_all_codons.Gene.eq(gene), "Codon"].tolist()
-    expected_states = support_all_states.loc[support_all_states.Gene.eq(gene)]
-    states, isoforms, reconciliation = selected_original_support(cohort, expected_states, codons)
-    assert reconciliation["TotalOriginalReads"] == support_all_genes.set_index("Gene").loc[gene, "OriginalReads"]
-    for table in [states, isoforms]:
-        table.insert(0, "Gene", gene)
-        table.insert(0, "Platform", support_platform)
-    support_state_tables.append(states)
-    support_isoform_tables.append(isoforms)
-    support_population_records.append({"Platform": support_platform, "Gene": gene, **reconciliation})
-    print(f"{support_platform} {gene}: {reconciliation['OriginallySupportingReads']:,} Originally-supporting reads / {reconciliation['TotalOriginalReads']:,} All reads; unique read IDs reconciled.")
-support_states = pd.concat(support_state_tables, ignore_index=True)
-support_isoforms = pd.concat(support_isoform_tables, ignore_index=True)
-support_populations = pd.DataFrame(support_population_records)
-
-
-# %%
-# Only one definite AA is informative; all multi-AA states are excluded.
-support_frequencies = support_states.loc[support_states.AAState.isin(AMINO_ACIDS)].rename(columns={"AAState": "AA"}).copy()
-support_frequencies["Population"] = "Originally-supporting reads"
-support_frequencies["InformativeReads"] = support_frequencies.groupby(support_keys, sort=False).ReadCount.transform("sum")
-support_frequencies["Frequency"] = support_frequencies.ReadCount / support_frequencies.InformativeReads
-support_frequencies["EntropyContributionBits"] = -support_frequencies.Frequency * np.log2(support_frequencies.Frequency)
-assert support_frequencies.ReadCount.gt(0).all()
-np.testing.assert_allclose(support_frequencies.groupby(support_keys).Frequency.sum(), 1, rtol=0, atol=1e-12)
-support_codon_estimates = support_frequencies.groupby(support_keys, sort=False).agg(
-    InformativeReads=("ReadCount", "sum"), DefiniteAAStates=("AA", "size"),
-    CodonEntropyBits=("EntropyContributionBits", "sum")).reset_index()
-
-
-# %%
-# Keep exactly the All reads codon set; non-estimable entropy stays missing.
-support_per_codon = support_all_codons[support_keys + ["CodonIndex", "ReferenceAA", "InformativeReads",
-    "DefiniteAAStates", "CodonEntropyBits", "TotalOriginalReads"]].rename(columns={
-    "InformativeReads": "AllReadsInformativeReads", "DefiniteAAStates": "AllReadsDefiniteAAStates",
-    "CodonEntropyBits": "All reads"}).merge(support_codon_estimates, on=support_keys, how="left", validate="one_to_one")
-support_per_codon[["InformativeReads", "DefiniteAAStates"]] = support_per_codon[[
-    "InformativeReads", "DefiniteAAStates"]].fillna(0).astype(int)
-support_per_codon["Estimable"] = support_per_codon.InformativeReads.gt(0)
-support_per_codon["Originally-supporting reads"] = support_per_codon.CodonEntropyBits
-support_per_codon["EntropyStatus"] = np.where(support_per_codon.Estimable, "Estimable", "No informative Originally-supporting reads")
-support_per_codon = support_per_codon.merge(support_populations[["Platform", "Gene", "OriginallySupportingReads"]],
-    on=["Platform", "Gene"], validate="many_to_one")
-support_per_codon["ExcludedAmbiguousOrMissingReads"] = support_per_codon.OriginallySupportingReads - support_per_codon.InformativeReads
-support_per_codon["OriginallySupportingMinusAllReadsBits"] = support_per_codon["Originally-supporting reads"] - support_per_codon["All reads"]
-assert support_per_codon.InformativeReads.le(support_per_codon.AllReadsInformativeReads).all()
-assert support_per_codon.ExcludedAmbiguousOrMissingReads.ge(0).all()
-assert support_per_codon.loc[~support_per_codon.Estimable, "CodonEntropyBits"].isna().all()
-support_gene_entropy = support_per_codon.groupby(["Platform", "Gene"], sort=False).agg(
-    OriginallySupportingEntropyBits=("CodonEntropyBits", lambda values: values.sum() if values.notna().all() else np.nan),
-    EntropyOverEstimableCodonsBits=("CodonEntropyBits", lambda values: values.sum(min_count=1)),
-    EligibleCodons=("Codon", "size"), ZeroInformativeOriginallySupportingCodons=("Estimable", lambda values: int((~values).sum())),
-    AllReadsVariableCodons=("AllReadsDefiniteAAStates", lambda values: int(values.gt(1).sum()))).reset_index()
-
-
-# %%
-# Reuse the exact plotted values for Observed, Old hypothetical and All reads.
-support_comparison = support_all_genes[["Platform", "Gene", "CurrentObservedEntropyBits",
-    "CurrentOldHypotheticalEntropyBits", "UpdatedHypotheticalEntropyBits"]].rename(columns={
-    "CurrentObservedEntropyBits": "Observed", "CurrentOldHypotheticalEntropyBits": "Old hypothetical",
-    "UpdatedHypotheticalEntropyBits": "All reads"})
-support_comparison = support_comparison.merge(support_populations, on=["Platform", "Gene"], validate="one_to_one")
-support_comparison = support_comparison.merge(support_gene_entropy, on=["Platform", "Gene"], validate="one_to_one").rename(
-    columns={"OriginallySupportingEntropyBits": "Originally-supporting reads"})
-support_comparison["OriginallySupportingMinusAllReadsBits"] = support_comparison["Originally-supporting reads"] - support_comparison["All reads"]
-support_comparison["SameCodonSet"] = True
-support_comparison["AllEligibleCodonsEstimable"] = support_comparison.ZeroInformativeOriginallySupportingCodons.eq(0)
-for label, previous in [("Observed", "CurrentObservedEntropyBits"), ("Old hypothetical", "CurrentOldHypotheticalEntropyBits"),
-                        ("All reads", "UpdatedHypotheticalEntropyBits")]:
-    np.testing.assert_array_equal(support_comparison[label], support_all_genes[previous])
-print(support_comparison[["Platform", "Gene", "All reads", "Originally-supporting reads",
-    "OriginallySupportingReads", "ZeroInformativeOriginallySupportingCodons"]].to_string(index=False))
-
-
-# %%
-# New audit outputs only; repeat exports verify identical data without replacement.
-support_exports = {"entropy_population_comparison": support_comparison,
-    "entropy_original_support_per_codon": support_per_codon,
-    "entropy_original_support_aa_frequencies": support_frequencies,
-    "selected_isoform_original_read_reconciliation": support_isoforms,
-    "entropy_original_support_state_counts": support_states}
-for name, table in support_exports.items():
-    path = support_work / f"{name}.{support_platform}.tsv"
-    contents = table.to_csv(sep="\t", index=False)
-    if path.exists():
-        assert path.read_text() == contents, f"Changed calculation; select a new output directory: {path}"
-    else:
-        with path.open("x") as handle:
-            handle.write(contents)
-
+entropy_notebook_dir = Path.cwd()
+assert (entropy_notebook_dir / "jupytext.toml").is_file(), "Run the export from Code/Notebooks"
+entropy_source_dir = entropy_notebook_dir / "figure_sources"
+entropy_export_cols = ["Platform", "Gene", "ObservedEntropyBits", "HypotheticalEntropyBits"]
+entropy_output_path = entropy_source_dir / "figure5c_entropy.tsv"
+entropy_metadata_path = entropy_source_dir / "figure5c_entropy.json"
+entropy_manifest_sha256 = hashlib.sha256((entropy_source_dir / "figure5c_cohorts.tsv").read_bytes()).hexdigest()
+entropy_export_df = entropy_summary_df[entropy_export_cols].copy()
+if entropy_output_path.exists():
+    previous_entropy_metadata = json.loads(entropy_metadata_path.read_text())
+    assert previous_entropy_metadata["CohortManifestSHA256"] == entropy_manifest_sha256
+    assert previous_entropy_metadata["TableSHA256"] == hashlib.sha256(entropy_output_path.read_bytes()).hexdigest()
+    previous_entropy_df = pd.read_table(entropy_output_path, float_precision="round_trip")
+    assert previous_entropy_df.columns.tolist() == entropy_export_cols
+    other_platform_entropy_df = previous_entropy_df.loc[~previous_entropy_df["Platform"].eq(entropy_platform)]
+    entropy_export_df = pd.concat([other_platform_entropy_df, entropy_export_df], ignore_index=True)
+entropy_gene_order_df = pd.read_table(entropy_source_dir / "figure5c_cohorts.tsv", usecols=["Platform", "Gene"])
+assert not entropy_export_df.duplicated(["Platform", "Gene"]).any()
+num_exported_cohorts = len(entropy_export_df)
+entropy_export_df = entropy_gene_order_df.merge(entropy_export_df, on=["Platform", "Gene"], how="inner", validate="one_to_one")
+assert len(entropy_export_df) == num_exported_cohorts, "Unexpected gene/platform in the existing export"
+entropy_export_df.to_csv(entropy_output_path, sep="\t", index=False)
+entropy_metadata_path.write_text(json.dumps({
+    "Method": "selected-isoform expression entropy; sum of All-reads categorical AA codon entropies",
+    "CohortManifestSHA256": entropy_manifest_sha256,
+    "TableSHA256": hashlib.sha256(entropy_output_path.read_bytes()).hexdigest(),
+    "Complete": len(entropy_export_df) == 21,
+    "ProducerNotebooks": ["squids_pacbio_5.BQ30", "squids_illumina_5"],
+}, indent=2) + "\n")
 
 # %% [markdown]
 # ##### Num. of editing sites in rare vs. common isoforms
