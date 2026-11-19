@@ -8456,12 +8456,7 @@ def prepare_ml_input_df_new(
 
 # %%
 # Corrected shared preparation for PCA/tSNE, k-means and UMAP inputs.
-from pathlib import Path
-import sys
-recoding_helper_directory = Path("/private6/projects/Combinatorics/Code/Notebooks/entropy_audit_2026-11-12/updated_entropy_and_s7_comparison_2026-11-16")
-if str(recoding_helper_directory) not in sys.path:
-    sys.path.insert(0, str(recoding_helper_directory))
-from recoding_support import binary_recoding_state, prepare_recoding_input
+from EditingUtils.recoding import binary_recoding_state, prepare_recoding_input
 
 def prepare_ml_input_df_recoding_corrected(
     assignment_df, unique_proteins_df, unique_proteins_first_col_pos,
