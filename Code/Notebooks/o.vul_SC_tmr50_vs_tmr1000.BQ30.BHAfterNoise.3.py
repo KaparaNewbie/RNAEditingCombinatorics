@@ -453,7 +453,7 @@ tmr1000_positions_dir = Path(tmr1000_main_data_dir, "PositionsFiles")
 tmr1000_reads_dir = Path(tmr1000_main_data_dir, "ReadsFiles")
 tmr1000_proteins_dir = Path(tmr1000_main_data_dir, "ProteinsFiles")
 tmr1000_distinct_proteins_dir = Path(tmr1000_main_data_dir, "DistinctProteins")
-tmr1000_expression_dir = Path(tmr1000_main_data_dir, "ExpressionLevels")
+# tmr1000_expression_dir = Path(tmr1000_main_data_dir, "ExpressionLevels")
 
 # %%
 tmr1000_positions_files = list(tmr1000_positions_dir.glob("*.positions.csv.gz"))
@@ -528,12 +528,12 @@ tmr1000_chroms_in_distinct_proteins_files = [
     for distinct_proteins_file in tmr1000_distinct_proteins_files
 ]
 
-tmr1000_expression_files = list(
-    tmr1000_expression_dir.glob("*.DistinctUniqueProteins.ExpressionLevels.csv")
-)
-tmr1000_chroms_in_expression_files = [
-    expression_file.name.split(".")[0] for expression_file in tmr1000_expression_files
-]
+# tmr1000_expression_files = list(
+#     tmr1000_expression_dir.glob("*.DistinctUniqueProteins.ExpressionLevels.csv")
+# )
+# tmr1000_chroms_in_expression_files = [
+#     expression_file.name.split(".")[0] for expression_file in tmr1000_expression_files
+# ]
 
 
 tmr1000_proteins_data_df = pd.DataFrame(
@@ -557,19 +557,19 @@ tmr1000_distinct_proteins_data_df = pd.DataFrame(
     }
 )
 
-tmr1000_expression_data_df = pd.DataFrame(
-    {
-        "Chrom": tmr1000_chroms_in_expression_files,
-        "ExpressionFile": tmr1000_expression_files,
-    }
-)
+# tmr1000_expression_data_df = pd.DataFrame(
+#     {
+#         "Chrom": tmr1000_chroms_in_expression_files,
+#         "ExpressionFile": tmr1000_expression_files,
+#     }
+# )
 
 tmr1000_proteins_data_df = (
     tmr1000_proteins_data_df.merge(
         tmr1000_unique_proteins_data_df, on="Chrom", how="left"
     )
     .merge(tmr1000_distinct_proteins_data_df, on="Chrom", how="left")
-    .merge(tmr1000_expression_data_df, on="Chrom", how="left")
+#     .merge(tmr1000_expression_data_df, on="Chrom", how="left")
 )
 
 tmr1000_proteins_data_df
@@ -585,8 +585,12 @@ tmr1000_data_df = (
 tmr1000_data_df
 
 # %%
+# Distinct solutions define this cohort; the ordered native inputs are unchanged.
+# tmr1000_complete_data_df = tmr1000_data_df.loc[
+#     tmr1000_data_df["ExpressionFile"].notna()
+# ].reset_index(drop=True)
 tmr1000_complete_data_df = tmr1000_data_df.loc[
-    tmr1000_data_df["ExpressionFile"].notna()
+    tmr1000_data_df["DistinctProteinsFile"].notna()
 ].reset_index(drop=True)
 
 # tmr1000_complete_data_df = tmr1000_data_df.loc[
@@ -618,7 +622,7 @@ tmr1000_possibly_na_unique_proteins_files = tmr1000_data_df[
 tmr1000_possibly_na_distinct_unique_proteins_files = tmr1000_data_df[
     "DistinctProteinsFile"
 ].tolist()
-tmr1000_possibly_na_expression_files = tmr1000_data_df["ExpressionFile"].tolist()
+# tmr1000_possibly_na_expression_files = tmr1000_data_df["ExpressionFile"].tolist()
 
 # %%
 tmr1000_conditions = tmr1000_complete_data_df["Name"].tolist()
@@ -635,7 +639,7 @@ tmr1000_unique_proteins_files = tmr1000_complete_data_df["UniqueProteinsFile"].t
 tmr1000_distinct_unique_proteins_files = tmr1000_complete_data_df[
     "DistinctProteinsFile"
 ].tolist()
-tmr1000_expression_files = tmr1000_complete_data_df["ExpressionFile"].tolist()
+# tmr1000_expression_files = tmr1000_complete_data_df["ExpressionFile"].tolist()
 
 
 # %% [markdown] jp-MarkdownHeadingCollapsed=true papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"}
@@ -9373,6 +9377,84 @@ fisher_summary_df = pd.DataFrame(summary_rows)
 fisher_coverage_summary_df = pd.concat(coverage_summaries, ignore_index=True)
 display(fisher_summary_df)
 display(fisher_coverage_summary_df)
+
+# %% [markdown]
+# #### Full-cohort isoform–cell-type association (manuscript)
+#
+# This is the full candidate family from historical source `a8b75499c7c5386a79b289ac05d06789a4655ee5`, separate from the two Top100 comparisons above. The verified reference result is 1,074 candidates, 856 testable genes, 13 nominal P < 0.05 and one BH-significant gene, `comp180725_c1_seq7` (GAP2_DROME; adjusted P = 0.008559914400855993).
+#
+# Run the all-cell TMR50 **Data loading**, the existing selected-expression cache loader (`d172d80c`), the common **Input and filtering** cells (`5da43550`, `be8fa3a1`), and the Fisher helper definition (`c4a4a981`) before this section. The Top100 selection, test and summary cells are not prerequisites. Preserve the existing selected protein sets; do not resample tied solutions to reconstruct the manuscript.
+#
+# Inputs are native `SC.TotalCoverage50/ExpressionLevels.EntropyConsidered.MaxDistinct` assignments and their `.MaxExpressionLevels/<Chrom>.gz` expansions, with the original read-ID mappings and annotated pseudo-read handoff. The expansion producer is the tracked `parallel_max_sc_expression_worker.py`; its `process_chromosome_to_file` consumes the explicit selected solution, expression file, positions directory and per-gene annotated reads. The commented producer invocation above documents those arguments. Cache existence alone does not establish validity: the cached selected proteins and Original read-to-protein assignments must match those native inputs. The October reconstruction verified these identities; a clean-clone recreation still requires the exact input/selection handoffs.
+#
+# The analysis unit is one Original supporting pseudo-read, pooled across totalRNA and nuclearRNA libraries. Keep genes with at least five pooled selected isoforms; exclude missing SeuratCluster/Annotation, `not separated`, `unstable`, and TBA1–TBA8. Counts below exclude reassigned Additional reads. A test requires at least two observed isoforms and two annotations after zero margins are removed. All valid P-values form one BH family; coverage medians are per testable gene. No results in this new section have been generated by running the full analysis after its restoration.
+
+# %%
+# Verify that the common table covers the full filtered candidate population.
+official_contingency_df = concat_per_chrom_per_annotation_copies_df_pivoted_df
+if "ExpressionLevels.EntropyConsidered.MaxDistinct" not in str(max_expression_dir):
+    raise ValueError("The manuscript requires the revised all-cell TMR50 assignments.")
+official_candidate_chroms = official_contingency_df.index.get_level_values("Chrom").unique()
+assert set(official_candidate_chroms) == set(candidate_chroms)
+assert int(official_contingency_df.to_numpy().sum()) == len(
+    ge5_well_clustered_concat_f1_expanded_max_expression_df
+)
+assert FISHER_N_RESAMPLES == 100_000 and FISHER_BASE_SEED == 20260730
+
+# %%
+# Test every candidate with the existing gene-specific Monte Carlo helper.
+official_fisher_results_df = pd.DataFrame(
+    [
+        calc_exact_fisher_for_chrom(chrom, official_contingency_df.loc[chrom])
+        for chrom in official_candidate_chroms
+    ],
+    columns=[
+        "Chrom", "Testable", "Statistic", "PVal", "NumObservedIsoforms",
+        "NumObservedAnnotations", "TotalMolecules",
+    ],
+)
+official_testable = official_fisher_results_df["Testable"]
+official_pvalues = official_fisher_results_df.loc[official_testable, "PVal"].to_numpy(dtype=float)
+assert np.isfinite(official_pvalues).all()
+assert ((official_pvalues >= 0) & (official_pvalues <= 1)).all()
+assert official_fisher_results_df.loc[~official_testable, "PVal"].isna().all()
+
+# %%
+# Apply BH once across the entire valid family, not separately by subset.
+official_fisher_results_df["CorrectedPVal"] = np.nan
+official_fisher_results_df["RejectedAfterCorrection"] = False
+if official_testable.any():
+    official_rejected, official_adjusted = fdrcorrection(
+        official_pvalues, alpha=0.05, method="indep"
+    )
+    official_fisher_results_df.loc[official_testable, "CorrectedPVal"] = official_adjusted
+    official_fisher_results_df.loc[official_testable, "RejectedAfterCorrection"] = official_rejected
+
+official_fisher_results_df = official_fisher_results_df.merge(
+    complete_data_df[["Chrom", "Name"]].rename(columns={"Name": "Transcript"}),
+    on="Chrom", how="left", validate="one_to_one",
+).sort_values(["Testable", "PVal"], ascending=[False, True], ignore_index=True)
+assert official_fisher_results_df["Transcript"].notna().all()
+
+# %%
+# Report family size and per-gene coverage using only testable genes.
+official_tested_df = official_fisher_results_df.loc[official_fisher_results_df["Testable"]]
+official_fisher_summary_df = pd.DataFrame([{
+    "CandidateGenes": len(official_fisher_results_df),
+    "TestableGenes": len(official_tested_df),
+    "NominalPBelow0.05": int(official_tested_df["PVal"].lt(0.05).sum()),
+    "SignificantAfterBH": int(official_tested_df["RejectedAfterCorrection"].sum()),
+    "MedianOriginalPseudoReadsPerGene": official_tested_df["TotalMolecules"].median(),
+    "MedianObservedIsoformsPerGene": official_tested_df["NumObservedIsoforms"].median(),
+    "MedianAnnotationsPerGene": official_tested_df["NumObservedAnnotations"].median(),
+}])
+display(official_fisher_summary_df)
+display(official_tested_df.loc[official_tested_df["RejectedAfterCorrection"]])
+
+# %%
+# Export a new scientific table without overwriting an existing result.
+official_fisher_output = Path(max_expression_dir, "FullCohortIsoformAnnotationFisher.tsv")
+official_fisher_results_df.to_csv(official_fisher_output, sep="\t", index=False, mode="x")
 
 # %% [markdown] jp-MarkdownHeadingCollapsed=true
 # ### Distinct isoforms per sample

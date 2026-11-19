@@ -85,6 +85,7 @@ def main(
     out_files_sep: str,
     keep_pileup_files: bool,
     gz_compression: bool,
+    override_existing_pileup_files: bool = True,
 ):
     """
     1. get input
@@ -176,6 +177,7 @@ def main(
                     in_bam,
                     out_pileup,
                     threads,
+                    override_existing_pileup_files,
                 )
                 for region, in_bam, out_pileup in zip(
                     pileup_formatted_regions,
@@ -475,6 +477,12 @@ def define_args() -> argparse.Namespace:
         help="Keep the pileup files from which the $sample.positions.csv files are parsed.",
     )
     parser.add_argument("--gz_compression", action="store_true")
+    parser.add_argument(
+        "--skip_existing_pileup_files",
+        dest="override_existing_pileup_files",
+        action="store_false",
+        help="Reuse existing pileup files instead of overwriting them; downstream processing still runs.",
+    )
 
     return parser
 

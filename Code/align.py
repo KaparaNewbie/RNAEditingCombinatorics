@@ -1197,7 +1197,7 @@ def define_args() -> argparse.Namespace:
         help="Separate aligned reads by the chromosome they were mapped to.",
     )
     pacbio_parser.add_argument(
-        "--separate_by_chrom",
+        "--merge_by_chrom_bams",
         action="store_true",
         help=(
             "Merge BAM files for each sample by chromosome. Only relevant if `--separate_by_chrom` is set. "

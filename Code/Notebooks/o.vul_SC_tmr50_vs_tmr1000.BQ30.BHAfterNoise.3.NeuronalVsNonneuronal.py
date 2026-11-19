@@ -401,7 +401,7 @@ tmr1000_positions_dir = Path(tmr1000_main_data_dir, "PositionsFiles")
 tmr1000_reads_dir = Path(tmr1000_main_data_dir, "ReadsFiles")
 tmr1000_proteins_dir = Path(tmr1000_main_data_dir, "ProteinsFiles")
 tmr1000_distinct_proteins_dir = Path(tmr1000_main_data_dir, "DistinctProteins")
-tmr1000_expression_dir = Path(tmr1000_main_data_dir, "ExpressionLevels")
+# tmr1000_expression_dir = Path(tmr1000_main_data_dir, "ExpressionLevels")
 
 # %%
 tmr1000_positions_files = list(tmr1000_positions_dir.glob("*.positions.csv.gz"))
@@ -476,12 +476,12 @@ tmr1000_chroms_in_distinct_proteins_files = [
     for distinct_proteins_file in tmr1000_distinct_proteins_files
 ]
 
-tmr1000_expression_files = list(
-    tmr1000_expression_dir.glob("*.DistinctUniqueProteins.ExpressionLevels.csv")
-)
-tmr1000_chroms_in_expression_files = [
-    expression_file.name.split(".")[0] for expression_file in tmr1000_expression_files
-]
+# tmr1000_expression_files = list(
+#     tmr1000_expression_dir.glob("*.DistinctUniqueProteins.ExpressionLevels.csv")
+# )
+# tmr1000_chroms_in_expression_files = [
+#     expression_file.name.split(".")[0] for expression_file in tmr1000_expression_files
+# ]
 
 
 tmr1000_proteins_data_df = pd.DataFrame(
@@ -505,19 +505,19 @@ tmr1000_distinct_proteins_data_df = pd.DataFrame(
     }
 )
 
-tmr1000_expression_data_df = pd.DataFrame(
-    {
-        "Chrom": tmr1000_chroms_in_expression_files,
-        "ExpressionFile": tmr1000_expression_files,
-    }
-)
+# tmr1000_expression_data_df = pd.DataFrame(
+#     {
+#         "Chrom": tmr1000_chroms_in_expression_files,
+#         "ExpressionFile": tmr1000_expression_files,
+#     }
+# )
 
 tmr1000_proteins_data_df = (
     tmr1000_proteins_data_df.merge(
         tmr1000_unique_proteins_data_df, on="Chrom", how="left"
     )
     .merge(tmr1000_distinct_proteins_data_df, on="Chrom", how="left")
-    .merge(tmr1000_expression_data_df, on="Chrom", how="left")
+#     .merge(tmr1000_expression_data_df, on="Chrom", how="left")
 )
 
 tmr1000_proteins_data_df
@@ -533,8 +533,12 @@ tmr1000_data_df = (
 tmr1000_data_df
 
 # %%
+# Distinct solutions define this cohort; the ordered native inputs are unchanged.
+# tmr1000_complete_data_df = tmr1000_data_df.loc[
+#     tmr1000_data_df["ExpressionFile"].notna()
+# ].reset_index(drop=True)
 tmr1000_complete_data_df = tmr1000_data_df.loc[
-    tmr1000_data_df["ExpressionFile"].notna()
+    tmr1000_data_df["DistinctProteinsFile"].notna()
 ].reset_index(drop=True)
 
 # tmr1000_complete_data_df = tmr1000_data_df.loc[
@@ -566,7 +570,7 @@ tmr1000_possibly_na_unique_proteins_files = tmr1000_data_df[
 tmr1000_possibly_na_distinct_unique_proteins_files = tmr1000_data_df[
     "DistinctProteinsFile"
 ].tolist()
-tmr1000_possibly_na_expression_files = tmr1000_data_df["ExpressionFile"].tolist()
+# tmr1000_possibly_na_expression_files = tmr1000_data_df["ExpressionFile"].tolist()
 
 # %%
 tmr1000_conditions = tmr1000_complete_data_df["Name"].tolist()
@@ -583,7 +587,7 @@ tmr1000_unique_proteins_files = tmr1000_complete_data_df["UniqueProteinsFile"].t
 tmr1000_distinct_unique_proteins_files = tmr1000_complete_data_df[
     "DistinctProteinsFile"
 ].tolist()
-tmr1000_expression_files = tmr1000_complete_data_df["ExpressionFile"].tolist()
+# tmr1000_expression_files = tmr1000_complete_data_df["ExpressionFile"].tolist()
 
 # %% [markdown]
 # # Data loading - neuronal
@@ -600,9 +604,9 @@ neuronal_positions_dir = Path(neuronal_main_data_dir, "PositionsFiles")
 neuronal_reads_dir = Path(neuronal_main_data_dir, "ReadsFiles")
 neuronal_proteins_dir = Path(neuronal_main_data_dir, "ProteinsFiles")
 neuronal_distinct_proteins_dir = Path(neuronal_main_data_dir, "DistinctProteins")
-neuronal_expression_dir = Path(neuronal_main_data_dir, "ExpressionLevels")
-neuronal_max_expression_dir = Path(neuronal_main_data_dir, "MaxExpressionLevels")
-neuronal_max_expression_dir.mkdir(exist_ok=True)
+# neuronal_expression_dir = Path(neuronal_main_data_dir, "ExpressionLevels")
+# neuronal_max_expression_dir = Path(neuronal_main_data_dir, "MaxExpressionLevels")
+# neuronal_max_expression_dir.mkdir(exist_ok=True)
 
 neural_vs_non_neural_expression_file = Path(
     "/private7/projects/Combinatorics/O.vulgaris/Annotations/NeuralVsNonNeuralExpression.csv"
@@ -732,12 +736,12 @@ neuronal_chroms_in_distinct_proteins_files = [
     for distinct_proteins_file in neuronal_distinct_proteins_files
 ]
 
-neuronal_expression_files = list(
-    neuronal_expression_dir.glob("*.DistinctUniqueProteins.ExpressionLevels.csv")
-)
-neuronal_chroms_in_expression_files = [
-    expression_file.name.split(".")[0] for expression_file in neuronal_expression_files
-]
+# neuronal_expression_files = list(
+#     neuronal_expression_dir.glob("*.DistinctUniqueProteins.ExpressionLevels.csv")
+# )
+# neuronal_chroms_in_expression_files = [
+#     expression_file.name.split(".")[0] for expression_file in neuronal_expression_files
+# ]
 
 
 neuronal_proteins_data_df = pd.DataFrame(
@@ -761,19 +765,19 @@ neuronal_distinct_proteins_data_df = pd.DataFrame(
     }
 )
 
-neuronal_expression_data_df = pd.DataFrame(
-    {
-        "Chrom": neuronal_chroms_in_expression_files,
-        "ExpressionFile": neuronal_expression_files,
-    }
-)
+# neuronal_expression_data_df = pd.DataFrame(
+#     {
+#         "Chrom": neuronal_chroms_in_expression_files,
+#         "ExpressionFile": neuronal_expression_files,
+#     }
+# )
 
 neuronal_proteins_data_df = (
     neuronal_proteins_data_df.merge(
         neuronal_unique_proteins_data_df, on="Chrom", how="left"
     )
     .merge(neuronal_distinct_proteins_data_df, on="Chrom", how="left")
-    .merge(neuronal_expression_data_df, on="Chrom", how="left")
+#     .merge(neuronal_expression_data_df, on="Chrom", how="left")
 )
 
 neuronal_proteins_data_df
@@ -809,21 +813,25 @@ neuronal_possibly_na_distinct_unique_proteins_files = neuronal_data_df[
     "DistinctProteinsFile"
 ].tolist()
 # expression_files = complete_data_df["ExpressionFile"].tolist()
-neuronal_possibly_na_expression_files = neuronal_data_df["ExpressionFile"].tolist()
+# neuronal_possibly_na_expression_files = neuronal_data_df["ExpressionFile"].tolist()
 
 # %%
-assert (
-    neuronal_data_df.loc[neuronal_data_df["ExpressionFile"].notna()]
-    .reset_index(drop=True)
-    .shape
-    == neuronal_data_df.loc[neuronal_data_df["DistinctProteinsFile"].notna()]
-    .reset_index(drop=True)
-    .shape
-), "some distinct proteins don't have expression levels"
+# assert (
+#     neuronal_data_df.loc[neuronal_data_df["ExpressionFile"].notna()]
+#     .reset_index(drop=True)
+#     .shape
+#     == neuronal_data_df.loc[neuronal_data_df["DistinctProteinsFile"].notna()]
+#     .reset_index(drop=True)
+#     .shape
+# ), "some distinct proteins don't have expression levels"
 
 # %%
+# Distinct solutions define this cohort; exact gene order and Figure 6 counts were checked.
+# neuronal_complete_data_df = neuronal_data_df.loc[
+#     neuronal_data_df["ExpressionFile"].notna()
+# ].reset_index(drop=True)
 neuronal_complete_data_df = neuronal_data_df.loc[
-    neuronal_data_df["ExpressionFile"].notna()
+    neuronal_data_df["DistinctProteinsFile"].notna()
 ].reset_index(drop=True)
 # complete_data_df = data_df.loc[data_df["DistinctProteinsFile"].notna()].reset_index(
 #     drop=True
@@ -867,7 +875,7 @@ neuronal_unique_proteins_files = neuronal_complete_data_df[
 neuronal_distinct_unique_proteins_files = neuronal_complete_data_df[
     "DistinctProteinsFile"
 ].tolist()
-neuronal_expression_files = neuronal_complete_data_df["ExpressionFile"].tolist()
+# neuronal_expression_files = neuronal_complete_data_df["ExpressionFile"].tolist()
 
 # %% [markdown]
 # # Data loading - non-neuronal
@@ -886,11 +894,11 @@ non_neuronal_proteins_dir = Path(non_neuronal_main_data_dir, "ProteinsFiles")
 non_neuronal_distinct_proteins_dir = Path(
     non_neuronal_main_data_dir, "DistinctProteins"
 )
-non_neuronal_expression_dir = Path(non_neuronal_main_data_dir, "ExpressionLevels")
-non_neuronal_max_expression_dir = Path(
-    non_neuronal_main_data_dir, "MaxExpressionLevels"
-)
-non_neuronal_max_expression_dir.mkdir(exist_ok=True)
+# non_neuronal_expression_dir = Path(non_neuronal_main_data_dir, "ExpressionLevels")
+# non_neuronal_max_expression_dir = Path(
+#     non_neuronal_main_data_dir, "MaxExpressionLevels"
+# )
+# non_neuronal_max_expression_dir.mkdir(exist_ok=True)
 
 # %%
 non_neuronal_alignment_stats_df = pd.read_csv(
@@ -996,13 +1004,13 @@ non_neuronal_chroms_in_distinct_proteins_files = [
     for distinct_proteins_file in non_neuronal_distinct_proteins_files
 ]
 
-non_neuronal_expression_files = list(
-    non_neuronal_expression_dir.glob("*.DistinctUniqueProteins.ExpressionLevels.csv")
-)
-non_neuronal_chroms_in_expression_files = [
-    expression_file.name.split(".")[0]
-    for expression_file in non_neuronal_expression_files
-]
+# non_neuronal_expression_files = list(
+#     non_neuronal_expression_dir.glob("*.DistinctUniqueProteins.ExpressionLevels.csv")
+# )
+# non_neuronal_chroms_in_expression_files = [
+#     expression_file.name.split(".")[0]
+#     for expression_file in non_neuronal_expression_files
+# ]
 
 
 non_neuronal_proteins_data_df = pd.DataFrame(
@@ -1026,19 +1034,19 @@ non_neuronal_distinct_proteins_data_df = pd.DataFrame(
     }
 )
 
-non_neuronal_expression_data_df = pd.DataFrame(
-    {
-        "Chrom": non_neuronal_chroms_in_expression_files,
-        "ExpressionFile": non_neuronal_expression_files,
-    }
-)
+# non_neuronal_expression_data_df = pd.DataFrame(
+#     {
+#         "Chrom": non_neuronal_chroms_in_expression_files,
+#         "ExpressionFile": non_neuronal_expression_files,
+#     }
+# )
 
 non_neuronal_proteins_data_df = (
     non_neuronal_proteins_data_df.merge(
         non_neuronal_unique_proteins_data_df, on="Chrom", how="left"
     )
     .merge(non_neuronal_distinct_proteins_data_df, on="Chrom", how="left")
-    .merge(non_neuronal_expression_data_df, on="Chrom", how="left")
+#     .merge(non_neuronal_expression_data_df, on="Chrom", how="left")
 )
 
 non_neuronal_proteins_data_df
@@ -1078,23 +1086,27 @@ non_neuronal_possibly_na_distinct_unique_proteins_files = non_neuronal_data_df[
     "DistinctProteinsFile"
 ].tolist()
 # expression_files = complete_data_df["ExpressionFile"].tolist()
-non_neuronal_possibly_na_expression_files = non_neuronal_data_df[
-    "ExpressionFile"
-].tolist()
+# non_neuronal_possibly_na_expression_files = non_neuronal_data_df[
+#     "ExpressionFile"
+# ].tolist()
 
 # %%
-assert (
-    non_neuronal_data_df.loc[non_neuronal_data_df["ExpressionFile"].notna()]
-    .reset_index(drop=True)
-    .shape
-    == non_neuronal_data_df.loc[non_neuronal_data_df["DistinctProteinsFile"].notna()]
-    .reset_index(drop=True)
-    .shape
-), "some distinct proteins don't have expression levels"
+# assert (
+#     non_neuronal_data_df.loc[non_neuronal_data_df["ExpressionFile"].notna()]
+#     .reset_index(drop=True)
+#     .shape
+#     == non_neuronal_data_df.loc[non_neuronal_data_df["DistinctProteinsFile"].notna()]
+#     .reset_index(drop=True)
+#     .shape
+# ), "some distinct proteins don't have expression levels"
 
 # %%
+# Distinct solutions define this cohort; exact gene order and Figure 6 counts were checked.
+# non_neuronal_complete_data_df = non_neuronal_data_df.loc[
+#     non_neuronal_data_df["ExpressionFile"].notna()
+# ].reset_index(drop=True)
 non_neuronal_complete_data_df = non_neuronal_data_df.loc[
-    non_neuronal_data_df["ExpressionFile"].notna()
+    non_neuronal_data_df["DistinctProteinsFile"].notna()
 ].reset_index(drop=True)
 
 non_neuronal_complete_data_df
@@ -1118,7 +1130,7 @@ non_neuronal_unique_proteins_files = non_neuronal_complete_data_df[
 non_neuronal_distinct_unique_proteins_files = non_neuronal_complete_data_df[
     "DistinctProteinsFile"
 ].tolist()
-non_neuronal_expression_files = non_neuronal_complete_data_df["ExpressionFile"].tolist()
+# non_neuronal_expression_files = non_neuronal_complete_data_df["ExpressionFile"].tolist()
 
 
 # %% [markdown] jp-MarkdownHeadingCollapsed=true papermill={"duration": 0.040192, "end_time": "2022-02-01T09:42:46.214429", "exception": false, "start_time": "2022-02-01T09:42:46.174237", "status": "completed"}
