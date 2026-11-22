@@ -10204,7 +10204,7 @@ fig.show()
 #
 # `NumOfReadsPerAAInCodon` counts reads with one particular AA; `TotalNumOfInformativeReadsInCodon` counts reads with any definite AA at that codon; `AAFrequencyPerCodon` is their ratio.
 #
-# Stop at `entropy_summary_df` to inspect the calculation without file I/O. The separate final export cell reads the small existing figure-source table and its metadata, then updates the Illumina rows in `figure_sources/figure5c_entropy.tsv`. Run the PacBio and Illumina exports sequentially; the final-figure notebook requires all 21 cohorts.
+# Stop at `entropy_summary_df` to inspect the calculation without file I/O. The separate final export cell reads the small existing figure-source table, then updates the Illumina rows in `figure_sources/figure5c_entropy.tsv`. Run the PacBio and Illumina exports sequentially; the final-figure notebook requires all 21 cohorts.
 #
 # Earlier diagnostic evidence remains archived under `entropy_audit_2026-11-12/`; it is not a calculation dependency. The saved summary below predates this in-memory correction and has not been rerun.
 
@@ -10348,40 +10348,31 @@ assert np.isfinite(entropy_summary_df[["ObservedEntropyBits", "HypotheticalEntro
 entropy_summary_df
 
 # %%
-# Export only: this cell reads/writes small figure-source files, not native analysis inputs.
+# Export the scientific values in the notebook's established gene order.
 from pathlib import Path
-import hashlib
-import json
 
 entropy_notebook_dir = Path.cwd()
 assert (entropy_notebook_dir / "jupytext.toml").is_file(), "Run the export from Code/Notebooks"
 entropy_source_dir = entropy_notebook_dir / "figure_sources"
-entropy_export_cols = ["Platform", "Gene", "ObservedEntropyBits", "HypotheticalEntropyBits"]
+entropy_source_dir.mkdir(exist_ok=True)
 entropy_output_path = entropy_source_dir / "figure5c_entropy.tsv"
-entropy_metadata_path = entropy_source_dir / "figure5c_entropy.json"
-entropy_manifest_sha256 = hashlib.sha256((entropy_source_dir / "figure5c_cohorts.tsv").read_bytes()).hexdigest()
+entropy_export_cols = ["Platform", "Gene", "ObservedEntropyBits", "HypotheticalEntropyBits"]
 entropy_export_df = entropy_summary_df[entropy_export_cols].copy()
+assert entropy_export_df["Platform"].eq(entropy_platform).all()
+assert entropy_export_df["Gene"].tolist() == shortened_conditions
 if entropy_output_path.exists():
-    previous_entropy_metadata = json.loads(entropy_metadata_path.read_text())
-    assert previous_entropy_metadata["CohortManifestSHA256"] == entropy_manifest_sha256
-    assert previous_entropy_metadata["TableSHA256"] == hashlib.sha256(entropy_output_path.read_bytes()).hexdigest()
     previous_entropy_df = pd.read_table(entropy_output_path, float_precision="round_trip")
     assert previous_entropy_df.columns.tolist() == entropy_export_cols
     other_platform_entropy_df = previous_entropy_df.loc[~previous_entropy_df["Platform"].eq(entropy_platform)]
     entropy_export_df = pd.concat([other_platform_entropy_df, entropy_export_df], ignore_index=True)
-entropy_gene_order_df = pd.read_table(entropy_source_dir / "figure5c_cohorts.tsv", usecols=["Platform", "Gene"])
 assert not entropy_export_df.duplicated(["Platform", "Gene"]).any()
-num_exported_cohorts = len(entropy_export_df)
-entropy_export_df = entropy_gene_order_df.merge(entropy_export_df, on=["Platform", "Gene"], how="inner", validate="one_to_one")
-assert len(entropy_export_df) == num_exported_cohorts, "Unexpected gene/platform in the existing export"
+assert entropy_export_df["Platform"].isin(["PacBio", "Illumina"]).all()
+assert np.isfinite(entropy_export_df[["ObservedEntropyBits", "HypotheticalEntropyBits"]]).all().all()
+# Stable platform sorting preserves each producer's native within-platform order.
+entropy_export_df = entropy_export_df.sort_values(
+    "Platform", key=lambda series: series.map({"PacBio": 0, "Illumina": 1}), kind="stable"
+)
 entropy_export_df.to_csv(entropy_output_path, sep="\t", index=False)
-entropy_metadata_path.write_text(json.dumps({
-    "Method": "selected-isoform expression entropy; sum of All-reads categorical AA codon entropies",
-    "CohortManifestSHA256": entropy_manifest_sha256,
-    "TableSHA256": hashlib.sha256(entropy_output_path.read_bytes()).hexdigest(),
-    "Complete": len(entropy_export_df) == 21,
-    "ProducerNotebooks": ["squids_pacbio_5.BQ30", "squids_illumina_5"],
-}, indent=2) + "\n")
 
 # %% [markdown]
 # ##### Num. of editing sites in rare vs. common isoforms

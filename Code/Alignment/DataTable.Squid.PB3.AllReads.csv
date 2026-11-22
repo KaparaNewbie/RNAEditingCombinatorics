@@ -1,0 +1,4 @@
+Sample,Gene,Region,Start,End,Strand,Path,ProbRegionsBED
+PB3_AllReads_GRIA,GRIA,comp141693_c0_seq1,170,2999,+,D.pealeii/Alignment/AdditionalUMILongReads/ByChrom/comp141693_c0_seq1.merged.bam,
+PB3_AllReads_ADAR1,ADAR1,comp134400_c0_seq1_extended,0,3741,+,D.pealeii/Alignment/AdditionalUMILongReads/ByChrom/comp134400_c0_seq1_extended.merged.bam,
+PB3_AllReads_IQEC1,IQEC1,comp141565_c6_seq3,988,4195,+,D.pealeii/Alignment/AdditionalUMILongReads/ByChrom/comp141565_c6_seq3.merged.bam,

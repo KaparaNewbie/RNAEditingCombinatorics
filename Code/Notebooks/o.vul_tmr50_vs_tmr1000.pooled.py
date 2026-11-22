@@ -12358,15 +12358,77 @@ fig.write_image(
 
 fig.show()
 
+# %% [markdown]
+# #### Canonical Figure S14 scientific tables
+#
+# Run these cells from `Code/Notebooks` after the native pooled TMR50 selection export (`55073b12`). The saved selection table is produced in this notebook; its 1,711-gene population, SNP filter, read threshold, order and isoform counts are preserved. The preceding historical plot is not a prerequisite.
+#
+# The tracked `Code/neural_transcripts.py` functions classify the original 18 O. bimaculoides Salmon samples and transfer their labels through the original OrthoFinder pairs. They trim tissue labels and ortholog IDs, retain the original sum/size aggregation, and write separate generated annotations without replacing native annotation files. Missing labels stay in the cohort but are excluded from both curves and the Mann–Whitney test.
+#
+# Outputs are the corrected cohort, cumulative curves and test statistic/P-value in `figure_rebuild_work/s14_correction_2026-10-29/inputs`. The figure notebook reads those scientific tables. Existing outputs are protected; for a deliberate rebuild, choose a new `s14_output_dir`.
+
 # %%
-# Persist the exact pooled neural/non-neural cohort and plotted curves.
+# Recreate corrected annotations from the documented processed inputs.
 from pathlib import Path
-figure_s14_dir = Path("figure_rebuild_work/phase4_batch/inputs")
-max_distinct_proteins_df[["Chrom", "Transcript", "NumOfProteins", "IsNeural"]].to_csv(
-    figure_s14_dir / "figure_s14_cohorts.tsv", sep="\t", index=False, na_rep="NA")
-pd.concat([curve.assign(IsNeural=condition) for condition, curve in zip(neural_conditions, neural_dfs)
-           if condition != "Missing"], ignore_index=True).to_csv(
-    figure_s14_dir / "source_s14_curves.tsv", sep="\t", index=False, na_rep="NA")
+import sys
+import pandas as pd
+import scipy.stats
+
+s14_project_dir = Path.cwd().parents[1]
+assert (s14_project_dir / "Code/neural_transcripts.py").is_file()
+sys.path.insert(0, str(s14_project_dir / "Code"))
+from neural_transcripts import determine_obim_neural_transcripts, neural_obim_to_ovul_transcripts
+
+s14_output_dir = Path("figure_rebuild_work/s14_correction_2026-10-29/inputs")
+s14_output_dir.mkdir(parents=True, exist_ok=True)
+s14_output_names = ["obim_neural_transcripts.tsv", "ovul_neural_transcripts.tsv",
+                    "figure_s14_cohorts.tsv", "figure_s14_curves.tsv", "figure_s14_test.tsv"]
+assert not any((s14_output_dir / name).exists() for name in s14_output_names), "Choose a new output directory"
+s14_run_table = s14_project_dir / "Code/NeuralTranscripts/SraRunTable.txt"
+s14_quant_dirs = [s14_project_dir / "O.bim/Expression" / run
+                  for run in sorted(pd.read_csv(s14_run_table)["Run"])]
+assert len(s14_quant_dirs) == 18 and all((path / "quant.sf").is_file() for path in s14_quant_dirs)
+s14_orthologs = s14_project_dir / "O.vulgaris/Annotations/OrthoFinderAgainstObim/OrthoFinderResults/Results_May18/Orthologues/Orthologues_O.bim/O.bim__v__O.vul.tsv"
+determine_obim_neural_transcripts(s14_run_table, s14_quant_dirs, s14_output_dir / "obim_neural_transcripts.tsv")
+neural_obim_to_ovul_transcripts(s14_output_dir / "obim_neural_transcripts.tsv", s14_orthologs,
+                               s14_output_dir / "ovul_neural_transcripts.tsv")
+
+# %%
+# Join corrected labels onto the unchanged native selected-gene population.
+s14_native_cohort_df = pd.read_table("MaxDistinctProtsForFig6.TMR50.Octopus.Pooled.csv",
+    usecols=["Chrom", "Transcript", "NumOfProteins", "SNPs", "MappedReads"], float_precision="round_trip")
+assert len(s14_native_cohort_df) == 1711 and s14_native_cohort_df["Chrom"].is_unique
+assert s14_native_cohort_df["SNPs"].le(3).all() and s14_native_cohort_df["MappedReads"].ge(50).all()
+s14_annotations_df = pd.read_table(s14_output_dir / "ovul_neural_transcripts.tsv")
+s14_cohort_df = s14_native_cohort_df[["Chrom", "Transcript", "NumOfProteins"]].merge(
+    s14_annotations_df[["OvulChrom", "IsNeural"]].rename(columns={"OvulChrom": "Chrom"}),
+    on="Chrom", how="left", sort=False, validate="one_to_one")
+s14_cohort_df["IsNeural"] = s14_cohort_df["IsNeural"].fillna("Missing")
+assert s14_cohort_df["Chrom"].tolist() == s14_native_cohort_df["Chrom"].tolist()
+assert s14_cohort_df["IsNeural"].value_counts().to_dict() == {"No": 1460, "Yes": 178, "Missing": 73}
+
+# Original cumulative-curve arithmetic, with one denominator per named group.
+s14_curves = []
+for condition in ["Yes", "No"]:
+    curve = s14_cohort_df.loc[s14_cohort_df["IsNeural"].eq(condition), ["NumOfProteins"]]
+    curve = curve.sort_values("NumOfProteins").reset_index(drop=True)
+    denominator = len(curve)
+    curve["CummulativeTranscripts"] = 100 * (curve.index + 1) / denominator
+    curve["CummulativeTranscripts"] = curve["CummulativeTranscripts"][::-1].values
+    curve = curve.drop_duplicates(subset="NumOfProteins").reset_index(drop=True)
+    s14_curves.append(curve.assign(IsNeural=condition, Denominator=denominator))
+s14_curves_df = pd.concat(s14_curves, ignore_index=True)
+s14_neural_counts = s14_cohort_df.loc[s14_cohort_df["IsNeural"].eq("Yes"), "NumOfProteins"]
+s14_nonneural_counts = s14_cohort_df.loc[s14_cohort_df["IsNeural"].eq("No"), "NumOfProteins"]
+s14_statistic, s14_pvalue = scipy.stats.mannwhitneyu(s14_neural_counts, s14_nonneural_counts)
+s14_test_df = pd.DataFrame([{"Statistic": s14_statistic, "PValue": s14_pvalue,
+    "NeuralGenes": len(s14_neural_counts), "NonNeuralGenes": len(s14_nonneural_counts)}])
+
+# %%
+# Export only scientific tables; graphical settings live in the figure notebook.
+for name, table in [("figure_s14_cohorts", s14_cohort_df),
+                    ("figure_s14_curves", s14_curves_df), ("figure_s14_test", s14_test_df)]:
+    table.to_csv(s14_output_dir / f"{name}.tsv", sep="\t", index=False, mode="x")
 
 
 # %%

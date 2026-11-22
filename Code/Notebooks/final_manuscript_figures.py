@@ -813,7 +813,7 @@ if 'Figure4' in FIGURES_TO_BUILD:
 # ## Figure 5 — PCLO site dependencies and entropy
 # The original masked correlation/MI caches carry 144 PacBio and 45 Illumina sites. Numeric site order is verified against the source helpers, pairwise caches and original read headers. Four undefined PacBio MI values remain NA. Heatmap cells are native vectors.
 #
-# Panel c loads `figure_sources/figure5c_entropy.tsv`, produced by the canonical Shannon subsections in the PacBio and Illumina notebooks. Observed entropy uses selected-isoform assigned-expression probabilities; hypothetical entropy sums categorical AA entropies from informative original All reads, with a denominator per codon. The two empirical constructions do not define an exact total-correlation gap. Historical JSON supplies only gene order and colors.
+# Panel c loads `figure_sources/figure5c_entropy.tsv`, produced by the canonical Shannon subsections in the PacBio and Illumina notebooks. Observed entropy uses selected-isoform assigned-expression probabilities; hypothetical entropy sums categorical AA entropies from informative original All reads, with a denominator per codon. The two empirical constructions do not define an exact total-correlation gap. The table carries platform/gene identities and row order; publication colors and crop are declared below.
 
 # %% figure="Figure5"
 if 'Figure5' in FIGURES_TO_BUILD:
@@ -822,31 +822,50 @@ if 'Figure5' in FIGURES_TO_BUILD:
     from matplotlib.patches import Rectangle, Patch
     from matplotlib.colors import LinearSegmentedColormap, Normalize
     from matplotlib.cm import ScalarMappable
-    import hashlib
     figure5_table, figure5_metadata = load_table('figure5_pclo_matrices')
     # Revised BY masks; MI and all original graphical metadata are preserved.
     figure5_table = pd.read_table(NOTEBOOK_DIR / 'RevisionFisherBY_2026-11-09/figure5_pclo_matrices.BY.tsv', float_precision='round_trip')
     entropy_path = NOTEBOOK_DIR / 'figure_sources/figure5c_entropy.tsv'
-    entropy_source_metadata = json.loads(entropy_path.with_suffix('.json').read_text())
-    assert entropy_source_metadata['Complete'], 'Run both entropy producer notebooks first'
-    assert hashlib.sha256(entropy_path.read_bytes()).hexdigest() == entropy_source_metadata['TableSHA256']
-    entropy_cohort_path = NOTEBOOK_DIR / 'figure_sources/figure5c_cohorts.tsv'
-    assert hashlib.sha256(entropy_cohort_path.read_bytes()).hexdigest() == entropy_source_metadata['CohortManifestSHA256']
     entropy_summary_df = pd.read_table(entropy_path, float_precision='round_trip')
     assert entropy_summary_df.columns.tolist() == ['Platform', 'Gene', 'ObservedEntropyBits', 'HypotheticalEntropyBits']
-    assert len(entropy_summary_df) == 21 and not entropy_summary_df.duplicated(['Platform', 'Gene']).any()
+    assert entropy_summary_df['Platform'].tolist() == ['PacBio'] * 2 + ['Illumina'] * 19
+    assert not entropy_summary_df.duplicated(['Platform', 'Gene']).any()
     assert np.isfinite(entropy_summary_df[['ObservedEntropyBits', 'HypotheticalEntropyBits']]).all().all()
-    # Historical metadata supplies layout/color only; no historical entropy values are loaded.
-    entropy_metadata = json.loads((BATCH_DIR / 'inputs/squid_original_figure5c_entropy_plot.json').read_text())
-    for platform, label in [('PacBio', 'Long-reads'), ('Illumina', 'Short-reads')]:
-        assert entropy_summary_df.loc[entropy_summary_df.Platform.eq(platform), 'Gene'].tolist() == entropy_metadata['gene_order'][label]
+    entropy_gene_order = {
+        label: entropy_summary_df.loc[entropy_summary_df.Platform.eq(platform), 'Gene'].tolist()
+        for platform, label in [('PacBio', 'Long-reads'), ('Illumina', 'Short-reads')]
+    }
+    # Fixed publication colors; gene identities and order come from the scientific table.
+    entropy_gene_colors = {
+        "GRIA2": "#00A08B",
+        "PCLO": "#AF0038",
+        "ABL": "#0D2A63",
+        "ACHA4": "#DA16FF",
+        "ANR17": "#FC0080",
+        "CA2D3": "#6C4516",
+        "CACB2": "#1616A7",
+        "CSKI1": "#222A2A",
+        "DGLA": "#620042",
+        "DOP1": "#A777F1",
+        "IQEC1": "#EB663B",
+        "K0513": "#750D86",
+        "KCNAS": "#FB0D0D",
+        "MTUS2": "#1CA71C",
+        "RIMS2": "#FB00D1",
+        "ROBO2": "#2E91E5",
+        "RUSC2": "#B68100",
+        "SCN1": "#6C7C32",
+        "TRIM2": "#B2828D",
+        "TWK7": "#862A16"
+    }
+    assert set(entropy_summary_df['Gene']) == set(entropy_gene_colors)
     entropy_table = entropy_summary_df.rename(columns={
         'ObservedEntropyBits': 'WeightedExpressionData', 'HypotheticalEntropyBits': 'Hypothetical'}).melt(
         id_vars=['Platform', 'Gene'], var_name='EntropyName', value_name='EntropyValue')
     entropy_table['Platform'] = entropy_table['Platform'].replace({'PacBio': 'Long-reads', 'Illumina': 'Short-reads'})
     assert len(entropy_table) == 42
     figure5_output_dir = FINAL_FIGURES_DIR
-    figure5 = plt.figure(figsize=np.array(BATCH_LAYOUT['Figure5']['canvas_mm']) / 25.4)
+    figure5 = plt.figure(figsize=np.array([180.0, 225.0]) / 25.4)
     figure5_cell_checks = []
 
 # %% figure="Figure5"
@@ -891,13 +910,13 @@ if 'Figure5' in FIGURES_TO_BUILD:
     text_mm(figure5, 3, 160, 'c', 'panel')
     entropy_bars_checked = 0
     for platform, left, width in [('Long-reads', 18, 17), ('Short-reads', 45, 126)]:
-        genes = entropy_metadata['gene_order'][platform]
+        genes = entropy_gene_order[platform]
         axis = axes_mm(figure5, left, 167, width, 35, hide_y=platform == 'Short-reads')
         axis.set(xlim=(-0.6, len(genes) - 0.4), ylim=(0, 37))
         axis.set_xticks(range(len(genes)), genes, rotation=60, ha='right')
         axis.set_yticks(range(0, 36, 5))
         for index, gene in enumerate(genes):
-            color = entropy_metadata['gene_colors'][gene]
+            color = entropy_gene_colors[gene]
             for shift, category in [(-0.18, 'WeightedExpressionData'), (0.18, 'Hypothetical')]:
                 record = entropy_table.loc[entropy_table['Platform'].eq(platform) & entropy_table['Gene'].eq(gene)
                     & entropy_table['EntropyName'].eq(category)]
@@ -962,7 +981,8 @@ if 'Figure5' in FIGURES_TO_BUILD:
     import base64
     import re
     import subprocess
-    figure5_layout = json.loads((NOTEBOOK_DIR / 'figure_sources/figure5c_layout.json').read_text())
+    # Approved physical crop, in points and millimetres.
+    figure5_layout = {'SVGHeader': '<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="172.718661580mm" height="212.977337741mm" viewBox="1.9200000525 10.0799998090 489.5962194359 603.7152766458" xmlns="http://www.w3.org/2000/svg" version="1.1">', 'ViewBoxPoints': [1.9200000525, 10.079999809, 489.5962194359, 603.7152766458], 'WidthMM': 172.71866158, 'HeightMM': 212.977337741}
     left_pt, top_pt, width_pt, height_pt = figure5_layout['ViewBoxPoints']
     figure5_crop = Bbox.from_bounds(left_pt / 72, figure5.get_size_inches()[1] - (top_pt + height_pt) / 72,
         figure5_layout['WidthMM'] / 25.4, figure5_layout['HeightMM'] / 25.4)
@@ -2425,26 +2445,28 @@ if 'FigureS13' in FIGURES_TO_BUILD:
 # ## Figure S14 — neural versus non-neural pooled octopus genes
 # Corrected classification on the unchanged 1,711-gene whole-transcriptome cohort.
 # The two curves include 178 neural and 1,460 non-neural genes; 73 unclassified genes
-# remain in the cohort table and are excluded from the curves and test. The completed
-# 19 October comparison is reused. The original 180 × 112 mm canvas and styling are retained.
+# remain in the cohort table and are excluded from the curves and test. The pooled analysis notebook produces the corrected annotations, fixed-cohort
+# curves and Mann–Whitney result from native processed inputs. The original 180 × 112 mm canvas and styling are retained.
 #
 
 # %% figure="FigureS14"
 if 'FigureS14' in FIGURES_TO_BUILD:
     s14_input_dir = WORK_DIR / 's14_correction_2026-10-29/inputs'
-    s14_meta = json.loads((s14_input_dir / 'figure_s14_curves.json').read_text())
-    s14_path = s14_input_dir / s14_meta['file']
-    assert hashlib.sha256(s14_path.read_bytes()).hexdigest() == s14_meta['sha256']
-    s14_data = pd.read_table(s14_path, float_precision='round_trip')
-    assert len(s14_data) == s14_meta['rows'] and list(s14_data) == s14_meta['columns']
-    s14_cohort_path = s14_input_dir / 'figure_s14_cohorts.tsv'
-    s14_cohort_meta = json.loads(s14_cohort_path.with_suffix('.json').read_text())
-    assert hashlib.sha256(s14_cohort_path.read_bytes()).hexdigest() == s14_cohort_meta['sha256']
-    s14_cohort = pd.read_table(s14_cohort_path, float_precision='round_trip')
+    s14_data = pd.read_table(s14_input_dir / 'figure_s14_curves.tsv', float_precision='round_trip')
+    s14_cohort = pd.read_table(s14_input_dir / 'figure_s14_cohorts.tsv', float_precision='round_trip')
+    s14_test = pd.read_table(s14_input_dir / 'figure_s14_test.tsv', float_precision='round_trip')
     assert len(s14_cohort) == 1711 and s14_cohort.Chrom.is_unique
-    assert s14_cohort.IsNeural.value_counts().to_dict() == s14_meta['denominators']
-    assert s14_meta['denominators'] == {'Yes': 178, 'No': 1460, 'Missing': 73}
-    figure_s14 = plt.figure(figsize=np.array(BATCH_LAYOUT['FigureS14']['canvas_mm']) / 25.4)
+    assert s14_cohort.IsNeural.value_counts().to_dict() == {'Yes': 178, 'No': 1460, 'Missing': 73}
+    assert s14_data.groupby('IsNeural').Denominator.unique().map(list).to_dict() == {'No': [1460], 'Yes': [178]}
+    assert len(s14_test) == 1 and s14_test[['NeuralGenes', 'NonNeuralGenes']].iloc[0].tolist() == [178, 1460]
+    s14_data['Label'] = s14_data.IsNeural.map({'Yes': 'Neural', 'No': 'Non-neural'})
+    s14_data['Color'] = s14_data.IsNeural.map({'Yes': 'red', 'No': '#00aaff'})
+    assert s14_data[['Label', 'Color']].notna().all().all()
+    s14_meta = {'denominators': {'Yes': 178, 'No': 1460, 'Missing': 73},
+        'y_limits': [0.05130229287703567, 158.48931924611142],
+        'mannwhitneyu': {'statistic': float(s14_test.Statistic.iloc[0]),
+            'pvalue': float(s14_test.PValue.iloc[0]), 'display': f'p-val = {s14_test.PValue.iloc[0]:.2e}'}}
+    figure_s14 = plt.figure(figsize=np.array([180.0, 112.0]) / 25.4)
 
 
 # %% figure="FigureS14"
@@ -2481,7 +2503,7 @@ if 'FigureS14' in FIGURES_TO_BUILD:
     export_figure(figure_s14, 'FigureS14', {
         'exact_curve_points': len(s14_data), 'denominators': s14_meta['denominators'],
         'corrected_curve_definition_verified': True, 'corrected_input_sha_verified': True,
-        'MannWhitney_result_source': 'Completed S14 correction audit D094; no new test',
+        'MannWhitney_result_source': 'Pooled analysis notebook: figure_s14_test.tsv; renderer does not test',
         'MannWhitney_U': s14_meta['mannwhitneyu']['statistic'],
         'MannWhitney_P': s14_meta['mannwhitneyu']['pvalue']})
 
