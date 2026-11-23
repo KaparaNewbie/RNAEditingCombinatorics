@@ -14,6 +14,26 @@
 # ---
 
 # %% [markdown]
+# ## Reproducing manuscript results
+#
+# Use the retained manuscript inputs and selections described in `../../README.v2.md`.
+# These are dependency branches, not an instruction to Run All. Run the named setup
+# and the required upstream sections before an export; skip unrelated exploratory plots.
+# Set `MANUSCRIPT_FIGURE_SOURCES` to the same new absolute directory for every producer
+# and `final_manuscript_figures`. Keep assignment caches outside that directory and set
+# `MANUSCRIPT_ASSIGNMENTS` explicitly. `MANUSCRIPT_DATA_ROOT` selects the native data
+# repository when source and data are separate. Existing saved displays are historical.
+#
+# Cell IDs below identify the saved author notebook. Jupytext reconstruction may assign new IDs; locate the same cells by their section headings and opening source comments.
+#
+# | Order / branch | Existing section and required cells | Upstream inputs | Generated outputs | Downstream consumer |
+# |---|---|---|---|---|
+# | 1 | Imports/settings (`f5fce07e-a472-4ec6-8b25-93f426ddc1a7`); Recovered isoforms → Read results from disk | Retained complete/error simulations and SameFrac distinct-solution outputs | Native recovered-isoform summaries | S16a |
+# | 2a | Absolute results → `batch-export-figure-s16a` | Existing recovered-count summaries, original means/SDs and plot trace order | source_s16a.tsv | figure_s16_table |
+# | 2b | False positives / False negatives / True positives → Merged plots → `batch-export-figure-s16b` | Retained native match/false-positive assessments; preserve fractions and denominators | source_s16b.tsv | figure_s16_table |
+# | 3 | manuscript_plot_tables.figure_s16_table | Both native summary exports | FigureS16/figure_s16_summaries.tsv | Figure S16; no new simulation required |
+
+# %% [markdown]
 # # Imports, settings, etc.
 
 # %%
@@ -40,16 +60,17 @@ pio.templates.default = "plotly_white"
 pd.set_option("display.max_columns", 500)
 
 # %%
-out_dir = Path("/private7/projects/Combinatorics/Simulations/GraphAssessment")
-plots_out_dir = Path("/private6/projects/Combinatorics/Code/Notebooks")
-distinct_files_dir = Path(
-    "/private7/projects/Combinatorics/Simulations/GraphAssessment/SameFrac"
-)
+from manuscript_inputs import PROJECT
+from manuscript_paths import ASSIGNMENTS_DIR
+out_dir = PROJECT / "Simulations/GraphAssessment"
+plots_out_dir = ASSIGNMENTS_DIR.parent / "s16_plots"
+plots_out_dir.mkdir(parents=True, exist_ok=True)
+distinct_files_dir = out_dir / "SameFrac"
 unique_proteins_files_dir = out_dir
 false_positives_files_fofn = Path(out_dir, "FalsePositivesOutFiles.fofn")
 
 known_sites_csv_file = (
-    "/private7/projects/Combinatorics/D.pealeii/Annotations/D.pea.EditingSites.csv"
+    PROJECT / "D.pealeii/Annotations/D.pea.EditingSites.csv"
 )
 
 n_reads = 100_000
@@ -441,6 +462,9 @@ fig.show()
 # %%
 # Save original S16a summaries, mock-gene identities and simulation settings.
 from pathlib import Path
+from manuscript_paths import ASSIGNMENTS_DIR
+figure_s16_native = ASSIGNMENTS_DIR.parent / "s16"
+figure_s16_native.mkdir(parents=True, exist_ok=True)
 figure_s16_identity = {'comp141434_c0_seq1': 'CBPC1_HUMAN', 'comp141359_c0_seq2': 'MY18A_HUMAN', 'comp140826_c0_seq1': 'VPS8_HUMAN'}
 figure_s16_chroms = list(figure_s16_identity)
 figure_s16_rows = []
@@ -456,7 +480,7 @@ for trace_index, trace in enumerate(fig.data[:18]):
             "Chrom": chrom, "Gene": figure_s16_identity[chrom].split("_")[0],
             "Metric": metric, "DataType": data_type, "UnknownProbability": probability,
             "NumOfReads": reads, "Fraction": reads / 100000, "Mean": mean, "SD": sd})
-pd.DataFrame(figure_s16_rows).to_csv(Path("figure_rebuild_work/phase4_batch/inputs/source_s16a.tsv"), sep="\t", index=False, na_rep="NA")
+pd.DataFrame(figure_s16_rows).to_csv((figure_s16_native / "source_s16a.tsv"), sep="\t", index=False, na_rep="NA", mode="x")
 
 
 # %% jupyter={"source_hidden": true}
@@ -3749,6 +3773,9 @@ fig.show()
 # %%
 # Save original S16b summaries, mock-gene identities and simulation settings.
 from pathlib import Path
+from manuscript_paths import ASSIGNMENTS_DIR
+figure_s16_native = ASSIGNMENTS_DIR.parent / "s16"
+figure_s16_native.mkdir(parents=True, exist_ok=True)
 figure_s16_identity = {'comp141434_c0_seq1': 'CBPC1_HUMAN', 'comp141359_c0_seq2': 'MY18A_HUMAN', 'comp140826_c0_seq1': 'VPS8_HUMAN'}
 figure_s16_chroms = list(figure_s16_identity)
 figure_s16_rows = []
@@ -3764,5 +3791,5 @@ for trace_index, trace in enumerate(fig.data[:18]):
             "Chrom": chrom, "Gene": figure_s16_identity[chrom].split("_")[0],
             "Metric": metric, "DataType": data_type, "UnknownProbability": probability,
             "NumOfReads": reads, "Fraction": reads / 100000, "Mean": mean, "SD": sd})
-pd.DataFrame(figure_s16_rows).to_csv(Path("figure_rebuild_work/phase4_batch/inputs/source_s16b.tsv"), sep="\t", index=False, na_rep="NA")
+pd.DataFrame(figure_s16_rows).to_csv((figure_s16_native / "source_s16b.tsv"), sep="\t", index=False, na_rep="NA", mode="x")
 

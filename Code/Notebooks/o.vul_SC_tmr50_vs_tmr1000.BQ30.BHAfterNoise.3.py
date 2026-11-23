@@ -13,6 +13,26 @@
 #     name: python3
 # ---
 
+# %% [markdown]
+# ## Reproducing manuscript results
+#
+# Use the retained manuscript inputs and selections described in `../../README.v2.md`.
+# These are dependency branches, not an instruction to Run All. Run the named setup
+# and the required upstream sections before an export; skip unrelated exploratory plots.
+# Set `MANUSCRIPT_FIGURE_SOURCES` to the same new absolute directory for every producer
+# and `final_manuscript_figures`. Keep assignment caches outside that directory and set
+# `MANUSCRIPT_ASSIGNMENTS` explicitly. `MANUSCRIPT_DATA_ROOT` selects the native data
+# repository when source and data are separate. Existing saved displays are historical.
+#
+# Cell IDs below identify the saved author notebook. Jupytext reconstruction may assign new IDs; locate the same cells by their section headings and opening source comments.
+#
+# | Order / branch | Existing section and required cells | Upstream inputs | Generated outputs | Downstream consumer |
+# |---|---|---|---|---|
+# | 1 | Imports; Data loading; input/filter cells `5da43550`, `be8fa3a1` | SC.TotalCoverage50; matching pseudo-read/cell annotations | Native cohort and common filters | Full-cohort association |
+# | 2 | Selected solution preparation `eb326dd9-c829-400e-b5c6-82fadb64673f`, `8d64b1dc-aeac-424a-b0ed-699900c947b9`; metadata `beb37db6-71b0-4b2c-80fd-8141d2d21b44` | Retained entropy-considered assignments; read-ID map and native annotations | Tracked parallel_max_sc_expression_worker expansions | Original-support rows for association |
+# | 3 | Loader `d172d80c`; common count/pivot filters; Fisher helper `c4a4a981` | Validated expanded Original pseudo-reads; exclude specified unstable/unassigned labels | Per-gene integer contingency tables | Full-cohort test |
+# | 4 | `sc-full-cohort-{inputs,fisher,bh,summary,export}` | 1,074 candidates; ≥2 observed isoforms and cell types; existing seeded Monte Carlo settings | FullCohortIsoformAnnotationFisher.tsv (856 tests) | Manuscript text; Top100 diagnostics are separate |
+
 # %% [markdown] jp-MarkdownHeadingCollapsed=true papermill={"duration": 0.029907, "end_time": "2022-02-01T09:42:43.198426", "exception": false, "start_time": "2022-02-01T09:42:43.168519", "status": "completed"}
 # # Imports
 

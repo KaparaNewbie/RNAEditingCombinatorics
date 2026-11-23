@@ -13,6 +13,25 @@
 # ---
 
 # %% [markdown]
+# ## Reproducing manuscript results
+#
+# Use the retained manuscript inputs and selections described in `../../README.v2.md`.
+# These are dependency branches, not an instruction to Run All. Run the named setup
+# and the required upstream sections before an export; skip unrelated exploratory plots.
+# Set `MANUSCRIPT_FIGURE_SOURCES` to the same new absolute directory for every producer
+# and `final_manuscript_figures`. Keep assignment caches outside that directory and set
+# `MANUSCRIPT_ASSIGNMENTS` explicitly. `MANUSCRIPT_DATA_ROOT` selects the native data
+# repository when source and data are separate. Existing saved displays are historical.
+#
+# Cell IDs below identify the saved author notebook. Jupytext reconstruction may assign new IDs; locate the same cells by their section headings and opening source comments.
+#
+# | Order / branch | Existing section and required cells | Upstream inputs | Generated outputs | Downstream consumer |
+# |---|---|---|---|---|
+# | 1 | Input setup (`22479257`) → Classification (`bcc6642c`) | Jan2025 squid FASTA, ORF BED, editing-site BED | Reference translation/classifier | Annotated-site checks |
+# | 2 | Audit annotated sites (`145f8d97`) → One row per CDS triplet (`73bb4a41`) | Validated annotated coding-strand A sites | CDS-triplet and transcript recoding summaries | Manuscript text |
+# | 3 | Export (`4485d2e7`) | Native triplet outcomes, preserving missing/excluded sites | Jan2025/RecodingPotential tables | Manuscript text; no final figure consumer |
+
+# %% [markdown]
 # # Recoding potential at annotated squid RNA-editing sites
 #
 # One row per triplet in each BED-defined transcript CDS. Only **annotated editing sites** whose coding-strand reference base is A may undergo A→G substitution (inosine is read as G). Enumerate every nonempty subset of those sites, without assuming that the edits actually co-occur or have equal probability.

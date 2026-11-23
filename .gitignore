@@ -36,3 +36,34 @@ Code/Notebooks/scientific_audit_2026-10-14
 Code/Notebooks/entropy_audit_2026-11-12/
 Code/Notebooks/RevisionFisherBY_2026-11-09/
 Code/Notebooks/JointMISAnalysis/
+
+# Local agent policy and workstation diagnostics (exact locations).
+/AGENTS.md
+/Code/audit_vscode_watchers.py
+/vscode_watcher_audit*.txt
+
+# Retained GRIA/samtools diagnostics; not manuscript producer dependencies.
+/Code/Debug/gria_original_vs_complete_summary.tsv
+/Code/Debug/gria_samtools_version_findings.md
+/Code/Debug/reproduce_gria_samtools_baq.sh
+/Code/Notebooks/debug_gria2_positions_files.py
+
+# Dated local inventories and the historical figure-planning bundle.
+/Code/Notebooks/RepoCleanupInventory_2026-11-18/
+/Code/Notebooks/SoftwareVersionAudit_2026-11-18/
+/Code/Notebooks/figure_rebuild_plan_2026-10-07.zip
+
+# Generated entropy table and superseded cohort/layout sidecars.
+# Keep this directory open to future scientific source/configuration files.
+/Code/Notebooks/figure_sources/figure5c_entropy.tsv
+/Code/Notebooks/figure_sources/figure5c_entropy.json
+/Code/Notebooks/figure_sources/figure5c_cohorts.tsv
+/Code/Notebooks/figure_sources/figure5c_layout.json
+
+# Required external annotation: author-supplied response documented in README.v2.
+/Code/Notebooks/figure_sources/scanprosite_accepted.json
+
+# Selected manuscript runs contain generated tables/artifacts only.
+/Code/Notebooks/figure_sources/new_run/
+/Code/Notebooks/figure_sources/runs/
+/Code/Notebooks/manuscript_intermediates/

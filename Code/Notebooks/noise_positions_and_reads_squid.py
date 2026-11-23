@@ -13,6 +13,25 @@
 # ---
 
 # %% [markdown]
+# ## Reproducing manuscript results
+#
+# Use the retained manuscript inputs and selections described in `../../README.v2.md`.
+# These are dependency branches, not an instruction to Run All. Run the named setup
+# and the required upstream sections before an export; skip unrelated exploratory plots.
+# Set `MANUSCRIPT_FIGURE_SOURCES` to the same new absolute directory for every producer
+# and `final_manuscript_figures`. Keep assignment caches outside that directory and set
+# `MANUSCRIPT_ASSIGNMENTS` explicitly. `MANUSCRIPT_DATA_ROOT` selects the native data
+# repository when source and data are separate. Existing saved displays are historical.
+#
+# Cell IDs below identify the saved author notebook. Jupytext reconstruction may assign new IDs; locate the same cells by their section headings and opening source comments.
+#
+# | Order / branch | Existing section and required cells | Upstream inputs | Generated outputs | Downstream consumer |
+# |---|---|---|---|---|
+# | 1 | 12-mismatch analysis → Inputs (`mm12-squid-imports` and settings/load cells) | Original and complete-noise squid positions/read mappings | Explicit input identities | Mismatch annotations |
+# | 2 | Original thresholds and site identity → Annotations → Checks | Original gene decisions, SNP and editing thresholds | Scalar per-site decisions with original flags | Source export |
+# | 3 | Export (`mm12-squid-export-source`) | Validated position/gene/sample identities | 12mm/v2/positions/squid_{long,short}_reads | various_plots → shared_mismatches → S2/S15 |
+
+# %% [markdown]
 # # Imports
 
 # %%

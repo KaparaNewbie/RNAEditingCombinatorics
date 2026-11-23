@@ -13,6 +13,24 @@
 # ---
 
 # %% [markdown]
+# ## Reproducing manuscript results
+#
+# Use the retained manuscript inputs and selections described in `../../README.v2.md`.
+# These are dependency branches, not an instruction to Run All. Run the named setup
+# and the required upstream sections before an export; skip unrelated exploratory plots.
+# Set `MANUSCRIPT_FIGURE_SOURCES` to the same new absolute directory for every producer
+# and `final_manuscript_figures`. Keep assignment caches outside that directory and set
+# `MANUSCRIPT_ASSIGNMENTS` explicitly. `MANUSCRIPT_DATA_ROOT` selects the native data
+# repository when source and data are separate. Existing saved displays are historical.
+#
+# Cell IDs below identify the saved author notebook. Jupytext reconstruction may assign new IDs; locate the same cells by their section headings and opening source comments.
+#
+# | Order / branch | Existing section and required cells | Upstream inputs | Generated outputs | Downstream consumer |
+# |---|---|---|---|---|
+# | 1 | Imports; Inputs (`85903d98`); Functions | Native octopus complete-noise positions and read mappings | Position/read preparation | Octopus noise/haplotype investigation |
+# | 2 | Finding SNPs (`62c087c4`) | Original base counts and original read identities | SNP/read annotations | Pooled notebook’s native mismatch/haplotype route; this notebook is not the final figure renderer |
+
+# %% [markdown]
 # # Imports
 
 # %%

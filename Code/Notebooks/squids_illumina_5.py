@@ -13,6 +13,28 @@
 #     name: python3
 # ---
 
+# %% [markdown]
+# ## Reproducing manuscript results
+#
+# Use the retained manuscript inputs and selections described in `../../README.v2.md`.
+# These are dependency branches, not an instruction to Run All. Run the named setup
+# and the required upstream sections before an export; skip unrelated exploratory plots.
+# Set `MANUSCRIPT_FIGURE_SOURCES` to the same new absolute directory for every producer
+# and `final_manuscript_figures`. Keep assignment caches outside that directory and set
+# `MANUSCRIPT_ASSIGNMENTS` explicitly. `MANUSCRIPT_DATA_ROOT` selects the native data
+# repository when source and data are separate. Existing saved displays are historical.
+#
+# Cell IDs below identify the saved author notebook. Jupytext reconstruction may assign new IDs; locate the same cells by their section headings and opening source comments.
+#
+# | Order / branch | Existing section and required cells | Upstream inputs | Generated outputs | Downstream consumer |
+# |---|---|---|---|---|
+# | 1 | Imports (`0f34e44b`); Inputs (`15476213`); Ploting utils | Original 19-gene Illumina cohort and native paths | Input bindings | All Illumina branches |
+# | 2 | Data → Positions (`924533fd`), Reads, Proteins (`48af6b84`) | Native BQ30 position/read/unique RNA/protein tables | Read-weighted and protein-level inputs | Distinct selection and assigned expression |
+# | 3 | Num of distinct unique proteins; fixed selected-expression preparation | Retained ordinary solutions and native expression files | Assigned-expression and distinct-count tables | manuscript_inputs / expression_tables; F3/F4a, S6–S10/S17/S20 |
+# | 4a | Shannon’s entropy - updated - 2; `entropy-readable-20261117-illumina-*` | All original informative reads per codon; selected assigned expression | Figure5/figure5c_entropy.tsv (Illumina contribution) | Figure 5c |
+# | 4b | `revision-20261109-by-{inputs,adjust,export}`; `revision-20261109-s18-{inputs,counts,fisher,summary}` | Corrs.IL1.tsv; fixed assignments; original RNA | Intermediate BY/Fisher exports | F5/S11/S18 and Table S4 |
+# | 4c | Distribution of non-syns; sample-SD export | Original reads, with original multiplicity; sample SD ddof=1 | Recoding summaries; TableS2_recoding_sample_SD.tsv | S3 and Table S2 |
+
 # %% [markdown] papermill={"duration": 0.029907, "end_time": "2022-02-01T09:42:43.198426", "exception": false, "start_time": "2022-02-01T09:42:43.168519", "status": "completed"}
 # # Imports
 
@@ -7209,8 +7231,8 @@ import json
 # ]
 # maximal_solutions
 
-selection_binding_path = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/canonical_inputs/ordinary_selection_bindings.json")
-selection_bindings = json.loads(selection_binding_path.read_text())
+from manuscript_inputs import selection_bindings as native_selection_bindings
+selection_bindings = native_selection_bindings()
 ordinary_solution_ids = {
     ("Illumina", "RUSC2", "ordinary_full_fraction"): "77",
     ("Illumina", "TRIM2", "ordinary_full_fraction"): "68",
@@ -8210,8 +8232,7 @@ pd.DataFrame(export_rows).to_csv(export_path, sep="\t", index=False, na_rep="NA"
 from pathlib import Path
 import sys
 canonical_dir = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/canonical_inputs")
-sys.path.insert(0, str(canonical_dir))
-from canonical_io import verified_merged_dataframe, read_merged
+from manuscript_inputs import verified_merged_dataframe, read_merged
 
 # Rebuild from the approved snapshot after checking every source identity and support.
 merged_assignment_df = verified_merged_dataframe("Illumina", assignment_dfs)
@@ -10204,7 +10225,7 @@ fig.show()
 #
 # `NumOfReadsPerAAInCodon` counts reads with one particular AA; `TotalNumOfInformativeReadsInCodon` counts reads with any definite AA at that codon; `AAFrequencyPerCodon` is their ratio.
 #
-# Stop at `entropy_summary_df` to inspect the calculation without file I/O. The separate final export cell reads the small existing figure-source table, then updates the Illumina rows in `figure_sources/figure5c_entropy.tsv`. Run the PacBio and Illumina exports sequentially; the final-figure notebook requires all 21 cohorts.
+# Stop at `entropy_summary_df` to inspect the calculation without file I/O. The separate export writes the Illumina contribution to `MANUSCRIPT_FIGURE_SOURCES/Figure5/figure5c_entropy.tsv`, refusing a duplicate platform. Run the PacBio and Illumina exports sequentially in one new source root; the final-figure notebook requires all 21 cohorts.
 #
 # Earlier diagnostic evidence remains archived under `entropy_audit_2026-11-12/`; it is not a calculation dependency. The saved summary below predates this in-memory correction and has not been rerun.
 
@@ -10353,8 +10374,9 @@ from pathlib import Path
 
 entropy_notebook_dir = Path.cwd()
 assert (entropy_notebook_dir / "jupytext.toml").is_file(), "Run the export from Code/Notebooks"
-entropy_source_dir = entropy_notebook_dir / "figure_sources"
-entropy_source_dir.mkdir(exist_ok=True)
+from manuscript_paths import FIGURE_SOURCES
+entropy_source_dir = FIGURE_SOURCES / "Figure5"
+entropy_source_dir.mkdir(parents=True, exist_ok=True)
 entropy_output_path = entropy_source_dir / "figure5c_entropy.tsv"
 entropy_export_cols = ["Platform", "Gene", "ObservedEntropyBits", "HypotheticalEntropyBits"]
 entropy_export_df = entropy_summary_df[entropy_export_cols].copy()
@@ -10363,6 +10385,7 @@ assert entropy_export_df["Gene"].tolist() == shortened_conditions
 if entropy_output_path.exists():
     previous_entropy_df = pd.read_table(entropy_output_path, float_precision="round_trip")
     assert previous_entropy_df.columns.tolist() == entropy_export_cols
+    assert not previous_entropy_df["Platform"].eq(entropy_platform).any(), "This platform was already exported; select a new source root"
     other_platform_entropy_df = previous_entropy_df.loc[~previous_entropy_df["Platform"].eq(entropy_platform)]
     entropy_export_df = pd.concat([other_platform_entropy_df, entropy_export_df], ignore_index=True)
 assert not entropy_export_df.duplicated(["Platform", "Gene"]).any()
@@ -11822,15 +11845,15 @@ assert table_s2_recoding["OriginalReads"].sum() == len(non_syns_per_read_df)
 table_s2_recoding = table_s2_recoding.reset_index()
 table_s2_recoding[condition_col] = table_s2_recoding[condition_col].astype("str").str.split("_").str[0]
 assert table_s2_recoding[condition_col].is_unique
-table_s2_export_dir = Path("figure_rebuild_work/finalization_2026-10-12/tables")
+from manuscript_paths import ASSIGNMENTS_DIR
+table_s2_export_dir = ASSIGNMENTS_DIR.parent / "workbooks"
 table_s2_export_dir.mkdir(parents=True, exist_ok=True)
-table_s2_recoding.to_csv(table_s2_export_dir / "TableS2_recoding_sample_SD.tsv", sep="\t", index=False)
+table_s2_recoding.to_csv(table_s2_export_dir / "TableS2_recoding_sample_SD.tsv", sep="\t", index=False, mode="x")
 table_s2_recoding
 
 # Keep the author's latest workbook; update only the adjacent recoding SD cells.
 import sys
-sys.path.insert(0, str(Path("figure_rebuild_work/finalization_2026-10-12/preparation").resolve()))
-from table_s2_export import export_sample_sd_workbook
+from manuscript_workbooks import export_sample_sd_workbook
 changed_sd_cells = export_sample_sd_workbook(
     Path("../../review_inputs/Supplementary tables 12.xlsx"),
     table_s2_export_dir / "Supplementary tables 12.xlsx", table_s2_recoding)
@@ -12041,32 +12064,33 @@ import numpy as np
 import pandas as pd
 from scipy.stats import fisher_exact
 from statsmodels.stats.multitest import multipletests
-revision_dir = Path.cwd() / 'RevisionFisherBY_2026-11-09'
-assert revision_dir.is_dir(), 'Run from Code/Notebooks'
-sys.path.insert(0, str(revision_dir))
-from revision_support import source, original_support, CANONICAL
+from manuscript_paths import FIGURE_SOURCES, ASSIGNMENTS_DIR
+revision_dir = ASSIGNMENTS_DIR.parent / 's18'
+revision_dir.mkdir(parents=True, exist_ok=True)
+from manuscript_inputs import selections, read_assignment, original_rna_patterns, PROJECT
+assignments_dir = ASSIGNMENTS_DIR
 s18_platform = 'Illumina'
-s18_bindings = json.loads(source(CANONICAL / 'original_read_bindings.json').read_text())['cohorts']
-s18_protein_bindings = json.loads(source(CANONICAL / 'pattern_bindings.json').read_text())['cohorts']
+s18_selections = selections().loc[lambda t: t.Platform.eq(s18_platform) & t.Metric.eq('ordinary')]
 s18_results = []
 
 # %%
 # Recover native read multiplicities and count A/G/missing calls in fixed groups.
-for binding in [b for b in s18_bindings if b['platform'] == s18_platform]:
-    protein_binding = next(b for b in s18_protein_bindings if
-        (b['platform'], b['gene'], b['cohort']) == (s18_platform, binding['gene'], 'ordinary_full_fraction'))
-    assignment, protein_ids, rna = original_support(binding, protein_binding)
+for selection in s18_selections.itertuples(index=False):
+    assignment = read_assignment(selection, assignments_dir)
+    native_rna = original_rna_patterns(selection, assignment)
+    protein_ids = native_rna['Protein']
+    sites = native_rna['columns'].tolist()
+    rna = pd.DataFrame(native_rna['states'], columns=sites)
+    rna['NumOfReads'] = native_rna['NumOfReads']
     n_common, n_rare = math.ceil(len(assignment) * .01), math.ceil(len(assignment) * .30)
     common_ids, rare_ids = assignment.Protein.iloc[:n_common], assignment.Protein.iloc[-n_rare:]
-    assert common_ids.tolist() == binding['common_IDs']
-    assert rare_ids.tolist() == binding['rare_IDs']
     assert set(common_ids).isdisjoint(rare_ids)
-    result = pd.DataFrame({'Platform': s18_platform, 'Gene': binding['gene'],
-        'EditingSite': binding['sites'], 'SiteOrder': np.arange(len(binding['sites'])),
-        'Solution': binding['solution'], 'CommonIsoforms': n_common, 'RareIsoforms': n_rare})
+    result = pd.DataFrame({'Platform': s18_platform, 'Gene': selection.Gene,
+        'EditingSite': sites, 'SiteOrder': np.arange(len(sites)),
+        'Solution': selection.Solution, 'CommonIsoforms': n_common, 'RareIsoforms': n_rare})
     for group, ids in [('Common', common_ids), ('Rare', rare_ids)]:
         selected = rna.loc[np.isin(protein_ids, ids)]
-        states = selected[binding['sites']].to_numpy()
+        states = selected[sites].to_numpy()
         weights = selected.NumOfReads.to_numpy(dtype=np.int64)
         result[group + 'OriginalReads'] = int(weights.sum())
         for call, state in [('A', 0), ('G', 1), ('NA', -1)]:
@@ -12074,16 +12098,10 @@ for binding in [b for b in s18_bindings if b['platform'] == s18_platform]:
         assert result[[group + c for c in ['A', 'G', 'NA']]].sum(axis=1).eq(weights.sum()).all()
         denominator = result[group + 'A'] + result[group + 'G']
         result[group + 'EditingPercent'] = 100 * result[group + 'G'] / denominator.where(denominator.gt(0))
-    old = pd.read_table(source(CANONICAL / (s18_platform + '.' + binding['gene'] + '.S18.tsv'),
-                       binding['summary_sha256']), dtype={'EditingSite': str}, float_precision='round_trip')
-    old = old[['EditingSite', 'pv', 'fdr_bh_corrected_pv', 'fdr_bh_rejection',
-               '%ExpressionWeightedMeanCommonEditing', '%MeanRareEditing']].add_prefix('OldT_')
-    result = result.merge(old, left_on='EditingSite', right_on='OldT_EditingSite',
-                          how='left', validate='one_to_one', indicator=True)
-    assert result.pop('_merge').eq('both').all()
+    # Historical t-test comparison columns are not inputs to the Fisher result.
     result['SourceNotebook'] = 'squids_illumina_5.ipynb'
-    result['SourceUniqueReads'] = binding['unique_reads_source']
-    result['SourceUniqueProteins'] = protein_binding['unique_proteins_file']
+    result['SourceUniqueReads'] = str(PROJECT / selection.UniqueReadsFile)
+    result['SourceUniqueProteins'] = str(PROJECT / selection.UniqueProteinsFile)
     s18_results.append(result)
 
 # %%
@@ -12128,8 +12146,8 @@ for (platform, gene), data in s18_fisher_sites.groupby(['Platform', 'Gene'], sor
     assert counts['NumOfUntestableSites'] + significant + counts['NumOfInsignificantSites'] == len(data)
     s18_summary_rows.append(counts)
 s18_fisher_summary = pd.DataFrame(s18_summary_rows)
-s18_fisher_sites.to_csv(revision_dir / f's18_fisher_sites.{s18_platform}.tsv', sep='	', index=False, na_rep='NA')
-s18_fisher_summary.to_csv(revision_dir / f's18_fisher_summary.{s18_platform}.tsv', sep='	', index=False, na_rep='NA')
+s18_fisher_sites.to_csv(revision_dir / f's18_fisher_sites.{s18_platform}.tsv', sep='	', index=False, na_rep='NA', mode='x')
+s18_fisher_summary.to_csv(revision_dir / f's18_fisher_summary.{s18_platform}.tsv', sep='	', index=False, na_rep='NA', mode='x')
 display(s18_fisher_summary)
 
 # %% [markdown]
@@ -12147,10 +12165,10 @@ import sys
 import numpy as np
 import pandas as pd
 from statsmodels.stats.multitest import multipletests
-revision_dir = Path.cwd() / 'RevisionFisherBY_2026-11-09'
-assert revision_dir.is_dir(), 'Run from Code/Notebooks'
-sys.path.insert(0, str(revision_dir))
-from revision_support import source
+from manuscript_paths import FIGURE_SOURCES, ASSIGNMENTS_DIR
+revision_dir = ASSIGNMENTS_DIR.parent / 'by'
+revision_dir.mkdir(parents=True, exist_ok=True)
+from manuscript_inputs import source
 by_platform = 'Illumina'
 by_pairs = pd.read_table(source(Path.cwd() / 'Corrs.IL1.tsv'), float_precision='round_trip')
 by_genes = ['PCLO']
@@ -12184,8 +12202,8 @@ for gene in by_genes:
     saved = pd.read_table(old_file, float_precision='round_trip').to_numpy()
     np.testing.assert_array_equal(np.isnan(historical), np.isnan(saved))
     np.testing.assert_allclose(historical, saved, rtol=1e-13, atol=1e-15, equal_nan=True)
-    pd.DataFrame(revised).to_csv(revision_dir / f'{gene}MaskedBYCorr.{by_platform}.tsv', sep='	', index=False)
-    pd.Series(sites, name='EditingSite').to_csv(revision_dir / f'{gene}.BYSiteOrder.{by_platform}.tsv', sep='	', index=False)
+    pd.DataFrame(revised).to_csv(revision_dir / f'{gene}MaskedBYCorr.{by_platform}.tsv', sep='	', index=False, mode="x")
+    pd.Series(sites, name='EditingSite').to_csv(revision_dir / f'{gene}.BYSiteOrder.{by_platform}.tsv', sep='	', index=False, mode="x")
     pairs['Platform'] = by_platform
     pairs['SourceNotebook'] = 'squids_illumina_5.ipynb'
     by_results.append(pairs)
@@ -12198,8 +12216,8 @@ for gene in by_genes:
 # %%
 by_pair_results = pd.concat(by_results, ignore_index=True)
 by_summary = pd.DataFrame(by_summaries)
-by_pair_results.to_csv(revision_dir / f'pearson_by_pairs.{by_platform}.tsv', sep='	', index=False, na_rep='NA')
-by_summary.to_csv(revision_dir / f'bonferroni_vs_by.{by_platform}.tsv', sep='	', index=False)
+by_pair_results.to_csv(revision_dir / f'pearson_by_pairs.{by_platform}.tsv', sep='	', index=False, na_rep='NA', mode='x')
+by_summary.to_csv(revision_dir / f'bonferroni_vs_by.{by_platform}.tsv', sep='	', index=False, mode="x")
 display(by_summary)
 
 # %% [markdown]

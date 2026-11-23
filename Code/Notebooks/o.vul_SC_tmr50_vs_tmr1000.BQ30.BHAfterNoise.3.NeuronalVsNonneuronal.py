@@ -13,6 +13,25 @@
 #     name: python3
 # ---
 
+# %% [markdown]
+# ## Reproducing manuscript results
+#
+# Use the retained manuscript inputs and selections described in `../../README.v2.md`.
+# These are dependency branches, not an instruction to Run All. Run the named setup
+# and the required upstream sections before an export; skip unrelated exploratory plots.
+# Set `MANUSCRIPT_FIGURE_SOURCES` to the same new absolute directory for every producer
+# and `final_manuscript_figures`. Keep assignment caches outside that directory and set
+# `MANUSCRIPT_ASSIGNMENTS` explicitly. `MANUSCRIPT_DATA_ROOT` selects the native data
+# repository when source and data are separate. Existing saved displays are historical.
+#
+# Cell IDs below identify the saved author notebook. Jupytext reconstruction may assign new IDs; locate the same cells by their section headings and opening source comments.
+#
+# | Order / branch | Existing section and required cells | Upstream inputs | Generated outputs | Downstream consumer |
+# |---|---|---|---|---|
+# | 1 | Imports; Data loading - neuronal (`308d89f9`) and - non-neuronal (`91cc929a`); Ploting utils | Separate cell-class native read/position/protein/solution directories | Class-specific input bindings | FixedTMR50 cohorts |
+# | 2 | Data preprocessing → Reads/Proteins; Num of distinct proteins | Native largest saved selections and original read counts; established one-isoform fill | Gene-level counts in each eligible cell class | FixedTMR50 export |
+# | 3 | MaxDistinctProtsForFig6 exports under Num of distinct proteins | Neuronal and non-neuronal fixed cohorts | MaxDistinctProtsForFig6.{Neuronal,NonNeuronal}.FixedTMR50.Octopus.SC.csv | figure6_tables → Figure6/; no expression rerun required |
+
 # %% [markdown] jp-MarkdownHeadingCollapsed=true papermill={"duration": 0.029907, "end_time": "2022-02-01T09:42:43.198426", "exception": false, "start_time": "2022-02-01T09:42:43.168519", "status": "completed"}
 # # Imports
 

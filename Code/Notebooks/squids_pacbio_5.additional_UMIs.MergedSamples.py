@@ -13,6 +13,27 @@
 #     name: python3
 # ---
 
+# %% [markdown]
+# ## Reproducing manuscript results
+#
+# Use the retained manuscript inputs and selections described in `../../README.v2.md`.
+# These are dependency branches, not an instruction to Run All. Run the named setup
+# and the required upstream sections before an export; skip unrelated exploratory plots.
+# Set `MANUSCRIPT_FIGURE_SOURCES` to the same new absolute directory for every producer
+# and `final_manuscript_figures`. Keep assignment caches outside that directory and set
+# `MANUSCRIPT_ASSIGNMENTS` explicitly. `MANUSCRIPT_DATA_ROOT` selects the native data
+# repository when source and data are separate. Existing saved displays are historical.
+#
+# Cell IDs below identify the saved author notebook. Jupytext reconstruction may assign new IDs; locate the same cells by their section headings and opening source comments.
+#
+# | Order / branch | Existing section and required cells | Upstream inputs | Generated outputs | Downstream consumer |
+# |---|---|---|---|---|
+# | 1 | Imports (`08f4c2cd`), settings (`c8b1820c`), replicates (`64acc4c8`), plotting helpers (`8f4d7965`, `edc51ea1`) | PB3 AllReads mapping; GRIA/ADAR1/IQEC1; three biological replicates | Dataset bindings | All PB3 branches |
+# | 2 | Data → Positions, Reads, Proteins, Expression (`104f7e67`) | PB3 all-read positions, read/replicate maps, selected solutions and assignments | Pooled and replicate-specific scientific tables | Recurrence and site summaries |
+# | 3a | Editing per-site per-sample (`49b174d8` onward) → `batch-export-figure-s4` | Per-replicate base counts and pooled positions; established thresholds | FigureS4/figure_s4_plot.tsv | Figure S4 |
+# | 3b | Replicate abundance preparation → TPM-based isoform recurrence (`eb4fe8e2`, `8429762c`) → `batch-export-figure4b` | Selected isoforms, original/reassigned replicate support and existing TPM normalization | Figure4/figure4b_recurrence.tsv | Figure 4b |
+# | 3c | Data loss and recoding summaries; manuscript_metrics.produce_metrics | Stage-specific native BAM/position/read/protein inputs in pacbio_metrics.tsv | Native metrics and new workbook | Tables S1/S3; manuscript_workbooks |
+
 # %% [markdown] papermill={"duration": 0.029907, "end_time": "2022-02-01T09:42:43.198426", "exception": false, "start_time": "2022-02-01T09:42:43.168519", "status": "completed"}
 # # Imports
 
@@ -7959,7 +7980,8 @@ fig.show()
 # %%
 # Persist the exact S4 bars with their gene, replicate and threshold identities.
 from pathlib import Path
-figure_s4_dir = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/phase4_batch/inputs")
+from manuscript_paths import FIGURE_SOURCES
+figure_s4_dir = FIGURE_SOURCES / 'FigureS4'
 figure_s4_dir.mkdir(parents=True, exist_ok=True)
 figure_s4_parts = []
 for trace in fig.data:
@@ -7971,7 +7993,7 @@ for trace in fig.data:
         "Gene": trace.x, "Replicate": trace.name,
         "PercentEditedOfCoveredSites": trace.y, "Color": trace.marker.color}))
 figure_s4_plot = pd.concat(figure_s4_parts, ignore_index=True)
-figure_s4_plot.to_csv(figure_s4_dir / "figure_s4_plot.tsv", sep="\t", index=False, na_rep="NA")
+figure_s4_plot.to_csv(figure_s4_dir / "figure_s4_plot.tsv", sep="\t", index=False, na_rep="NA", mode="x")
 
 
 # %%
@@ -15523,7 +15545,8 @@ tpm_recurrence_fig.show()
 # %%
 # Persist the plotted Top-X and All-isoform TPM cohorts, retaining denominators.
 from pathlib import Path
-figure4_input_dir = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/phase4_batch/inputs")
+from manuscript_paths import FIGURE_SOURCES
+figure4_input_dir = FIGURE_SOURCES / 'Figure4'
 figure4_input_dir.mkdir(parents=True, exist_ok=True)
 figure4b_export_parts = []
 for definition in tpm_recurrence_order:
@@ -15538,7 +15561,7 @@ for definition in tpm_recurrence_order:
 figure4b_export_df = pd.concat(figure4b_export_parts, ignore_index=True)[
     ["Gene", "RecurrenceDefinition", "TPMThreshold", "IsoformSetLabel", "TopXIsoforms", "TopXPosition", "AllProts", "%NumOfProteins"]]
 assert len(figure4b_export_df) == 220
-figure4b_export_df.to_csv(figure4_input_dir / "figure4b_recurrence.tsv", sep="\t", index=False, na_rep="NA")
+figure4b_export_df.to_csv(figure4_input_dir / "figure4b_recurrence.tsv", sep="\t", index=False, na_rep="NA", mode="x")
 
 
 # %%

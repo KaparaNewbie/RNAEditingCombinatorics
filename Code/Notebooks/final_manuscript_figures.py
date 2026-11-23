@@ -12,21 +12,46 @@
 #     name: python3
 # ---
 
+# %% [markdown]
+# ## Reproducing manuscript results
+#
+# Use the retained manuscript inputs and selections described in `../../README.v2.md`.
+# These are dependency branches, not an instruction to Run All. Run the named setup
+# and the required upstream sections before an export; skip unrelated exploratory plots.
+# Set `MANUSCRIPT_FIGURE_SOURCES` to the same new absolute directory for every producer
+# and `final_manuscript_figures`. Keep assignment caches outside that directory and set
+# `MANUSCRIPT_ASSIGNMENTS` explicitly. `MANUSCRIPT_DATA_ROOT` selects the native data
+# repository when source and data are separate. Existing saved displays are historical.
+#
+# Cell IDs below identify the saved author notebook. Jupytext reconstruction may assign new IDs; locate the same cells by their section headings and opening source comments.
+#
+# | Order / branch | Existing section and required cells | Upstream inputs | Generated outputs | Downstream consumer |
+# |---|---|---|---|---|
+# | 1 | `batch-selection`, `figure3-imports`, `figure3-paths-typography` | New MANUSCRIPT_FIGURE_SOURCES and MANUSCRIPT_FINAL_FIGURES; permitted MANUSCRIPT_FONTS | Selected figure gates and output directories | Only explicitly selected figures |
+# | 2a | Figure3 input/layout/draw/export cells (`figure3-*`); then `final-collection-export` | New Figure3 tables | Figure3 SVG/PDF/PNG | Publication review |
+# | 2b | `batch-setup`; selected figure load/draw/export cells; `final-collection-export` | New per-figure/shared tables; generated S1/S17 geometry | F4–F6 and S1–S6/S8–S14/S16–S20 | F5 has a dedicated exporter/crop |
+# | 2c | `figure3-layout-helpers`, `supplement-layout`, `batch-setup`, `s15-*`, `final-collection-export` | New shared_mismatches tables | S15 SVG/PDF/PNG | Publication review |
+# | 2d | `s7-complete-updated-20261116-*` | FigureS7/s7_scores.tsv from exact manuscript_s7 producer | S7 SVG/PDF/PNG | Publication review |
+# | 2e | `batch-setup`; `figure2-asset-*`; `figure2-assembly-*` | New PCLO rank table; MANUSCRIPT_FIGURE2_ASSETS; permitted fonts and exact Docker image | Figure2b asset and assembled F2 | Manual artwork remains an external input |
+#
+# For reconstructed notebooks, these opening comments identify the shared setup:
+# `Select only the figure sections to execute` (selection), `Plotting dependencies only`
+# (imports), `One path/physical-unit configuration` (paths), `New figures share the
+# established local fonts` (batch setup), `Axes rectangles are specified` (Figure 3/S15
+# layout), and `Crop only newly rendered` (final crop). S15 additionally needs the
+# `from matplotlib.transforms import Bbox` layout cell and its `Read prepared counts only`
+# load cell. The S7 branch starts `Independent plotting setup for the sole canonical S7
+# producer`. Run a selected figure's loading, drawing and export cells in source order.
+
 # %%
-# Layout changes only; all scientific inputs are already persisted.
-FIGURES_TO_BUILD = ['Figure5', 'Figure6', 'FigureS4', 'FigureS1', 'FigureS2', 'FigureS3', 'FigureS5', 'FigureS6', 'FigureS8', 'FigureS9', 'FigureS10', 'FigureS11', 'FigureS12', 'FigureS16', 'FigureS17', 'FigureS20', 'FigureS15', 'FigureS18', 'FigureS14']
+# Select only the figure sections to execute; scientific producers run separately.
+FIGURES_TO_BUILD = []
 RENDER_FIGURE3 = False
 
 
 # %% [markdown]
-# The current collection is `Notebooks/final_figures/`, with SVG, PDF, and PNG previews.
-# The default run renders Figure2b, S2 and Plotly S19 from persisted tables, assembles
-# Figure2 from approved PDFs, and authenticates the other approved artwork. Figure2b
-# uses the approved 4.90 × 4.55 cm Arial design; Figure2 retains the BioRender design.
-# The other plotting sections retain Open Sans. Neither S19 simulation nor any other
-# scientific preparation is rerun here. `dimensions_cm.tsv` records actual final sizes.
-# Figure1 remains external/manual. Figure2 assembly requires the documented Docker
-# image; the notebook runs it without changing the combinatorics2 environment.
+# The publication outputs are under `final_figures/`. All render gates default to off. Select explicit figure sections and set `FINAL_FIGURES_DIR` to a new subdirectory before execution. Generate scientific tables first using the producers in README.v2.md. The renderer does not run scientific inference or refresh the historical collection. Figure 1 and the manual portions of Figure 2 require external artwork; matching fonts and the Figure 2 Docker image are external dependencies.
+#
 
 # %%
 # Plotting dependencies only; the selected environment is explicit and checked.
@@ -48,7 +73,6 @@ from matplotlib.patches import Patch, Rectangle
 from matplotlib.ticker import FuncFormatter, MultipleLocator
 from matplotlib.text import Text
 from IPython.display import display, Image
-assert Path(sys.prefix).name == 'combinatorics2'
 assert hasattr(pd.DataFrame, 'map')
 print({'executable': sys.executable, 'prefix': sys.prefix,
        'pandas_version': pd.__version__, 'pandas_file': pd.__file__})
@@ -56,15 +80,18 @@ print({'executable': sys.executable, 'prefix': sys.prefix,
 # %%
 # One path/physical-unit configuration and one typography definition.
 NOTEBOOK_DIR = Path.cwd()
-WORK_DIR = NOTEBOOK_DIR / 'figure_rebuild_work'
-assert WORK_DIR.is_dir()
-CORRECTION_DIR = WORK_DIR / 'correction_2026-10-12'
-INPUT_DIR = CORRECTION_DIR / 'inputs'
-OUTPUT_DIR = CORRECTION_DIR
-FINAL_FIGURES_DIR = NOTEBOOK_DIR / 'final_figures'
+from manuscript_paths import FIGURE_SOURCES, figure_source
+FINAL_FIGURES_DIR = Path(os.environ.get('MANUSCRIPT_FINAL_FIGURES', NOTEBOOK_DIR / 'final_figures/new_run')).resolve()
+INPUT_DIR = FIGURE_SOURCES / 'Figure3'
+OUTPUT_DIR = FINAL_FIGURES_DIR / 'render_work/Figure3'
+# Refuse to replace any already published selected figure.
+selected_outputs = set(FIGURES_TO_BUILD) | ({'Figure3'} if RENDER_FIGURE3 else set())
+for stem in selected_outputs:
+    for folder, suffix in [('svg', 'svg'), ('pdf', 'pdf'), ('previews', 'png')]:
+        assert not (FINAL_FIGURES_DIR / folder / f'{stem}.{suffix}').exists(), 'Choose a new FINAL_FIGURES_DIR'
 for folder in ['svg', 'pdf', 'previews']:
     (FINAL_FIGURES_DIR / folder).mkdir(parents=True, exist_ok=True)
-FONT_DIR = CORRECTION_DIR / 'fonts'
+FONT_DIR = Path(os.environ['MANUSCRIPT_FONTS']).resolve()
 WIDTH_MM, HEIGHT_MM = 180.0, 180.0
 PT_PER_MM = 72 / 25.4
 TEXT_PT = {'panel': 7, 'axis': 7, 'heading': 7, 'legend_heading': 7,
@@ -81,21 +108,118 @@ mpl.rcParams.update({'font.family': 'Open Sans', 'font.size': 6,
     'xtick.major.size': 2, 'ytick.major.size': 2,
     'svg.hashsalt': 'combinatorics-figure3', 'savefig.facecolor': 'white'})
 for folder in ['previews', 'evidence']:
-    (OUTPUT_DIR / folder).mkdir(exist_ok=True)
+    (OUTPUT_DIR / folder).mkdir(parents=True, exist_ok=True)
 
 # %%
 # Read exact stored values and preserve the declared scientific order.
-tables, metadata = {}, {}
+tables = {}
+metadata = {'a': {'keys': ['Gene', 'Protein']},
+ 'b': {'keys': ['Platform', 'Gene'],
+       'gene_order': {'Long-reads': ['GRIA2', 'PCLO'],
+                      'Short-reads': ['ABL',
+                                      'ACHA4',
+                                      'ANR17',
+                                      'CA2D3',
+                                      'CACB2',
+                                      'CSKI1',
+                                      'DGLA',
+                                      'DOP1',
+                                      'IQEC1',
+                                      'K0513',
+                                      'KCNAS',
+                                      'MTUS2',
+                                      'PCLO',
+                                      'RIMS2',
+                                      'ROBO2',
+                                      'RUSC2',
+                                      'SCN1',
+                                      'TRIM2',
+                                      'TWK7']},
+       'gene_colors': {'GRIA2': '#00A08B',
+                       'PCLO': '#AF0038',
+                       'ABL': '#0D2A63',
+                       'ACHA4': '#DA16FF',
+                       'ANR17': '#FC0080',
+                       'CA2D3': '#6C4516',
+                       'CACB2': '#1616A7',
+                       'CSKI1': '#222A2A',
+                       'DGLA': '#620042',
+                       'DOP1': '#A777F1',
+                       'IQEC1': '#EB663B',
+                       'K0513': '#750D86',
+                       'KCNAS': '#FB0D0D',
+                       'MTUS2': '#1CA71C',
+                       'RIMS2': '#FB00D1',
+                       'ROBO2': '#2E91E5',
+                       'RUSC2': '#B68100',
+                       'SCN1': '#6C7C32',
+                       'TRIM2': '#B2828D',
+                       'TWK7': '#862A16'}},
+ 'c': {'keys': ['Platform', 'Gene', 'Fraction'],
+       'gene_order': {'Long-reads': ['GRIA2', 'PCLO'],
+                      'Short-reads': ['ABL',
+                                      'ACHA4',
+                                      'ANR17',
+                                      'CA2D3',
+                                      'CACB2',
+                                      'CSKI1',
+                                      'DGLA',
+                                      'DOP1',
+                                      'IQEC1',
+                                      'K0513',
+                                      'KCNAS',
+                                      'MTUS2',
+                                      'PCLO',
+                                      'RIMS2',
+                                      'ROBO2',
+                                      'RUSC2',
+                                      'SCN1',
+                                      'TRIM2',
+                                      'TWK7']},
+       'gene_colors': {'GRIA2': '#00A08B',
+                       'PCLO': '#AF0038',
+                       'ABL': '#0D2A63',
+                       'ACHA4': '#DA16FF',
+                       'ANR17': '#FC0080',
+                       'CA2D3': '#6C4516',
+                       'CACB2': '#1616A7',
+                       'CSKI1': '#222A2A',
+                       'DGLA': '#620042',
+                       'DOP1': '#A777F1',
+                       'IQEC1': '#EB663B',
+                       'K0513': '#750D86',
+                       'KCNAS': '#FB0D0D',
+                       'MTUS2': '#1CA71C',
+                       'RIMS2': '#FB00D1',
+                       'ROBO2': '#2E91E5',
+                       'RUSC2': '#B68100',
+                       'SCN1': '#6C7C32',
+                       'TRIM2': '#B2828D',
+                       'TWK7': '#862A16'},
+       'reference_line_coordinates': [{'name': 'Theoretical maximum    ',
+                                       'x': [3571.7000000000003, 75005.7],
+                                       'y': [36016, 36016],
+                                       'platform': 'Long-reads'},
+                                      {'name': 'Observed',
+                                       'x': [3571.7000000000003, 75005.7],
+                                       'y': [18496, 18496],
+                                       'platform': 'Long-reads'},
+                                      {'name': 'Theoretical maximum    ',
+                                       'x': [72753.95, 1527832.95],
+                                       'y': [36016, 36016],
+                                       'platform': 'Short-reads'},
+                                      {'name': 'Observed',
+                                       'x': [72753.95, 1527832.95],
+                                       'y': [18496, 18496],
+                                       'platform': 'Short-reads'}]},
+ 'd': {'keys': ['Dissimilarity', 'Gene', 'Fraction']}}
 for panel in 'abcd':
     path = INPUT_DIR / f'squid_original_figure3{panel}_plot.tsv'
-    meta = json.loads(path.with_suffix('.json').read_text())
-    assert hashlib.sha256(path.read_bytes()).hexdigest() == meta['sha256']
-    table = pd.read_table(path, keep_default_na=False, na_values=[''],
-                          float_precision='round_trip')
-    assert table.columns.tolist() == meta['columns'] and len(table) == meta['rows']
-    assert not table.duplicated(meta['keys']).any()
-    assert table[meta['keys']].notna().all().all()
-    tables[panel], metadata[panel] = table, meta
+    table = pd.read_table(path, keep_default_na=False, na_values=[''], float_precision='round_trip')
+    keys = metadata[panel]['keys']
+    assert not table.duplicated(keys).any() and table[keys].notna().all().all()
+    tables[panel] = table
+metadata['a']['codon_order'] = tables['a'].columns[4:].tolist()
 matrix = tables['a'].loc[:, metadata['a']['codon_order']].to_numpy(dtype=float)
 assert matrix.shape == (100, 94) and np.isnan(matrix).sum() == 623
 assert set(np.unique(matrix[~np.isnan(matrix)])) == {0, 1}
@@ -297,13 +421,16 @@ if RENDER_FIGURE3:
 
 # %%
 if RENDER_FIGURE3:
-    # Export full-size vector files and a whole-figure raster preview.
+    # Export the native full canvas; the selected-page cell applies the final crop.
+    figure3_raw = FINAL_FIGURES_DIR / 'render_work/raw'
+    for folder in ['svg', 'pdf', 'previews']:
+        (figure3_raw / folder).mkdir(parents=True, exist_ok=True)
     for extension in ['svg', 'pdf']:
-        figure.savefig(FINAL_FIGURES_DIR / extension / f'Figure3.{extension}', format=extension,
+        figure.savefig(figure3_raw / extension / f'Figure3.{extension}', format=extension,
                        metadata={'Creator': 'Combinatorics — reproducible Figure 3'})
-    figure.savefig(FINAL_FIGURES_DIR / 'previews/Figure3.png', dpi=300)
+    figure.savefig(figure3_raw / 'previews/Figure3.png', dpi=300)
     figure.savefig(OUTPUT_DIR / 'previews/Figure3_print_scale.png', dpi=96)
-    # Crops are previews only; final SVG/PDF retain the exact 180 × 180 mm canvas.
+    # These panel crops are diagnostic previews; the final physical crop is separate.
     from matplotlib.transforms import Bbox
     preview_regions_mm = {'a': (0, 4, 64.5, 58), 'b': (64.5, 4, 180, 60),
                           'c': (0, 59, 180, 139), 'd': (0, 138, 180, 180)}
@@ -358,13 +485,10 @@ if RENDER_FIGURE3:
 # Only verified Phase 1 TSVs are loaded. No source notebook, clustering, raw
 # positions, or upstream analysis is executed. The saved source traces and the
 # designated reference SVGs were checked separately; their small layout manifest
-# is bundled in `figure_rebuild_work/phase3_s7_s15/reference_layout.json`.
+# is defined explicitly in the following plotting cells.
 #
 # The canonical S7 producer is at the end of this notebook.
-# S15 uses **180 × 250 mm** to accommodate its
-# five plot rows and annotations at the requested 7/6 pt sizes. These are review
-# dimensions, with no cropping or scaling of the vector exports. All supplemental
-# outputs and checks are written to `figure_rebuild_work/phase3_s7_s15/`.
+# S15 uses a 180 × 250 mm working canvas. The selected-page export applies the approved final crop at physical scale one; temporary canvases and evidence stay under the new `FINAL_FIGURES_DIR/render_work` directory.
 #
 # Caption follow-up: Figure 3a shows **94 positions**, not 96. Counts of observed
 # amino-acid alternatives do not necessarily equal theoretical possibilities.
@@ -374,8 +498,131 @@ if RENDER_FIGURE3:
 # %%
 from matplotlib.transforms import Bbox
 # Physical placement helpers use each supplemental figure's own canvas size.
-SUPPLEMENT_DIR = CORRECTION_DIR
-reference_layout = json.loads((SUPPLEMENT_DIR / 'reference_layout.json').read_text())
+SUPPLEMENT_DIR = FINAL_FIGURES_DIR / 'render_work/S15'
+reference_layout = {'s15': {'rows': [{'panel': 'a',
+                   'figure': 1,
+                   'eligibility': 'All genes',
+                   'ylim': [0, 22.307084339146076],
+                   'dtick': 5,
+                   'labels': {'SquidLongReads': {},
+                              'SquidShortReads': {},
+                              'Octopus': {'A>C': {'inside': True, 'color': '#ffffff'},
+                                          'A>G': {'inside': True, 'color': '#444444'},
+                                          'A>T': {'inside': True, 'color': '#ffffff'},
+                                          'C>A': {'inside': True, 'color': '#ffffff'},
+                                          'C>G': {'inside': True, 'color': '#ffffff'},
+                                          'C>T': {'inside': True, 'color': '#ffffff'},
+                                          'G>A': {'inside': True, 'color': '#444444'},
+                                          'G>C': {'inside': True, 'color': '#ffffff'},
+                                          'G>T': {'inside': True, 'color': '#444444'},
+                                          'T>A': {'inside': True, 'color': '#ffffff'},
+                                          'T>C': {'inside': True, 'color': '#ffffff'},
+                                          'T>G': {'inside': True, 'color': '#ffffff'}}}},
+                  {'panel': 'b_top',
+                   'figure': 2,
+                   'eligibility': 'Passed',
+                   'ylim': [0, 105],
+                   'dtick': 10,
+                   'labels': {'SquidLongReads': {'A>G': {'inside': True, 'color': '#444444'}},
+                              'SquidShortReads': {'A>G': {'inside': True, 'color': '#444444'},
+                                                  'C>T': {'inside': False, 'color': '#2a3f5f'},
+                                                  'T>C': {'inside': False, 'color': '#2a3f5f'}},
+                              'Octopus': {'A>C': {'inside': False, 'color': '#2a3f5f'},
+                                          'A>G': {'inside': True, 'color': '#444444'},
+                                          'A>T': {'inside': False, 'color': '#2a3f5f'},
+                                          'C>A': {'inside': False, 'color': '#2a3f5f'},
+                                          'C>G': {'inside': False, 'color': '#2a3f5f'},
+                                          'C>T': {'inside': False, 'color': '#2a3f5f'},
+                                          'G>A': {'inside': False, 'color': '#2a3f5f'},
+                                          'G>C': {'inside': False, 'color': '#2a3f5f'},
+                                          'G>T': {'inside': False, 'color': '#2a3f5f'},
+                                          'T>A': {'inside': False, 'color': '#2a3f5f'},
+                                          'T>C': {'inside': False, 'color': '#2a3f5f'},
+                                          'T>G': {'inside': False, 'color': '#2a3f5f'}}}},
+                  {'panel': 'b_bottom',
+                   'figure': 2,
+                   'eligibility': 'Excluded',
+                   'ylim': [0, 36.660591492364176],
+                   'dtick': 10,
+                   'labels': {'SquidLongReads': {},
+                              'SquidShortReads': {},
+                              'Octopus': {'A>C': {'inside': True, 'color': '#ffffff'},
+                                          'A>G': {'inside': True, 'color': '#444444'},
+                                          'A>T': {'inside': True, 'color': '#ffffff'},
+                                          'C>A': {'inside': True, 'color': '#ffffff'},
+                                          'C>G': {'inside': False, 'color': '#2a3f5f'},
+                                          'C>T': {'inside': True, 'color': '#ffffff'},
+                                          'G>A': {'inside': True, 'color': '#444444'},
+                                          'G>C': {'inside': False, 'color': '#2a3f5f'},
+                                          'G>T': {'inside': False, 'color': '#2a3f5f'},
+                                          'T>A': {'inside': True, 'color': '#ffffff'},
+                                          'T>C': {'inside': True, 'color': '#ffffff'},
+                                          'T>G': {'inside': False, 'color': '#2a3f5f'}}}},
+                  {'panel': 'c',
+                   'figure': 3,
+                   'eligibility': 'Passed',
+                   'ylim': [0, 79.55749128919861],
+                   'dtick': 10,
+                   'labels': {'SquidLongReads': {'A>C': {'inside': False, 'color': '#2a3f5f'},
+                                                 'A>G': {'inside': True, 'color': '#444444'},
+                                                 'A>T': {'inside': False, 'color': '#2a3f5f'},
+                                                 'C>A': {'inside': False, 'color': '#2a3f5f'},
+                                                 'C>G': {'inside': False, 'color': '#2a3f5f'},
+                                                 'C>T': {'inside': True, 'color': '#ffffff'},
+                                                 'G>A': {'inside': True, 'color': '#444444'},
+                                                 'G>C': {'inside': False, 'color': '#2a3f5f'},
+                                                 'G>T': {'inside': False, 'color': '#2a3f5f'},
+                                                 'T>A': {'inside': False, 'color': '#2a3f5f'},
+                                                 'T>C': {'inside': True, 'color': '#ffffff'},
+                                                 'T>G': {'inside': False, 'color': '#2a3f5f'}},
+                              'SquidShortReads': {'A>C': {'inside': False, 'color': '#2a3f5f'},
+                                                  'A>G': {'inside': True, 'color': '#444444'},
+                                                  'A>T': {'inside': False, 'color': '#2a3f5f'},
+                                                  'C>A': {'inside': True, 'color': '#ffffff'},
+                                                  'C>G': {'inside': False, 'color': '#2a3f5f'},
+                                                  'C>T': {'inside': True, 'color': '#ffffff'},
+                                                  'G>A': {'inside': True, 'color': '#444444'},
+                                                  'G>C': {'inside': False, 'color': '#2a3f5f'},
+                                                  'G>T': {'inside': True, 'color': '#444444'},
+                                                  'T>A': {'inside': False, 'color': '#2a3f5f'},
+                                                  'T>C': {'inside': True, 'color': '#ffffff'},
+                                                  'T>G': {'inside': False, 'color': '#2a3f5f'}},
+                              'Octopus': {'A>C': {'inside': False, 'color': '#2a3f5f'},
+                                          'A>G': {'inside': True, 'color': '#444444'},
+                                          'A>T': {'inside': False, 'color': '#2a3f5f'},
+                                          'C>A': {'inside': False, 'color': '#2a3f5f'},
+                                          'C>G': {'inside': False, 'color': '#2a3f5f'},
+                                          'C>T': {'inside': False, 'color': '#2a3f5f'},
+                                          'G>A': {'inside': False, 'color': '#2a3f5f'},
+                                          'G>C': {'inside': False, 'color': '#2a3f5f'},
+                                          'G>T': {'inside': False, 'color': '#2a3f5f'},
+                                          'T>A': {'inside': False, 'color': '#2a3f5f'},
+                                          'T>C': {'inside': False, 'color': '#2a3f5f'},
+                                          'T>G': {'inside': False, 'color': '#2a3f5f'}}}},
+                  {'panel': 'd',
+                   'figure': 4,
+                   'eligibility': 'Passed',
+                   'ylim': [0, 105],
+                   'dtick': 10,
+                   'labels': {'SquidLongReads': {'A>G': {'inside': True, 'color': '#444444'}},
+                              'SquidShortReads': {'A>C': {'inside': False, 'color': '#2a3f5f'},
+                                                  'A>G': {'inside': True, 'color': '#444444'},
+                                                  'C>T': {'inside': False, 'color': '#2a3f5f'},
+                                                  'G>A': {'inside': False, 'color': '#2a3f5f'},
+                                                  'G>T': {'inside': False, 'color': '#2a3f5f'},
+                                                  'T>C': {'inside': False, 'color': '#2a3f5f'}},
+                              'Octopus': {'A>C': {'inside': False, 'color': '#2a3f5f'},
+                                          'A>G': {'inside': True, 'color': '#444444'},
+                                          'A>T': {'inside': False, 'color': '#2a3f5f'},
+                                          'C>A': {'inside': False, 'color': '#2a3f5f'},
+                                          'C>G': {'inside': False, 'color': '#2a3f5f'},
+                                          'C>T': {'inside': False, 'color': '#2a3f5f'},
+                                          'G>A': {'inside': False, 'color': '#2a3f5f'},
+                                          'G>C': {'inside': False, 'color': '#2a3f5f'},
+                                          'G>T': {'inside': False, 'color': '#2a3f5f'},
+                                          'T>A': {'inside': False, 'color': '#2a3f5f'},
+                                          'T>C': {'inside': False, 'color': '#2a3f5f'},
+                                          'T>G': {'inside': False, 'color': '#2a3f5f'}}}}]}}
 for folder in ['previews', 'evidence']:
     (SUPPLEMENT_DIR / folder).mkdir(parents=True, exist_ok=True)
 REFERENCE_INK = '#2a3f5f'
@@ -463,15 +710,54 @@ def export_supplement(figure, name, panel_regions):
 
 # %%
 # Read prepared counts only; sample counts are used to verify aggregation.
-s15_meta = json.loads((INPUT_DIR / 'combined_s2_s15_mm12_metadata.json').read_text())
+s15_meta = {'dataset_order': ['SquidLongReads', 'SquidShortReads', 'Octopus'],
+ 'dataset_labels': {'SquidLongReads': "Squid's Long-reads",
+                    'SquidShortReads': "Squid's Short-reads",
+                    'Octopus': 'Whole-transcriptome octopus data'},
+ 'mismatch_order': ['A>C', 'A>G', 'A>T', 'C>A', 'C>G', 'C>T', 'G>A', 'G>C', 'G>T', 'T>A', 'T>C', 'T>G'],
+ 'mismatch_colors': {'A>C': '#2E91E5',
+                     'A>G': '#E15F99',
+                     'A>T': '#1CA71C',
+                     'C>A': '#FB0D0D',
+                     'C>G': '#DA16FF',
+                     'C>T': '#222A2A',
+                     'G>A': '#B68100',
+                     'G>C': '#750D86',
+                     'G>T': '#EB663B',
+                     'T>A': '#511CFB',
+                     'T>C': '#00A08B',
+                     'T>G': '#FB00D1'},
+ 'figure_titles': {'1': 'Mismatches at 100% mismatch frequency',
+                   '2': 'Mismatches at or above suspected SNP threshold, but below 100% mismatch frequency',
+                   '3': 'Mismatches at or below editing threshold',
+                   '4': 'Mismatches above editing threshold, but below suspected SNP threshold',
+                   '5': 'Mismatches above editing threshold, but below 100% mismatch frequency'},
+ 'subtitle': 'Only genes with at most 3 suspected SNPs are included (editing detection enabled)',
+ 'panel_keys': ['Figure', 'Dataset', 'Eligibility', 'Mismatch'],
+ 'sample_keys': ['Figure', 'Dataset', 'Platform', 'Sample', 'Chrom', 'Eligibility', 'Mismatch'],
+ 'columns': {'mm12_panel_counts': ['Dataset',
+                                   'Mismatch',
+                                   'Count',
+                                   'PanelTotal',
+                                   'Percentage',
+                                   'Figure',
+                                   'Eligibility'],
+             'mm12_sample_counts': ['Dataset',
+                                    'Platform',
+                                    'Sample',
+                                    'Chrom',
+                                    'Mismatch',
+                                    'Count',
+                                    'Figure',
+                                    'Eligibility']}}
+s15_meta['checksums'] = {}
 s15_input_tables = {}
 for name in ['panel', 'sample']:
-    path = INPUT_DIR / f'combined_s2_s15_mm12_{name}_counts.tsv'
-    assert hashlib.sha256(path.read_bytes()).hexdigest() == s15_meta['checksums'][path.name]
+    path = figure_source(f'combined_s2_s15_mm12_{name}_counts')
+    s15_meta['checksums'][path.name] = hashlib.sha256(path.read_bytes()).hexdigest()
     table = pd.read_table(path, float_precision='round_trip')
     schema_name = f'mm12_{name}_counts'
     assert table.columns.tolist() == s15_meta['columns'][schema_name]
-    assert len(table) == s15_meta['rows'][schema_name]
     assert not table.duplicated(s15_meta[f'{name}_keys']).any()
     s15_input_tables[name] = table
 s15_panels = s15_input_tables['panel'].loc[s15_input_tables['panel']['Figure'].between(1, 4)]
@@ -520,15 +806,15 @@ def label_s15_bars(axis, bars, values, row, dataset):
             assert mismatch not in label_style
             continue
         spec = label_style[mismatch]
-        assert spec['text'] == f'{value:.1f}'
-        text_width_px = renderer.get_text_width_height_descent(spec['text'], font, False)[0]
+        label = f'{value:.1f}'
+        text_width_px = renderer.get_text_width_height_descent(label, font, False)[0]
         text_height_mm = text_width_px / s15_figure.dpi * 25.4
         inside = spec['inside'] and value / ymax * height_mm > text_height_mm + 0.6
         if inside != spec['inside']:
             s15_label_adjustments.append({'row': row['panel'], 'dataset': dataset, 'mismatch': mismatch})
         offset = 0.3 / height_mm * ymax
         text = axis.text(bar.get_x() + bar.get_width() / 2, value + (-offset if inside else offset),
-            spec['text'], fontsize=6, rotation=270 if inside else 0,
+            label, fontsize=6, rotation=270 if inside else 0,
             ha='center', va='top' if inside else 'bottom',
             color=spec['color'] if inside else REFERENCE_INK, clip_on=False)
         text.set_gid(f'S15-value-{row["panel"]}-{dataset}-{mismatch.replace(">", "to")}')
@@ -633,18 +919,16 @@ if 'FigureS15' in FIGURES_TO_BUILD:
         'column_heading_gap_mm': S15_COLUMN_HEADING_GAP_MM,
         'side_label_bounds_mm': [box.tolist() for box in side_bounds]}
     # S15 precedes the batch setup; import its exporter without executing other figures.
-    sys.path.insert(0, str(WORK_DIR / 'finalization_2026-10-12/preparation'))
-    sys.path.insert(0, str(WORK_DIR / 'layout_word_2026-10-14/preparation'))
-    from word_layout import export_layout_figure
+    from manuscript_figures.word_layout import export_layout_figure
+    from manuscript_figures import word_layout
+    word_layout.ROOT = FINAL_FIGURES_DIR / 'render_work'
     export_layout_figure(s15_figure, 'FigureS15', s15_checks)
 
 
 # %% [markdown]
 # ## Remaining manuscript figures
-# Figure selection is at the top of this notebook. Use `execute_batch.py` to run
-# the selected new figures in a fresh combinatorics2 kernel without rendering
-# Figure 3, S7 or S15. Their cells and saved outputs remain preserved above.
-# All preparation evidence and new exports are in `figure_rebuild_work/phase4_batch`.
+#
+# Select the required load, draw and export cells explicitly. Shared helpers come from `manuscript_figures`; scientific tables must be generated first. Finish the selected raw canvases with the per-page crop cell.
 #
 
 # %%
@@ -659,16 +943,12 @@ import matplotlib.pyplot as plt
 from matplotlib import font_manager
 from matplotlib.lines import Line2D
 from matplotlib.ticker import FuncFormatter, LogLocator, NullFormatter
-BATCH_DIR = CORRECTION_DIR
-# Original saved violin paths: no KDE or scientific analysis is rerun.
-sys.path.insert(0, str(WORK_DIR / 'phase4_batch/preparation'))
-FINALIZATION_DIR = WORK_DIR / 'finalization_2026-10-12'
-sys.path.insert(0, str(FINALIZATION_DIR / 'preparation'))
-from batch_helpers import load_table, axes_mm, text_mm, check_xy, export_figure, check_layout_spacing
-from batch_helpers import close_facet_title, check_facet_title_attachment
-assert Path(sys.prefix).name == 'combinatorics2' and hasattr(pd.DataFrame, 'map')
+# Scientific tables share FIGURE_SOURCES; generated geometry preserves original contours.
+from manuscript_figures.batch_helpers import load_table, axes_mm, text_mm, check_xy, export_figure, check_layout_spacing
+from manuscript_figures.batch_helpers import close_facet_title, check_facet_title_attachment
+assert hasattr(pd.DataFrame, 'map'), 'pandas 2.1 or newer is required'
 for filename in ['OpenSans-Regular.ttf', 'OpenSans-Bold.ttf']:
-    font_manager.fontManager.addfont(BATCH_DIR / 'fonts' / filename)
+    font_manager.fontManager.addfont(FONT_DIR / filename)
 mpl.rcParams.update({'font.family': 'Open Sans', 'font.size': 6,
     'axes.labelsize': 7, 'axes.titlesize': 7, 'xtick.labelsize': 6, 'ytick.labelsize': 6,
     'legend.fontsize': 6, 'legend.title_fontsize': 7, 'pdf.fonttype': 42,
@@ -676,12 +956,15 @@ mpl.rcParams.update({'font.family': 'Open Sans', 'font.size': 6,
     'savefig.facecolor': 'white', 'axes.labelcolor': '#2a3f5f', 'text.color': '#2a3f5f',
     'xtick.bottom': False, 'xtick.top': False, 'ytick.left': False, 'ytick.right': False,
     'xtick.minor.visible': False, 'ytick.minor.visible': False})
-REVISION_DIR = WORK_DIR / 's2_s19_revision_2026-10-12'
-sys.path.insert(0, str(REVISION_DIR / 'preparation'))
-BATCH_LAYOUT = json.loads((BATCH_DIR / 'layouts.json').read_text())
-WORD_LAYOUT_DIR = WORK_DIR / 'layout_word_2026-10-14'
-sys.path.insert(0, str(WORD_LAYOUT_DIR / 'preparation'))
-from word_layout import export_layout_figure as export_figure, place_clear_legends, balance_middle_panel
+# Fixed native canvas dimensions (mm).
+BATCH_LAYOUT = {'Figure4': {'canvas_mm': [180.0, 225.0]}, 'Figure5': {'canvas_mm': [180.0, 225.0]}, 'Figure6': {'canvas_mm': [180.0, 169]}, 'FigureS1': {'canvas_mm': [180.0, 190.0]}, 'FigureS3': {'canvas_mm': [180.0, 250.0]}, 'FigureS4': {'canvas_mm': [180.0, 129]}, 'FigureS5': {'canvas_mm': [180.0, 110]}, 'FigureS6': {'canvas_mm': [180.0, 260.0]}, 'FigureS8': {'canvas_mm': [180.0, 260]}, 'FigureS9': {'canvas_mm': [180.0, 260]}, 'FigureS10': {'canvas_mm': [180.0, 250]}, 'FigureS11': {'canvas_mm': [180.0, 255.0]}, 'FigureS12': {'canvas_mm': [180.0, 260.0]}, 'FigureS13': {'canvas_mm': [180.0, 150.0]}, 'FigureS14': {'canvas_mm': [180, 112]}, 'FigureS16': {'canvas_mm': [180.0, 235]}, 'FigureS17': {'canvas_mm': [180.0, 260]}, 'FigureS20': {'canvas_mm': [180.0, 205.0]}, 'FigureS6c_gene_maxima_review': {'canvas_mm': [180.0, 87.0]}, 'Figure2b': {'canvas_mm': [49, 45.5]}}
+from manuscript_figures.word_layout import export_layout_figure as export_figure, place_clear_legends, balance_middle_panel
+
+# Data roots and temporary/full-canvas export destination are explicit.
+from manuscript_figures import batch_helpers, word_layout
+batch_helpers.FINAL = FINAL_FIGURES_DIR
+batch_helpers.FINALIZATION = FINAL_FIGURES_DIR / 'render_work'
+word_layout.ROOT = FINAL_FIGURES_DIR / 'render_work'
 
 
 # %% [markdown] figure="Figure4"
@@ -691,13 +974,37 @@ from word_layout import export_layout_figure as export_figure, place_clear_legen
 # and original Top-X versus All-isoform denominators. No points are sampled away.
 # The 180 × 225 mm canvas provides 6 pt labels for the dense recurrence facets.
 #
-# Scientific authority remains open by explicit user decision: preserve both expression versions pending manuscript review.
+# This publication section loads the fixed selected-expression handoff documented in README.v2.md; comparison variants remain separate.
 #
 
 # %% figure="Figure4"
 if 'Figure4' in FIGURES_TO_BUILD:
-    figure4a_table, figure4a_metadata = load_table('figure4a_expression')
-    figure4b_table, figure4b_metadata = load_table('figure4b_recurrence')
+    figure4a_table, figure4a_metadata = load_table('figure4a_expression', {'styles': [{'Platform': 'Long-reads', 'Gene': 'GRIA2', 'Color': '#00A08B'},
+            {'Platform': 'Long-reads', 'Gene': 'PCLO', 'Color': '#AF0038'},
+            {'Platform': 'Short-reads', 'Gene': 'RUSC2', 'Color': '#B68100'},
+            {'Platform': 'Short-reads', 'Gene': 'TRIM2', 'Color': '#B2828D'},
+            {'Platform': 'Short-reads', 'Gene': 'CA2D3', 'Color': '#6C4516'},
+            {'Platform': 'Short-reads', 'Gene': 'ABL', 'Color': '#0D2A63'},
+            {'Platform': 'Short-reads', 'Gene': 'DGLA', 'Color': '#620042'},
+            {'Platform': 'Short-reads', 'Gene': 'K0513', 'Color': '#750D86'},
+            {'Platform': 'Short-reads', 'Gene': 'KCNAS', 'Color': '#FB0D0D'},
+            {'Platform': 'Short-reads', 'Gene': 'ACHA4', 'Color': '#DA16FF'},
+            {'Platform': 'Short-reads', 'Gene': 'ANR17', 'Color': '#FC0080'},
+            {'Platform': 'Short-reads', 'Gene': 'TWK7', 'Color': '#862A16'},
+            {'Platform': 'Short-reads', 'Gene': 'SCN1', 'Color': '#6C7C32'},
+            {'Platform': 'Short-reads', 'Gene': 'CACB2', 'Color': '#1616A7'},
+            {'Platform': 'Short-reads', 'Gene': 'RIMS2', 'Color': '#FB00D1'},
+            {'Platform': 'Short-reads', 'Gene': 'PCLO', 'Color': '#AF0038'},
+            {'Platform': 'Short-reads', 'Gene': 'DOP1', 'Color': '#A777F1'},
+            {'Platform': 'Short-reads', 'Gene': 'IQEC1', 'Color': '#EB663B'},
+            {'Platform': 'Short-reads', 'Gene': 'CSKI1', 'Color': '#222A2A'},
+            {'Platform': 'Short-reads', 'Gene': 'MTUS2', 'Color': '#1CA71C'},
+            {'Platform': 'Short-reads', 'Gene': 'ROBO2', 'Color': '#2E91E5'}]})
+    figure4b_table, figure4b_metadata = load_table('figure4b_recurrence', {'styles': {'10': {'color': '#DC3912', 'dash': 'longdashdot'},
+            '50': {'color': '#FF9900', 'dash': 'solid'},
+            '100': {'color': '#109618', 'dash': 'dot'},
+            '250': {'color': '#990099', 'dash': 'dash'},
+            '500': {'color': '#3366CC', 'dash': 'longdash'}}})
     assert len(figure4a_table) == 400407 and len(figure4b_table) == 220
     figure4 = plt.figure(figsize=np.array(BATCH_LAYOUT['Figure4']['canvas_mm']) / 25.4)
     figure4_points_checked = 0
@@ -817,15 +1124,31 @@ if 'Figure4' in FIGURES_TO_BUILD:
 
 # %% figure="Figure5"
 if 'Figure5' in FIGURES_TO_BUILD:
-    from batch_helpers import continuous_colorbar
+    from manuscript_figures.batch_helpers import continuous_colorbar
     from matplotlib.collections import PatchCollection
     from matplotlib.patches import Rectangle, Patch
     from matplotlib.colors import LinearSegmentedColormap, Normalize
     from matplotlib.cm import ScalarMappable
-    figure5_table, figure5_metadata = load_table('figure5_pclo_matrices')
+    figure5_table, figure5_metadata = load_table('figure5_pclo_matrices.BY', {'color_scales': {'Pearson': [[0, '#67001f'],
+                              [0.1, '#b2182b'],
+                              [0.2, '#d6604d'],
+                              [0.3, '#f4a582'],
+                              [0.4, '#fddbc7'],
+                              [0.5, '#f7f7f7'],
+                              [0.6, '#d1e5f0'],
+                              [0.7, '#92c5de'],
+                              [0.8, '#4393c3'],
+                              [0.9, '#2166ac'],
+                              [1, '#053061']],
+                  'MI': [[0, '#f7f7f7'],
+                         [0.25, '#d1e5f0'],
+                         [0.5, '#67a9cf'],
+                         [0.75, '#2166ac'],
+                         [1, '#053061']]}})
     # Revised BY masks; MI and all original graphical metadata are preserved.
-    figure5_table = pd.read_table(NOTEBOOK_DIR / 'RevisionFisherBY_2026-11-09/figure5_pclo_matrices.BY.tsv', float_precision='round_trip')
-    entropy_path = NOTEBOOK_DIR / 'figure_sources/figure5c_entropy.tsv'
+    figure5_metadata['site_order'] = {p: g.loc[g.ColumnIndex.eq(0), 'RowSite'].drop_duplicates().tolist()
+        for p, g in figure5_table.groupby('Platform', sort=False)}
+    entropy_path = figure_source('figure5c_entropy')
     entropy_summary_df = pd.read_table(entropy_path, float_precision='round_trip')
     assert entropy_summary_df.columns.tolist() == ['Platform', 'Gene', 'ObservedEntropyBits', 'HypotheticalEntropyBits']
     assert entropy_summary_df['Platform'].tolist() == ['PacBio'] * 2 + ['Illumina'] * 19
@@ -1002,7 +1325,7 @@ if 'Figure5' in FIGURES_TO_BUILD:
     figure5_svg = figure5_svg_buffer.getvalue()
     figure5_font_css = ''
     for font_name, font_weight in [('OpenSans-Regular.ttf', 400), ('OpenSans-Bold.ttf', 700)]:
-        font_data = base64.b64encode((BATCH_DIR / 'fonts' / font_name).read_bytes()).decode('ascii')
+        font_data = base64.b64encode((FONT_DIR / font_name).read_bytes()).decode('ascii')
         figure5_font_css += "@font-face{font-family:'Open Sans';font-weight:" + str(font_weight) + ";src:url(data:font/ttf;base64," + font_data + ") format('truetype');}"
     figure5_svg = re.sub(r'<svg\b[^>]*>', lambda match: figure5_layout['SVGHeader'] + '<defs><style>' + figure5_font_css + '</style></defs>', figure5_svg, count=1)
     (figure5_output_dir / 'svg/Figure5.svg').write_text(figure5_svg)
@@ -1022,9 +1345,25 @@ if 'Figure5' in FIGURES_TO_BUILD:
 # %% figure="Figure6"
 if 'Figure6' in FIGURES_TO_BUILD:
     from matplotlib.patches import Rectangle
-    figure6_table, figure6_metadata = load_table('figure6_distributions')
-    figure6_cohorts, figure6_cohort_metadata = load_table('figure6_cohorts')
-    assert figure6_cohorts.groupby('Cohort').size().to_dict() == figure6_metadata['denominators']
+    figure6_table, figure6_metadata = load_table('figure6_distributions', {'styles': [{'cohort': 'WholeTranscriptome_TMR50', 'label': '>= 50 reads', 'color': 'purple', 'dash': 'dash'},
+            {'cohort': 'WholeTranscriptome_TMR1000',
+             'label': '>= 1000 reads',
+             'color': 'green',
+             'dash': 'dash'},
+            {'cohort': 'SingleCell_Neuronal_FixedTMR50', 'label': 'Neural', 'color': 'red', 'dash': 'dash'},
+            {'cohort': 'SingleCell_NonNeuronal_FixedTMR50',
+             'label': 'Non-neural',
+             'color': 'rgb(0,170,255)',
+             'dash': 'dash'}]})
+    figure6_cohorts, figure6_cohort_metadata = load_table('figure6_cohorts', {})
+    figure6_metadata['denominators'] = figure6_cohorts.groupby('Cohort').size().to_dict()
+    figure6_markers, _ = load_table('figure6_mean_markers', {})
+    assert figure6_markers.Cohort.tolist() == ['WholeTranscriptome_TMR50', 'WholeTranscriptome_TMR1000']
+    figure6_metadata['mean_markers'] = [
+        {'cohort': r.Cohort, 'x': r.X, 'y': r.Y, 'color': color,
+         'label': f'{r.X:.0f} distinct<br>proteins<br>(avg)' if i == 0 else f'{r.X:.0f} distinct proteins<br>(avg)'}
+        for i, (r, color) in enumerate(zip(figure6_markers.itertuples(), ['purple', 'green']))]
+    assert figure6_table.groupby('Cohort').DenominatorGenes.first().to_dict() == figure6_metadata['denominators']
     assert not figure6_cohorts.duplicated(['Cohort', 'Chrom']).any()
     figure6 = plt.figure(figsize=np.array([180, 174]) / 25.4)
     figure6_axes = []
@@ -1124,44 +1463,41 @@ if 'Figure6' in FIGURES_TO_BUILD:
 # Current 49 × 45.5 mm vector asset for BioRender, without a panel letter. Arial:
 # axis titles 7 pt; rank numbers and legend 6 pt. Abundance uses NumOfReads; all
 # 100 identities, cutoff ties, 144 site columns and NA states were verified against
-# the full original table. Inputs, ranking and the preserved standalone version are
-# in `figure_rebuild_work/figure2b_biorender_2026-10-13/`. The local Arial archive
-# can be extracted with bsdtar when needed; no system font installation is required.
+# the full original table. Read the newly generated rank table under
+# `MANUSCRIPT_FIGURE_SOURCES/Figure2`; write the standalone panel to the selected
+# `MANUSCRIPT_FINAL_FIGURES` root. Supply the matching permitted font through
+# `MANUSCRIPT_ARIAL`; assembly assets remain separate external inputs.
 #
 
 # %% figure="Figure2_PCLO_top100_unique_reads_asset"
-if 'Figure2b' in FIGURES_TO_BUILD:
+if {'Figure2', 'Figure2b'} & set(FIGURES_TO_BUILD):
     # Load the approved matrix and the task-local Arial font.
     import shutil
     import subprocess
     from matplotlib.font_manager import FontProperties
-    FIGURE2_DIR = WORK_DIR / 'figure2b_biorender_2026-10-13'
-    FIGURE2_EVIDENCE = WORK_DIR / 'figure2b_integration_2026-10-13/evidence'
+    FIGURE2_DIR = Path(os.environ['MANUSCRIPT_FIGURE2_ASSETS']).resolve()
+    FIGURE2_EVIDENCE = FINAL_FIGURES_DIR / 'render_work/figure2b/evidence'
     FIGURE2_EVIDENCE.mkdir(parents=True, exist_ok=True)
-    figure2_input = FIGURE2_DIR / 'inputs/PCLO_top100_unique_reads.tsv'
-    figure2_metadata = json.loads(figure2_input.with_suffix('.json').read_text())
-    assert hashlib.sha256(figure2_input.read_bytes()).hexdigest() == figure2_metadata['sha256']
+    figure2_input = figure_source('PCLO_top100_unique_reads')
     figure2_table = pd.read_table(figure2_input, dtype={'UniqueRead': str}, keep_default_na=False)
     assert not figure2_table.duplicated(['Gene', 'UniqueRead']).any()
     np.testing.assert_array_equal(figure2_table.UniqueReadRank, np.arange(1, 101))
     assert figure2_table.NumOfReads.is_monotonic_decreasing
-    figure2_states = figure2_table[figure2_metadata['site_order']].to_numpy()
+    figure2_sites = [column for column in figure2_table if column.isdigit()]
+    assert len(figure2_sites) == 144
+    figure2_states = figure2_table[figure2_sites].to_numpy()
     assert figure2_states.shape == (100, 144) and (figure2_states == -1).sum() == 2255
     assert set(np.unique(figure2_states)) == {-1, 0, 1}
     figure2_ranking = figure2_table[['UniqueReadRank', 'UniqueRead', 'NumOfReads']].rename(
         columns={'UniqueReadRank': 'Rank', 'UniqueRead': 'PatternID'})
-    figure2_ranking.to_csv(FIGURE2_DIR / 'Figure2b_top100_ranking.tsv', sep='\t', index=False)
-    figure2_font = FIGURE2_DIR / 'fonts/Arial.TTF'
-    if not figure2_font.is_file():
-        archive = figure2_font.with_name('arial32.exe')
-        assert hashlib.sha256(archive.read_bytes()).hexdigest() == '85297a4d146e9c87ac6f74822734bdee5f4b2a722d7eaa584b7f2cbf76f478f6'
-        extractor = shutil.which('bsdtar') or str(Path(sys.prefix).parents[1] / 'bin/bsdtar')
-        subprocess.run([extractor, '-xf', str(archive), '-C', str(figure2_font.parent), 'Arial.TTF'], check=True)
+    figure2_ranking.to_csv(FIGURE2_EVIDENCE / 'Figure2b_top100_ranking.tsv', sep='\t', index=False)
+    figure2_font = Path(os.environ['MANUSCRIPT_ARIAL']).resolve()
+    assert figure2_font.is_file(), 'Supply the permitted matching Arial font'
     assert hashlib.sha256(figure2_font.read_bytes()).hexdigest() == '35c0f3559d8db569e36c31095b8a60d441643d95f59139de40e23fada819b833'
 
 
 # %% figure="Figure2_PCLO_top100_unique_reads_asset"
-if 'Figure2b' in FIGURES_TO_BUILD:
+if {'Figure2', 'Figure2b'} & set(FIGURES_TO_BUILD):
     # Local names and rc_context keep this Arial exception out of other figures.
     def draw_figure2b(states, font_path):
         from matplotlib.path import Path as VectorPath
@@ -1258,13 +1594,32 @@ if 'FigureS1' in FIGURES_TO_BUILD:
     import hashlib
     from matplotlib.patches import PathPatch
     from matplotlib.transforms import Affine2D
-    from violin_paths import original_violin_path
-    s1_curves, s1_curve_meta = load_table('figure_s1_curves')
-    s1_deletions, s1_deletion_meta = load_table('figure_s1_deletions')
-    s1_noise, s1_noise_meta = load_table('figure_s1_noise')
-    s1_octopus, s1_octopus_meta = load_table('figure_s1_octopus_histogram')
-    s1_geometry_path = BATCH_DIR / 'inputs/figure_s1_violin_geometry.json'
-    assert hashlib.sha256(s1_geometry_path.read_bytes()).hexdigest() == s1_noise_meta['geometry_sha256']
+    from manuscript_figures.violin_paths import original_violin_path
+    s1_curves, s1_curve_meta = load_table('figure_s1_curves', {})
+    s1_deletions, s1_deletion_meta = load_table('figure_s1_deletions', {})
+    s1_noise, s1_noise_meta = load_table('figure_s1_noise', {'styles': [{'trace': 0, 'platform': 'PacBio', 'gene': 'GRIA2', 'color': '#00A08B'},
+            {'trace': 1, 'platform': 'PacBio', 'gene': 'PCLO', 'color': '#AF0038'},
+            {'trace': 2, 'platform': 'Illumina', 'gene': 'PCLO', 'color': '#AF0038'},
+            {'trace': 3, 'platform': 'Illumina', 'gene': 'ABL', 'color': '#0D2A63'},
+            {'trace': 4, 'platform': 'Illumina', 'gene': 'ACHA4', 'color': '#DA16FF'},
+            {'trace': 5, 'platform': 'Illumina', 'gene': 'ANR17', 'color': '#FC0080'},
+            {'trace': 6, 'platform': 'Illumina', 'gene': 'CA2D3', 'color': '#6C4516'},
+            {'trace': 7, 'platform': 'Illumina', 'gene': 'CACB2', 'color': '#1616A7'},
+            {'trace': 8, 'platform': 'Illumina', 'gene': 'CSKI1', 'color': '#222A2A'},
+            {'trace': 9, 'platform': 'Illumina', 'gene': 'DGLA', 'color': '#620042'},
+            {'trace': 10, 'platform': 'Illumina', 'gene': 'DOP1', 'color': '#A777F1'},
+            {'trace': 11, 'platform': 'Illumina', 'gene': 'IQEC1', 'color': '#EB663B'},
+            {'trace': 12, 'platform': 'Illumina', 'gene': 'K0513', 'color': '#750D86'},
+            {'trace': 13, 'platform': 'Illumina', 'gene': 'KCNAS', 'color': '#FB0D0D'},
+            {'trace': 14, 'platform': 'Illumina', 'gene': 'MTUS2', 'color': '#1CA71C'},
+            {'trace': 15, 'platform': 'Illumina', 'gene': 'RIMS2', 'color': '#FB00D1'},
+            {'trace': 16, 'platform': 'Illumina', 'gene': 'ROBO2', 'color': '#2E91E5'},
+            {'trace': 17, 'platform': 'Illumina', 'gene': 'RUSC2', 'color': '#B68100'},
+            {'trace': 18, 'platform': 'Illumina', 'gene': 'SCN1', 'color': '#6C7C32'},
+            {'trace': 19, 'platform': 'Illumina', 'gene': 'TRIM2', 'color': '#B2828D'},
+            {'trace': 20, 'platform': 'Illumina', 'gene': 'TWK7', 'color': '#862A16'}]})
+    s1_octopus, s1_octopus_meta = load_table('figure_s1_octopus_histogram', {})
+    s1_geometry_path = figure_source('figure_s1_violin_geometry', '.json')
     s1_geometry = json.loads(s1_geometry_path.read_text())
     s1_colors = {'GRIA2': '#00A08B', 'PCLO': '#AF0038'}
     figure_s1 = plt.figure(figsize=np.array(BATCH_LAYOUT['FigureS1']['canvas_mm']) / 25.4)
@@ -1400,18 +1755,35 @@ if 'FigureS2' in FIGURES_TO_BUILD:
     from matplotlib.patches import Rectangle, PathPatch
     from matplotlib.textpath import TextPath
     from matplotlib.transforms import Affine2D
-    s2_venns,_=load_table('s2_venns')
-    s2_pooled,s2_pooled_meta=load_table('s2_pooled')
-    s2_distribution,_=load_table('s2_distribution')
-    s2_boxes,_=load_table('s2_boxes')
-    s2_pclo,_=load_table('s2_pclo')
-    s2_motifs,s2_motif_meta=load_table('s2_motifs')
-    s2_mm12=pd.read_table(INPUT_DIR/'combined_s2_s15_mm12_panel_counts.tsv',float_precision='round_trip')
+    s2_venns,_=load_table('s2_venns', {})
+    s2_pooled,s2_pooled_meta=load_table('s2_pooled', {})
+    s2_distribution,_=load_table('s2_distribution', {})
+    s2_boxes,_=load_table('s2_boxes', {})
+    s2_pclo,_=load_table('s2_pclo', {})
+    s2_motifs,s2_motif_meta=load_table('s2_motifs', {})
+    s2_mm12=pd.read_table(figure_source('combined_s2_s15_mm12_panel_counts'),float_precision='round_trip')
     s2_mm12=s2_mm12.loc[s2_mm12.Figure.eq(5)]
-    s2_mm12_meta=json.loads((INPUT_DIR/'combined_s2_s15_mm12_metadata.json').read_text())
+    s2_mm12_meta={'dataset_order': ['SquidLongReads', 'SquidShortReads', 'Octopus'],
+ 'mismatch_order': ['A>C', 'A>G', 'A>T', 'C>A', 'C>G', 'C>T', 'G>A', 'G>C', 'G>T', 'T>A', 'T>C', 'T>G'],
+ 'mismatch_colors': {'A>C': '#2E91E5',
+                     'A>G': '#E15F99',
+                     'A>T': '#1CA71C',
+                     'C>A': '#FB0D0D',
+                     'C>G': '#DA16FF',
+                     'C>T': '#222A2A',
+                     'G>A': '#B68100',
+                     'G>C': '#750D86',
+                     'G>T': '#EB663B',
+                     'T>A': '#511CFB',
+                     'T>C': '#00A08B',
+                     'T>G': '#FB00D1'}}
     figure_s2=plt.figure(figsize=np.array([180,260])/25.4)
     s2_counts={'a':0,'b':0,'c':0,'d':0,'e':0,'f':0}
     s2_extra_text=[]
+
+    s2_statistics, _ = load_table('s2_statistics', {})
+    assert len(s2_statistics) == 1
+    s2_pooled_meta = s2_statistics.iloc[0].to_dict()
 
 
 # %%
@@ -1615,8 +1987,8 @@ if 'FigureS2' in FIGURES_TO_BUILD:
 # %% figure="FigureS3"
 if 'FigureS3' in FIGURES_TO_BUILD:
     s3_facets = []
-    s3_counts,s3_count_meta=load_table('figure_s3_counts')
-    s3_stats,s3_stat_meta=load_table('figure_s3_statistics')
+    s3_counts,s3_count_meta=load_table('figure_s3_counts', {})
+    s3_stats,s3_stat_meta=load_table('figure_s3_statistics', {})
     assert not s3_counts.duplicated(['Platform','Gene','Estimate','Substitutions']).any()
     figure_s3=plt.figure(figsize=np.array(BATCH_LAYOUT['FigureS3']['canvas_mm'])/25.4)
     s3_checked_bins=0
@@ -1685,7 +2057,7 @@ if 'FigureS3' in FIGURES_TO_BUILD:
 # %% figure="FigureS4"
 if 'FigureS4' in FIGURES_TO_BUILD:
     from matplotlib.patches import Rectangle
-    s4_table,s4_metadata=load_table('figure_s4_plot')
+    s4_table,s4_metadata=load_table('figure_s4_plot', {'gene_order': ['GRIA2', 'ADAR1', 'IQEC1'], 'replicate_order': ['1', '2', '3', 'All']})
     s4_table['Color'] = s4_table.Color.map(lambda color: tuple(int(v)/255 for v in color.removeprefix('rgb(').removesuffix(')').split(',')))
     assert len(s4_table)==144 and s4_table.MinTotalCoverage.eq(0).all()
     figure_s4=plt.figure(figsize=np.array(BATCH_LAYOUT['FigureS4']['canvas_mm'])/25.4)
@@ -1742,7 +2114,7 @@ if 'FigureS4' in FIGURES_TO_BUILD:
 
 # %% figure="FigureS5"
 if 'FigureS5' in FIGURES_TO_BUILD:
-    s5_table,s5_metadata=load_table('figure_s5_plot')
+    s5_table,s5_metadata=load_table('figure_s5_plot', {'gene_order': ['RBGP1', 'HEXB', 'TOLIP', 'LIMD2', 'RXR', 'SMUF2']})
     assert s5_table.MeanEditingPercent.isna().sum()==6
     assert len(s5_table[['Chrom','EditingSite']].drop_duplicates())==247
     figure_s5=plt.figure(figsize=np.array(BATCH_LAYOUT['FigureS5']['canvas_mm'])/25.4)
@@ -1817,14 +2189,20 @@ if 'FigureS5' in FIGURES_TO_BUILD:
 # %% figure="FigureS6"
 if 'FigureS6' in FIGURES_TO_BUILD:
     from matplotlib.patches import Rectangle
-    s6_dispersion,s6_dispersion_meta=load_table('figure_s6a_squid')
-    s6_histogram,s6_histogram_meta=load_table('figure_s6a_histogram')
-    s6_recoding,s6_recoding_meta=load_table('figure_s6b_recoding')
-    s6_maxima,s6_maxima_meta=load_table('figure_s6c_maxima')
-    s6_solutions,s6_solutions_meta=load_table('figure_s6c_solutions')
+    s6_dispersion,s6_dispersion_meta=load_table('figure_s6a_squid', {})
+    s6_histogram,s6_histogram_meta=load_table('figure_s6a_histogram', {})
+    s6_recoding,s6_recoding_meta=load_table('figure_s6b_recoding', {})
+    s6_maxima,s6_maxima_meta=load_table('figure_s6c_maxima', {'original_x_limits': [0, 144.10000000000002], 'original_y_limits': [0, 20958.300000000003]})
+    s6_solutions,s6_solutions_meta=load_table('figure_s6c_solutions', {})
     assert len(s6_solutions)==336 and len(s6_maxima)==21
     assert s6_recoding.Count.sum()==1725 and s6_histogram.Genes.sum()==1262
     figure_s6=plt.figure(figsize=np.array(BATCH_LAYOUT['FigureS6']['canvas_mm'])/25.4)
+
+    s6_recoding_meta['codon_order'] = s6_recoding.sort_values('CodonOrder').Codon.drop_duplicates().tolist()
+
+    s6_statistics, _ = load_table('figure_s6c_statistics', {})
+    assert len(s6_statistics) == 1 and s6_statistics.N.iloc[0] == len(s6_maxima)
+    s6_maxima_meta['annotation'] = s6_statistics.Annotation.iloc[0]
 
 
 # %%
@@ -1948,14 +2326,34 @@ if 'FigureS6' in FIGURES_TO_BUILD:
 # differ from the separately saved Figure 4 merged-cache plot.
 # S9 Top-N markers now use the exact 1-based Rank=N value; the previous offset is retained in evidence.
 #
-# Scientific authority remains open by explicit user decision: preserve both expression versions pending manuscript review.
+# This publication section loads the fixed selected-expression handoff documented in README.v2.md; comparison variants remain separate.
 #
 
 # %% figure="FigureS8"
 if 'FigureS8' in FIGURES_TO_BUILD:
     s8_facets = []
-    s8_expression,s8_meta=load_table('figure_s8_s9_expression')
-    s8_details,s8_detail_meta=load_table('figure_s8_fits')
+    s8_expression,s8_meta=load_table('figure_s8_s9_expression', {'styles': [{'Platform': 'Long-reads', 'Gene': 'GRIA2', 'Facet': 0, 'Color': '#00A08B'},
+            {'Platform': 'Long-reads', 'Gene': 'PCLO', 'Facet': 1, 'Color': '#AF0038'},
+            {'Platform': 'Short-reads', 'Gene': 'RUSC2', 'Facet': 0, 'Color': '#B68100'},
+            {'Platform': 'Short-reads', 'Gene': 'TRIM2', 'Facet': 1, 'Color': '#B2828D'},
+            {'Platform': 'Short-reads', 'Gene': 'CA2D3', 'Facet': 2, 'Color': '#6C4516'},
+            {'Platform': 'Short-reads', 'Gene': 'ABL', 'Facet': 3, 'Color': '#0D2A63'},
+            {'Platform': 'Short-reads', 'Gene': 'DGLA', 'Facet': 4, 'Color': '#620042'},
+            {'Platform': 'Short-reads', 'Gene': 'K0513', 'Facet': 5, 'Color': '#750D86'},
+            {'Platform': 'Short-reads', 'Gene': 'KCNAS', 'Facet': 6, 'Color': '#FB0D0D'},
+            {'Platform': 'Short-reads', 'Gene': 'ACHA4', 'Facet': 7, 'Color': '#DA16FF'},
+            {'Platform': 'Short-reads', 'Gene': 'ANR17', 'Facet': 8, 'Color': '#FC0080'},
+            {'Platform': 'Short-reads', 'Gene': 'TWK7', 'Facet': 9, 'Color': '#862A16'},
+            {'Platform': 'Short-reads', 'Gene': 'SCN1', 'Facet': 10, 'Color': '#6C7C32'},
+            {'Platform': 'Short-reads', 'Gene': 'CACB2', 'Facet': 11, 'Color': '#1616A7'},
+            {'Platform': 'Short-reads', 'Gene': 'RIMS2', 'Facet': 12, 'Color': '#FB00D1'},
+            {'Platform': 'Short-reads', 'Gene': 'PCLO', 'Facet': 13, 'Color': '#AF0038'},
+            {'Platform': 'Short-reads', 'Gene': 'DOP1', 'Facet': 14, 'Color': '#A777F1'},
+            {'Platform': 'Short-reads', 'Gene': 'IQEC1', 'Facet': 15, 'Color': '#EB663B'},
+            {'Platform': 'Short-reads', 'Gene': 'CSKI1', 'Facet': 16, 'Color': '#222A2A'},
+            {'Platform': 'Short-reads', 'Gene': 'MTUS2', 'Facet': 17, 'Color': '#1CA71C'},
+            {'Platform': 'Short-reads', 'Gene': 'ROBO2', 'Facet': 18, 'Color': '#2E91E5'}]})
+    s8_details,s8_detail_meta=load_table('figure_s8_fits', {})
     figure_s8=plt.figure(figsize=np.array(BATCH_LAYOUT['FigureS8']['canvas_mm'])/25.4)
     s8_points=0
     s8_detail_points=0
@@ -1967,6 +2365,10 @@ if 'FigureS8' in FIGURES_TO_BUILD:
         s8_y_limits = (min(s8_y_limits[0], s8_all_y.min()/1.05),
                        max(s8_y_limits[1], s8_all_y.max()*1.05))
     s8_equation_checks = []
+
+    s8_equations, _ = load_table('figure_s8_equations', {})
+    assert not s8_equations.duplicated(['Platform', 'Gene']).any()
+    s8_meta['styles'] = pd.DataFrame(s8_meta['styles']).merge(s8_equations[['Platform', 'Gene', 'Equation']], on=['Platform', 'Gene'], validate='one_to_one').to_dict('records')
 
 
 # %% figure="FigureS8"
@@ -2061,16 +2463,36 @@ if 'FigureS8' in FIGURES_TO_BUILD:
 # differ from the separately saved Figure 4 merged-cache plot.
 # S9 Top-N markers now use the exact 1-based Rank=N value; the previous offset is retained in evidence.
 #
-# Scientific authority remains open by explicit user decision: preserve both expression versions pending manuscript review.
+# This publication section loads the fixed selected-expression handoff documented in README.v2.md; comparison variants remain separate.
 #
 
 # %% figure="FigureS9"
 if 'FigureS9' in FIGURES_TO_BUILD:
     s9_facets = []
-    s9_expression,s9_meta=load_table('figure_s8_s9_expression')
-    s9_details,s9_detail_meta=load_table('figure_s9_markers')
+    s9_expression,s9_meta=load_table('figure_s8_s9_expression', {'styles': [{'Platform': 'Long-reads', 'Gene': 'GRIA2', 'Facet': 0, 'Color': '#00A08B'},
+            {'Platform': 'Long-reads', 'Gene': 'PCLO', 'Facet': 1, 'Color': '#AF0038'},
+            {'Platform': 'Short-reads', 'Gene': 'RUSC2', 'Facet': 0, 'Color': '#B68100'},
+            {'Platform': 'Short-reads', 'Gene': 'TRIM2', 'Facet': 1, 'Color': '#B2828D'},
+            {'Platform': 'Short-reads', 'Gene': 'CA2D3', 'Facet': 2, 'Color': '#6C4516'},
+            {'Platform': 'Short-reads', 'Gene': 'ABL', 'Facet': 3, 'Color': '#0D2A63'},
+            {'Platform': 'Short-reads', 'Gene': 'DGLA', 'Facet': 4, 'Color': '#620042'},
+            {'Platform': 'Short-reads', 'Gene': 'K0513', 'Facet': 5, 'Color': '#750D86'},
+            {'Platform': 'Short-reads', 'Gene': 'KCNAS', 'Facet': 6, 'Color': '#FB0D0D'},
+            {'Platform': 'Short-reads', 'Gene': 'ACHA4', 'Facet': 7, 'Color': '#DA16FF'},
+            {'Platform': 'Short-reads', 'Gene': 'ANR17', 'Facet': 8, 'Color': '#FC0080'},
+            {'Platform': 'Short-reads', 'Gene': 'TWK7', 'Facet': 9, 'Color': '#862A16'},
+            {'Platform': 'Short-reads', 'Gene': 'SCN1', 'Facet': 10, 'Color': '#6C7C32'},
+            {'Platform': 'Short-reads', 'Gene': 'CACB2', 'Facet': 11, 'Color': '#1616A7'},
+            {'Platform': 'Short-reads', 'Gene': 'RIMS2', 'Facet': 12, 'Color': '#FB00D1'},
+            {'Platform': 'Short-reads', 'Gene': 'PCLO', 'Facet': 13, 'Color': '#AF0038'},
+            {'Platform': 'Short-reads', 'Gene': 'DOP1', 'Facet': 14, 'Color': '#A777F1'},
+            {'Platform': 'Short-reads', 'Gene': 'IQEC1', 'Facet': 15, 'Color': '#EB663B'},
+            {'Platform': 'Short-reads', 'Gene': 'CSKI1', 'Facet': 16, 'Color': '#222A2A'},
+            {'Platform': 'Short-reads', 'Gene': 'MTUS2', 'Facet': 17, 'Color': '#1CA71C'},
+            {'Platform': 'Short-reads', 'Gene': 'ROBO2', 'Facet': 18, 'Color': '#2E91E5'}]})
+    s9_details,s9_detail_meta=load_table('figure_s9_markers', {})
     figure_s9=plt.figure(figsize=np.array(BATCH_LAYOUT['FigureS9']['canvas_mm'])/25.4)
-    from batch_helpers import annotate_rank_markers
+    from manuscript_figures.batch_helpers import annotate_rank_markers
     s9_annotation_checks=[]
     s9_points=0
     s9_detail_points=0
@@ -2138,9 +2560,71 @@ if 'FigureS9' in FIGURES_TO_BUILD:
 
 # %% figure="FigureS10"
 if 'FigureS10' in FIGURES_TO_BUILD:
-    s10_paired,s10_meta=load_table('figure_s10_paired')
-    s10_fits,s10_fits_meta=load_table('figure_s10_fits')
-    s10_cumulative,s10_cumulative_meta=load_table('figure_s10_cumulative')
+    s10_paired,s10_meta=load_table('figure_s10_paired', {'styles': [{'Panel': 'a', 'Gene': 'GRIA2', 'Facet': 0, 'Color': '#00A08B'},
+            {'Panel': 'a', 'Gene': 'PCLO', 'Facet': 1, 'Color': '#AF0038'},
+            {'Panel': 'b',
+             'Gene': 'GRIA2',
+             'Facet': 0,
+             'Group': 'Subsampled data (10%)',
+             'Color': 'rgb(4, 180, 161)',
+             'Alpha': 0.7},
+            {'Panel': 'b',
+             'Gene': 'PCLO',
+             'Facet': 1,
+             'Group': 'Subsampled data (10%)',
+             'Color': 'rgb(179, 20, 78)',
+             'Alpha': 0.7},
+            {'Panel': 'b',
+             'Gene': 'GRIA2',
+             'Facet': 0,
+             'Group': 'Full data',
+             'Color': 'rgb(16, 240, 227)',
+             'Alpha': 0.7},
+            {'Panel': 'b',
+             'Gene': 'PCLO',
+             'Facet': 1,
+             'Group': 'Full data',
+             'Color': 'rgb(191, 80, 144)',
+             'Alpha': 0.7},
+            {'Panel': 'c',
+             'Gene': 'GRIA2',
+             'Facet': 0,
+             'Group': 'Full data',
+             'Color': 'rgb(4, 180, 161)',
+             'Alpha': 0.5},
+            {'Panel': 'c',
+             'Gene': 'ADAR1',
+             'Facet': 1,
+             'Group': 'Full data',
+             'Color': 'rgb(77, 8, 229)',
+             'Alpha': 0.5},
+            {'Panel': 'c',
+             'Gene': 'IQEC1',
+             'Facet': 2,
+             'Group': 'Full data',
+             'Color': 'rgb(239, 122, 81)',
+             'Alpha': 0.5},
+            {'Panel': 'c',
+             'Gene': 'GRIA2',
+             'Facet': 0,
+             'Group': 'Deduplicated data (UMIs)',
+             'Color': 'rgb(16, 240, 227)',
+             'Alpha': 0.5},
+            {'Panel': 'c',
+             'Gene': 'ADAR1',
+             'Facet': 1,
+             'Group': 'Deduplicated data (UMIs)',
+             'Color': 'rgb(97, 108, 255)',
+             'Alpha': 0.5},
+            {'Panel': 'c',
+             'Gene': 'IQEC1',
+             'Facet': 2,
+             'Group': 'Deduplicated data (UMIs)',
+             'Color': 'rgb(251, 182, 147)',
+             'Alpha': 0.5}],
+ 'a_limits': [0, 0.506815955603998]})
+    s10_fits,s10_fits_meta=load_table('figure_s10_fits', {})
+    s10_cumulative,s10_cumulative_meta=load_table('figure_s10_cumulative', {})
     figure_s10=plt.figure(figsize=np.array(BATCH_LAYOUT['FigureS10']['canvas_mm'])/25.4)
     for style in s10_meta['styles']:
         if style['Color'].startswith('rgb('):
@@ -2256,16 +2740,33 @@ if 'FigureS10' in FIGURES_TO_BUILD:
 
 # %% figure="FigureS11"
 if 'FigureS11' in FIGURES_TO_BUILD:
-    from batch_helpers import continuous_colorbar
+    from manuscript_figures.batch_helpers import continuous_colorbar
     from matplotlib.collections import PatchCollection
     from matplotlib.patches import Rectangle
     from matplotlib.colors import LinearSegmentedColormap,Normalize
     from matplotlib.cm import ScalarMappable
-    s11_table,s11_meta=load_table('figure_s11_matrices')
+    s11_table,s11_meta=load_table('figure_s11_matrices.BY', {'color_scales': {'Pearson': [[0, '#67001f'],
+                              [0.1, '#b2182b'],
+                              [0.2, '#d6604d'],
+                              [0.3, '#f4a582'],
+                              [0.4, '#fddbc7'],
+                              [0.5, '#f7f7f7'],
+                              [0.6, '#d1e5f0'],
+                              [0.7, '#92c5de'],
+                              [0.8, '#4393c3'],
+                              [0.9, '#2166ac'],
+                              [1, '#053061']],
+                  'MI': [[0, '#f7f7f7'],
+                         [0.25, '#d1e5f0'],
+                         [0.5, '#67a9cf'],
+                         [0.75, '#2166ac'],
+                         [1, '#053061']]},
+ 'checks': [{'reference_image_size': [374, 374]}, {'reference_image_size': [374, 374]}]})
     # Same correction as Figure 5a; the MI rows remain unchanged.
-    s11_table = pd.read_table(NOTEBOOK_DIR / 'RevisionFisherBY_2026-11-09/figure_s11_matrices.BY.tsv', float_precision='round_trip')
     figure_s11=plt.figure(figsize=np.array(BATCH_LAYOUT['FigureS11']['canvas_mm'])/25.4)
     s11_finite_cells=0
+
+    s11_meta['site_order'] = s11_table.loc[s11_table.ColumnIndex.eq(0), 'RowSite'].drop_duplicates().tolist()
 
 
 # %% figure="FigureS11"
@@ -2322,9 +2823,49 @@ if 'FigureS11' in FIGURES_TO_BUILD:
 # %% figure="FigureS12"
 if 'FigureS12' in FIGURES_TO_BUILD:
     from matplotlib.patches import Rectangle
-    s12_boxes,s12_meta=load_table('figure_s12_boxes')
-    s12_outliers,s12_outlier_meta=load_table('figure_s12_outliers')
-    s12_pairs,s12_pair_meta=load_table('figure_s12_pairs')
+    s12_boxes,s12_meta=load_table('figure_s12_boxes', {'sources': [{'Platform': 'Long-reads',
+              'gene_order': ['GRIA2', 'PCLO'],
+              'affine_y_to_svg': [-220.41458468878855, 235.00565554910213]},
+             {'Platform': 'Short-reads',
+              'gene_order': ['ABL',
+                             'ACHA4',
+                             'ANR17',
+                             'CA2D3',
+                             'CACB2',
+                             'CSKI1',
+                             'DGLA',
+                             'DOP1',
+                             'IQEC1',
+                             'K0513',
+                             'KCNAS',
+                             'MTUS2',
+                             'PCLO',
+                             'RIMS2',
+                             'ROBO2',
+                             'RUSC2',
+                             'SCN1',
+                             'TRIM2',
+                             'TWK7'],
+              'affine_y_to_svg': [-84.3669061143725, 88.83159481616087]}],
+ 'styles': [{'Platform': 'Long-reads', 'Label': '0 - 100', 'Color': 'rgb(68, 1, 84)'},
+            {'Platform': 'Long-reads', 'Label': '100 - 200', 'Color': 'rgb(67, 56, 128)'},
+            {'Platform': 'Long-reads', 'Label': '200 - 300', 'Color': 'rgb(49, 104, 142)'},
+            {'Platform': 'Long-reads', 'Label': '300 - 400', 'Color': 'rgb(34, 144, 140)'},
+            {'Platform': 'Long-reads', 'Label': '400 - 500', 'Color': 'rgb(53, 183, 121)'},
+            {'Platform': 'Long-reads', 'Label': '500 - 600', 'Color': 'rgb(146, 214, 65)'},
+            {'Platform': 'Long-reads', 'Label': '600 - 700', 'Color': 'rgb(253, 231, 37)'},
+            {'Platform': 'Short-reads', 'Label': '0 - 100', 'Color': 'rgb(68, 1, 84)'},
+            {'Platform': 'Short-reads', 'Label': '100 - 200', 'Color': 'rgb(72, 40, 120)'},
+            {'Platform': 'Short-reads', 'Label': '200 - 300', 'Color': 'rgb(62, 73, 137)'},
+            {'Platform': 'Short-reads', 'Label': '300 - 400', 'Color': 'rgb(49, 104, 142)'},
+            {'Platform': 'Short-reads', 'Label': '400 - 500', 'Color': 'rgb(38, 130, 142)'},
+            {'Platform': 'Short-reads', 'Label': '500 - 600', 'Color': 'rgb(31, 158, 137)'},
+            {'Platform': 'Short-reads', 'Label': '600 - 700', 'Color': 'rgb(53, 183, 121)'},
+            {'Platform': 'Short-reads', 'Label': '700 - 800', 'Color': 'rgb(110, 206, 88)'},
+            {'Platform': 'Short-reads', 'Label': '800 - 900', 'Color': 'rgb(181, 222, 43)'},
+            {'Platform': 'Short-reads', 'Label': '900 - 1000', 'Color': 'rgb(253, 231, 37)'}]})
+    s12_outliers,s12_outlier_meta=load_table('figure_s12_outliers', {})
+    s12_pairs,s12_pair_meta=load_table('figure_s12_pairs', {})
     figure_s12=plt.figure(figsize=np.array(BATCH_LAYOUT['FigureS12']['canvas_mm'])/25.4)
     s12_box_count=0
     s12_point_count=0
@@ -2397,12 +2938,20 @@ if 'FigureS12' in FIGURES_TO_BUILD:
 
 # %% figure="FigureS13"
 if 'FigureS13' in FIGURES_TO_BUILD:
-    s13_data,s13_meta=load_table('figure_s13_plot')
+    s13_data,s13_meta=load_table('figure_s13_plot', {'legend': [{'Tissue': 'Axial nerve cord', 'Color': 'rgb(51, 102, 204)'},
+            {'Tissue': 'Frontal & vertical lobe', 'Color': 'rgb(255, 153, 0)'},
+            {'Tissue': 'Pedunculate & olfactory lobe', 'Color': 'rgb(16, 150, 24)'},
+            {'Tissue': 'Stellate g. & visceral g.', 'Color': 'rgb(153, 0, 153)'},
+            {'Tissue': 'Sucker', 'Color': 'rgb(0, 153, 198)'},
+            {'Tissue': 'Retina & optic lobe', 'Color': 'rgb(221, 68, 119)'},
+            {'Tissue': 'Non-neuronal tissues mix', 'Color': 'rgb(220, 57, 18)'}]})
     # The requested <=200 check failed: 12 coverage values exceed 200 (maximum 254).
     assert s13_data.NumOfReads.max()==254 and s13_data.NumOfProteinsPerGenePerSample.max()==171
     assert s13_data.NumOfReads.le(260).all() and s13_data.NumOfProteinsPerGenePerSample.le(200).all()
     figure_s13=plt.figure(figsize=np.array(BATCH_LAYOUT['FigureS13']['canvas_mm'])/25.4)
     s13_points=0
+
+    s13_meta['gene_order'] = s13_data.sort_values('Facet')[['Chrom', 'Transcript', 'PooledIsoforms']].drop_duplicates().to_dict('records')
 
 
 # %% figure="FigureS13"
@@ -2411,6 +2960,7 @@ if 'FigureS13' in FIGURES_TO_BUILD:
         row,column=divmod(facet,3)
         left,top=18+column*38,22+row*43
         axis=axes_mm(figure_s13,left,top,31,30,grid='both',hide_y=column!=0)
+        axis.tick_params(axis='both', pad=3)  # Approved S13 tick-label spacing.
         data=s13_data.loc[s13_data.Facet.eq(facet)]
         for point in data.itertuples():
             color=tuple(float(v)/255 for v in point.Color[4:-1].split(','))
@@ -2451,7 +3001,7 @@ if 'FigureS13' in FIGURES_TO_BUILD:
 
 # %% figure="FigureS14"
 if 'FigureS14' in FIGURES_TO_BUILD:
-    s14_input_dir = WORK_DIR / 's14_correction_2026-10-29/inputs'
+    s14_input_dir = FIGURE_SOURCES / 'FigureS14'
     s14_data = pd.read_table(s14_input_dir / 'figure_s14_curves.tsv', float_precision='round_trip')
     s14_cohort = pd.read_table(s14_input_dir / 'figure_s14_cohorts.tsv', float_precision='round_trip')
     s14_test = pd.read_table(s14_input_dir / 'figure_s14_test.tsv', float_precision='round_trip')
@@ -2502,7 +3052,7 @@ if 'FigureS14' in FIGURES_TO_BUILD:
         np.testing.assert_allclose(curve.CummulativeTranscripts, expected, rtol=0, atol=1e-12)
     export_figure(figure_s14, 'FigureS14', {
         'exact_curve_points': len(s14_data), 'denominators': s14_meta['denominators'],
-        'corrected_curve_definition_verified': True, 'corrected_input_sha_verified': True,
+        'corrected_curve_definition_verified': True, 'input_source': 'native pooled cohort and corrected neural annotations',
         'MannWhitney_result_source': 'Pooled analysis notebook: figure_s14_test.tsv; renderer does not test',
         'MannWhitney_U': s14_meta['mannwhitneyu']['statistic'],
         'MannWhitney_P': s14_meta['mannwhitneyu']['pvalue']})
@@ -2518,7 +3068,7 @@ if 'FigureS14' in FIGURES_TO_BUILD:
 
 # %% figure="FigureS16"
 if 'FigureS16' in FIGURES_TO_BUILD:
-    s16_data,s16_meta=load_table('figure_s16_summaries')
+    s16_data,s16_meta=load_table('figure_s16_summaries', {'unknown_probabilities': [0.09, 0.13, 0.18]})
     figure_s16=plt.figure(figsize=np.array(BATCH_LAYOUT['FigureS16']['canvas_mm'])/25.4)
     s16_checked_points=0
     s16_dashes={'solid':'-','dash':'--','dot':':'}
@@ -2604,13 +3154,12 @@ if 'FigureS16' in FIGURES_TO_BUILD:
 # %% figure="FigureS17"
 if 'FigureS17' in FIGURES_TO_BUILD:
     import hashlib
-    from violin_paths import original_violin_path
+    from manuscript_figures.violin_paths import original_violin_path
     from matplotlib.patches import PathPatch
     from matplotlib.transforms import Affine2D
-    s17_observations,s17_meta=load_table('figure_s17_observations')
-    s17_stats,s17_stats_meta=load_table('figure_s17_statistics')
-    s17_geometry_path=BATCH_DIR/'inputs/figure_s17_geometry.json'
-    assert hashlib.sha256(s17_geometry_path.read_bytes()).hexdigest()==s17_meta['geometry_sha256']
+    s17_observations,s17_meta=load_table('figure_s17_observations', {})
+    s17_stats,s17_stats_meta=load_table('figure_s17_statistics', {})
+    s17_geometry_path=figure_source('figure_s17_geometry', '.json')
     s17_geometry=json.loads(s17_geometry_path.read_text())
     figure_s17=plt.figure(figsize=np.array(BATCH_LAYOUT['FigureS17']['canvas_mm'])/25.4)
     s17_checked=0
@@ -2679,7 +3228,7 @@ if 'FigureS17' in FIGURES_TO_BUILD:
 # %% figure="FigureS18"
 if 'FigureS18' in FIGURES_TO_BUILD:
     # Read only revised read-level means and Fisher/BH results.
-    s18_table = pd.read_table(NOTEBOOK_DIR / 'RevisionFisherBY_2026-11-09/figure_s18_fisher.tsv', float_precision='round_trip')
+    s18_table = pd.read_table(figure_source('figure_s18_fisher'), float_precision='round_trip')
     assert s18_table.groupby(['Platform', 'Gene']).ngroups == 21
     assert not s18_table.duplicated(['Platform', 'Gene', 'EditingSite']).any()
     s18_width, s18_height = 180, 260  # Author-approved single-page maximum; facet text may shrink.
@@ -2814,17 +3363,12 @@ if 'FigureS18' in FIGURES_TO_BUILD:
 if 'FigureS19' in FIGURES_TO_BUILD:
     import plotly.graph_objects as go
     import hashlib
-    from plotly_export import export_plotly
-    s19_input = REVISION_DIR / 'inputs'
-    s19_meta = json.loads((s19_input / 's19_histograms.json').read_text())
-    s19_path = s19_input / s19_meta['file']
-    assert hashlib.sha256(s19_path.read_bytes()).hexdigest() == s19_meta['sha256']
-    s19_histograms = pd.read_table(s19_path, float_precision='round_trip')
-    assert len(s19_histograms) == 135
-    s19_correlation_path = s19_input / 's19_correlations.tsv'
-    s19_correlation_meta = json.loads((s19_input / 's19_correlations.json').read_text())
-    assert hashlib.sha256(s19_correlation_path.read_bytes()).hexdigest() == s19_correlation_meta['sha256']
-    s19_correlations = pd.read_table(s19_correlation_path, float_precision='round_trip')
+    from manuscript_figures.plotly_export import export_plotly
+    s19_input = FIGURE_SOURCES / 'FigureS19'
+    s19_histograms = pd.read_table(s19_input / 's19_histograms.tsv', float_precision='round_trip')
+    s19_correlations = pd.read_table(s19_input / 's19_correlations.tsv', float_precision='round_trip')
+    assert len(s19_histograms) == 135 and len(s19_correlations) == 900
+    assert s19_histograms.groupby(['EditingProbability', 'ReadRemovalProbability']).Count.sum().eq(45).all()
     s19_values = s19_correlations.loc[s19_correlations.Displayed.eq(1), 'Correlation']
     assert len(s19_values) == 405
     s19_xrange = [0.15, 0.45]  # Author-approved shared range; original bins are unchanged.
@@ -2916,8 +3460,9 @@ if 'FigureS19' in FIGURES_TO_BUILD:
     for line in expected_lines:
         np.testing.assert_allclose([line.y0,line.y1],s19_yrange)
         assert line.line.width == 1.5
-    export_plotly(figure_s19, 'FigureS19', s19_canvas_mm, s19_canvas_mm)
-    display(Image(filename=str(FINAL_FIGURES_DIR / 'previews/FigureS19.png')))
+    export_plotly(figure_s19, 'FigureS19', s19_canvas_mm, s19_canvas_mm,
+                  output_dir=FINAL_FIGURES_DIR / 'render_work/raw', font_dir=FONT_DIR)
+    display(Image(filename=str(FINAL_FIGURES_DIR / 'render_work/raw/previews/FigureS19.png')))
 
 # %% [markdown] figure="FigureS20"
 # ## Figure S20 — common expression and rare chimeras
@@ -2929,9 +3474,9 @@ if 'FigureS19' in FIGURES_TO_BUILD:
 
 # %% figure="FigureS20"
 if 'FigureS20' in FIGURES_TO_BUILD:
-    s20_expression,s20_meta=load_table('figure_s20_expression')
-    s20_boxes,_=load_table('figure_s20_boxes')
-    s20_chimeras,_=load_table('figure_s20_chimeras')
+    s20_expression,s20_meta=load_table('figure_s20_expression', {})
+    s20_boxes,_=load_table('figure_s20_boxes', {})
+    s20_chimeras,_=load_table('figure_s20_chimeras', {})
     figure_s20=plt.figure(figsize=np.array(BATCH_LAYOUT['FigureS20']['canvas_mm'])/25.4)
     s20_labels={'Illumina1':'IL','PacBio1':'PB'}
 
@@ -2999,7 +3544,7 @@ if 'FigureS20' in FIGURES_TO_BUILD:
 if 'FigureS6c_gene_maxima_review' in FIGURES_TO_BUILD:
     from scipy.stats import pearsonr
     s6_review_maxima,_=load_table('figure_s6c_maxima')
-    s6_review_solutions,_=load_table('figure_s6c_solutions')
+    s6_review_solutions,_=load_table('figure_s6c_solutions', {})
     assert not s6_review_maxima.duplicated(['Platform','Gene']).any()
     s6_review_result=pearsonr(s6_review_maxima.EditableCodons,s6_review_maxima.MaximumIsoforms)
     s6_legacy_result=pearsonr(s6_review_solutions.EditableAAs,s6_review_solutions.NumOfProteins)
@@ -3059,8 +3604,11 @@ if 'FigureS6c_gene_maxima_review' in FIGURES_TO_BUILD:
 #
 # Use the updated `Fig 2 wo panel b.pdf` as the clean base, and
 # `Fig 2 partially vectoric.pdf` as the placement reference. Frozen, hashed copies
-# and the current approved `final_figures/pdf/Figure2b.pdf` are preserved in
+# of the two manual assets are preserved in
 # `figure_rebuild_work/figure2_assembly_2026-10-13/inputs/`.
+#
+# First run `figure2-asset-*` to render this run’s native PCLO rank table. Assembly
+# uses that new `pdf/Figure2b.pdf`, with its source hash recorded.
 #
 # Place the whole 49 × 45.5 mm panel page at x=367.08 pt, y=10.065 pt, measured
 # from the top-left of the base page (x right, y down). Keep the original 510 ×
@@ -3071,102 +3619,115 @@ if 'FigureS6c_gene_maxima_review' in FIGURES_TO_BUILD:
 
 # %%
 if 'Figure2' in FIGURES_TO_BUILD:
-    # Explicit saved sources, physical dimensions and top-left page coordinates.
-    FIGURE2_ASSEMBLY = WORK_DIR / 'figure2_assembly_2026-10-13'
-    sys.path.insert(0, str(FIGURE2_ASSEMBLY / 'preparation'))
-    from assemble_runner import run_stage, validate_svg_render, publish_figure2
-    figure2_config = json.loads((FIGURE2_ASSEMBLY / 'inputs/assembly_parameters.json').read_text())
-    figure2_sources = {'base': 'inputs/BioRender_base.pdf',
-                      'reference': 'inputs/BioRender_reference.pdf',
-                      'panel': 'inputs/Figure2b_approved.pdf'}
-    figure2_top_left_pt = (367.08, 10.065)  # origin top-left; x right, y down
-    figure2_size_mm = (49.0, 45.5)  # entire asset page, including labels and legend
-    figure2_page_pt = (510.0, 629.04)  # retain the actual BioRender page dimensions
-    assert tuple(figure2_config['placement']['top_left_pt']) == figure2_top_left_pt
-    assert tuple(figure2_config['placement']['size_mm']) == figure2_size_mm
-    assert tuple(figure2_config['page']['MediaBox_pt'][2:]) == figure2_page_pt
-    for role, relative_path in figure2_sources.items():
-        binding = figure2_config['sources'][role]
-        assert binding['file'] == relative_path
-        assert hashlib.sha256((FIGURE2_ASSEMBLY / relative_path).read_bytes()).hexdigest() == binding['sha256']
-    print('Figure2: approved whole-page PDF insertion at 49 × 45.5 mm; original canvas retained.')
+    from manuscript_figures.docker_export import prepare_figure2, run_figure2_stage, copy_new_figure
+    FIGURE2_ASSEMBLY = FINAL_FIGURES_DIR / 'render_work/Figure2'
+    figure2_assets = Path(os.environ['MANUSCRIPT_FIGURE2_ASSETS']).resolve()
+    prepare_figure2(figure2_assets, FIGURE2_ASSEMBLY, FINAL_FIGURES_DIR / 'pdf/Figure2b.pdf')
 
 
 # %%
 if 'Figure2' in FIGURES_TO_BUILD:
     # A temporary, network-disabled Docker container inserts the vector PDF page.
     # Resource limits: two CPUs, 4 GiB RAM, 180 seconds per stage.
-    run_stage('assemble')
+    run_figure2_stage(FIGURE2_ASSEMBLY, 'assemble')
 
 
 # %%
 if 'Figure2' in FIGURES_TO_BUILD:
     # Export SVG with live Unicode text and embedded original glyphs, plus 600 DPI PNG.
-    run_stage('export')
+    run_figure2_stage(FIGURE2_ASSEMBLY, 'export')
 
 
 # %%
 if 'Figure2' in FIGURES_TO_BUILD:
-    # Check the original content stream, all vector cells, fonts and unchanged panels.
-    run_stage('validate')
-    validate_svg_render()
-    publish_figure2()  # Archive any prior Figure2 export before replacement.
-    display(Image(filename=str(FIGURE2_ASSEMBLY / 'previews/Figure2_review.png')))
+    import shutil
+    from manuscript_figures.docker_export import export_cropped_page
+    run_figure2_stage(FIGURE2_ASSEMBLY, 'validate')
+    figure2_raw = FIGURE2_ASSEMBLY / 'raw'
+    for ext in ['svg', 'pdf']:
+        (figure2_raw / ext).mkdir(parents=True, exist_ok=False)
+        shutil.copy2(FIGURE2_ASSEMBLY / 'exports' / f'Figure2.{ext}', figure2_raw / ext / f'Figure2.{ext}')
+    figure2_finished = export_cropped_page(figure2_raw, FIGURE2_ASSEMBLY / 'finished', 'Figure2',
+        [0.0, 5.279999999999999, 510.0, 613.6799780273437], FONT_DIR)
+    for ext, folder in [('svg', 'svg'), ('pdf', 'pdf'), ('png', 'previews')]:
+        target = FINAL_FIGURES_DIR / folder / f'Figure2.{ext}'
+        assert not target.exists(), target
+        shutil.copy2(figure2_finished / folder / f'Figure2.{ext}', target)
+    display(Image(filename=str(figure2_finished / 'previews/Figure2.png')))
 
 
 # %%
-# Legacy collection refresh; run the dedicated S7 section afterward to retain corrected S7.
-# Final bounds are identical in PDF, SVG and 600 DPI PNG.
-from word_export import refresh_final_collection
-word_export_plan = json.loads((WORD_LAYOUT_DIR / 'inputs/export_plan.json').read_text())
-assert word_export_plan['safe_margin_mm'] == 2.3
-assert word_export_plan['physical_scale'] == 1.0
-# Preserve canonical Figure5 if the legacy all-figure refresh copies historical artwork.
-figure5_current_artwork = {
-    FINAL_FIGURES_DIR / folder / f"Figure5.{extension}":
-        (FINAL_FIGURES_DIR / folder / f"Figure5.{extension}").read_bytes()
-    for folder, extension in [("svg", "svg"), ("pdf", "pdf"), ("previews", "png")]
-}
-try:
-    final_figure_index = refresh_final_collection(word_export_plan)
-finally:
-    for figure5_path, figure5_contents in figure5_current_artwork.items():
-        figure5_path.write_bytes(figure5_contents)
-display(final_figure_index[['Figure','Width_cm','Height_cm','Pixel_width','Pixel_height','Status']])
-
-# Crop translation is (-left, -top); the physical content scale stays exactly 1.
-crop_transformations = final_figure_index[['Figure','Crop_left_mm','Crop_top_mm',
-    'Crop_right_mm','Crop_bottom_mm','Content_scale']]
-display(crop_transformations)
+# Crop only newly rendered, explicitly selected full canvases at physical scale one.
+# Figure5 and S7 have dedicated exporters; Figure2 is assembled/cropped below.
+from manuscript_figures.docker_export import export_cropped_page
+import shutil
+# Exact PDF-point rectangles from the approved page exports (not rounded SVG units).
+publication_crops = {'Figure3': [0.0, 5.279999999999999, 510.2362060546875, 510.2362060546875],
+ 'Figure4': [1.92, 11.52, 491.0362060546875, 627.7152880859375],
+ 'Figure6': [4.32, 1.92, 476.1562060546875, 493.22833251953125],
+ 'FigureS1': [15.84, 45.12, 510.2362060546875, 487.70270263671875],
+ 'FigureS2': [0.0, 4.32, 510.2362060546875, 686.1278735351563],
+ 'FigureS3': [0.0, 41.76, 503.0362060546875, 652.5014379882813],
+ 'FigureS4': [0.0, 60.48, 484.3162060546875, 352.7092810058594],
+ 'FigureS5': [0.0, 16.32, 483.3562060546875, 307.49103515625],
+ 'FigureS6': [0.0, 10.08, 503.0362060546875, 690.9278735351562],
+ 'FigureS8': [0.0, 27.36, 485.7562060546875, 713.9678735351563],
+ 'FigureS9': [0.0, 27.36, 485.7562060546875, 713.9678735351563],
+ 'FigureS10': [0.0, 23.04, 500.1562060546875, 636.6614379882812],
+ 'FigureS11': [12.959999999999999, 10.08, 442.07620605468753, 689.7146557617187],
+ 'FigureS12': [1.92, 27.36, 489.1162060546875, 697.6478735351562],
+ 'FigureS13': [0.0, 44.64, 475.6762060546875, 425.19683837890625],
+ 'FigureS14': [17.28, 18.72, 464.1562060546875, 308.36031616210937],
+ 'FigureS15': [1.92, 7.199999999999999, 502.0762060546875, 674.1014379882813],
+ 'FigureS16': [0.0, 19.2, 468.4762060546875, 642.1417236328125],
+ 'FigureS17': [0.0, 27.36, 496.7962060546875, 675.0878735351563],
+ 'FigureS18': [0.0, 15.84, 510.2362060546875, 694.2878735351562],
+ 'FigureS19': [0.0, 26.4, 453.5433044433594, 428.1033044433594],
+ 'FigureS20': [21.599999999999998, 36.96, 488.6362060546875, 457.74235595703124]}
+for figure_name in list(FIGURES_TO_BUILD) + (['Figure3'] if RENDER_FIGURE3 and 'Figure3' not in FIGURES_TO_BUILD else []):
+    if figure_name not in publication_crops:
+        continue
+    raw_dir = FINAL_FIGURES_DIR / 'render_work/raw'
+    finished = FINAL_FIGURES_DIR / 'render_work/cropped' / figure_name
+    destinations = [(folder, ext) for folder, ext in [('svg', 'svg'), ('pdf', 'pdf'), ('previews', 'png')]]
+    assert all(not (FINAL_FIGURES_DIR / folder / f'{figure_name}.{ext}').exists() for folder, ext in destinations), 'Choose a new FINAL_FIGURES_DIR'
+    export_cropped_page(raw_dir, finished, figure_name, publication_crops[figure_name], FONT_DIR)
+    if figure_name in {'FigureS11', 'FigureS18'}:
+        # These approved pages use Matplotlib's physical crop and Poppler at 600 dpi.
+        from matplotlib.transforms import Bbox
+        import re
+        import subprocess
+        figure = figure_s11 if figure_name == 'FigureS11' else figure_s18
+        header = re.search(r'<svg\b[^>]*>', (finished / 'svg' / f'{figure_name}.svg').read_text()).group()
+        view = [float(value) for value in re.search(r'viewBox="([^"]+)"', header)[1].split()]
+        width_mm = float(re.search(r'\bwidth="([\d.]+)mm"', header)[1])
+        height_mm = float(re.search(r'\bheight="([\d.]+)mm"', header)[1])
+        crop = Bbox.from_bounds(view[0] / 72, figure.get_size_inches()[1] - (view[1] + view[3]) / 72,
+                               width_mm / 25.4, height_mm / 25.4)
+        figure.savefig(finished / 'pdf' / f'{figure_name}.pdf', bbox_inches=crop, pad_inches=0,
+                       metadata={'Creator': 'Combinatorics manuscript figures'})
+        subprocess.run(['pdftoppm', '-r', '600', '-singlefile', '-png',
+            str(finished / 'pdf' / f'{figure_name}.pdf'), str(finished / 'previews' / figure_name)],
+            check=True, timeout=120)
+    for folder, ext in destinations:
+        shutil.copy2(finished / folder / f'{figure_name}.{ext}', FINAL_FIGURES_DIR / folder / f'{figure_name}.{ext}')
 
 # %% [markdown]
-# ## Fisher/BY revision: assemble results, S4 and affected figures (2026-11-09)
+# ## Fisher/BY result handoff
 #
-# First run the new S18 and BY subsections in both original producer notebooks.
-# The first cell below assembles their authenticated outputs and changes only S4 in
-# a new complete XLSX workbook. The second cell executes only the existing renderer
-# cells for Figure 5, S11 and S18 in a separate bounded process.
+# Run the S18 and BY subsections in both scientific notebooks, with a new output directory. Assemble their tables and the S4 workbook using the documented producer functions before rendering. Run the individual Figure 5, S11 and S18 sections above; the selected-page export preserves their final physical crop. The renderer does not run scientific inference or refresh the historical collection.
 #
-# The original raw canvases are 180×225, 180×255 and 180×260 mm, respectively.
-# The established final collection has cropped pages: the exporter preserves those
-# exact existing physical sizes and crop rectangles at scale 1, and also retains
-# full-canvas SVG/PDF copies. Historical figure files and notebook outputs are backed
-# up under this revision directory. Rendering writes dated review artifacts; final
-# promotion follows dimension, vector, numerical and visual checks.
 
 # %%
-from pathlib import Path
-import sys, runpy
-revision_dir = Path.cwd() / 'RevisionFisherBY_2026-11-09'
-assert revision_dir.is_dir(), 'Run from Code/Notebooks'
-sys.path.insert(0, str(revision_dir))
-runpy.run_path(str(revision_dir / 'prepare_artifacts.py'), run_name='__main__')
+# Scientific assembly belongs to the producer step, before rendering:
+# manuscript_plot_tables.assemble_fisher_tables(producer_dir, new_output_dir)
+# manuscript_plot_tables.apply_by_matrices(matrix_table, producer_dir)
+# manuscript_workbooks.export_fisher_workbook(template, new_workbook, summary)
+# See README.v2.md for native inputs and the explicit order.
 
 # %%
-# Use the original renderer cells; retain both full canvases and existing final crops.
-import subprocess
-subprocess.run([sys.executable, str(revision_dir / 'render_revised_figures.py')],
-               check=True, timeout=1800)
+# Render Figure5, FigureS11 and FigureS18 through their individual sections above.
+# No nested notebook execution or historical collection refresh is performed.
 
 # %% [markdown]
 # ## Entropy comparison — 2026-11-16
@@ -3178,7 +3739,7 @@ subprocess.run([sys.executable, str(revision_dir / 'render_revised_figures.py')]
 #
 
 # %%
-COMPARISON_FIGURES_TO_BUILD = ["Figure5c_entropy_comparison"]
+COMPARISON_FIGURES_TO_BUILD = []
 
 
 # %%
@@ -3300,10 +3861,7 @@ if "Figure5c_entropy_comparison" in COMPARISON_FIGURES_TO_BUILD:
 #
 # This is the sole S7 producer. Both panels use the validated 16 November corrected
 # scores; panel b connects consecutive cluster sizes with lines and circle markers.
-# Run this section in combinatorics2 after any legacy collection refresh above.
-# It needs no upstream cells, clustering or live-kernel state. Exports replace
-# `final_figures/{svg,pdf,previews}/FigureS7.{svg,pdf,png}` at the fixed publication
-# size (PNG: 600 DPI). Previous variants were archived before removal.
+# Run this section in combinatorics2 after selecting FigureS7 and setting a new `FINAL_FIGURES_DIR` in the common path cell. It loads the generated score table and exports at the fixed publication size (600 DPI PNG). It does not run clustering, use a live scientific kernel or replace existing artwork.
 #
 
 # %%
@@ -3315,8 +3873,6 @@ import json
 import hashlib
 import numpy as np
 import pandas as pd
-s7_work = Path("/private6/projects/Combinatorics/Code/Notebooks/entropy_audit_2026-11-12/s7_canonical_2026-11-16")
-os.environ.setdefault("MPLCONFIGDIR", str(s7_work / "matplotlib_cache"))
 import matplotlib as mpl
 mpl.use("Agg")
 import matplotlib.pyplot as plt
@@ -3325,14 +3881,11 @@ from matplotlib.lines import Line2D
 from matplotlib.text import Text
 from matplotlib.ticker import FuncFormatter
 from matplotlib.transforms import Bbox
-assert Path(sys.prefix).name == "combinatorics2"
-BUILD_FIGURE_S7 = True
-s7_notebooks = s7_work.parents[1]
-s7_input_dir = s7_notebooks / "figure_rebuild_work/correction_2026-10-12"
-s7_final_dir = s7_notebooks / "final_figures"
-s7_previous = s7_work.parent / "updated_entropy_and_s7_comparison_2026-11-16"
-s7_validation_work = s7_work.parent / "eli_per_codon_population_comparison_2026-11-16"
-s7_manifest = json.loads((s7_validation_work / "input_manifest.json").read_text())
+BUILD_FIGURE_S7 = 'FigureS7' in FIGURES_TO_BUILD
+s7_notebooks = Path.cwd()
+from manuscript_paths import figure_source
+s7_final_dir = FINAL_FIGURES_DIR
+s7_work = s7_final_dir / 'render_work/S7'
 
 
 # %%
@@ -3340,7 +3893,7 @@ s7_manifest = json.loads((s7_validation_work / "input_manifest.json").read_text(
 S7_TEXT_PT = {'panel': 7, 'axis': 7, 'heading': 7, 'legend_heading': 7,
            'tick': 6, 'legend': 6, 'annotation': 6}
 for font in ['OpenSans-Regular.ttf', 'OpenSans-Bold.ttf']:
-    font_manager.fontManager.addfont(s7_input_dir / "fonts" / font)
+    font_manager.fontManager.addfont(FONT_DIR / font)
 assert Path(font_manager.findfont('Open Sans', fallback_to_default=False)).name == 'OpenSans-Regular.ttf'
 mpl.rcParams.update({'font.family': 'Open Sans', 'font.size': 6,
     'axes.labelsize': 7, 'axes.titlesize': 7, 'xtick.labelsize': 6,
@@ -3383,34 +3936,71 @@ def s7_style(axis, hide_y=False):
 
 
 # %%
-# Bind each corrected score to its original plotted row; retain order and colors.
-s7_path = s7_previous / "s7_old_vs_updated_summary.tsv"
-assert hashlib.sha256(s7_path.read_bytes()).hexdigest() == s7_manifest[str(s7_path)]["sha256"]
-s7_scores = pd.read_table(s7_path, float_precision="round_trip")
-assert len(s7_scores) == 1202
-s7_tables, s7_metadata = {}, {}
-for panel in ["a", "b"]:
-    path = s7_input_dir / f"inputs/squid_original_figures7{panel}_silhouette_plot.tsv"
-    meta = json.loads(path.with_suffix(".json").read_text())
-    assert hashlib.sha256(path.read_bytes()).hexdigest() == meta["sha256"]
-    current = pd.read_table(path, float_precision="round_trip")
-    corrected = s7_scores.loc[s7_scores.Panel.eq(panel)].copy()
-    corrected["Platform"] = corrected.Platform.map({"PacBio": "Long-reads", "Illumina": "Short-reads"})
-    assert corrected.Platform.notna().all()
-    if panel == "b":
-        assert set(corrected.Dissimilarity) == {"Miyata", "Grantham100"}
-        corrected["Dissimilarity"] = corrected.Dissimilarity.map({"Miyata": "Miyata", "Grantham100": "Grantham 100"})
-    keys = meta["keys"]
-    merged = current.merge(corrected[keys + ["OldMeanSilhouetteScore", "UpdatedMeanSilhouetteScore"]],
-        on=keys, how="left", sort=False, validate="one_to_one")
-    assert len(merged) == len(corrected) == meta["rows"] and merged.notna().all().all()
-    np.testing.assert_array_equal(merged.MeanSilhouetteScore, merged.OldMeanSilhouetteScore)
-    assert merged.Gene.map(meta["gene_colors"]).eq(merged.Color).all()
-    merged["MeanSilhouetteScore"] = merged.UpdatedMeanSilhouetteScore
-    s7_tables[panel] = merged[current.columns].copy()
-    s7_metadata[panel] = meta
-s7_colors = s7_metadata["a"]["gene_colors"]
-s7_reference_layout = json.loads((s7_input_dir / "reference_layout.json").read_text())
+# The scientific producer writes all corrected scores; style is fixed here.
+s7_scores = pd.read_table(figure_source('s7_scores'), float_precision='round_trip')
+assert s7_scores.columns.tolist() == ['Panel', 'Platform', 'Gene', 'Dissimilarity', 'ClusterSize', 'MeanSilhouetteScore']
+assert len(s7_scores) == 1202 and not s7_scores.duplicated(s7_scores.columns[:-1]).any()
+assert np.isfinite(s7_scores.MeanSilhouetteScore).all()
+s7_colors = {'GRIA2': '#00A08B',
+ 'PCLO': '#AF0038',
+ 'ABL': '#0D2A63',
+ 'ACHA4': '#DA16FF',
+ 'ANR17': '#FC0080',
+ 'CA2D3': '#6C4516',
+ 'CACB2': '#1616A7',
+ 'CSKI1': '#222A2A',
+ 'DGLA': '#620042',
+ 'DOP1': '#A777F1',
+ 'IQEC1': '#EB663B',
+ 'K0513': '#750D86',
+ 'KCNAS': '#FB0D0D',
+ 'MTUS2': '#1CA71C',
+ 'RIMS2': '#FB00D1',
+ 'ROBO2': '#2E91E5',
+ 'RUSC2': '#B68100',
+ 'SCN1': '#6C7C32',
+ 'TRIM2': '#B2828D',
+ 'TWK7': '#862A16'}
+s7_reference_layout = {'s7': {'a': {'groups': ['Long-reads', 'Short-reads'],
+       'legend_order': ['ABL',
+                        'ACHA4',
+                        'ANR17',
+                        'CA2D3',
+                        'CACB2',
+                        'CSKI1',
+                        'DGLA',
+                        'DOP1',
+                        'GRIA2',
+                        'IQEC1',
+                        'K0513',
+                        'KCNAS',
+                        'MTUS2',
+                        'PCLO',
+                        'RIMS2',
+                        'ROBO2',
+                        'RUSC2',
+                        'SCN1',
+                        'TRIM2',
+                        'TWK7'],
+       'limits': {'x': [0, 500.0], 'y': [0, 0.24371506529974304]},
+       'reference_asset': 'Fig S7/Mean silhouette score of MiniBatchKMeans vs. '
+                          'K size - PacBio1 vs. Illumina - dense.svg',
+       'reference_sha256': '9159b391d8183f3324e5efc9c4222d85843a876c720fddde22a6e3af1c67e7d2'},
+ 'b': {'groups': ['Miyata', 'Grantham 100'],
+       'legend_order': ['GRIA2', 'PCLO'],
+       'limits': {'x': [0, 42.53156864069147], 'y': [0, 0.10582010582010584]},
+       'reference_asset': 'Fig S7/Mean silhouette score of MiniBatchKMeans vs. '
+                          'K size - PacBio1 - dissimilar.svg',
+       'reference_sha256': '26bbba2fc6a39577165d6e72d15b0fea489748d5601dea9dc03cc3e25b643c92'}}}
+s7_tables = {}
+for panel in ['a', 'b']:
+    data = s7_scores.loc[s7_scores.Panel.eq(panel)].copy()
+    data['Platform'] = data.Platform.map({'PacBio': 'Long-reads', 'Illumina': 'Short-reads'})
+    data['Dissimilarity'] = data.Dissimilarity.replace({'Grantham100': 'Grantham 100'})
+    data['Color'] = data.Gene.map(s7_colors)
+    assert data.Platform.notna().all() and data.Color.notna().all()
+    assert len(data) == (1050 if panel == 'a' else 152)
+    s7_tables[panel] = data
 
 
 # %%
@@ -3544,10 +4134,14 @@ if BUILD_FIGURE_S7:
 
 
 # %%
-# Replace the canonical S7 exports; the pre-edit files have a verified backup.
+# Export into the chosen destination; existing artwork is never replaced.
 if BUILD_FIGURE_S7:
     s7_stem = "FigureS7"
     s7_outputs = []
+    s7_work.mkdir(parents=True, exist_ok=True)
+    for folder, extension in [('svg', 'svg'), ('pdf', 'pdf'), ('previews', 'png')]:
+        (s7_final_dir / folder).mkdir(parents=True, exist_ok=True)
+        assert not (s7_final_dir / folder / f'{s7_stem}.{extension}').exists(), 'Choose a new output directory'
     for folder, extension in [("svg", "svg"), ("pdf", "pdf"), ("previews", "png")]:
         path = s7_final_dir / folder / f"{s7_stem}.{extension}"
         s7_figure.savefig(path, format=extension, dpi=600,
@@ -3562,31 +4156,12 @@ if BUILD_FIGURE_S7:
 
 
 # %%
-# Update only S7 in the publication catalogs; retain all other rows verbatim.
+# Per-figure metadata stays with this export; no historical collection is refreshed.
 if BUILD_FIGURE_S7:
     from PIL import Image as PILImage
-    with PILImage.open(s7_final_dir / "previews/FigureS7.png") as image:
-        s7_pixel_width, s7_pixel_height = image.size
-        assert all(abs(dpi - 600) < 0.01 for dpi in image.info["dpi"])
-    s7_catalog_updates = {
-        "Width_cm": f"{s7_width_mm / 10:.6f}", "Height_cm": f"{s7_height_mm / 10:.6f}",
-        "Pixel_width": str(s7_pixel_width), "Pixel_height": str(s7_pixel_height),
-        "Effective_DPI_x": f"{s7_pixel_width / (s7_width_mm / 25.4):.6f}",
-        "Effective_DPI_y": f"{s7_pixel_height / (s7_height_mm / 25.4):.6f}",
-        "Vector_source": "final_figures/pdf/FigureS7.pdf",
-        "Change": "Corrected saved silhouette scores; S7b lines and markers; fixed publication crop",
-        "Status": "complete; native-size vector PDF/SVG and 600 DPI PNG"}
-    for row in s7_outputs:
-        s7_catalog_updates[row["Format"].upper() + "_bytes"] = str(row["Bytes"])
-    for filename in ["index.tsv", "dimensions_cm.tsv"]:
-        path = s7_final_dir / filename
-        lines = path.read_text().splitlines(keepends=True)
-        columns = lines[0].rstrip("\n").split("\t")
-        matches = [i for i, line in enumerate(lines[1:], 1) if line.split("\t")[0] == "FigureS7"]
-        assert len(matches) == 1 and set(s7_catalog_updates) <= set(columns)
-        row = dict(zip(columns, lines[matches[0]].rstrip("\n").split("\t"), strict=True))
-        row.update(s7_catalog_updates)
-        lines[matches[0]] = "\t".join(row[column] for column in columns) + "\n"
-        path.write_text("".join(lines))
-    print("S7 catalog entries updated; all other figure rows preserved.")
+    with PILImage.open(s7_final_dir / 'previews/FigureS7.png') as image:
+        assert all(abs(dpi - 600) < .01 for dpi in image.info['dpi'])
+        s7_dimensions = {'Figure': 'FigureS7', 'WidthMM': s7_width_mm, 'HeightMM': s7_height_mm,
+                         'PixelWidth': image.width, 'PixelHeight': image.height, 'DPI': 600}
+    pd.DataFrame([s7_dimensions]).to_csv(s7_work / 'dimensions.tsv', sep='\t', index=False)
 

@@ -13,6 +13,28 @@
 #     name: python3
 # ---
 
+# %% [markdown]
+# ## Reproducing manuscript results
+#
+# Use the retained manuscript inputs and selections described in `../../README.v2.md`.
+# These are dependency branches, not an instruction to Run All. Run the named setup
+# and the required upstream sections before an export; skip unrelated exploratory plots.
+# Set `MANUSCRIPT_FIGURE_SOURCES` to the same new absolute directory for every producer
+# and `final_manuscript_figures`. Keep assignment caches outside that directory and set
+# `MANUSCRIPT_ASSIGNMENTS` explicitly. `MANUSCRIPT_DATA_ROOT` selects the native data
+# repository when source and data are separate. Existing saved displays are historical.
+#
+# Cell IDs below identify the saved author notebook. Jupytext reconstruction may assign new IDs; locate the same cells by their section headings and opening source comments.
+#
+# | Order / branch | Existing section and required cells | Upstream inputs | Generated outputs | Downstream consumer |
+# |---|---|---|---|---|
+# | 1 | Imports; Data loading (`4002a1a2-d57f-413c-b799-9bbfd73b6c54`); Data loading - TMR 1000; Ploting utils | Separate pooled 50/1,000-read native paths | Fixed cohort and input bindings | Pooled analysis branches |
+# | 2 | Data preprocessing → Positions, Reads, Proteins; Num of distinct proteins; export `55073b12` | Native distinct solutions; original read counts; established one-isoform fill | MaxDistinctProtsForFig6.TMR{50,1000}.Octopus.Pooled.csv | figure6_tables; Figure 6 and S13/S14 |
+# | 3a | Editing by haplotype → Selected diverse haplotypes tests (`babeb6c3`, `8a0dbded`, `6d235401`, `55c69597`) → `batch-export-figure-s5` | Prepared editing+SNP reads; ≥2 eligible haplotypes; existing coverage/diversity filters | FigureS5/figure_s5_plot.tsv | Figure S5 |
+# | 3b | `s14-native-handoff-annotations`, `s14-native-handoff-cohort`, `batch-export-figure-s14` | 18 O. bim quant.sf inputs, SraRunTable, orthologs and native 1,711-gene cohort | Intermediate neural annotations; FigureS14/{cohorts,curves,test} tables | Figure S14 |
+# | 3c | Distinct isoforms per sample; manuscript_plot_tables.figure_s13_tables | Native top-nine pooled selections, sample labels, original pileup-read membership | FigureS13/figure_s13_{plot,protein_membership,coverage_membership}.tsv | Figure S13 |
+# | 3d | 12-mismatch source export (`mm12-*` cells where present) | Complete-noise native positions with final decisions | 12mm/v2/positions/octopus native transfer | various_plots mm12 counts → S2/S15 |
+
 # %% [markdown] papermill={"duration": 0.029907, "end_time": "2022-02-01T09:42:43.198426", "exception": false, "start_time": "2022-02-01T09:42:43.168519", "status": "completed"}
 # # Imports
 
@@ -9752,7 +9774,8 @@ fig.show()
 # %%
 # Persist site identities, complete haplotype labels and exact S5 means, including NA.
 from pathlib import Path
-figure_s5_dir = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/phase4_batch/inputs")
+from manuscript_paths import FIGURE_SOURCES
+figure_s5_dir = FIGURE_SOURCES / 'FigureS5'
 figure_s5_dir.mkdir(parents=True, exist_ok=True)
 figure_s5_parts = []
 for trace_index, trace in enumerate(fig.data):
@@ -9762,7 +9785,7 @@ for trace_index, trace in enumerate(fig.data):
         "Chrom": chrom, "Gene": chrom_to_plot_title(chrom), "Haplotype": trace.name,
         "EditingSite": trace.x, "MeanEditingPercent": trace.y, "Color": trace.marker.color}))
 figure_s5_plot = pd.concat(figure_s5_parts, ignore_index=True)
-figure_s5_plot.to_csv(figure_s5_dir / "figure_s5_plot.tsv", sep="\t", index=False, na_rep="NA")
+figure_s5_plot.to_csv(figure_s5_dir / "figure_s5_plot.tsv", sep="\t", index=False, na_rep="NA", mode="x")
 
 
 # %%
@@ -12374,12 +12397,17 @@ import sys
 import pandas as pd
 import scipy.stats
 
-s14_project_dir = Path.cwd().parents[1]
-assert (s14_project_dir / "Code/neural_transcripts.py").is_file()
-sys.path.insert(0, str(s14_project_dir / "Code"))
+import manuscript_inputs
+s14_project_dir = manuscript_inputs.PROJECT
+s14_code_dir = Path(manuscript_inputs.__file__).resolve().parents[1]
+assert (s14_code_dir / "neural_transcripts.py").is_file()
+sys.path.insert(0, str(s14_code_dir))
 from neural_transcripts import determine_obim_neural_transcripts, neural_obim_to_ovul_transcripts
 
-s14_output_dir = Path("figure_rebuild_work/s14_correction_2026-10-29/inputs")
+from manuscript_paths import FIGURE_SOURCES, ASSIGNMENTS_DIR
+s14_output_dir = FIGURE_SOURCES / "FigureS14"
+s14_annotation_dir = ASSIGNMENTS_DIR.parent / "s14_annotations"
+s14_annotation_dir.mkdir(parents=True, exist_ok=False)
 s14_output_dir.mkdir(parents=True, exist_ok=True)
 s14_output_names = ["obim_neural_transcripts.tsv", "ovul_neural_transcripts.tsv",
                     "figure_s14_cohorts.tsv", "figure_s14_curves.tsv", "figure_s14_test.tsv"]
@@ -12389,9 +12417,9 @@ s14_quant_dirs = [s14_project_dir / "O.bim/Expression" / run
                   for run in sorted(pd.read_csv(s14_run_table)["Run"])]
 assert len(s14_quant_dirs) == 18 and all((path / "quant.sf").is_file() for path in s14_quant_dirs)
 s14_orthologs = s14_project_dir / "O.vulgaris/Annotations/OrthoFinderAgainstObim/OrthoFinderResults/Results_May18/Orthologues/Orthologues_O.bim/O.bim__v__O.vul.tsv"
-determine_obim_neural_transcripts(s14_run_table, s14_quant_dirs, s14_output_dir / "obim_neural_transcripts.tsv")
-neural_obim_to_ovul_transcripts(s14_output_dir / "obim_neural_transcripts.tsv", s14_orthologs,
-                               s14_output_dir / "ovul_neural_transcripts.tsv")
+determine_obim_neural_transcripts(s14_run_table, s14_quant_dirs, s14_annotation_dir / "obim_neural_transcripts.tsv")
+neural_obim_to_ovul_transcripts(s14_annotation_dir / "obim_neural_transcripts.tsv", s14_orthologs,
+                               s14_annotation_dir / "ovul_neural_transcripts.tsv")
 
 # %%
 # Join corrected labels onto the unchanged native selected-gene population.
@@ -12399,7 +12427,7 @@ s14_native_cohort_df = pd.read_table("MaxDistinctProtsForFig6.TMR50.Octopus.Pool
     usecols=["Chrom", "Transcript", "NumOfProteins", "SNPs", "MappedReads"], float_precision="round_trip")
 assert len(s14_native_cohort_df) == 1711 and s14_native_cohort_df["Chrom"].is_unique
 assert s14_native_cohort_df["SNPs"].le(3).all() and s14_native_cohort_df["MappedReads"].ge(50).all()
-s14_annotations_df = pd.read_table(s14_output_dir / "ovul_neural_transcripts.tsv")
+s14_annotations_df = pd.read_table(s14_annotation_dir / "ovul_neural_transcripts.tsv")
 s14_cohort_df = s14_native_cohort_df[["Chrom", "Transcript", "NumOfProteins"]].merge(
     s14_annotations_df[["OvulChrom", "IsNeural"]].rename(columns={"OvulChrom": "Chrom"}),
     on="Chrom", how="left", sort=False, validate="one_to_one")

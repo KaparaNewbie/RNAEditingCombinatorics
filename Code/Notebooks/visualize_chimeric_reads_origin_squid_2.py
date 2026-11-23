@@ -13,6 +13,25 @@
 # ---
 
 # %% [markdown]
+# ## Reproducing manuscript results
+#
+# Use the retained manuscript inputs and selections described in `../../README.v2.md`.
+# These are dependency branches, not an instruction to Run All. Run the named setup
+# and the required upstream sections before an export; skip unrelated exploratory plots.
+# Set `MANUSCRIPT_FIGURE_SOURCES` to the same new absolute directory for every producer
+# and `final_manuscript_figures`. Keep assignment caches outside that directory and set
+# `MANUSCRIPT_ASSIGNMENTS` explicitly. `MANUSCRIPT_DATA_ROOT` selects the native data
+# repository when source and data are separate. Existing saved displays are historical.
+#
+# Cell IDs below identify the saved author notebook. Jupytext reconstruction may assign new IDs; locate the same cells by their section headings and opening source comments.
+#
+# | Order / branch | Existing section and required cells | Upstream inputs | Generated outputs | Downstream consumer |
+# |---|---|---|---|---|
+# | 1 | Prep; manuscript_inputs.export_assignments | Fixed selected solutions and original native assignments | Verified assignments outside figure_sources | Corrected S20 producer |
+# | 2 | manuscript_s20.produce_s20 (tracked dependency of this notebook) | Native unique RNA patterns, original multiplicities and verified assignments | Intermediate RNA matrices and strict/soft classifications; FigureS20/{expression,boxes,chimeras} tables | Figure S20 |
+# | 3 | % of chimeric proteins / expression inspection | Corrected rare-protein witnesses; native-order expression normalization | Scientific inspection only | Use final_manuscript_figures for publication drawing |
+
+# %% [markdown]
 # # Prep
 
 # %%
@@ -218,25 +237,22 @@ assignment_df
 
 # %%
 def make_expression_df(expression_file):
-    """Canonical native order; markers are checked read-only."""
-    import json
-    import hashlib
-    canonical_dir = Path("/private6/projects/Combinatorics/Code/Notebooks/figure_rebuild_work/canonical_inputs")
-    bindings = json.loads((canonical_dir / "ordinary_bindings.json").read_text())["cohorts"]
-    matches = [r for r in bindings if Path(r["expression_realpath"]).resolve() == Path(expression_file).resolve()]
+    """Fixed native assignment order and original RNA support; no reassignment."""
+    from manuscript_inputs import PROJECT, NOTEBOOKS, selections, read_assignment, verified_file
+    matches = selections().loc[lambda t: t.Metric.eq('ordinary') &
+        t.ExpressionFile.eq(str(Path(expression_file).resolve().relative_to(PROJECT)))]
     assert len(matches) == 1
-    binding = matches[0]
-    assert find_max_solution(expression_file) == binding["solution_id"]
-    path = canonical_dir / binding["canonical_file"]
-    assert hashlib.sha256(path.read_bytes()).hexdigest() == binding["canonical_sha256"]
-    assignment_df = pd.read_table(path, dtype={"Protein": str, "#Solution": str}, float_precision="round_trip")
-    supports = pd.read_table(canonical_dir / f"patterns/{binding['platform']}.{binding['gene']}.ordinary.original_support.tsv.gz", dtype={"Protein": str})
-    assert assignment_df.Protein.tolist() == supports.Protein.tolist()
-    assignment_df["NumOfUniqueReads"] = supports.Transcripts.str.count(",") + 1
-    assignment_df["CommonToRareProteinIndex"] = assignment_df["#Protein"]
-    assignment_df["RareToCommonProteinIndex"] = len(assignment_df) + 1 - assignment_df["#Protein"]
-    assignment_df["Solution"] = binding["solution_id"]
-    assignment_df["AssignmentSHA256"] = binding["canonical_sha256"]
+    selection = next(matches.itertuples(index=False))
+    assert find_max_solution(expression_file) == selection.Solution
+    assignment_df = read_assignment(selection, NOTEBOOKS / 'figure_rebuild_work/canonical_inputs').copy()
+    path = verified_file(PROJECT, selection.UniqueProteinsFile, selection.UniqueProteinsSHA256)
+    supports = pd.read_table(path, usecols=['Protein', 'Transcripts'], dtype=str).set_index('Protein')
+    assert supports.index.is_unique
+    assignment_df['NumOfUniqueReads'] = supports.loc[assignment_df.Protein, 'Transcripts'].str.count(',').to_numpy() + 1
+    assignment_df['CommonToRareProteinIndex'] = assignment_df['#Protein']
+    assignment_df['RareToCommonProteinIndex'] = len(assignment_df) + 1 - assignment_df['#Protein']
+    assignment_df['Solution'] = selection.Solution
+    assignment_df['AssignmentSHA256'] = selection.AssignmentSHA256
     return assignment_df
 
 
