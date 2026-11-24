@@ -768,6 +768,8 @@ pacbio \
 [DataTable.Squid.PB3.AllReads.csv](Code/Alignment/DataTable.Squid.PB3.AllReads.csv) selects merged BAMs under `D.pealeii/Alignment/AdditionalUMILongReads/ByChrom/`, before barcode recognition or deduplication, with `GRIA`, `ADAR1` and `IQEC1` labels, Jan2025 coordinates/strands and no problematic-region mask. For this pileup branch, supply the **samtools 1.22.1** executable with `--samtools_path` if it differs from the wrapper's default. Recognizable-barcode and deduplicated reads use separate input tables below.
 
 ```bash
+SAMTOOLS_1221=/path/to/samtools-1.22.1/bin/samtools
+
 mkdir -p D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads
 
 nohup python Code/pileup_with_subparsers.py \
@@ -777,6 +779,7 @@ nohup python Code/pileup_with_subparsers.py \
 --parity SE \
 --min_rq 0.998 \
 --min_bq 30 \
+--samtools_path "$SAMTOOLS_1221" \
 --out_dir D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads \
 --processes 3 \
 --threads 15 \
@@ -1206,7 +1209,7 @@ Code/Simulations/maximal_independent_set_5.jl \
 
 ## Octopus single-cell
 
-**BioProject PRJNA796958 / GEO GSE193622** supplies the octopus single-cell data. Preprocessing by **David Gorelik** is documented in [Kobi_octupus_RNA_editing](https://github.com/zbidav/Kobi_octupus_RNA_editing). This workflow starts from its per-transcript BAMs, alignment summaries and read/cell annotations:
+**BioProject PRJNA796958 / GEO GSE193622** supplies the octopus single-cell data. Preprocessing by **David Gorelik** Z"L is documented in [Kobi_octupus_RNA_editing](https://github.com/zbidav/Kobi_octupus_RNA_editing). This workflow starts from its per-transcript BAMs, alignment summaries and read/cell annotations:
 
 | Population | Upstream handoff |
 |---|---|
