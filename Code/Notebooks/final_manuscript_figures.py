@@ -1434,9 +1434,12 @@ if 'Figure6' in FIGURES_TO_BUILD:
     for x, text in [(2.25, '~5 isoforms\nper gene\ndue to\nalternative\nsplicing'),
                     (17, '~50 distinct\npolypeptides\nper gene')]:
         figure6_axes[0].text(x, .3, text, fontsize=6, color='#555555', ha='center', va='center')
-    figure6_axes[1].text(10, 11, 'p-val < 1E-22', fontsize=6, weight='bold', ha='center', va='bottom',
-                        bbox={'facecolor': 'white', 'edgecolor': 'none', 'alpha': .85, 'pad': 1})
-    figure6_axes[1].text(10, 11, '(Mann–Whitney U)', fontsize=6, ha='center', va='top',
+    figure6_statistics_text = (
+        'Mann–Whitney U: P = 3.53 × 10$^{-126}$\n'
+        'Wilcoxon signed-rank (2,981 shared genes): P = 2.00 × 10$^{-256}$'
+    )
+    figure6_axes[1].text(.97, .90, figure6_statistics_text, transform=figure6_axes[1].transAxes,
+                        fontsize=6, ha='right', va='top', multialignment='left', linespacing=1.5,
                         bbox={'facecolor': 'white', 'edgecolor': 'none', 'alpha': .85, 'pad': 1})
     for row, top in enumerate([18, 94]):
         text_mm(figure6, 146, top, ['Coverage', 'Cells'][row], 'legend_heading')
@@ -1454,7 +1457,7 @@ if 'Figure6' in FIGURES_TO_BUILD:
     layout_checks = check_layout_spacing(figure6)
     export_figure(figure6, 'Figure6', {'equal_axis_title_clearance_mm':figure6_title_gap_mm, 'layout_clearance':layout_checks, 'four_curve_arrays_exact': True, 'points': figure6_points_checked,
         'denominators': figure6_metadata['denominators'], 'mean_markers_exact': 2,
-        'fixed_TMR50_neuronal_cohorts': True, 'original_MannWhitney_annotation': True})
+        'fixed_TMR50_neuronal_cohorts': True, 'approved_P_value_annotation': figure6_statistics_text})
 
 
 # %% [markdown] figure="Figure2_PCLO_top100_unique_reads_asset"
