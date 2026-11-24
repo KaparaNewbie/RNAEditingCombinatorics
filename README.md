@@ -27,25 +27,21 @@ alias PBCOMB='cd "$MANUSCRIPT_REPO" && conda activate pacbiocomb'
 julia --project=. -e 'using Pkg; Pkg.instantiate()'
 ```
 
-The installation specifications are [combinatorics2_simplified.yml](combinatorics2_simplified.yml), [pacbiocomb.yml](pacbiocomb.yml), [Project.toml](Project.toml) and [Manifest.toml](Manifest.toml). Detailed environment inventories and historical processing versions are in [software_versions/README.md](software_versions/README.md).
+Use [combinatorics2_simplified.yml](combinatorics2_simplified.yml), [pacbiocomb.yml](pacbiocomb.yml), [Project.toml](Project.toml) and [Manifest.toml](Manifest.toml). Exact installed versions and historical requirements are documented in [software_versions/README.md](software_versions/README.md) and the [stage-specific version table](software_versions/historical_stages.2026-11-23.md); the current Conda environments do not necessarily supply historical tool versions.
 
 | Environment | Purpose and requirements |
 |---|---|
-| combinatorics2 | Python processing, scientific analysis and notebooks. Manuscript adapters require Python ≥3.11; selected notebook cells require pandas ≥2.2. Figure S7 requires scikit-learn 1.9.0. |
-| pacbiocomb | PacBio command-line tools, including CCS, pbmm2, extracthifi, pbmarkdup, lima and Iso-Seq. Use the stage-specific versions given below. |
-| Julia 1.7.2 | Isoform selection, read assignment and simulations. Use the tracked project and manifest, including the custom BioAlignments dependency. |
+| combinatorics2 | Python processing, analyses, scientific notebooks and plotting. |
+| pacbiocomb | PacBio command-line tools. |
+| Julia 1.7.2 | Independent-set selection, expression assignment and simulations. |
 
-**Python graphics and notebooks.** Matplotlib, Plotly, Kaleido, Pillow and Jupytext support plotting and notebook reconstruction. Kaleido requires Chrome. Figure export also uses `rsvg-convert` (librsvg/Cairo), Poppler (`pdfinfo`, `pdftoppm`) and matching Open Sans/Arial fonts. Docker/PyMuPDF handles Figure 2 assembly and PDF processing: PyMuPDF 1.26.7 is available in the documented Figure 2 image, not in the inspected `combinatorics2` installation. See [external assets](#external-assets-and-reproduction-limitations) for the image and font requirements.
+Figure export additionally requires Chrome for Kaleido, `rsvg-convert`, Poppler and permitted Open Sans/Arial fonts. Figure 2 assembly and PDF processing use the Docker image containing PyMuPDF; see [external assets](#external-assets-and-reproduction-limitations).
 
-**Sequencing tools.** samtools, BWA, Salmon, OrthoFinder and PacBio tools have stage-specific version requirements. `prepare_data.py` requires FastQC, MultiQC, PRINSEQ-lite, Trimmomatic and its adapter file to be available even for PacBio preparation. `pileup_with_subparsers.py` defaults to `~/anaconda3/envs/combinatorics2/bin/samtools`; use `--samtools_path` when the required executable is elsewhere. Check versions before each processing stage.
-
-**Paths and resources.** Adjust laboratory paths to your system and use the reference and annotation versions specified for each analysis. Raw Illumina isoform selection and reassignment can require approximately 2 TB RAM. Generating figures from processed scientific tables is less demanding and does not repeat that inference. Cloud transfers and some simulation scripts also contain site-specific paths or settings.
+Adjust paths to your system and use the reference and annotation versions specified for each analysis. Raw Illumina isoform selection and reassignment can require approximately 2 TB RAM; figure generation from processed tables is less demanding. Some simulation scripts also contain site-specific paths.
 
 The complete demo was validated in the installed environments on alu15 using four CPU cores and took approximately four minutes. See [Demo/DEMO.md](Demo/DEMO.md) for instructions and expected outputs.
 
-## Installation limitations
-
-A fresh `pacbiocomb` installation was tested. Clean installations of `combinatorics2` and the Julia project remain unverified; scientific reproduction used the documented installed environments. The Figure 2 Docker image requires separate acquisition, as described below.
+Clean-install limitations are listed in [software_versions/README.md](software_versions/README.md); `combinatorics2` and Julia reproduction currently relies on the documented installed environments.
 
 # Reference data and annotations
 
@@ -246,6 +242,8 @@ COMB # back to the main directory of the project
 
 # Analyses
 
+Scientific notebooks are tracked as Jupytext `.py:percent` sources; `.ipynb` files and saved outputs are not tracked. Reconstruct the notebooks using [the procedure below](#reconstruct-the-notebook-representations), then follow their execution tables. These sources are not standalone scripts to run top-to-bottom.
+
 ## Original squid PacBio (PB1)
 
 | Public accession | Manuscript target | Original local input |
@@ -257,7 +255,7 @@ These original PacBio subreads BAMs map to target regions `comp141693_c0_seq1` a
 
 ### Prepare consensus reads
 
-Place the demultiplexed subreads in the input directory and generate consensus reads with **CCS 6.2.0**:
+Generate consensus reads from the demultiplexed subreads with **CCS 6.2.0**. The Python preparation wrapper requires the complete `combinatorics2` toolset, including Trimmomatic adapters, even for PacBio input.
 
 ```bash
 mkdir -p D.pealeii/Data/Raw
@@ -302,12 +300,11 @@ Alignment uses the CCS preset, best-n = 1, two processes and 25 threads, without
 
 ### Detect editing and translate reads
 
-Use **samtools 1.18**, the original squid reference, SE handling, minimum read quality 0.998 and base quality 30:
+Use **samtools 1.18**, the original squid reference, SE handling, minimum read quality 0.998 and base quality 30. Set `SAMTOOLS_118` to your executable; `--samtools_path` overrides the pileup wrapper's environment-specific default.
 
 ```bash
 COMB
-SAMTOOLS_118=/home/alu/kobish/anaconda3/envs/combinatorics/bin/samtools
-"$SAMTOOLS_118" --version # must identify the recorded samtools 1.18
+SAMTOOLS_118=/path/to/samtools-1.18/bin/samtools
 
 mkdir -p D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30
 
@@ -362,7 +359,6 @@ The entropy-considered assigned-expression run uses the specified native solutio
 ```bash
 WD="D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30"
 
-
 nohup \
 julia \
 --project=. \
@@ -408,7 +404,6 @@ Code/Simulations/maximal_independent_set_5.jl \
 ```
 
 ```bash
-
 WD="D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30"
 
 nohup \
@@ -457,7 +452,6 @@ Code/Simulations/maximal_independent_set_5.jl \
 ```
 
 ```bash
-
 DISTINCTFILES="""
 D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.AAgroupsMiyata1979.06.02.2024-13:43:37.csv \
 D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.DistinctUniqueProteins.AAgroupsMiyata1979.06.02.2024-14:14:55.csv
@@ -515,7 +509,6 @@ Code/Simulations/maximal_independent_set_5.jl \
 ```
 
 ```bash
-
 DISTINCTFILES="""
 D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/GRIA-CNS-RESUB.DistinctUniqueProteins.GRANTHAM1974-100.06.02.2024-14:27:55.csv \
 D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/PCLO-CNS-RESUB.DistinctUniqueProteins.GRANTHAM1974-100.06.02.2024-15:51:50.csv
@@ -551,7 +544,6 @@ Code/Simulations/expressionlevels.jl \
 
 The scientific producer is [squids_pacbio_5.BQ30.py](Code/Notebooks/squids_pacbio_5.BQ30.py). Its selected-expression, site-correlation, recoding, entropy and original-read-support sections feed the tables described below.
 
-
 Domain analysis uses the `revision-20261109-domains-*` cells and the external ScanProsite response listed under [external assets](#external-assets-and-reproduction-limitations).
 
 ## Squid Illumina
@@ -567,7 +559,7 @@ The commands expect inputs under `D.pealeii/Data/Illumina/Raw` and write prepare
 
 ### Prepare and align
 
-Preparation filters by mean quality and trims reads to 265 bases. Historical environments list Trimmomatic **0.39** and PRINSEQ-lite **0.20.4**; the exact preparation versions are not recorded. Alignment/filtering used **bwa-mem2 2.2.1 and samtools 1.14**.
+Preparation filters by mean quality and trims reads to 265 bases. Alignment/filtering requires the historical **bwa-mem2 2.2.1 and samtools 1.14**; preparation-version details are in the [stage-specific version table](software_versions/historical_stages.2026-11-23.md).
 
 ```bash
 mkdir -p D.pealeii/Data/Illumina/Raw
@@ -648,23 +640,43 @@ Code/Simulations/maximal_independent_set_5.jl \
 
 ### Revised assigned-expression results
 
-The analysis uses entropy-considered assignments in `D.pealeii/MpileupAndTranscripts/Illumina/FinalFixedExpressionFromCloud/<gene>/`, produced by [expressionlevels.jl](Code/Simulations/expressionlevels.jl). The manuscript input definitions select the per-gene solutions and assignments.
+[expressionlevels.jl](Code/Simulations/expressionlevels.jl) assigns original read support to selected isoforms with entropy-aware reassignment. The full-data RUSC2 example below uses the inputs and options recorded beside its accepted output in `FinalFixedExpressionFromCloud/RUSC2/expressionlevels.EntropyConsidered.28.01.2026.log`; related commands are in [Logs.Final.md](Logs.Final.md#fixed-expression-levels-on-cloud). The original heavy calculations ran partly on cloud resources, but this command needs no cloud service.
 
-Transfer scripts for these results are:
-
-```bash
-python Code/upload_illumina_samples_to_cloud.py
-```
+Run from the repository root on a machine with sufficient memory and 80 allocated CPUs. Keep `--maxthreads` no larger than Julia's `--threads` or the CPU allocation, and run one gene at a time. Choose a new output directory. Copy the selection file there because the producer writes an updated selection table beside its input.
 
 ```bash
-python Code/download_illumina_fixed_results_from_cloud.py
+COMB
+INDIR=D.pealeii/MpileupAndTranscripts/Illumina
+OUTDIR="$INDIR/RUSC2-expression-new"
+DISTINCT=comp141881_c0_seq3.DistinctUniqueProteins.12.07.2022-20:54:38.csv
+
+mkdir "$OUTDIR" &&
+cp "$INDIR/$DISTINCT" "$OUTDIR/$DISTINCT" &&
+julia --project=. --threads 80 \
+  Code/Simulations/expressionlevels.jl \
+  --distinctfiles "$OUTDIR/$DISTINCT" \
+  --allprotsfiles "$INDIR/reads.sorted.aligned.filtered.comp141881_c0_seq3.unique_proteins.csv" \
+  --allreadsfiles "$INDIR/reads.sorted.aligned.filtered.comp141881_c0_seq3.reads.csv" \
+  --samplenames RUSC2 \
+  --firstcolpos 15 \
+  --fractions 1.0 \
+  --algs Ascending Descending \
+  --onlymaxdistinct \
+  --considerentropy \
+  --innerthreadedassignment \
+  --maxthreads 80 \
+  --postfix_to_add .EntropyConsidered \
+  --outdir "$OUTDIR" \
+  > "$OUTDIR/expressionlevels.RUSC2.out" 2>&1
 ```
 
-These scripts require authenticated access to the authors' Google Cloud bucket. The uploader skips RUSC2 and RIMS2, which were processed separately; the downloader retrieves 19 result directories. The cloud execution configuration and complete per-gene handoff are not documented, so this route requires the existing fixed assignments.
+The expression output is `$OUTDIR/RUSC2.DistinctUniqueProteins.ExpressionLevels.EntropyConsidered.csv`. `--onlymaxdistinct` includes tied largest solutions; the manuscript uses RUSC2 solution 77 (6,108 isoforms), as specified in [selected_solutions.tsv](Code/Notebooks/manuscript_input_data/selected_solutions.tsv). The existing 19-gene results remain under `D.pealeii/MpileupAndTranscripts/Illumina/FinalFixedExpressionFromCloud/<gene>/`.
+
+Other genes use the same argument structure with their own selection, read and unique-protein files and logged thread allocation (60 or 80). This is a single-gene example: `selected_solutions.tsv` records the final consumer selections, not a complete batch-execution manifest, and reproduction of all 19 outputs from new assignments remains untested.
 
 ### Matched-depth comparison for Figure S6
 
-This branch samples **80,000 read pairs** with `--consider_parity_when_sampling` and seed 1892 for the fixed-depth comparison in `various_plots.BQ30`. The full-data Illumina analysis remains separate.
+This branch samples **80,000 read pairs** with `--consider_parity_when_sampling` and seed 1892 for Figure S6c, separately from the full-data Illumina analysis. `figure_s6_tables()` in [manuscript_plot_tables.py](Code/Notebooks/manuscript_plot_tables.py) reads the retained solutions selected by [s6_depth_inputs.tsv](Code/Notebooks/manuscript_input_data/s6_depth_inputs.tsv) and exports tables for [final_manuscript_figures.py](Code/Notebooks/final_manuscript_figures.py). The related depth analysis remains in [various_plots.BQ30.py](Code/Notebooks/various_plots.BQ30.py); the adapter also uses dataset-notebook dispersion exports and PCLO assignments/amino-acid inputs for the other S6 panels.
 
 ```bash
 mkdir -p D.pealeii/MpileupAndTranscripts/Illumina80KPairs
@@ -695,8 +707,6 @@ directed_sequencing_data \
 ```
 
 ```bash
-tmux new -s Illumina80K # alu 18
-
 INFILES=$(echo D.pealeii/MpileupAndTranscripts/Illumina80KPairs/*.unique_proteins.csv.gz)
 
 julia \
@@ -726,7 +736,7 @@ Code/Simulations/maximal_independent_set_5.jl \
 | SRR41297224 | JR2 | `D.pealeii/Data/AdditionalRawWithUMIs/CCS/JR2.r841072252411_C01.hifireads.bam` |
 | SRR41297223 | JR3 | `D.pealeii/Data/AdditionalRawWithUMIs/CCS/JR3.r841072252411_C01.hifireads.bam` |
 
-PB3 starts from delivered **HiFi/CCS BAMs with UMIs**. Provider processing used CCS **8.2.0**, lima **2.11.0**, pbtrim **1.1.0** and jasmine **2.3.0**.
+PB3 starts from delivered **HiFi/CCS BAMs with UMIs**; provider software is listed in the stage-specific version table.
 
 PB3 targets GRIA2 (`comp141693_c0_seq1`), ADAR1 (`comp134400_c0_seq1_extended`) and IQEC1 (`comp141565_c6_seq3`). Biological replicate identity is used throughout UMI processing, per-site comparisons and assigned-expression summaries.
 
@@ -755,11 +765,10 @@ pacbio \
 
 ### All-read pileup, isoform selection and expression
 
-Use **samtools 1.22.1** and [Code/Alignment/DataTable.Squid.PB3.AllReads.csv](Code/Alignment/DataTable.Squid.PB3.AllReads.csv). This table selects merged BAMs under `D.pealeii/Alignment/AdditionalUMILongReads/ByChrom/`, before barcode recognition or deduplication, with `GRIA`, `ADAR1` and `IQEC1` labels, Jan2025 coordinates/strands and no problematic-region mask. The later `DataTable.Squid.MergedAdditionalUMILongReads.csv` selects recognizable-barcode reads; each population has a separate workflow.
+[DataTable.Squid.PB3.AllReads.csv](Code/Alignment/DataTable.Squid.PB3.AllReads.csv) selects merged BAMs under `D.pealeii/Alignment/AdditionalUMILongReads/ByChrom/`, before barcode recognition or deduplication, with `GRIA`, `ADAR1` and `IQEC1` labels, Jan2025 coordinates/strands and no problematic-region mask. For this pileup branch, supply the **samtools 1.22.1** executable with `--samtools_path` if it differs from the wrapper's default. Recognizable-barcode and deduplicated reads use separate input tables below.
 
 ```bash
 mkdir -p D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads
-
 
 nohup python Code/pileup_with_subparsers.py \
 --transcriptome D.pealeii/Annotations/Jan2025/orfs_squ.fa \
@@ -779,8 +788,6 @@ directed_sequencing_data \
 ```
 
 ```bash
-tmux new -s COMB18
-
 COMB
 
 INFILES=$(echo D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/*.unique_proteins.csv.gz)
@@ -855,8 +862,6 @@ directed_sequencing_data \
 ```
 
 ```bash
-tmux new -s COMB17
-
 COMB
 
 INFILES=$(echo D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.ReadsWithRecognizableBarcodes/*.unique_proteins.csv.gz)
@@ -882,7 +887,6 @@ Code/Simulations/maximal_independent_set_5.jl \
 ```bash
 UMI_DIR=D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.ReadsWithRecognizableBarcodes
 
-
 nohup \
 julia \
 --project=. \
@@ -907,18 +911,22 @@ $UMI_DIR/comp141565_c6_seq3.merged.MinRQ998.reads.csv.gz \
 > $UMI_DIR/expressionlevels.5.7.2026.out &
 ```
 
-Continue with [squids_pacbio_5.additional_UMIs.MergedSamples.ReadsWithRecognizableBardoces.py](Code/Notebooks/squids_pacbio_5.additional_UMIs.MergedSamples.ReadsWithRecognizableBardoces.py).
+[squids_pacbio_5.additional_UMIs.MergedSamples.ReadsWithRecognizableBardoces.py](Code/Notebooks/squids_pacbio_5.additional_UMIs.MergedSamples.ReadsWithRecognizableBardoces.py) exports the barcode-filtered assigned-expression summaries for Figure S10.
 
 ### UMI-deduplicated reads — Figure S10
 
-This branch uses deduplicated BAMs and a matching `DataTable.csv`, separately from all reads and recognizable-barcode reads. The commented copy below is a historical template step whose suitability is unresolved: check that the table's BAM paths select the deduplicated files before using it.
+This branch requires `D.pealeii/Alignment/AdditionalUMILongReads.DeduppedReads/DataTable.csv` plus the BAMs exported by the UMI notebook's “Save reads after de-duplication” section and their `.bai` indexes. The table has columns `Sample,Gene,Region,Start,End,Strand,Path,ProbRegionsBED`; its three rows must contain the following values, with `Path` pointing into that deduplicated directory and `ProbRegionsBED` empty:
+
+| Sample / Gene | Region | Start | End | Strand | BAM basename |
+|---|---|---|---|---|---|
+| GRIA2 | comp141693_c0_seq1 | 170 | 2999 | + | comp141693_c0_seq1.merged.bam |
+| ADAR1 | comp134400_c0_seq1_extended | 0 | 3741 | + | comp134400_c0_seq1_extended.merged.bam |
+| IQEC1 | comp141565_c6_seq3 | 988 | 4195 | + | comp141565_c6_seq3.merged.bam |
+
+The table is a separate input prerequisite; the notebook exports BAMs but does not create it. The recognizable-barcode table points to a different read population.
 
 ```bash
 mkdir -p D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.DeduppedReads
-
-# cp \
-# D.pealeii/Alignment/AdditionalUMILongReads/DataTable.Squid.MergedAdditionalUMILongReads.csv \
-# D.pealeii/Alignment/AdditionalUMILongReads.DeduppedReads/DataTable.csv
 
 nohup python Code/pileup_with_subparsers.py \
 --transcriptome D.pealeii/Annotations/Jan2025/orfs_squ.fa \
@@ -938,8 +946,6 @@ directed_sequencing_data \
 ```
 
 ```bash
-tmux new -s COMB17
-
 COMB
 
 INFILES=$(echo D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.DeduppedReads/*.unique_proteins.csv.gz)
@@ -989,7 +995,7 @@ $UMI_DIR/comp141565_c6_seq3.merged.MinRQ998.reads.csv.gz \
 > $UMI_DIR/expressionlevels.6.7.2026.out &
 ```
 
-Continue with [squids_pacbio_5.additional_UMIs.MergedSamples.DeduppedReads.py](Code/Notebooks/squids_pacbio_5.additional_UMIs.MergedSamples.DeduppedReads.py). The comparison is assembled in [various_plots.BQ30.py](Code/Notebooks/various_plots.BQ30.py) and rendered as Figure S10.
+[squids_pacbio_5.additional_UMIs.MergedSamples.DeduppedReads.py](Code/Notebooks/squids_pacbio_5.additional_UMIs.MergedSamples.DeduppedReads.py) exports the deduplicated assigned-expression summaries. `figure_s10_tables()` in [manuscript_plot_tables.py](Code/Notebooks/manuscript_plot_tables.py) combines the branch summaries for Figure S10 in [final_manuscript_figures.py](Code/Notebooks/final_manuscript_figures.py).
 
 ## Octopus Iso-Seq
 
@@ -1009,7 +1015,7 @@ The native `samples.csv` maps the seven runs as follows:
 
 ### Prepare and align
 
-Available processing records identify **CCS 4.0.0**, **lima 2.6.0**, **Iso-Seq refine 3.8.2** and **pbmm2 1.7.0** for sampled inputs. Preparation uses [ClontechSMARTer-NEBcDNA.primers.fasta](Code/Data/ClontechSMARTer-NEBcDNA.primers.fasta).
+Use the historical refinement/alignment versions **lima 2.6.0**, **Iso-Seq refine 3.8.2** and **pbmm2 1.7.0**, with [ClontechSMARTer-NEBcDNA.primers.fasta](Code/Data/ClontechSMARTer-NEBcDNA.primers.fasta).
 
 ```bash
 mkdir -p O.vulgaris/Data/PRJNA791920/IsoSeqPolished/CCS
@@ -1249,8 +1255,6 @@ undirected_sequencing_data \
 ```
 
 ```bash
-tmux new -s COMB18
-
 COMB
 
 mkdir O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50/DistinctProteins
@@ -1339,8 +1343,6 @@ undirected_sequencing_data \
 ```
 
 ```bash
-tmux new -s COMB13
-
 COMB
 
 mkdir O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage1000/DistinctProteins
@@ -1368,7 +1370,6 @@ Code/Simulations/maximal_independent_set_5.jl \
 ### Neuronal cells: 50-read branch
 
 ```bash
-
 OUT_DIR=O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50.Neuronal
 ALIGNMENT_DIR=/private10/Projects/David/Kobi_octupus/splitSites/neuronal_reads/
 
@@ -1398,8 +1399,6 @@ undirected_sequencing_data \
 ```
 
 ```bash
-tmux new -s COMB18
-
 COMB
 
 BASE_DIR=O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50.Neuronal
@@ -1430,7 +1429,6 @@ Code/Simulations/maximal_independent_set_5.jl \
 ### Non-neuronal cells: 50-read branch
 
 ```bash
-
 OUT_DIR=O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50.NonNeuronal
 ALIGNMENT_DIR=/private10/Projects/David/Kobi_octupus/splitSites/non_neuronal_reads
 
@@ -1460,8 +1458,6 @@ undirected_sequencing_data \
 ```
 
 ```bash
-tmux new -s COMB16
-
 COMB
 
 BASE_DIR=O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50.NonNeuronal
@@ -1529,16 +1525,13 @@ python Code/neural_transcripts.py \
 
 ## Simulations and other processing
 
-
 Complete-noise processing uses **samtools 1.18 / HTSlib 1.17** and the **Jan2025** reference and annotations. The original PB1/Illumina workflows above use the original reference.
 
 ### PB1 complete-noise positions
 
 ```bash
-SAMTOOLS_118=/home/alu/kobish/anaconda3/envs/combinatorics/bin/samtools
+SAMTOOLS_118=/path/to/samtools-1.18/bin/samtools
 OUTDIR=D.pealeii/MpileupAndTranscripts/CompleteNoisePositions
-
-"$SAMTOOLS_118" --version
 
 mkdir -p "$OUTDIR"
 
@@ -1568,10 +1561,8 @@ directed_sequencing_data \
 ### Illumina complete-noise positions
 
 ```bash
-SAMTOOLS_118=/home/alu/kobish/anaconda3/envs/combinatorics/bin/samtools
+SAMTOOLS_118=/path/to/samtools-1.18/bin/samtools
 OUTDIR=D.pealeii/MpileupAndTranscripts/CompleteNoisePositions
-
-"$SAMTOOLS_118" --version
 
 mkdir -p "$OUTDIR"
 
@@ -1602,8 +1593,6 @@ Both commands overwrite pileups in their named complete-noise output branch.
 
 [noise_positions_and_reads_squid.py](Code/Notebooks/noise_positions_and_reads_squid.py) joins noise positions to original read mappings. The squid and pooled-octopus notebooks produce 12-mismatch position tables under `Code/Notebooks/12mm/v2/positions/`. The “12-mismatch analysis” section of [various_plots.BQ30.py](Code/Notebooks/various_plots.BQ30.py) produces sample/panel counts for Figures S2 and S15. The analysis unit is a mismatch site within its sample/transcript population, with population-specific denominators and undefined-proportion handling.
 
-
-
 ### Empirical graph assessment — Figure S16
 
 Generate complete and partially observed simulated protein populations with the original input settings and random seeds in [Code/empirical_graph_assessment.py](Code/empirical_graph_assessment.py).
@@ -1621,8 +1610,6 @@ python Code/empirical_graph_assessment.py \
 The notebook reads the consistent-fraction selections from `Simulations/GraphAssessment/SameFrac`:
 
 ```bash
-tmux a -t comb18
-
 mkdir Simulations/GraphAssessment/SameFrac
 
 INFILES=$(echo Simulations/GraphAssessment/*.UniqueProteins.tsv.gz)
@@ -1649,8 +1636,6 @@ Code/Simulations/maximal_independent_set_5.jl \
 The false-positive comparison uses the generated file-of-filenames inputs:
 
 ```bash
-tmux a -t comb18
-
 COMPLETE_INFILES=$(cat Simulations/GraphAssessment/CompleteInfiles.fofn)
 ERRORED_NA_INFILES=$(cat Simulations/GraphAssessment/ErroredNAFiles.fofn)
 OUT_FILES=$(cat Simulations/GraphAssessment/FalsePositivesOutFiles.fofn)
@@ -1665,7 +1650,7 @@ Code/Simulations/mis_5_assessment.jl \
 2>&1 | tee Simulations/GraphAssessment/mis_5_assessment.24.12.2024.log
 ```
 
-Continue with [Code/Notebooks/empirical_graph_assessment.py](Code/Notebooks/empirical_graph_assessment.py), which summarizes recovered and false-positive isoforms for Figure S16. The simulations assess the heuristic on the specified populations.
+[Code/Notebooks/empirical_graph_assessment.py](Code/Notebooks/empirical_graph_assessment.py) summarizes recovered and false-positive isoforms for Figure S16. The simulations assess the heuristic on the specified populations.
 
 ### Editing simulation — Figure S19
 
@@ -1698,7 +1683,6 @@ OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python Code/Notebooks/manuscript_s20.py
   --output "$MANUSCRIPT_FIGURE_SOURCES/FigureS20" --work "$MANUSCRIPT_WORK/s20"
 ```
 
-
 Annotation-based recoding potential is produced by [recoding_sites_in_squid.py](Code/Notebooks/recoding_sites_in_squid.py), using the Jan2025 annotation. Its input → classification → triplet-summary → export sequence is documented in that notebook.
 
 # Scientific notebooks and workflow
@@ -1709,8 +1693,7 @@ Each notebook's **Reproducing manuscript results** table lists setup, prerequisi
 
 ## Reconstruct the notebook representations
 
-`.ipynb` files and their saved outputs are ignored by Git. The trackable sources are
-`.py:percent`, paired by [jupytext.toml](Code/Notebooks/jupytext.toml). In a fresh clone:
+In a fresh clone, reconstruct notebooks using the repository's [Jupytext configuration](Code/Notebooks/jupytext.toml):
 
 ```bash
 cd Code/Notebooks
@@ -1732,7 +1715,7 @@ jupytext --to ipynb \
   final_manuscript_figures.py
 ```
 
-Jupytext reconstructs notebooks without executing them. Resolve local edits before synchronizing an existing pair. Follow the execution-table headings and source comments when selecting cells; reconstructed cell IDs may differ. The percent sources include exploratory syntax and are not intended as top-to-bottom Python scripts.
+Conversion does not execute cells. Resolve local edits before synchronizing an existing pair, and use execution-table headings to locate cells whose reconstructed IDs differ.
 
 # Generating manuscript figures and tables
 
