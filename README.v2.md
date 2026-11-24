@@ -33,6 +33,13 @@ julia --project=. -e 'using Pkg; Pkg.instantiate()'
 
 [combinatorics2_simplified.yml](combinatorics2_simplified.yml) is the current broad
 specification; [combinatorics2.yml](combinatorics2.yml) records the earlier environment.
+Actual installed prefixes were captured without reinstalling on 23 November 2026. See
+[software_versions/README.md](software_versions/README.md) for the dated explicit, JSON,
+Python, executable and Julia inventories, and the separate
+[historical software table](software_versions/historical_stages.2026-11-23.md).
+Current installed versions do not replace historical processing versions. The
+[dated demo validation](software_versions/demo_validation.2026-11-23.md) preserves the November 23 timeout and records the complete November 24 run: alignment, pileup and all 80 Julia selection rows passed in 249.75 seconds on four allowed alu15 CPU cores. A second selection passed in 115.74 seconds. This server-resource measurement does not establish an ordinary-desktop runtime; see [current Demo commands and stochastic output expectations](Demo/DEMO.md).
+
 The current specification pins scikit-learn 1.9.0 because the accepted S7 code checks that version; other listed versions describe the validated runtime. Neither file is an immutable lockfile. `pandas>=2.2` is needed by the selected notebook groupby cells. [pacbiocomb.yml](pacbiocomb.yml) supplies PacBio
 executables and need not contain Python. Historical `*.explicit.txt` filename lists
 are not complete Conda URL lockfiles. Do not update an existing shared environment
@@ -2061,7 +2068,17 @@ round them to force binary equality.
 
 # External assets and reproduction limitations
 
-Figure 1 requires the author's final manual/BioRender PDF. Figure 2 requires the
+Figure 1 is a manual-asset handoff: the user-designated PDF and PNG are at
+`/Dropbox COMB paper/Figures/Figures 12/Final figures/Figure1.pdf` and `Figure1.png`
+(both modified 13 October 2026). The PDF SHA-256 is
+`be386af49114b0adb2335b53fea1be23d90619bfae028d1e2b82854f2b82dd52`; the PNG SHA-256 is
+`cf84ab4940f841ccd8cf947721b40fec02cf5f9245c94fee707adcaa91bdb584`.
+The PDF is already assembled: retrieve the authorized revision, verify its hash,
+and supply it unchanged as the separate figure; use its PNG for preview. The local
+9 November TEST manuscript embeds a different-height Figure 1 PNG (4206 × 5199
+versus 4206 × 5671 pixels), so final manuscript/asset layout identity needs author
+review. No computational reconstruction or artwork redistribution is implied.
+Figure 2 requires the
 hash-identified `BioRender_base.pdf` and `BioRender_reference.pdf` documented in
 `manuscript_figures/docker_export.py`, plus matching permitted
 Arial files. Set `MANUSCRIPT_ARIAL` to the permitted Arial TTF file and
@@ -2091,9 +2108,18 @@ The 23 November 2026 integration test reproduced 24 of 26 publication figures
 from documented retained native inputs into new table and figure directories.
 All 24 match the approved PNG pixels; scientific table comparisons retain only
 the explicitly justified floating-point differences described in the producers.
-This is not a fresh raw-sequencing pipeline run. Figure 1 requires the missing
-manual source; S16 panel A is exact, but its complete native summary exceeded the
-30-minute limit in both the one-worker and four-worker attempts.
+This is not a fresh raw-sequencing pipeline run. A subsequent 23 November S16
+native-input calculation completed using two then four processes, with atomic
+per-group checkpoints and unchanged scientific calculations. The full 180-row
+table has exact panel A, all means and all non-SD fields; 44 panel-B covered-percent
+SDs differ by at most 4.57e-15. Independent sample-SD calculation agrees with both
+versions to machine precision; the strict bitwise comparison remains recorded as
+failed. The new S16 PNG matches exactly and its SVG differs only in timestamp.
+Thus 25 computational figures have exact approved PNG reproduction, combining
+the previous 24 tests and this new S16 test. Figure 1 is the external manual handoff
+described above. Full S16 evidence is in NATURE_FINAL_REPORTING_AND_S16_REVIEW.zip;
+large resumable checkpoints remain in the ignored nature_reporting_s16_2026-11-23
+audit directory, not in the archive.
 
 Fresh isolated `pacbiocomb` installation and all six CLI version checks passed.
 Two fresh `combinatorics2` attempts reached the five-minute dependency-solver cap;
@@ -2110,8 +2136,10 @@ histogram-order reduction difference documented; S4 matches every member of the
 approved Fisher/BH workbook. Existing scientific artifacts and saved notebook
 displays were preserved.
 
-- **Confirmed-open:** S16 needs a longer bounded native-summary run or a separately
-  validated aggregation improvement; its full table and figure remain unverified.
+- **Fixed/validated with a numerical qualification:** the complete S16 native
+  calculation and isolated figure render finished. Machine-precision SD differences
+  are documented without changing the native values or approved figure.
+- **Fixed/validated (24 November 2026):** the complete small-BAM demo and a second Julia selection passed all 80 result rows and independent-set/read-multiplicity checks. The full run took 249.75 seconds on four allowed server cores; an ordinary-desktop runtime remains unmeasured.
 - **Confirmed-open:** acquisition/version provenance for the named external inputs,
   manual assets and exact Docker base remains necessary for independent reproduction.
 - **Confirmed-open:** six historical workbook last-bit differences are accepted
