@@ -22,6 +22,7 @@ Code/Notebooks/Blast*
 LOGS.md
 LOGS.2.md
 CloudSetup.md
+/README.Human.MD
 Demo/*
 !Demo/DEMO.md
 !Demo/PCLO-CNS-RESUB.C0x1291.ccs.bam
@@ -60,7 +61,7 @@ Code/Notebooks/JointMISAnalysis/
 /Code/Notebooks/figure_sources/figure5c_cohorts.tsv
 /Code/Notebooks/figure_sources/figure5c_layout.json
 
-# Required external annotation: author-supplied response documented in README.v2.
+# Required external annotation: author-supplied response documented in README.md.
 /Code/Notebooks/figure_sources/scanprosite_accepted.json
 
 # Selected manuscript runs contain generated tables/artifacts only.

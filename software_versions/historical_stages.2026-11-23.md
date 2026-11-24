@@ -1,5 +1,7 @@
 # Historical software for accepted manuscript stages
 
+Use the [repository-root README](../README.md) for maintained setup and the [software directory guide](README.md) for current specifications, dated inventories and [archived historical environments](old_versions/README.md). The earlier development commands are preserved in [Logs.Final.md](../Logs.Final.md). Archiving those specifications does not establish their exact use in any stage below.
+
 Current installations and historical execution are separate evidence. Native headers were read directly on 23 November 2026, without traversing BAM reads or appending inspection program records. The review archive contains `native_headers.json`, `july_native_provenance.json`, version-command receipts and the complete current inventories.
 
 | Stage | Historical version(s) | Evidence and limits |

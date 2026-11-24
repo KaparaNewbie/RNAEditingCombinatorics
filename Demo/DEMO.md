@@ -4,7 +4,7 @@ The complete tracked small-BAM demo was **verified on 24 November 2026**, using 
 
 ## Inputs and existing environments
 
-Run from the repository root. The 10,918,280-byte `Demo/PCLO-CNS-RESUB.C0x1291.ccs.bam` and `Demo/DataTable.Squid.LongReads.Demo.csv` are tracked demonstration inputs. A normal repository clone includes them; do not rerun the historical subsampling recipe below. Obtain the **original** squid FASTA and corresponding editing-site BED using [Reference data and annotations](../README.v2.md#reference-data-and-annotations), including the original editing-site workbook-to-BED conversion. The external reference/BED are not bundled with the BAM. Do not substitute the extended Jan2025 files; verify downloaded/generated copies against these validated input identities:
+Run from the repository root. The 10,918,280-byte `Demo/PCLO-CNS-RESUB.C0x1291.ccs.bam` and `Demo/DataTable.Squid.LongReads.Demo.csv` are tracked demonstration inputs. A normal repository clone includes them; do not rerun the historical subsampling recipe below. Obtain the **original** squid FASTA and corresponding editing-site BED using [Reference data and annotations](../README.md#reference-data-and-annotations), including the original editing-site workbook-to-BED conversion. The external reference/BED are not bundled with the BAM. Do not substitute the extended Jan2025 files; verify downloaded/generated copies against these validated input identities:
 
 | Input | SHA-256 |
 |---|---|
@@ -12,7 +12,7 @@ Run from the repository root. The 10,918,280-byte `Demo/PCLO-CNS-RESUB.C0x1291.c
 | `D.pealeii/Annotations/orfs_squ.fa` | `49f094d8f83aabb5961760353aca9d2d349c185a19a14451e78dd0c45f1c6e09` |
 | `D.pealeii/Annotations/D.pea.EditingSites.bed` | `7d5787218c2664806e0024e344c65379970f2887b75d464005f16f5a9d265471` |
 
-Use already installed environments described in [README.v2.md](../README.v2.md) and [software_versions](../software_versions/README.md). The validation used Python 3.13.14 (`combinatorics2`), samtools 1.18, pbmm2 26.1.99 (`pacbiocomb`), MultiQC 1.35 and Julia 1.7.2 with the repository Project/Manifest. The alignment script activates the existing `pacbiocomb` environment under `~/anaconda3` by default; on another host explicitly set its `pacbio --base_conda_env_dir`, `--pb_conda_env_name` and `--pbmm2_path` options to the installed locations. No package installation is part of this recipe.
+Use already installed environments described in [README.md](../README.md) and [software_versions](../software_versions/README.md). The validation used Python 3.13.14 (`combinatorics2`), samtools 1.18, pbmm2 26.1.99 (`pacbiocomb`), MultiQC 1.35 and Julia 1.7.2 with the repository Project/Manifest. The alignment script activates the existing `pacbiocomb` environment under `~/anaconda3` by default; on another host explicitly set its `pacbio --base_conda_env_dir`, `--pb_conda_env_name` and `--pbmm2_path` options to the installed locations. No package installation is part of this recipe.
 
 ## Sequential commands
 

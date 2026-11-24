@@ -17,7 +17,7 @@ These are intermediate tables, **not** selected distinct isoforms. No final sele
 
 ## Current command corrections and prerequisites
 
-Obtain the original squid reference `D.pealeii/Annotations/orfs_squ.fa` and paired `D.pea.EditingSites.bed` as described in [README.v2.md](../README.v2.md#reference-data-and-annotations). They are external inputs, not bundled by the small BAM. Use the repository root as the working directory, install/resolve the documented environments before the demo, and verify executable versions. Do not silently replace the reference with the extended Jan2025 version.
+Obtain the original squid reference `D.pealeii/Annotations/orfs_squ.fa` and paired `D.pea.EditingSites.bed` as described in [README.md](../README.md#reference-data-and-annotations). They are external inputs, not bundled by the small BAM. Use the repository root as the working directory, install/resolve the documented environments before the demo, and verify executable versions. Do not silently replace the reference with the extended Jan2025 version.
 
 The old alignment command omits the now-required `pacbio --known_sites_bed_file` argument. The old Julia source path `Code/UnorderedNaNDepletion/maximal_independent_set_5.jl` no longer exists; the tracked path is `Code/Simulations/maximal_independent_set_5.jl`. Use a new output directory and update a **copy** of the demo data-table `Path` column to its new aligned BAM. Run stages sequentially in the foreground. The old `nohup ... &` pileup recipe does not itself wait for completion before the selection command.
 

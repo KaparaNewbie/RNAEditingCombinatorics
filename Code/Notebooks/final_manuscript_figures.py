@@ -15,7 +15,7 @@
 # %% [markdown]
 # ## Reproducing manuscript results
 #
-# Use the retained manuscript inputs and selections described in `../../README.v2.md`.
+# Use the retained manuscript inputs and selections described in `../../README.md`.
 # These are dependency branches, not an instruction to Run All. Run the named setup
 # and the required upstream sections before an export; skip unrelated exploratory plots.
 # Set `MANUSCRIPT_FIGURE_SOURCES` to the same new absolute directory for every producer
@@ -50,7 +50,7 @@ RENDER_FIGURE3 = False
 
 
 # %% [markdown]
-# The publication outputs are under `final_figures/`. All render gates default to off. Select explicit figure sections and set `FINAL_FIGURES_DIR` to a new subdirectory before execution. Generate scientific tables first using the producers in README.v2.md. The renderer does not run scientific inference or refresh the historical collection. Figure 1 and the manual portions of Figure 2 require external artwork; matching fonts and the Figure 2 Docker image are external dependencies.
+# The publication outputs are under `final_figures/`. All render gates default to off. Select explicit figure sections and set `FINAL_FIGURES_DIR` to a new subdirectory before execution. Generate scientific tables first using the producers in README.md. The renderer does not run scientific inference or refresh the historical collection. Figure 1 and the manual portions of Figure 2 require external artwork; matching fonts and the Figure 2 Docker image are external dependencies.
 #
 
 # %%
@@ -974,7 +974,7 @@ word_layout.ROOT = FINAL_FIGURES_DIR / 'render_work'
 # and original Top-X versus All-isoform denominators. No points are sampled away.
 # The 180 × 225 mm canvas provides 6 pt labels for the dense recurrence facets.
 #
-# This publication section loads the fixed selected-expression handoff documented in README.v2.md; comparison variants remain separate.
+# This publication section loads the fixed selected-expression handoff documented in README.md; comparison variants remain separate.
 #
 
 # %% figure="Figure4"
@@ -2326,7 +2326,7 @@ if 'FigureS6' in FIGURES_TO_BUILD:
 # differ from the separately saved Figure 4 merged-cache plot.
 # S9 Top-N markers now use the exact 1-based Rank=N value; the previous offset is retained in evidence.
 #
-# This publication section loads the fixed selected-expression handoff documented in README.v2.md; comparison variants remain separate.
+# This publication section loads the fixed selected-expression handoff documented in README.md; comparison variants remain separate.
 #
 
 # %% figure="FigureS8"
@@ -2463,7 +2463,7 @@ if 'FigureS8' in FIGURES_TO_BUILD:
 # differ from the separately saved Figure 4 merged-cache plot.
 # S9 Top-N markers now use the exact 1-based Rank=N value; the previous offset is retained in evidence.
 #
-# This publication section loads the fixed selected-expression handoff documented in README.v2.md; comparison variants remain separate.
+# This publication section loads the fixed selected-expression handoff documented in README.md; comparison variants remain separate.
 #
 
 # %% figure="FigureS9"
@@ -3723,7 +3723,7 @@ for figure_name in list(FIGURES_TO_BUILD) + (['Figure3'] if RENDER_FIGURE3 and '
 # manuscript_plot_tables.assemble_fisher_tables(producer_dir, new_output_dir)
 # manuscript_plot_tables.apply_by_matrices(matrix_table, producer_dir)
 # manuscript_workbooks.export_fisher_workbook(template, new_workbook, summary)
-# See README.v2.md for native inputs and the explicit order.
+# See README.md for native inputs and the explicit order.
 
 # %%
 # Render Figure5, FigureS11 and FigureS18 through their individual sections above.

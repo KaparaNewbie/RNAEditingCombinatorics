@@ -16,7 +16,7 @@
 # %% [markdown]
 # ## Reproducing manuscript results
 #
-# Use the retained manuscript inputs and selections described in `../../README.v2.md`.
+# Use the retained manuscript inputs and selections described in `../../README.md`.
 # These are dependency branches, not an instruction to Run All. Run the named setup
 # and the required upstream sections before an export; skip unrelated exploratory plots.
 # Set `MANUSCRIPT_FIGURE_SOURCES` to the same new absolute directory for every producer
