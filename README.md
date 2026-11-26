@@ -10,6 +10,70 @@ The workflow is:
 
 The primary squid analyses use the original targeted PacBio data (PB1), the original pooled Illumina data, and additional squid PacBio biological replicates (JR1–JR3). Octopus Iso-Seq and single-cell data support the transcriptome-wide comparisons.
 
+**Contents**
+
+<table>
+  <tr>
+    <th>Section</th>
+    <th>Subsections</th>
+  </tr>
+  <tr>
+    <td><a href="#installation-and-software-requirements">Installation and software requirements</a></td>
+    <td>—</td>
+  </tr>
+  <tr>
+    <td><a href="#reference-data-and-annotations">Reference data and annotations</a></td>
+    <td>
+      <details>
+        <summary>Show subsections</summary>
+        <ul>
+          <li><a href="#extended-squid-reference-jan2025">Extended squid reference (Jan2025)</a></li>
+          <li><a href="#original-squid-reference-and-editing-annotations">Original squid reference and editing annotations</a></li>
+          <li><a href="#octopus-reference-and-editing-annotations">Octopus reference and editing annotations</a></li>
+          <li><a href="#octopus-bed-gff-and-gtf-for-the-single-cell-handoff">Octopus BED, GFF and GTF for the single-cell handoff</a></li>
+          <li><a href="#o-bimaculoides-reference">O. bimaculoides reference</a></li>
+        </ul>
+      </details>
+    </td>
+  </tr>
+  <tr>
+    <td><a href="#analyses">Analyses</a></td>
+    <td>
+      <details>
+        <summary>Show subsections</summary>
+        <ul>
+          <li><a href="#original-squid-pacbio-pb1">Original squid PacBio (PB1)</a></li>
+          <li><a href="#squid-illumina">Squid Illumina</a></li>
+          <li><a href="#additional-squid-pacbio-biological-replicates">Additional squid PacBio biological replicates</a></li>
+          <li><a href="#octopus-iso-seq">Octopus Iso-Seq</a></li>
+          <li><a href="#octopus-single-cell">Octopus single-cell</a></li>
+          <li><a href="#neural-expression-annotations">Neural-expression annotations</a></li>
+          <li><a href="#simulations-and-other-processing">Simulations and other processing</a></li>
+        </ul>
+      </details>
+    </td>
+  </tr>
+  <tr>
+    <td><a href="#scientific-notebooks-and-workflow">Scientific notebooks and workflow</a></td>
+    <td>
+      <details>
+        <summary>Show subsections</summary>
+        <ul>
+          <li><a href="#reconstruct-the-notebook-representations">Reconstruct the notebook representations</a></li>
+        </ul>
+      </details>
+    </td>
+  </tr>
+  <tr>
+    <td><a href="#figures-and-supplementary-tables">Figures and supplementary tables</a></td>
+    <td>—</td>
+  </tr>
+  <tr>
+    <td><a href="#methodological-limitations-and-future-improvements">Methodological limitations and future improvements</a></td>
+    <td>—</td>
+  </tr>
+</table>
+
 # Installation and software requirements
 
 Use separate environments for Python analysis, PacBio processing and Julia. Run commands from the repository root unless indicated otherwise. Install Julia separately using the [stage-specific version table](software_versions/historical_stages.2026-11-23.md); Docker is needed for the [figure-export steps](docs/figure_reproduction.md).
