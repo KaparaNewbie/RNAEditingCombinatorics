@@ -1435,8 +1435,8 @@ if 'Figure6' in FIGURES_TO_BUILD:
                     (17, '~50 distinct\npolypeptides\nper gene')]:
         figure6_axes[0].text(x, .3, text, fontsize=6, color='#555555', ha='center', va='center')
     figure6_statistics_text = (
-        'Mann–Whitney U: P = 3.53 × 10$^{-126}$\n'
-        'Wilcoxon signed-rank (2,981 shared genes): P = 2.00 × 10$^{-256}$'
+        'Mann–Whitney U: P < 10$^{-100}$\n'
+        'Wilcoxon signed-rank (2,981 shared genes): P < 10$^{-100}$'
     )
     figure6_axes[1].text(.97, .90, figure6_statistics_text, transform=figure6_axes[1].transAxes,
                         fontsize=6, ha='right', va='top', multialignment='left', linespacing=1.5,

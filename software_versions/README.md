@@ -31,9 +31,9 @@ Explicit Conda lists alone do not capture pip-installed distributions; use the J
 
 The November 23 snapshot includes Python 3.13.14, NumPy 2.4.6, pandas 3.0.3 and scikit-learn 1.9.0. Its `combinatorics2` samtools and `pacbiocomb` CCS versions differ from some historical requirements; use the [stage-specific table](historical_stages.2026-11-23.md) when reproducing those stages.
 
-No clean-install timing was measured. Full manuscript reproduction requires native data, historical stage versions, retained inputs and permitted fonts/manual artwork. See the [demo validation note](demo_validation.2026-11-23.md) for the separately tested demo.
+No clean-install timing was measured. Full manuscript reproduction requires native data, historical stage versions, retained inputs and permitted fonts/manual artwork. See [Demo/DEMO.md](../Demo/DEMO.md) for the maintained demo instructions and complete validation.
 
-The [dated SHA-256 manifest](SHA256SUMS.2026-11-23.json) records the original November 23 snapshots. Its historical hashes are preserved; documentation revised after that date may differ from its recorded versions. The dated machine-readable inventories remain unchanged.
+The [dated SHA-256 manifest](SHA256SUMS.2026-11-23.json) records the original November 23 snapshots. Its historical hashes are preserved, including the entry for the superseded demo report removed from the current tree. Documentation revised after that date may differ from its recorded versions; this manifest does not validate the current tree. The dated machine-readable inventories remain unchanged.
 
 ## C. Historical environments
 

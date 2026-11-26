@@ -1,6 +1,6 @@
 # Running the demo
 
-The complete tracked small-BAM demo was **verified on 24 November 2026**, using source commit `2955c17eee69b15e9c121b92de190ea1bfac983b`. Alignment, pileup/translation and Julia selection completed in **249.75 seconds (4.16 minutes)** on alu15 with four allowed CPU cores. This is a server-based desktop-resource proxy, not a measured ordinary-desktop runtime or a universal five-minute promise. The 23 November attempt was stopped by its five-minute audit timer and remains documented in [the dated validation record](../software_versions/demo_validation.2026-11-23.md).
+The complete tracked small-BAM demo was **verified on 24 November 2026**, using source commit `2955c17eee69b15e9c121b92de190ea1bfac983b`. Alignment, pileup/translation and Julia selection completed in **249.75 seconds (4.16 minutes)** on alu15 with four allowed CPU cores. This is a server-based desktop-resource proxy, not a measured ordinary-desktop runtime or a universal five-minute promise. An earlier attempt on 23 November disabled Julia compiled-module caching (`--compiled-modules=no`) and was stopped by its five-minute audit timer. That timeout was not an algorithm failure or a comparable runtime benchmark; the superseded report remains in Git history.
 
 ## Inputs and existing environments
 
