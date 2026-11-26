@@ -12,7 +12,7 @@ The primary squid analyses use the original targeted PacBio data (PB1), the orig
 
 # Installation and software requirements
 
-Use separate environments for Python analysis, PacBio processing and Julia. Run commands from the repository root unless indicated otherwise. Install Julia 1.7.2 separately; Docker is needed for the [figure-export steps](docs/figure_reproduction.md).
+Use separate environments for Python analysis, PacBio processing and Julia. Run commands from the repository root unless indicated otherwise. Install Julia separately using the [stage-specific version table](software_versions/historical_stages.2026-11-23.md); Docker is needed for the [figure-export steps](docs/figure_reproduction.md).
 
 ```bash
 git clone https://github.com/KaparaNewbie/RNAEditingCombinatorics
@@ -20,10 +20,11 @@ cd RNAEditingCombinatorics
 conda env create -f combinatorics2_simplified.yml
 conda env create -f pacbiocomb.yml
 conda activate combinatorics2
+SAMTOOLS=$(command -v samtools)
 MANUSCRIPT_REPO="$PWD"
 alias COMB='cd "$MANUSCRIPT_REPO" && conda activate combinatorics2'
 alias PBCOMB='cd "$MANUSCRIPT_REPO" && conda activate pacbiocomb'
-# With Julia 1.7.2 installed and on PATH:
+# With the documented Julia version installed and on PATH:
 julia --project=. -e 'using Pkg; Pkg.instantiate()'
 ```
 
@@ -33,13 +34,15 @@ Use [combinatorics2_simplified.yml](combinatorics2_simplified.yml), [pacbiocomb.
 |---|---|
 | combinatorics2 | Python processing, analyses, scientific notebooks and plotting. |
 | pacbiocomb | PacBio command-line tools. |
-| Julia 1.7.2 | Independent-set selection, expression assignment and simulations. |
+| Julia | Independent-set selection, expression assignment and simulations. |
+
+`SAMTOOLS` selects the active environment's executable; set it to an absolute executable path if needed. The `SAMTOOLS_118` and `SAMTOOLS_1221` overrides below select the versions documented in the [stage-specific table](software_versions/historical_stages.2026-11-23.md). For pileup stages whose historical version is not established, the generic `SAMTOOLS` path provides portability without claiming historical version equivalence; an alignment version alone does not establish the pileup version.
 
 Figure export additionally requires Chrome for Kaleido, `rsvg-convert`, Poppler and permitted Open Sans/Arial fonts. Figure 2 assembly and PDF processing use the Docker image containing PyMuPDF; see [external assets](docs/figure_reproduction.md#special-external-assets-and-figure-specific-requirements).
 
 Adjust paths to your system and use the reference and annotation versions specified for each analysis. Raw Illumina isoform selection and reassignment can require approximately 2 TB RAM; figure generation from processed tables is less demanding. Some simulation scripts also contain site-specific paths.
 
-The complete demo was validated in the installed environments on alu15 using four CPU cores and took approximately four minutes. See [Demo/DEMO.md](Demo/DEMO.md) for instructions and expected outputs.
+The complete demo was validated in the documented installed environments using four CPU cores and took approximately four minutes. See [Demo/DEMO.md](Demo/DEMO.md) for instructions and expected outputs.
 
 Clean-install limitations are listed in [software_versions/README.md](software_versions/README.md); `combinatorics2` and Julia reproduction currently relies on the documented installed environments.
 
@@ -50,7 +53,7 @@ Use the reference and annotation versions named in each workflow. The original s
 | Reference or annotation | Local location and role |
 |---|---|
 | Original squid transcriptome | `D.pealeii/Annotations/orfs_squ.fa`; original PB1 and Illumina processing |
-| Extended squid transcriptome | `D.pealeii/Annotations/Jan2025/orfs_squ.fa`; additional squid PacBio biological replicates and July 2026 complete-noise processing |
+| Extended squid transcriptome | Supplied as [reference_data/Jan2025/orfs_squ.fa](reference_data/Jan2025/orfs_squ.fa); copy to `D.pealeii/Annotations/Jan2025/orfs_squ.fa` for additional squid PacBio biological replicates and July 2026 complete-noise processing |
 | Squid editing sites | Original `D.pea.EditingSites.bed` and extended `Jan2025/D.pea.EditingSites.bed` / `.csv`; use the version paired with the reference |
 | Octopus transcriptome and editing sites | `O.vulgaris/Annotations/orfs_oct.fa`, `O.vul.EditingSites.bed` / `.csv` |
 | O. bimaculoides transcriptome | `O.bim/Annotations/orfs_bim.fa`; expression and orthology-based neural annotation |
@@ -58,19 +61,43 @@ Use the reference and annotation versions named in each workflow. The original s
 | Single-cell transcript annotation | `O.vulgaris/Annotations/oct.bed` → `oct.gff` → `oct.gtf`, using the commands below; the exact reference/index handoff is also required from the upstream repository |
 | O. bimaculoides GTF | `O.bim/Annotations/orfs_bim.gtf`; producer [prepare_salmon_gtf_input_from_transcriptome.py](Code/NeuralTranscripts/prepare_salmon_gtf_input_from_transcriptome.py). The current `neural_transcripts.py` route indexes the transcript FASTA directly. |
 
-The original squid FASTA has SHA-256 `49f094d8f83aabb5961760353aca9d2d349c185a19a14451e78dd0c45f1c6e09`; the Jan2025 FASTA has SHA-256 `b19dd2d1eb6aa9e8601fbc93b00145fe787b208bc7f5c7d119eaad08e97f1221`. The acquisition/extension procedure for the Jan2025 FASTA and editing annotations is not documented; obtain those inputs from the authors. The download commands below provide the original set.
+The original squid FASTA has SHA-256 `49f094d8f83aabb5961760353aca9d2d349c185a19a14451e78dd0c45f1c6e09` and is obtained using the download commands below.
+
+## Extended squid reference (Jan2025)
+
+The supplied [Jan2025 FASTA](reference_data/Jan2025/orfs_squ.fa) includes the complete *D. pealeii* ADAR1 ORF provided by Joshua Rosenthal. For the biological source, see [Vallecillo-Viejo et al. (2023), *Squid express conserved ADAR orthologs that possess novel features*](https://doi.org/10.3389/fgeed.2023.1181713). This repository supplies the exact frozen workflow FASTA, without requiring reconstruction from the publication.
+
+Its SHA-256 is `b19dd2d1eb6aa9e8601fbc93b00145fe787b208bc7f5c7d119eaad08e97f1221`. From the repository root, copy it to the working location and create the FASTA index:
+
+```bash
+mkdir -p D.pealeii/Annotations/Jan2025
+cp reference_data/Jan2025/orfs_squ.fa \
+  D.pealeii/Annotations/Jan2025/orfs_squ.fa
+"$SAMTOOLS" faidx D.pealeii/Annotations/Jan2025/orfs_squ.fa
+```
+
+The ORF converter generates the same 11,964 interval rows as the frozen `orfs_squ.bed`, but places the added ADAR1 interval in sorted order rather than last. Its output is therefore not byte-identical to the frozen BED. For a new working directory, generate the BED from the FASTA headers; preserve an existing frozen BED:
+
+```bash
+if [ ! -e D.pealeii/Annotations/Jan2025/orfs_squ.bed ]; then
+  python Code/orfs_fasta_to_bed.py \
+    --in_fasta D.pealeii/Annotations/Jan2025/orfs_squ.fa \
+    --out_bed D.pealeii/Annotations/Jan2025/orfs_squ.bed
+fi
+```
+
+The extended known-sites file `D.pealeii/Annotations/Jan2025/D.pea.EditingSites.bed` remains a separate external prerequisite for the alignment/pileup commands and their `KnownEditing` labels. Obtain it separately for those stages; notebooks that load the corresponding `.csv` also require that external input. These annotation files are not included with the supplied FASTA.
 
 ## Original squid reference and editing annotations
 
-The indexing example below uses the legacy `combinatorics` environment for samtools; its inventory is linked from [software_versions/README.md](software_versions/README.md).
+Use the installed samtools executable selected by `SAMTOOLS` above to create the FASTA index; no additional Conda environment is needed for this step.
 
 ```bash
 mkdir -p D.pealeii/Annotations
 cd D.pealeii/Annotations
 
 wget https://www.tau.ac.il/~elieis/squid/orfs_squ.fa
-conda activate combinatorics
-samtools faidx orfs_squ.fa
+"$SAMTOOLS" faidx orfs_squ.fa
 
 wget https://www.tau.ac.il/~elieis/squid/editing_sites.xlsx
 wget https://www.tau.ac.il/~elieis/squid/ST4.txt.gz
@@ -112,10 +139,10 @@ python Code/orfs_fasta_to_bed.py \
 ## Octopus reference and editing annotations
 
 ```bash
-mkdir O.vulgaris/Annotations
+mkdir -p O.vulgaris/Annotations
 cd O.vulgaris/Annotations
 wget https://www.tau.ac.il/~elieis/squid/orfs_oct.fa
-samtools faidx orfs_oct.fa
+"$SAMTOOLS" faidx orfs_oct.fa
 
 wget https://www.tau.ac.il/~elieis/squid/editing_sites.xlsx
 
@@ -136,7 +163,7 @@ python Code/orfs_fasta_to_bed.py \
 
 ## Octopus BED, GFF and GTF for the single-cell handoff
 
-Construct the transcript BED and convert it to GFF/GTF using AGAT `0.8.0--pl5262hdfd78af_0`:
+Construct the transcript BED and convert it to GFF/GTF using the versioned AGAT container in the commands below; see the [software requirements](software_versions/README.md#additional-documented-tool-requirements).
 
 ```python
 from pathlib import Path
@@ -232,10 +259,10 @@ Return to the repository root after the conversion block before continuing with 
 ## O. bimaculoides reference
 
 ```bash
-mkdir O.bim/Annotations
+mkdir -p O.bim/Annotations
 cd O.bim/Annotations
 wget https://www.tau.ac.il/~elieis/squid/orfs_bim.fa
-samtools faidx orfs_bim.fa
+"$SAMTOOLS" faidx orfs_bim.fa
 
 COMB # back to the main directory of the project
 ```
@@ -298,7 +325,7 @@ Alignment uses the CCS preset, best-n = 1, two processes and 25 threads, without
 
 ### Detect RNA editing and infer protein sequences
 
-Use **samtools 1.18**, the original squid reference, SE handling, minimum read quality 0.998 and base quality 30. Set `SAMTOOLS_118` to your executable; `--samtools_path` overrides the pileup wrapper's environment-specific default.
+Use samtools as documented for PB1 in the [stage-specific version table](software_versions/historical_stages.2026-11-23.md), the original squid reference, SE handling, minimum read quality 0.998 and base quality 30. Set `SAMTOOLS_118` to your executable; `--samtools_path` overrides the pileup wrapper's environment-specific default.
 
 ```bash
 COMB
@@ -329,7 +356,9 @@ Outputs in `RQ998.TopNoisyPositions3.BQ30` include position, read, unique-read, 
 
 Julia generates repeated heuristic independent-set solutions. The largest saved solution is not guaranteed to be globally maximum or maximal.
 
-The selection seed defaults to 1892. The protein columns start at `firstcolpos=15` for squid and 16 for octopus; use the dataset-specific commands below.
+The selection seed defaults to 1892. `--firstcolpos 15` is the 1-based index of the first amino-acid position column in the squid unique-protein tables, after 14 metadata columns. Octopus tables have 15 metadata columns and use `--firstcolpos 16`.
+
+`maximal_independent_set_5.jl` automatically appends a timestamp to each generated `DistinctUniqueProteins` CSV filename, so different runs normally produce separate solution files. Expression assignment must select the intended generated solution files; the accepted examples below retain exact timestamped filenames where needed. Use a wildcard only when it matches exactly the intended file.
 
 ```bash
 INFILES=$(echo D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/*.unique_proteins.csv.gz)
@@ -373,7 +402,7 @@ Code/Simulations/expressionlevels.jl \
 --outdir $WD \
 --considerentropy \
 --postfix_to_add .EntropyConsidered \
-> $WD/expressionlevels.regular.7.8.2025.out &
+> $WD/expressionlevels.regular.out &
 ```
 
 ### Ten-percent comparison for Figure S10
@@ -425,7 +454,7 @@ Code/Simulations/expressionlevels.jl \
 --firstcolpos 15 \
 --fractions 0.1 \
 --outdir $WD \
-> $WD/expressionlevels.regular.fraction01.entropy_considered.26.2.2026.out &
+> $WD/expressionlevels.regular.fraction01.entropy_considered.out &
 ```
 
 ### Amino-acid dissimilarity comparisons for Figure 3
@@ -490,7 +519,7 @@ Code/Simulations/expressionlevels.jl \
 --innerthreadedassignment \
 --considerentropy \
 --postfix_to_add .AAgroupsMiyata1979.EntropyConsidered \
-> D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/expressionlevels.AAgroupsMiyata1979.EntropyConsidered.26.2.2026.out &
+> D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/expressionlevels.AAgroupsMiyata1979.EntropyConsidered.out &
 ```
 
 #### Grantham 100 comparison
@@ -555,19 +584,19 @@ Code/Simulations/expressionlevels.jl \
 --innerthreadedassignment \
 --considerentropy \
 --postfix_to_add .GRANTHAM1974-100.EntropyConsidered \
-> D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/expressionlevels.GRANTHAM1974-100.EntropyConsidered.26.2.2026.out &
+> D.pealeii/MpileupAndTranscripts/RQ998.TopNoisyPositions3.BQ30/expressionlevels.GRANTHAM1974-100.EntropyConsidered.out &
 ```
 
 ## Squid Illumina
 
-**SRR28713507 — PooledShortReads** provides paired-end FASTQ data for the original 19-transcript analysis. Local raw files are:
+**SRR28713507 — PooledShortReads** provides paired-end FASTQ data for the original 19-transcript analysis. Place the input files at:
 
-- `D.pealeii/Data/RutisReads/Raw/reads_1.fastq.gz`
-- `D.pealeii/Data/RutisReads/Raw/reads_2.fastq.gz`
+- `D.pealeii/Data/Illumina/Raw/reads_1.fastq.gz`
+- `D.pealeii/Data/Illumina/Raw/reads_2.fastq.gz`
 
-The commands expect inputs under `D.pealeii/Data/Illumina/Raw` and write prepared reads to `D.pealeii/Data/Illumina/TrimmedWoDup`. The transfer from `RutisReads/Raw` to this layout is not documented; arrange the input paths before running.
+Prepared reads are written to `D.pealeii/Data/Illumina/TrimmedWoDup`.
 
-[DataTable.Squid.ShortReads.csv](Code/Alignment/DataTable.Squid.ShortReads.csv) maps target regions to per-transcript BAMs. It contains 20 rows, including `VGA_BPS13`; the final 19-transcript population excludes that row.
+[DataTable.Squid.ShortReads.csv](Code/Alignment/DataTable.Squid.ShortReads.csv) maps target regions to per-transcript BAMs. It contains 20 targets; `VGA_BPS13` is the target absent from the final 19-gene analysis and Table S2. The manuscript reports successful PCR amplification of 19 of the 20 targets.
 
 ### Prepare short reads
 
@@ -610,10 +639,13 @@ illumina \
 
 ### Detect RNA editing and infer protein sequences
 
-The pileup version of samtools is not recorded. `pileup.py` overwrites existing pileups by default; `--skip_existing_pileup_files` reuses them while still running downstream stages.
+This step retains positions, reads, unique-read, protein and unique-protein tables, together with the original-read mapping. These tables supply the downstream analyses; the raw samtools `.pileup` intermediates are not required after conversion.
 
 ```bash
+mkdir -p D.pealeii/MpileupAndTranscripts/Illumina
+
 nohup python Code/pileup.py \
+--samtools_path "$SAMTOOLS" \
 --transcriptome D.pealeii/Annotations/orfs_squ.fa \
 --data_table Code/Alignment/DataTable.Squid.ShortReads.csv \
 --known_editing_sites D.pealeii/Annotations/D.pea.EditingSites.bed \
@@ -628,7 +660,6 @@ nohup python Code/pileup.py \
 --parity PE \
 --processes 4 \
 --threads 10 \
---keep_pileup_files \
 >> D.pealeii/MpileupAndTranscripts/Illumina/pileup.out &
 ```
 
@@ -658,7 +689,7 @@ Code/Simulations/maximal_independent_set_5.jl \
 
 ### Assign isoform expression
 
-This example uses the reads, unique-protein tables and distinct solutions generated above to process TRIM2, CA2D3 and K0513 sequentially in one Julia invocation with 60 threads. Each wildcard must match exactly one generated distinct-solution CSV; if several match, replace it with the specific selected filename.
+This illustrative command processes three of the 19 Illumina genes—TRIM2, CA2D3 and K0513—in that order, using the reads, unique-protein tables and distinct solutions generated above. It uses one Julia invocation with 60 threads and is not the complete 19-gene manuscript execution.
 
 ```bash
 WD="D.pealeii/MpileupAndTranscripts/Illumina"
@@ -701,6 +732,7 @@ This branch samples **80,000 read pairs** with `--consider_parity_when_sampling`
 mkdir -p D.pealeii/MpileupAndTranscripts/Illumina80KPairs
 
 nohup python Code/pileup_with_subparsers.py \
+--samtools_path "$SAMTOOLS" \
 --transcriptome D.pealeii/Annotations/orfs_squ.fa \
 --known_editing_sites D.pealeii/Annotations/D.pea.EditingSites.bed \
 --include_flags 3 \
@@ -721,8 +753,8 @@ nohup python Code/pileup_with_subparsers.py \
 --consider_parity_when_sampling \
 --seed 1892 \
 directed_sequencing_data \
---data_table D.pealeii/Alignment/Illumina/reads.ByChrom/data_table.csv \
-> D.pealeii/MpileupAndTranscripts/Illumina80KPairs/pileup.4.1.26.out &
+--data_table Code/Alignment/DataTable.Squid.ShortReads.csv \
+> D.pealeii/MpileupAndTranscripts/Illumina80KPairs/pileup.out &
 ```
 
 #### Select distinct isoforms
@@ -746,7 +778,7 @@ Code/Simulations/maximal_independent_set_5.jl \
 --algrepetitions 2 \
 --algs Ascending Descending \
 --run_solve_threaded \
-2>&1 | tee D.pealeii/MpileupAndTranscripts/Illumina80KPairs/DistinctProteins.regular.4.1.26.log
+2>&1 | tee D.pealeii/MpileupAndTranscripts/Illumina80KPairs/DistinctProteins.regular.log
 ```
 
 ## Additional squid PacBio biological replicates
@@ -781,14 +813,14 @@ pacbio \
 --separate_by_chrom \
 --merge_by_chrom_bams \
 --known_sites_bed_file D.pealeii/Annotations/Jan2025/D.pea.EditingSites.bed \
-> D.pealeii/Alignment/AdditionalUMILongReads/align.19.3.2026.out &
+> D.pealeii/Alignment/AdditionalUMILongReads/align.out &
 ```
 
 ### All reads
 
 #### Detect RNA editing and infer protein sequences
 
-[DataTable.Squid.PB3.AllReads.csv](Code/Alignment/DataTable.Squid.PB3.AllReads.csv) selects merged BAMs under `D.pealeii/Alignment/AdditionalUMILongReads/ByChrom/`, before barcode recognition or deduplication, with `GRIA`, `ADAR1` and `IQEC1` labels, Jan2025 coordinates/strands and no problematic-region mask. For this pileup branch, supply the **samtools 1.22.1** executable with `--samtools_path` if it differs from the wrapper's default. Recognizable-barcode and deduplicated reads use separate input tables below.
+[DataTable.Squid.PB3.AllReads.csv](Code/Alignment/DataTable.Squid.PB3.AllReads.csv) selects merged BAMs under `D.pealeii/Alignment/AdditionalUMILongReads/ByChrom/`, before barcode recognition or deduplication, with `GRIA`, `ADAR1` and `IQEC1` labels, Jan2025 coordinates/strands and no problematic-region mask. For this pileup branch, use the executable documented in the [stage-specific version table](software_versions/historical_stages.2026-11-23.md); set `SAMTOOLS_1221` below and pass it with `--samtools_path`. Recognizable-barcode and deduplicated reads use separate input tables below.
 
 ```bash
 SAMTOOLS_1221=/path/to/samtools-1.22.1/bin/samtools
@@ -810,7 +842,7 @@ nohup python Code/pileup_with_subparsers.py \
 directed_sequencing_data \
 --data_table Code/Alignment/DataTable.Squid.PB3.AllReads.csv \
 --cds_regions D.pealeii/Annotations/Jan2025/orfs_squ.bed \
-> D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/pileup.19.3.2026.out &
+> D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/pileup.out &
 ```
 
 #### Select distinct isoforms
@@ -835,7 +867,7 @@ Code/Simulations/maximal_independent_set_5.jl \
 --algrepetitions 2 \
 --algs Ascending Descending \
 --run_solve_threaded \
-2>&1 | tee D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/DistinctProteins.Regular.19.3.2026.log
+2>&1 | tee D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads/DistinctProteins.Regular.log
 ```
 
 #### Assign isoform expression
@@ -858,7 +890,7 @@ Code/Simulations/expressionlevels.jl \
 --considerentropy \
 --outdir $UMI_DIR \
 --postfix_to_add .EntropyConsidered \
-> $UMI_DIR/expressionlevels.EntropyConsidered.19.3.2026.out &
+> $UMI_DIR/expressionlevels.EntropyConsidered.out &
 ```
 
 ### UMI-based analyses
@@ -870,18 +902,21 @@ Code/Simulations/expressionlevels.jl \
 - **“Save reads with recognized barcodes, before de-duplication”** keeps each gene's `OldRead` names from `best_gene_specific_pcr_amplified_concat_alignments_df` (recognized gene-specific and PCR barcodes). It filters the merged BAMs by these original read names and writes the same BAM basenames under `D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.ReadsWithRecognizableBarcodes/`, retaining reads before UMI deduplication.
 - **“Save reads after de-duplication”** keeps `OldRead` names from `distinct_umis_gene_specific_pcr_amplified_concat_alignments_df` and writes to `D.pealeii/Alignment/AdditionalUMILongReads.DeduppedReads/`. The preceding deduplication groups indistinguishable UMIs within each gene and biological replicate (`min_shared_umi_sub_seq_len = 5`, `max_errors = 1`), selects a maximum-entropy read per connected component and resolves ties with seed 1892.
 
-No population-switch setting is required: run each export after its own prerequisite calculations. The sections also save `ReadsWithRecognizableBarcodes.tsv` and `DedupedReadsByUMISeq.tsv` in the all-read table directory. Their BAM-indexing commands are commented out; create the `.bai` indexes before the downstream pileup steps. Use a separate input table for each BAM population, including the deduplicated `DataTable.csv` described below.
+No population-switch setting is required: run each export after its own prerequisite calculations. The sections also save `ReadsWithRecognizableBarcodes.tsv` and `DedupedReadsByUMISeq.tsv` in the all-read table directory. Their BAM-indexing commands are commented out; create the `.bai` indexes before the downstream pileup steps. The two input tables linked below select these separate BAM populations. Their `Start` coordinates are zero-based and `End` coordinates are exclusive; empty `ProbRegionsBED` fields specify no problematic-region mask.
 
 #### Reads with recognizable barcodes
 
 ##### Detect RNA editing and infer protein sequences
 
-Use the UMI notebook's barcode-filtered BAMs and the matching input data table for the following stages.
+Use the UMI notebook's barcode-filtered BAMs and [DataTable.Squid.PB3.ReadsWithRecognizableBarcodes.csv](Code/Alignment/DataTable.Squid.PB3.ReadsWithRecognizableBarcodes.csv) for the following stages.
 
 ```bash
 OUT_DIR=D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.ReadsWithRecognizableBarcodes
 
+mkdir -p "$OUT_DIR"
+
 nohup python Code/pileup_with_subparsers.py \
+--samtools_path "$SAMTOOLS" \
 --transcriptome D.pealeii/Annotations/Jan2025/orfs_squ.fa \
 --known_editing_sites D.pealeii/Annotations/Jan2025/D.pea.EditingSites.bed \
 --exclude_flags 2304 \
@@ -893,9 +928,9 @@ nohup python Code/pileup_with_subparsers.py \
 --threads 20 \
 --gz_compression \
 directed_sequencing_data \
---data_table $OUT_DIR/DataTable.Squid.MergedAdditionalUMILongReads.csv \
+--data_table Code/Alignment/DataTable.Squid.PB3.ReadsWithRecognizableBarcodes.csv \
 --cds_regions D.pealeii/Annotations/Jan2025/orfs_squ.bed \
-> $OUT_DIR/pileup.16.4.2026.out &
+> $OUT_DIR/pileup.out &
 ```
 
 ##### Select distinct isoforms
@@ -920,7 +955,7 @@ Code/Simulations/maximal_independent_set_5.jl \
 --algrepetitions 2 \
 --algs Ascending Descending \
 --run_solve_threaded \
-2>&1 | tee D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.ReadsWithRecognizableBarcodes/DistinctProteins.Regular.16.4.2026.log
+2>&1 | tee D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.ReadsWithRecognizableBarcodes/DistinctProteins.Regular.log
 ```
 
 ##### Assign isoform expression
@@ -949,27 +984,20 @@ $UMI_DIR/comp141565_c6_seq3.merged.MinRQ998.reads.csv.gz \
 --considerentropy \
 --outdir $UMI_DIR \
 --postfix_to_add .EntropyConsidered \
-> $UMI_DIR/expressionlevels.5.7.2026.out &
+> $UMI_DIR/expressionlevels.out &
 ```
 
 #### UMI-deduplicated reads
 
 ##### Detect RNA editing and infer protein sequences
 
-This branch requires `D.pealeii/Alignment/AdditionalUMILongReads.DeduppedReads/DataTable.csv` plus the BAMs exported by the UMI notebook's “Save reads after de-duplication” section and their `.bai` indexes. The table has columns `Sample,Gene,Region,Start,End,Strand,Path,ProbRegionsBED`; its three rows must contain the following values, with `Path` pointing into that deduplicated directory and `ProbRegionsBED` empty:
-
-| Sample / Gene | Region | Start | End | Strand | BAM basename |
-|---|---|---|---|---|---|
-| GRIA2 | comp141693_c0_seq1 | 170 | 2999 | + | comp141693_c0_seq1.merged.bam |
-| ADAR1 | comp134400_c0_seq1_extended | 0 | 3741 | + | comp134400_c0_seq1_extended.merged.bam |
-| IQEC1 | comp141565_c6_seq3 | 988 | 4195 | + | comp141565_c6_seq3.merged.bam |
-
-The table is a separate input prerequisite; the notebook exports BAMs but does not create it. The recognizable-barcode table points to a different read population.
+Use [DataTable.Squid.PB3.DeduppedReads.csv](Code/Alignment/DataTable.Squid.PB3.DeduppedReads.csv) with the BAMs exported by the UMI notebook's “Save reads after de-duplication” section and their `.bai` indexes.
 
 ```bash
 mkdir -p D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.DeduppedReads
 
 nohup python Code/pileup_with_subparsers.py \
+--samtools_path "$SAMTOOLS" \
 --transcriptome D.pealeii/Annotations/Jan2025/orfs_squ.fa \
 --known_editing_sites D.pealeii/Annotations/Jan2025/D.pea.EditingSites.bed \
 --exclude_flags 2304 \
@@ -981,9 +1009,9 @@ nohup python Code/pileup_with_subparsers.py \
 --threads 15 \
 --gz_compression \
 directed_sequencing_data \
---data_table D.pealeii/Alignment/AdditionalUMILongReads.DeduppedReads/DataTable.csv \
+--data_table Code/Alignment/DataTable.Squid.PB3.DeduppedReads.csv \
 --cds_regions D.pealeii/Annotations/Jan2025/orfs_squ.bed \
-> D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.DeduppedReads/pileup.2.7.2026.out &
+> D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.DeduppedReads/pileup.out &
 ```
 
 ##### Select distinct isoforms
@@ -1008,7 +1036,7 @@ Code/Simulations/maximal_independent_set_5.jl \
 --algrepetitions 2 \
 --algs Ascending Descending \
 --run_solve_threaded \
-2>&1 | tee D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.DeduppedReads/DistinctProteins.Regular.6.7.2026.log
+2>&1 | tee D.pealeii/MpileupAndTranscripts/AdditionalUMILongReads.DeduppedReads/DistinctProteins.Regular.log
 ```
 
 ##### Assign isoform expression
@@ -1037,12 +1065,12 @@ $UMI_DIR/comp141565_c6_seq3.merged.MinRQ998.reads.csv.gz \
 --considerentropy \
 --outdir $UMI_DIR \
 --postfix_to_add .EntropyConsidered \
-> $UMI_DIR/expressionlevels.6.7.2026.out &
+> $UMI_DIR/expressionlevels.out &
 ```
 
 ## Octopus Iso-Seq
 
-**BioProject PRJNA791920** supplies the octopus long-read dataset. This workflow starts from polished CCS files provided by the authors of *MicroRNAs are deeply linked to the emergence of the complex octopus brain*, under `O.vulgaris/Data/PRJNA791920/IsoSeqPolished/CCS`. Reproduction requires this polished-read handoff.
+**BioProject PRJNA791920** supplies the octopus long-read dataset. This workflow starts from polished CCS files provided by the authors of [*MicroRNAs are deeply linked to the emergence of the complex octopus brain*](https://doi.org/10.1126/sciadv.add9938), under `O.vulgaris/Data/PRJNA791920/IsoSeqPolished/CCS`. Reproduction requires this polished-read handoff.
 
 The seven sequencing runs correspond to the following tissue samples:
 
@@ -1097,7 +1125,7 @@ whole_transcriptome_isoseq \
 
 #### Detect RNA editing and infer protein sequences
 
-The pooled analysis uses the per-transcript/per-sample alignment summary and SNP/noise criteria below. Total mapped reads determine transcript eligibility; per-position coverage is a separate filter.
+The preceding alignment step also generates `AggregatedByChromBySampleSummary.tsv`, summarizing mapped reads and sample counts per transcript. The pooled analysis uses this summary to select eligible transcripts, then applies the SNP/noise criteria below. Total mapped reads determine transcript eligibility; per-position coverage is a separate filter.
 
 ```bash
 OUTDIR=O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.TotalCoverage50.PooledSamples
@@ -1105,6 +1133,7 @@ OUTDIR=O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.
 mkdir -p $OUTDIR
 
 nohup python Code/pileup_with_subparsers.py \
+--samtools_path "$SAMTOOLS" \
 --transcriptome O.vulgaris/Annotations/orfs_oct.fa \
 --known_editing_sites O.vulgaris/Annotations/O.vul.EditingSites.bed \
 --exclude_flags 2304 \
@@ -1128,7 +1157,7 @@ undirected_sequencing_data \
 --main_by_chrom_dir O.vulgaris/Alignment/PRJNA791920/IsoSeq.Polished.Unclustered/ByChrom \
 --cds_regions O.vulgaris/Annotations/orfs_oct.bed \
 --keep_bam_files \
-> $OUTDIR/pileup.9.2.2026.out 2>&1 &
+> $OUTDIR/pileup.out 2>&1 &
 ```
 
 #### Select distinct isoforms
@@ -1154,7 +1183,7 @@ Code/Simulations/maximal_independent_set_5.jl \
 --algrepetitions 2 \
 --algs Ascending Descending \
 --run_solve_threaded \
-2>&1 | tee $INDIR/DistinctProteins.regular.9.2.2026.log
+2>&1 | tee $INDIR/DistinctProteins.regular.log
 ```
 
 #### Assign isoform expression
@@ -1190,7 +1219,7 @@ Code/Simulations/expressionlevels.jl \
 --postfix_to_add .EntropyConsidered \
 --innerthreadedassignment \
 --outdir $OUTDIR \
-> $DIR/expressionlevels.10.2.2026.out &
+> $DIR/expressionlevels.out &
 ```
 
 ### Pooled samples, minimum 1,000 mapped reads
@@ -1205,6 +1234,7 @@ OUTDIR=O.vulgaris/MpileupAndTranscripts/PRJNA791920/IsoSeq.Polished.Unclustered.
 mkdir -p $OUTDIR
 
 nohup python Code/pileup_with_subparsers.py \
+--samtools_path "$SAMTOOLS" \
 --transcriptome O.vulgaris/Annotations/orfs_oct.fa \
 --known_editing_sites O.vulgaris/Annotations/O.vul.EditingSites.bed \
 --exclude_flags 2304 \
@@ -1228,7 +1258,7 @@ undirected_sequencing_data \
 --main_by_chrom_dir O.vulgaris/Alignment/PRJNA791920/IsoSeq.Polished.Unclustered/ByChrom \
 --cds_regions O.vulgaris/Annotations/orfs_oct.bed \
 --keep_bam_files \
-> $OUTDIR/pileup.11.2.2026.out 2>&1 &
+> $OUTDIR/pileup.out 2>&1 &
 ```
 
 #### Select distinct isoforms
@@ -1254,28 +1284,29 @@ Code/Simulations/maximal_independent_set_5.jl \
 --algrepetitions 2 \
 --algs Ascending Descending \
 --run_solve_threaded \
-2>&1 | tee $INDIR/DistinctProteins.regular.11.2.2026.log
+2>&1 | tee $INDIR/DistinctProteins.regular.log
 ```
 
 ## Octopus single-cell
 
-**BioProject PRJNA796958 / GEO GSE193622** supplies the octopus single-cell data. Upstream preprocessing by **David Gorelik** Z"L is documented in [OctopusSCRNAEditingCombinatorics](https://github.com/KaparaNewbie/OctopusSCRNAEditingCombinatorics). This workflow starts from the resulting per-transcript BAMs, alignment summaries and read/cell annotations:
+**BioProject PRJNA796958 / GEO GSE193622** supplies the octopus single-cell data. Upstream preprocessing by **David Gorelik** Z"L is documented in [OctopusSCRNAEditingCombinatorics](https://github.com/KaparaNewbie/OctopusSCRNAEditingCombinatorics) and its [pipeline guide](https://github.com/KaparaNewbie/OctopusSCRNAEditingCombinatorics/blob/main/pipeline/README.md). It produces per-transcript BAMs, alignment summaries, neuronal/non-neuronal read populations and read/cell annotations.
 
-| Population | Upstream handoff |
-|---|---|
-| All retained cells | `/private10/Projects/David/Kobi_octupus/splitSites/Whole_collapsed_sample` and `Whole_collapsed_sample.regatedByChromBySampleSummary.tsv` |
-| Neuronal | `splitSites/neuronal_reads/` and `neuronal_summary.tsv` |
-| Non-neuronal | `splitSites/non_neuronal_reads/` and `non_neuronal_summary.tsv` |
-| Read/cell metadata | `splitSites/Whole_collapsed_sample_extracted_read_data.withAnnotations.csv`; cell-class lookup [Code/Data/NeuronalityOfAnnotation.tsv](Code/Data/NeuronalityOfAnnotation.tsv) |
+Set the input root to your copy of the upstream handoff:
+
+```bash
+SC_INPUT_ROOT=/path/to/octopus-single-cell-inputs
+```
+
+Under this root, `Whole_collapsed_sample/` contains the original all-cell BAMs, with `Whole_collapsed_sample.regatedByChromBySampleSummary.tsv` alongside it. The `neuronal_reads/` and `non_neuronal_reads/` subdirectories contain their respective BAMs and `neuronal_summary.tsv` / `non_neuronal_summary.tsv`. Read/cell annotations are in `Whole_collapsed_sample_extracted_read_data.withAnnotations.csv`; the cell-class lookup is [NeuronalityOfAnnotation.tsv](Code/Data/NeuronalityOfAnnotation.tsv). Preserve the original all-cell population: the upstream pipeline's `all_reads/` directory contains only reads with neuronal/non-neuronal annotations and is not an interchangeable input.
 
 Reads are pooled within each specified cell population for RNA editing detection, protein-sequence inference and isoform selection. The resulting gene-level diversity measures describe cell-class populations, rather than individual cells.
 
-| Branch | Inputs and analysis role |
+| Cell population / minimum mapped reads per transcript | Analysis role |
 |---|---|
-| All-cell 50 | `ExpressionLevels.EntropyConsidered.MaxDistinct` assignments supply the full-cohort isoform–cell-type association analysis. |
-| All-cell 1,000 | Distinct-solution files define the ordered 3,969-gene cohort; assigned-expression values are not required. |
-| Neuronal 50 | The 3,593-gene solution cohort yields 6,241 `FixedTMR50` output genes after the one-isoform fill. Figure 6 uses isoform counts. |
-| Non-neuronal 50 | The 931-gene solution cohort yields 3,138 `FixedTMR50` output genes after the one-isoform fill. Figure 6 uses isoform counts. |
+| All cells, ≥50 | Main all-cell analysis; assigned expression supplies the isoform–cell-type association analysis. |
+| All cells, ≥1,000 | Higher-coverage isoform-diversity comparison; expression reassignment is not required for this comparison. |
+| Neuronal cells, ≥50 | Isoform diversity among neuronal cells. |
+| Non-neuronal cells, ≥50 | Isoform diversity among non-neuronal cells. |
 
 ### All cells: 50-read branch
 
@@ -1285,6 +1316,7 @@ Reads are pooled within each specified cell population for RNA editing detection
 mkdir -p O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50
 
 nohup python Code/pileup_with_subparsers.py \
+--samtools_path "$SAMTOOLS" \
 --transcriptome O.vulgaris/Annotations/orfs_oct.fa \
 --known_editing_sites O.vulgaris/Annotations/O.vul.EditingSites.bed \
 --exclude_flags 2304 \
@@ -1295,16 +1327,16 @@ nohup python Code/pileup_with_subparsers.py \
 --threads 5 \
 --gz_compression \
 undirected_sequencing_data \
---alignments_stats_table /private10/Projects/David/Kobi_octupus/splitSites/Whole_collapsed_sample.regatedByChromBySampleSummary.tsv \
+--alignments_stats_table "$SC_INPUT_ROOT/Whole_collapsed_sample.regatedByChromBySampleSummary.tsv" \
 --total_mapped_reads 50 \
 --alternative_hypothesis larger \
 --final_editing_scheme "BH after noise thresholding" \
 --disregard_alt_base_freq_1 \
---main_by_chrom_dir /private10/Projects/David/Kobi_octupus/splitSites/Whole_collapsed_sample \
+--main_by_chrom_dir "$SC_INPUT_ROOT/Whole_collapsed_sample" \
 --interfix_start ".comp" \
 --cds_regions O.vulgaris/Annotations/orfs_oct.bed \
 --min_mapped_reads_per_position 0 \
-> O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50/pileup.26.1.25.out &
+> O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50/pileup.out &
 ```
 
 #### Select distinct isoforms
@@ -1331,7 +1363,7 @@ Code/Simulations/maximal_independent_set_5.jl \
 --algrepetitions 2 \
 --algs Ascending Descending \
 --run_solve_threaded \
-2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50/DistinctProteins.regular.29.1.25.log
+2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50/DistinctProteins.regular.log
 ```
 
 #### Assign isoform expression
@@ -1366,7 +1398,7 @@ Code/Simulations/expressionlevels.jl \
 --innerthreadedassignment \
 --onlymaxdistinct \
 --outdir $OUT_DIR \
-> O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50/expressionlevels.EntropyConsidered.MaxDistinct.27.7.2026.out &
+> O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50/expressionlevels.EntropyConsidered.MaxDistinct.out &
 ```
 
 ### All cells: 1,000-read branch
@@ -1377,6 +1409,7 @@ Code/Simulations/expressionlevels.jl \
 mkdir -p O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage1000
 
 nohup python Code/pileup_with_subparsers.py \
+--samtools_path "$SAMTOOLS" \
 --transcriptome O.vulgaris/Annotations/orfs_oct.fa \
 --known_editing_sites O.vulgaris/Annotations/O.vul.EditingSites.bed \
 --exclude_flags 2304 \
@@ -1387,16 +1420,16 @@ nohup python Code/pileup_with_subparsers.py \
 --threads 5 \
 --gz_compression \
 undirected_sequencing_data \
---alignments_stats_table /private10/Projects/David/Kobi_octupus/splitSites/Whole_collapsed_sample.regatedByChromBySampleSummary.tsv \
+--alignments_stats_table "$SC_INPUT_ROOT/Whole_collapsed_sample.regatedByChromBySampleSummary.tsv" \
 --total_mapped_reads 1000 \
 --alternative_hypothesis larger \
 --final_editing_scheme "BH after noise thresholding" \
 --disregard_alt_base_freq_1 \
---main_by_chrom_dir /private10/Projects/David/Kobi_octupus/splitSites/Whole_collapsed_sample \
+--main_by_chrom_dir "$SC_INPUT_ROOT/Whole_collapsed_sample" \
 --interfix_start ".comp" \
 --cds_regions O.vulgaris/Annotations/orfs_oct.bed \
 --min_mapped_reads_per_position 0 \
-> O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage1000/pileup.27.1.25.out &
+> O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage1000/pileup.out &
 ```
 
 #### Select distinct isoforms
@@ -1423,7 +1456,7 @@ Code/Simulations/maximal_independent_set_5.jl \
 --algrepetitions 2 \
 --algs Ascending Descending \
 --run_solve_threaded \
-2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage1000/DistinctProteins.regular.29.1.2025.log
+2>&1 | tee O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage1000/DistinctProteins.regular.log
 ```
 
 ### Neuronal cells: 50-read branch
@@ -1432,11 +1465,12 @@ Code/Simulations/maximal_independent_set_5.jl \
 
 ```bash
 OUT_DIR=O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50.Neuronal
-ALIGNMENT_DIR=/private10/Projects/David/Kobi_octupus/splitSites/neuronal_reads/
+ALIGNMENT_DIR="$SC_INPUT_ROOT/neuronal_reads/"
 
 mkdir -p $OUT_DIR
 
 nohup python Code/pileup_with_subparsers.py \
+--samtools_path "$SAMTOOLS" \
 --transcriptome O.vulgaris/Annotations/orfs_oct.fa \
 --known_editing_sites O.vulgaris/Annotations/O.vul.EditingSites.bed \
 --exclude_flags 2304 \
@@ -1456,7 +1490,7 @@ undirected_sequencing_data \
 --interfix_start ".comp" \
 --cds_regions O.vulgaris/Annotations/orfs_oct.bed \
 --min_mapped_reads_per_position 0 \
-> $OUT_DIR/pileup.10.4.25.out &
+> $OUT_DIR/pileup.out &
 ```
 
 #### Select distinct isoforms
@@ -1486,7 +1520,7 @@ Code/Simulations/maximal_independent_set_5.jl \
 --algrepetitions 2 \
 --algs Ascending Descending \
 --run_solve_threaded \
-2>&1 | tee $OUT_DIR/DistinctProteins.regular.10.4.25.log
+2>&1 | tee $OUT_DIR/DistinctProteins.regular.log
 ```
 
 ### Non-neuronal cells: 50-read branch
@@ -1495,11 +1529,12 @@ Code/Simulations/maximal_independent_set_5.jl \
 
 ```bash
 OUT_DIR=O.vulgaris/MpileupAndTranscripts/PRJNA796958/SC.TotalCoverage50.NonNeuronal
-ALIGNMENT_DIR=/private10/Projects/David/Kobi_octupus/splitSites/non_neuronal_reads
+ALIGNMENT_DIR="$SC_INPUT_ROOT/non_neuronal_reads"
 
 mkdir -p $OUT_DIR
 
 nohup python Code/pileup_with_subparsers.py \
+--samtools_path "$SAMTOOLS" \
 --transcriptome O.vulgaris/Annotations/orfs_oct.fa \
 --known_editing_sites O.vulgaris/Annotations/O.vul.EditingSites.bed \
 --exclude_flags 2304 \
@@ -1519,7 +1554,7 @@ undirected_sequencing_data \
 --interfix_start ".comp" \
 --cds_regions O.vulgaris/Annotations/orfs_oct.bed \
 --min_mapped_reads_per_position 0 \
-> $OUT_DIR/pileup.10.4.25.out &
+> $OUT_DIR/pileup.out &
 ```
 
 #### Select distinct isoforms
@@ -1549,7 +1584,7 @@ Code/Simulations/maximal_independent_set_5.jl \
 --algrepetitions 2 \
 --algs Ascending Descending \
 --run_solve_threaded \
-2>&1 | tee $OUT_DIR/DistinctProteins.regular.10.4.25.log
+2>&1 | tee $OUT_DIR/DistinctProteins.regular.log
 ```
 
 ## Neural-expression annotations
@@ -1559,6 +1594,8 @@ Code/Simulations/maximal_independent_set_5.jl \
 ### Prepare short reads
 
 ```bash
+mkdir -p O.bim/Data/PRJNA285380/Raw
+
 nohup \
 python Code/prepare_data.py \
 --in_dir O.bim/Data/PRJNA285380/Raw/ \
@@ -1570,7 +1607,7 @@ illumina \
 
 ### Quantify expression and transfer neural annotations
 
-Use **Salmon 1.7.0** and **OrthoFinder 2.5.5**. The pipeline builds the Salmon index, quantifies O. bimaculoides transcripts, assigns neural-expression classes and maps them to O. vulgaris orthologs.
+Use Salmon and OrthoFinder with the versions documented in the [software requirements](software_versions/README.md#additional-documented-tool-requirements). The pipeline builds the Salmon index, quantifies O. bimaculoides transcripts, assigns neural-expression classes and maps them to O. vulgaris orthologs.
 
 ```bash
 nohup \
@@ -1588,7 +1625,7 @@ python Code/neural_transcripts.py \
 
 ## Simulations and other processing
 
-Complete-noise processing uses **samtools 1.18 / HTSlib 1.17** and the **Jan2025** reference and annotations. The original PB1/Illumina workflows above use the original reference.
+Complete-noise processing uses the samtools/HTSlib versions in the [stage-specific version table](software_versions/historical_stages.2026-11-23.md) and the **Jan2025** reference and annotations. The original PB1/Illumina workflows above use the original reference.
 
 ### PB1 complete-noise positions
 
@@ -1618,7 +1655,7 @@ directed_sequencing_data \
 --cds_regions D.pealeii/Annotations/Jan2025/orfs_squ.bed \
 --keep_non_refbase_noisy_positions \
 --stop_after_making_noise_positions \
-> "$OUTDIR/pileup_with_subparsers.OnlyNoisePositions.PB1.samtools118.21.7.2026.out" 2>&1 &
+> "$OUTDIR/pileup.OnlyNoisePositions.PB1.out" 2>&1 &
 ```
 
 ### Illumina complete-noise positions
@@ -1645,14 +1682,14 @@ python Code/pileup_with_subparsers.py \
 --keep_pileup_files \
 --override_existing_pileup_files \
 directed_sequencing_data \
---data_table D.pealeii/Alignment/Illumina/reads.ByChrom/data_table.csv \
+--data_table Code/Alignment/DataTable.Squid.ShortReads.csv \
 --cds_regions D.pealeii/Annotations/Jan2025/orfs_squ.bed \
 --keep_non_refbase_noisy_positions \
 --stop_after_making_noise_positions \
-> "$OUTDIR/pileup_with_subparsers.OnlyNoisePositions.Illumina.samtools118..21.7.2026.out" 2>&1 &
+> "$OUTDIR/pileup.OnlyNoisePositions.Illumina.out" 2>&1 &
 ```
 
-Both commands overwrite pileups in their named complete-noise output branch.
+These branches retain raw pileups for inspection or reruns and stop after exporting noise-position tables and original-read mappings. The downstream noise analysis uses those tables and mappings.
 
 ### Empirical graph assessment — Figure S16
 
@@ -1667,7 +1704,7 @@ mkdir -p Simulations/GraphAssessment
 
 nohup \
 python Code/empirical_graph_assessment.py \
-> Simulations/GraphAssessment/log.11.12.24.out &
+> Simulations/GraphAssessment/empirical_graph_assessment.out &
 ```
 
 #### Select distinct isoforms
@@ -1695,7 +1732,7 @@ Code/Simulations/maximal_independent_set_5.jl \
 --algrepetitions 8 \
 --algs Ascending Descending \
 --run_solve_threaded \
-2>&1 | tee Simulations/GraphAssessment/SameFrac/DistinctProteins.regular.21.1.25.log
+2>&1 | tee Simulations/GraphAssessment/SameFrac/DistinctProteins.regular.log
 ```
 
 #### Assess false-positive isoforms
@@ -1714,32 +1751,39 @@ Code/Simulations/mis_5_assessment.jl \
 --complete_infiles $COMPLETE_INFILES \
 --errored_na_infiles $ERRORED_NA_INFILES \
 --out_files $OUT_FILES \
-2>&1 | tee Simulations/GraphAssessment/mis_5_assessment.24.12.2024.log
+2>&1 | tee Simulations/GraphAssessment/mis_5_assessment.log
 ```
 
 ### Editing simulation — Figure S19
 
-The Figure S19 producer [manuscript_s19.jl](Code/Simulations/manuscript_s19.jl) implements the simulation from [unifinished_editing_isoforms.jl](Code/Simulations/unifinished_editing_isoforms.jl), preserving its loop and random-draw order. Use Julia 1.7.2, StatsBase 0.34.3, one thread and seed 1892, with N = 10,000 reads, K = 10 sites and the nine ordered editing/removal probability pairs from {0.001, 0.002, 0.003}. Each panel contains 45 unique off-diagonal correlations and 15 right-open histogram bins; `nextfloat(maximum)` includes the maximum in the upper bin. Run from the repository root with a new destination:
+The simulation models repeated RNA editing and read removal to examine how correlations between editing sites depend on editing and removal probabilities. The original analysis is implemented in [unifinished_editing_isoforms.jl](Code/Simulations/unifinished_editing_isoforms.jl).
+
+For Figure S19, [manuscript_s19.jl](Code/Simulations/manuscript_s19.jl) runs the relevant simulation and exports the results as tables for figure generation.
 
 ```bash
-OPENBLAS_NUM_THREADS=1 julia --project=. --startup-file=no --compiled-modules=no --threads=1 \
-  Code/Simulations/manuscript_s19.jl Code/Notebooks/figure_sources/new_run/FigureS19 \
+julia --project=. --threads 1 \
+  Code/Simulations/manuscript_s19.jl \
+  Code/Notebooks/figure_sources/new_run/FigureS19 \
   Code/Notebooks/manuscript_intermediates/new_run/s19
 ```
+
+Use new output directories for each run. Figure rendering is described in the [figure reproduction guide](docs/figure_reproduction.md).
 
 ### Chimeric-read analysis — Figure S20
 
 #### Analyze chimeric-read origins
 
-The original unique-read implementation uses squid RNA patterns and selected assigned-expression tables:
+This analysis tests whether rare RNA editing patterns are compatible with a prefix from one common RNA pattern and a suffix from another. Such compatibility suggests a potential chimeric origin; it does not directly establish molecular chimerism.
 
 ```bash
+mkdir -p D.pealeii/MpileupAndTranscripts/JointChimericReadsAnalysis2
+
 nohup \
 julia \
 --project=. \
 --threads 60 \
 Code/Simulations/chimeric_reads_origin_squid_2.jl \
-> /private6/projects/Combinatorics/D.pealeii/MpileupAndTranscripts/JointChimericReadsAnalysis2/chimeric_reads_origin_squid_2.18.5.2026.out &
+> D.pealeii/MpileupAndTranscripts/JointChimericReadsAnalysis2/chimeric_reads_origin_squid_2.out &
 ```
 
 # Scientific notebooks and workflow
