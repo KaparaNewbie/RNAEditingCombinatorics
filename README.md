@@ -10,8 +10,9 @@ The workflow is:
 
 The primary squid analyses use the original targeted PacBio data (PB1), the original pooled Illumina data, and additional squid PacBio biological replicates (JR1–JR3). Octopus Iso-Seq and single-cell data support the transcriptome-wide comparisons.
 
-**Contents**
 
+# Contents
+<br>
 <table>
   <tr>
     <th>Section</th>
@@ -73,6 +74,7 @@ The primary squid analyses use the original targeted PacBio data (PB1), the orig
     <td>—</td>
   </tr>
 </table>
+<br>
 
 # Installation and software requirements
 
