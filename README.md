@@ -1259,7 +1259,7 @@ Code/Simulations/maximal_independent_set_5.jl \
 
 ## Octopus single-cell
 
-**BioProject PRJNA796958 / GEO GSE193622** supplies the octopus single-cell data. Preprocessing by **David Gorelik** Z"L is documented in [Kobi_octupus_RNA_editing](https://github.com/zbidav/Kobi_octupus_RNA_editing). Confirm repository access with the authors. This workflow starts from its per-transcript BAMs, alignment summaries and read/cell annotations:
+**BioProject PRJNA796958 / GEO GSE193622** supplies the octopus single-cell data. Upstream preprocessing by **David Gorelik** Z"L is documented in [OctopusSCRNAEditingCombinatorics](https://github.com/KaparaNewbie/OctopusSCRNAEditingCombinatorics). This workflow starts from the resulting per-transcript BAMs, alignment summaries and read/cell annotations:
 
 | Population | Upstream handoff |
 |---|---|
@@ -1753,7 +1753,7 @@ Notebook links display the full reconstructed `.ipynb` filename and point to its
 | Notebook | Analysis / purpose |
 |---|---|
 | [squids_pacbio_5.BQ30.ipynb](Code/Notebooks/squids_pacbio_5.BQ30.py) | Original squid PacBio (PB1): expression, recoding, site correlations, All-reads entropy, original-read support and domain analysis. |
-| [squids_illumina_5.ipynb](Code/Notebooks/squids_illumina_5.py) | Squid Illumina: corresponding expression, recoding, correlation, entropy and read-support analyses for the 19-gene cohort, excluding `VGA_BPS13`. |
+| [squids_illumina_5.ipynb](Code/Notebooks/squids_illumina_5.py) | Squid Illumina: isoform expression, recoding, site correlations and read-support analyses. |
 | [squids_pacbio_5.additional_UMIs.MergedSamples.ipynb](Code/Notebooks/squids_pacbio_5.additional_UMIs.MergedSamples.py) | Additional squid PacBio all reads: per-site replicate comparisons, isoform recurrence and assigned expression within each gene and biological replicate. |
 | [additional_umi_long_reads_2b.ipynb](Code/Notebooks/additional_umi_long_reads_2b.py) | Recognizes barcodes, maps biological replicates and exports barcode-filtered and UMI-deduplicated BAMs for the downstream processing above. |
 | [squids_pacbio_5.additional_UMIs.MergedSamples.ReadsWithRecognizableBardoces.ipynb](Code/Notebooks/squids_pacbio_5.additional_UMIs.MergedSamples.ReadsWithRecognizableBardoces.py) | Assigned-expression summaries for reads with recognizable barcodes, before UMI deduplication. |
@@ -1804,11 +1804,10 @@ Conversion does not execute cells. Resolve local edits before synchronizing an e
 
 See [Publication figure and supplementary-table reproduction](docs/figure_reproduction.md) for retained-input requirements, table preparation, rendering and supplementary-workbook instructions.
 
-# Known issues / future improvements
+# Methodological limitations and future improvements
 
-- **Confirmed-open:** heuristic isoform selections are not guaranteed to be maximal or globally maximum.
-- **Suspected/unverified:** field-specific aggregation of representative-row protein metadata remains a potential area for review; an effect on manuscript statistics has not been established.
+Heuristic distinct-isoform selection does not guarantee a globally maximum or maximal solution.
 
-Observed assigned-expression entropy and All-reads marginal entropy use different empirical constructions, so their difference is not automatically exact total correlation.
+**Aggregation of read-level statistics.** When multiple RNA patterns encode the same protein sequence, some metadata in the unique-protein table may reflect a representative input row rather than an aggregate of all supporting reads (see [Code/Pileup/proteins.py](Code/Pileup/proteins.py)). Where necessary, the scientific analysis notebooks recalculate these statistics from the original supporting reads, as demonstrated by the per-isoform editing summaries in [squids_pacbio_5.BQ30.ipynb](Code/Notebooks/squids_pacbio_5.BQ30.py). A systematic review of the remaining aggregated fields and their downstream uses would be a useful future improvement.
 
 Historical workflows are archived in [Logs.Final.md](Logs.Final.md); environment requirements and validation records are linked from [software_versions/README.md](software_versions/README.md).
